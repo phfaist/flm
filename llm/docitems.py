@@ -1,7 +1,7 @@
 
 
 
-class DocObject:
+class DocumentItem:
     # object that might have a side effect, a label, a float, etc.
     pass
 
@@ -9,8 +9,7 @@ class DocObject:
 # ------------------
 
 
-
-class DocEquation:
+class Equation(DocumentItem):
     r"""
     Represents a numbered equation, e.g., {equation}, {align}, etc.
     """
@@ -22,7 +21,7 @@ class DocEquation:
         self.environment_name = environment_name
         self.label = label
 
-class DocFloat:
+class Float(DocumentItem):
     def __init__(
             self,
             float_type='figure',
@@ -37,7 +36,7 @@ class DocFloat:
         self.label = label
         self.contents = contents
 
-class DocFootnote:
+class Footnote(DocumentItem):
     def __init__(
             self,
             footnote_content,
@@ -45,7 +44,7 @@ class DocFootnote:
         self.footnote_content = footnote_content
 
 
-class DocCitation:
+class Citation(DocumentItem):
     def __init__(
             self,
             citation_key_prefix,
@@ -61,7 +60,7 @@ class DocCitation:
 
 # # ----------------------------------------------------------
 
-# class DocumentWithObjects:
+# class DocumentWithItems:
 #     def __init__(self):
 #         self.equations = []
 #         self.floats = []
