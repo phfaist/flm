@@ -142,7 +142,10 @@ class FragmentRenderer:
         # for our HTML implementation as well since we'll rely on MathJax.
         # Other implementations that don't want to render math in this type of
         # way will have to reimplement render_node_math().
-        return self.render_verbatim(node.latex_verbatim(), f'{displaytype}-math')
+        return self.render_verbatim(
+            delimiters[0] + nodelist.latex_verbatim() + delimiters[1],
+            f'{displaytype}-math'
+        )
     
 
 
@@ -222,7 +225,7 @@ class FragmentRenderer:
 
 
 
-class TextFragmentRenderer:
+class TextFragmentRenderer(FragmentRenderer):
 
     display_href_urls = True
 
