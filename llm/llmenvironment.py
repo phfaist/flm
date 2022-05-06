@@ -1,46 +1,95 @@
-
 from pylatexenc import macrospec
 
+from .llmfragment import LLMFragment
 
-class LLMRenderDispatcher:
 
-    def render(self, node, doc):
+# ------------------------------------------------------------------------------
+
+
+class LLMEnvironment:
+    def __init__(self, latex_context_db):
+        super().__init__()
+        self.latex_context_db = latex_context_db
+
+    def make_llm_fragment(self, llm_text, **kwargs):
+        return LLMFragment(llm_text, llm_environment=self, **kwargs)
+
+
+
+# ------------------------------------------------------------------------------
+
+class LLMSpecInfo:
+
+    delayed_render = False
+
+    def __init__(self):
+        super().__init__()
+
+    # def finalize_parsed_node(self, node):
+    #     return node
+
+    def scan(self, node, scanner):
+        r"""
+        ...
+        """
+        pass
+
+    def prepare_delayed_render(self, node, doc, fragment_renderer):
+        r"""
+        For items with `delayed_render=True`, this method is called instead of
+        render() on the first pass, so that this document item has the
+        opportunity to register itself in document feature managers, etc.
+
+        This method is never called if `delayed_render=False`.
+        """
         raise RuntimeError("Reimplement me!")
 
+    def render(self, node, doc, fragment_renderer):
+        raise RuntimeError(f"Element ‘{node}’ cannot be placed here, render() not reimplemented.")
 
 
 
+class LLMSpecInfoSpecClass:
+    def __init__(self, llm_specinfo, **kwargs):
+        super().__init__(**kwargs)
+        self.llm_specinfo = llm_specinfo
+        if hasattr(llm_specinfo, 'render'):
+            self.llm_specinfo_string = None
+        else:
+            self.llm_specinfo_string = llm_specinfo
 
+    def finalize_node(self, node):
+        node.llm_specinfo = self.llm_specinfo
+        return node
 
-class LLMMacroSpec(macrospec.MacroSpec):
-    def __init__(self, macroname, arguments_spec_list=None, rd=None):
+    
+
+class LLMMacroSpec(LLMSpecInfoSpecClass, macrospec.MacroSpec):
+    def __init__(self, macroname, arguments_spec_list=None, llm_specinfo=None):
         super().__init__(
-            macroname,
+            macroname=macroname,
             arguments_spec_list=arguments_spec_list,
-            finalize_node=getattr(rd, 'finalize_parsed_node', None),
+            llm_specinfo=llm_specinfo,
         )
-        self.rd = rd
 
-class LLMEnvironmentpec(macrospec.EnvironmentSpec):
+
+class LLMEnvironmentSpec(LLMSpecInfoSpecClass, macrospec.EnvironmentSpec):
     def __init__(self, environmentname, arguments_spec_list=None, body_parser=None,
-                 rd=None):
+                 llm_specinfo=None):
         super().__init__(
-            environmentname,
+            environmentname=environmentname,
             arguments_spec_list=arguments_spec_list,
             body_parser=body_parser,
-            finalize_node=getattr(rd, 'finalize_parsed_node', None),
+            llm_specinfo=llm_specinfo,
         )
-        self.rd = rd
 
-class LLMSpecialsSpec(macrospec.SpecialsSpec):
-    def __init__(self, specials_chars, arguments_spec_list=None, rd=None):
+class LLMSpecialsSpec(LLMSpecInfoSpecClass, macrospec.SpecialsSpec):
+    def __init__(self, specials_chars, arguments_spec_list=None, llm_specinfo=None):
         super().__init__(
-            environmentname,
+            specials_chars=specials_chars,
             arguments_spec_list=arguments_spec_list,
-            body_parser=body_parser,
-            finalize_node=getattr(rd, 'finalize_parsed_node', None),
+            llm_specinfo=llm_specinfo,
         )
-        self.rd = rd
 
 
 
@@ -48,13 +97,19 @@ class LLMSpecialsSpec(macrospec.SpecialsSpec):
 # ------------------------------------------------------------------------------
 
 
-class Verbatim(LLMRenderDispatcher):
+class Verbatim(LLMSpecInfo):
+    r"""
+    Wraps an argument, or an environment body, as verbatim content.
+
+    The `annotation` is basically a HTML class name to apply to the block of
+    content.  Use this for instance to separate out math content, etc.
+    """
     def __init__(self, annotation=None, include_environment_begin_end=False):
         super().__init__()
         self.annotation = annotation
         self.include_environment_begin_end = include_environment_begin_end
 
-    def render(self, node, doc):
+    def render(self, node, doc, fragment_renderer):
 
         if node.isNodeType(nodes.LatexEnvironmentNode):
             if self.include_environment_begin_end:
@@ -66,83 +121,72 @@ class Verbatim(LLMRenderDispatcher):
         else:
             verbatim_contents = node.latex_verbatim()
         
-        return doc.render_verbatim( verbatim_contents , annotation=self.annotation )
+        return fragment_renderer.render_verbatim(
+            verbatim_contents,
+            self.annotation
+        )
 
+class MathEnvironment(LLMSpecInfo):
 
-class TextFormat(LLMRenderDispatcher):
+    def render(self, node, doc, fragment_renderer):
+        environmentname = node.environmentname
+        return fragment_renderer.render_math_content(
+            (f"\\begin{{{environmentname}}}", f"\\end{{{environmentname}}}",),
+            node.nodelist,
+            doc,
+            'display',
+            environmentname
+        )
+
+class TextFormat(LLMSpecInfo):
     # any additional 
-    def __init__(self, text_format):
+    def __init__(self, text_formats):
+        r"""
+        The argument `text_formats` is a list of strings, each string is a format
+        name to apply.  Format names are inspired from the corresponding
+        canonical LaTeX macros that apply them.  They are:
+
+        - `textit`
+
+        - `textbf`
+
+        - (possibly more in the future)
+        """
         super().__init__()
-        self.text_format = text_format
+        self.text_formats = text_formats
 
-    def render(self, node, doc):
+    def render(self, node, doc, fragment_renderer):
 
-        node_args = doc.get_arguments_nodelists(
+        node_args = fragment_renderer.get_arguments_nodelists(
             node,
             ('text',) ,
             all=True
         )
 
-        text = doc.render_nodelist( node_args['text'] )
+        text = fragment_renderer.render_nodelist( node_args['text'], doc )
 
-        return doc.render_text_format(self.text_format, text)
+        return fragment_renderer.render_text_format(self.text_formats, text)
 
 
-class Ref(LLMRenderDispatcher):
-    def __init__(self, ref_type):
-        super().__init__()
-        self.ref_type = ref_type
+
+# class FloatGraphics(LLMSpecInfo):
+#     def __init__(self, float_type='figure', float_caption_name='Figure'):
+#         super().__init__()
+#         self.float_type = float_type
+#         self.float_caption_name = float_caption_name
         
-    def render(self, node, doc):
+#     def finalize_parsed_node(self, node):
+#         ...
 
-        node_args = doc.get_arguments_nodelists(
-            node,
-            ('reftarget', 'displaytext'),
-            all=True,
-            skip_nonexistent=True,
-        )
-
-        reftarget_nodelist = node_args['reftarget']
-        if not reftarget_nodelist or len(reftarget_nodelist) > 1 \
-           or not reftarget_nodelist[1].isNodeType(nodes.LatexCharsNode):
-            raise ValueError(
-                f"Expected exactly one characters node as reftarget, got {node!r}"
-            )
-
-        reftarget = reftarget_nodelist[1].chars
-
-        if 'displaytext' in node_args:
-            display_content = doc.render_nodelist( node_args['displaytext'] )
-        else:
-            display_content = None
-
-        return doc.render_ref(self.ref_type, reftarget, display_content)
-
-class FloatGraphics(LLMRenderDispatcher):
-    def __init__(self, float_type='figure', float_caption_name='Figure'):
-        super().__init__()
-        self.float_type = float_type
-        self.float_caption_name = float_caption_name
-        
-    def finalize_parsed_node(self, node):
-        ...
-
-    def render(self, node, doc):
+#     def render(self, node, doc, fragment_renderer):
         
 
 
 
-class Error(LLMRenderDispatcher):
-    def render(self, node, doc):
+class Error(LLMSpecInfo):
+    def render(self, node, doc, fragment_renderer):
         raise ValueError(
             f"The node ‘{node}’ cannot be placed here."
         )
 
 
-
-# ------------------------------------------------------------------------------
-
-
-class LLMStandardEnvironment:
-    
-    .............
