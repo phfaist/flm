@@ -163,9 +163,12 @@ class TextFormat(LLMSpecInfo):
             all=True
         )
 
-        text = fragment_renderer.render_nodelist( node_args['text'], doc )
+        content = fragment_renderer.render_nodelist(
+            node_args['text'], doc,
+            use_paragraphs=False
+        )
 
-        return fragment_renderer.render_text_format(self.text_formats, text)
+        return fragment_renderer.render_text_format(self.text_formats, content)
 
 
 

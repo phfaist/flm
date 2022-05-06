@@ -75,10 +75,13 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
             class_names=class_names
         )
 
-    def render_text_format(self, text_formats, value):
+    def render_text_format(self, text_formats, content):
+        r"""
+        The argument `content` is already assumed to be valid HTML!
+        """
         return self.wrap_in_tag(
             'span',
-            self.htmlescape(value),
+            content,
             class_names=text_formats
         )
 

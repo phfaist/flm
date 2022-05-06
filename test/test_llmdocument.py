@@ -43,7 +43,7 @@ we can also have an equation, like this:
 
         self.assertEqual(result, r"""
 <main>
-<div><p><span class="textbf">&lt;p&gt;Hello&lt;/p&gt;</span> <span class="textit">&lt;p&gt;world&lt;/p&gt;</span>, we know that <span class="inline-math">\(a+b=c\)</span>.</p></div>
+<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.</p></div>
 <div><p>We can also split text across multiple paragraphs, like this
 block of text here.</p>
 <p>we can also have an equation, like this:
@@ -97,3 +97,7 @@ we can also have an equation, like this:
 |||
         """.strip())
         
+
+
+if __name__ == '__main__':
+    unittest.main()

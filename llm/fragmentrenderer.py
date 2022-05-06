@@ -243,8 +243,8 @@ class TextFragmentRenderer(FragmentRenderer):
     def render_verbatim(self, value, annotation):
         return value
 
-    def render_text_format(self, text_format, value):
-        return value
+    def render_text_format(self, text_format, content):
+        return content
     
     def render_link(self, ref_type, href, display_content):
         r"""
