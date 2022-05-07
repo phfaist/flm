@@ -25,6 +25,10 @@ class FragmentRenderer:
     def render_nodelist(self, nodelist, doc, use_paragraphs=None):
         r"""
         Render a nodelist, splitting the contents into paragraphs if applicable.
+
+        If `use_paragraphs=False` (or if `use_paragraphs=None` and the class
+        default is `use_paragraphs=False`), then paragraph breaks are reported
+        as syntax errors.
         """
         if use_paragraphs is None:
             use_paragraphs = self.use_paragraphs
@@ -159,6 +163,11 @@ class FragmentRenderer:
     
 
     def render_join_pieces(self, pieces):
+        r"""
+        Join together a collection of pieces that have already been rendered.
+        Usually you'd want to simply join the strings together with no joiner,
+        which is what the default implementation does.
+        """
         return "".join(pieces)
 
     def render_join_as_paragraphs(self, paragraphs_content):
@@ -246,12 +255,12 @@ class TextFragmentRenderer(FragmentRenderer):
     def render_empty_error_placeholder(self, debug_str):
         return ''
 
+    def render_text_format(self, text_formats, content):
+        return content
+    
     def render_verbatim(self, value, annotation):
         return value
 
-    def render_text_format(self, text_format, content):
-        return content
-    
     def render_link(self, ref_type, href, display_content):
         r"""
         .....

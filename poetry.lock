@@ -69,7 +69,7 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
 name = "pylatexenc"
-version = "3.0a1"
+version = "3.0a2"
 description = "Simple LaTeX parser providing latex-to-unicode and unicode-to-latex conversion"
 category = "main"
 optional = false
@@ -80,7 +80,7 @@ develop = false
 type = "git"
 url = "https://github.com/phfaist/pylatexenc.git"
 reference = "devel"
-resolved_reference = "27f3eb3a3fe06cbfde62271fa911a5eaf83a0786"
+resolved_reference = "091336eb24979141dea7951771ae2beeeed406fe"
 
 [[package]]
 name = "pyparsing"

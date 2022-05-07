@@ -14,8 +14,8 @@ class TestLLMDocument(unittest.TestCase):
     
         environ = LLMStandardEnvironment()
 
-        frag1 = environ.make_llm_fragment(r"\textbf{Hello} \textit{world}, we know that \(a+b=c\).")
-        frag2 = environ.make_llm_fragment(
+        frag1 = environ.make_fragment(r"\textbf{Hello} \textit{world}, we know that \(a+b=c\).")
+        frag2 = environ.make_fragment(
             r"""
 We can also split text across multiple paragraphs, like this
 block of text here.
@@ -58,8 +58,8 @@ block of text here.</p>
     
         environ = LLMStandardEnvironment()
 
-        frag1 = environ.make_llm_fragment(r"\textbf{Hello} \textit{world}, we know that \(a+b=c\).")
-        frag2 = environ.make_llm_fragment(
+        frag1 = environ.make_fragment(r"\textbf{Hello} \textit{world}, we know that \(a+b=c\).")
+        frag2 = environ.make_fragment(
             r"""
 We can also split text across multiple paragraphs, like this
 block of text here.

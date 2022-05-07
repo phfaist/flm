@@ -7,13 +7,19 @@ from .llmfragment import LLMFragment
 
 
 class LLMEnvironment:
-    def __init__(self, latex_context_db):
+    def __init__(self, latex_context=None, tolerant_parsing=False):
         super().__init__()
-        self.latex_context_db = latex_context_db
+        self.latex_context = latex_context
+        self.tolerant_parsing = tolerant_parsing
 
-    def make_llm_fragment(self, llm_text, **kwargs):
+    def get_parsing_state(self):
+        return ParsingState(latex_context=self.latex_context)
+
+    def make_fragment(self, llm_text, **kwargs):
         return LLMFragment(llm_text, llm_environment=self, **kwargs)
 
+    def get_parse_error_message(self, exception_object):
+        return str( exception_object )
 
 
 # ------------------------------------------------------------------------------
@@ -176,9 +182,14 @@ class MathEnvironment(LLMSpecInfo):
 
 
 class Error(LLMSpecInfo):
+    def __init__(self, error_msg=None):
+        super().__init__()
+        self.error_msg = error_msg
+    
     def render(self, node, doc, fragment_renderer):
-        raise ValueError(
-            f"The node ‘{node}’ cannot be placed here."
-        )
+        if self.error_msg:
+            raise ValueError(self.error_msg)
+        else:
+            raise ValueError(f"The node ‘{node}’ cannot be placed here.")
 
 

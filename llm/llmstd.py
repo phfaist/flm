@@ -1,10 +1,12 @@
+from pylatexenc import latexnodes
 from pylatexenc import macrospec
 
 
 from .llmenvironment import (
     LLMEnvironment, LLMMacroSpec, LLMEnvironmentSpec, LLMSpecialsSpec,
-    TextFormat, Verbatim, MathEnvironment
+    TextFormat, Verbatim, MathEnvironment, Error
 )
+from .llmdocument import LLMDocument
 
 
 _single_text_arg = [
@@ -51,6 +53,7 @@ def standard_latex_context_db():
             # new paragraph
             LLMSpecialsSpec(
                 '\n\n',
+                llm_specinfo=Error('Paragraph break is not allowed here')
             ),
         ]
     )
@@ -223,7 +226,65 @@ def standard_latex_context_db():
 
 
 
+def standard_parsing_state(latex_context,
+                           *,
+                           enable_comments=False,
+                           dollar_inline_math_mode=False):
+
+    forbidden_characters = ''
+    if not dollar_inline_math_mode:
+        forbidden_characters += '$'
+    if not enable_comments:
+        forbidden_characters += '%'
+
+    latex_inline_math_delimiters = [ (r'\(', r'\)'), ]
+
+    if dollar_inline_math_mode:
+        latex_inline_math_delimiters.append( ('$', '$') )
+
+    return latexnodes.ParsingState(
+        latex_context=latex_context,
+        enable_comments=enable_comments,
+        latex_inline_math_delimiters=latex_inline_math_delimiters,
+        latex_display_math_delimiters=[ (r'\[', r'\]') ],
+        forbidden_characters=forbidden_characters,
+    )
+
+
 class LLMStandardEnvironment(LLMEnvironment):
-    def __init__(self):
-        latex_context_db = standard_latex_context_db()
-        super().__init__(latex_context_db=latex_context_db)
+    def __init__(self, parsing_state=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.latex_context = None
+
+        if parsing_state is None:
+            latex_context = standard_latex_context_db()
+            parsing_state = standard_parsing_state(latex_context)
+
+        self.parsing_state = parsing_state
+
+    def get_parsing_state(self):
+        return self.parsing_state
+
+
+    def make_document(self, render_callback, fragment_renderer):
+        return LLMDocument(render_callback, self, fragment_renderer)
+
+
+    def get_parse_error_message(self, exception_object):
+        error_type_info = exception_object.error_type_info
+        if error_type_info:
+            what = error_type_info['what']
+            if what == 'token_forbidden_character':
+                if error_type_info['forbidden_character'] == '%':
+                    return (
+                        r"LaTeX comments are not allowed here. Use ‘\%’ to typeset a "
+                        r"literal percent sign."
+                    )
+                if error_type_info['forbidden_character'] == '$':
+                    return (
+                        r"You can't use ‘$’ here. LaTeX math should be typeset using "
+                        r"\(...\) for inline math and \[...\] for unnumbered display "
+                        r"equations. Use ‘\$’ for a literal dollar sign."
+                    )
+        return str(exception_object)
