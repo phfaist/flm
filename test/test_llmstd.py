@@ -55,6 +55,21 @@ class TestLLMStandardEnvironment(unittest.TestCase):
 
 
 
+    def test_unknown_macros_in_math(self):
+        environ = LLMStandardEnvironment()
+        frag1 = environ.make_fragment(
+            r"We know that \(\alpha+\beta=\gamma\)."
+        )
+        self.assertEqual(frag1.nodes[1].nodelist[0].macroname, 'alpha')
+
+    def test_no_unknown_macros_in_text(self):
+        environ = LLMStandardEnvironment()
+        with self.assertRaises(LatexWalkerParseError):
+            frag1 = environ.make_fragment(
+                r"We know that \unknownMacros can cause errors."
+            )
+
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,5 +1,9 @@
+import logging
+logger = logging.getLogger(__name__)
+
 from pylatexenc import latexnodes
 from pylatexenc import macrospec
+from pylatexenc import latexwalker
 
 
 from .llmenvironment import LLMEnvironment
@@ -13,6 +17,39 @@ from .llmdocument import LLMDocument
 _single_text_arg = [
     macrospec.LatexArgumentSpec('{', argname='text')
 ]
+
+class LLMWalkerEventsParsingStateDeltasProvider(
+        latexnodes.WalkerEventsParsingStateDeltasProvider
+):
+
+    def enter_math_mode(self, math_mode_delimiter=None, trigger_token=None):
+        logger.debug("LLMWalkerEventsParsingStateDeltasProvider.enter_math_mode !")
+        return macrospec.ParsingStateDeltaExtendLatexContextDb(
+            set_attributes=dict(
+                in_math_mode=True,
+                math_mode_delimiter=math_mode_delimiter,
+            ),
+            extend_latex_context=dict(
+                unknown_macro_spec=LLMMacroSpec(''),
+                unknown_environment_spec=LLMEnvironmentSpec(''),
+                unknown_specials_spec=LLMSpecialsSpec(''),
+            )
+        )
+
+    def leave_math_mode(self, trigger_token=None):
+        logger.debug("LLMWalkerEventsParsingStateDeltasProvider.leave_math_mode !")
+        return macrospec.ParsingStateDeltaExtendLatexContextDb(
+            set_attributes=dict(
+                in_math_mode=False,
+                math_mode_delimiter=None
+            ),
+            extend_latex_context=dict(
+                unknown_macro_spec=None,
+                unknown_environment_spec=None,
+                unknown_specials_spec=None,
+            )
+        )
+    
 
 def standard_latex_context_db():
 
@@ -264,8 +301,24 @@ class LLMStandardEnvironment(LLMEnvironment):
 
         self.parsing_state = parsing_state
 
-    def get_parsing_state(self):
-        return self.parsing_state
+    def make_latex_walker(self, llm_text):
+
+        latex_walker = latexwalker.LatexWalker(
+            llm_text,
+            # the latex_context will be overwritten anyway; don't specify `None`
+            # here because that will cause pylatexenc to load its big default
+            # database:
+            latex_context=self.parsing_state.latex_context,
+            tolerant_parsing=self.tolerant_parsing
+        )
+
+        # Set the default_parsing_state directly.
+        latex_walker.default_parsing_state = self.parsing_state
+
+        latex_walker.parsing_state_deltas_provider = \
+            LLMWalkerEventsParsingStateDeltasProvider()
+
+        return latex_walker
 
 
     def make_document(self, render_callback):

@@ -2,7 +2,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc import latexnodes
-from pylatexenc import latexwalker
 import pylatexenc.latexnodes.parsers as latexnodes_parsers
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
@@ -27,8 +26,7 @@ class LLMFragment:
         try:
             self.latex_walker, self.nodes = \
                 LLMFragment.parse(self.llm_text,
-                                  self.llm_environment.get_parsing_state(),
-                                  tolerant_parsing=self.llm_environment.tolerant_parsing)
+                                  self.llm_environment,)
         except latexnodes.LatexWalkerParseError as e:
             if not self.silent:
                 error_message = self.llm_environment.get_parse_error_message(e)
@@ -47,19 +45,11 @@ class LLMFragment:
 
 
     @classmethod
-    def parse(cls, llm_text, parsing_state, *, tolerant_parsing=False):
+    def parse(cls, llm_text, llm_environment):
 
-        latex_walker = latexwalker.LatexWalker(
-            llm_text,
-            # the latex_context will be overwritten anyway; don't specify `None`
-            # here because that will cause pylatexenc to load its big default
-            # database:
-            latex_context=parsing_state.latex_context,
-            tolerant_parsing=tolerant_parsing
-        )
+        tolerant_parsing = llm_environment.tolerant_parsing
 
-        # Set the default_parsing_state directly.
-        latex_walker.default_parsing_state = parsing_state
+        latex_walker = llm_environment.make_latex_walker(llm_text)
 
         nodes, _ = latex_walker.parse_content(
             latexnodes_parsers.LatexGeneralNodesParser(),

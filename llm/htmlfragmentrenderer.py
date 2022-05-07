@@ -81,7 +81,7 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
 
     def render_text_format(self, text_formats, content):
         r"""
-        The argument `content` is already assumed to be valid HTML!
+        The argument `content` is already valid HTML
         """
         return self.wrap_in_tag(
             'span',
