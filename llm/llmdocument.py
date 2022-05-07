@@ -5,14 +5,12 @@ class LLMDocument:
     def __init__(self,
                  render_callback,
                  environment,
-                 fragment_renderer,
                  feature_managers=None):
         super().__init__()
 
         # set up environment, callback function, fragment_renderer
         self.environment = environment
         self.render_callback = render_callback
-        self.fragment_renderer = fragment_renderer
 
         # set up feature managers
         if feature_managers is None:
@@ -42,7 +40,7 @@ class LLMDocument:
         return self.feature_managers[feature_name]
 
 
-    def render(self):
+    def render(self, fragment_renderer):
         r"""
         ...........
 
@@ -55,13 +53,13 @@ class LLMDocument:
 
 
         # assumes no delayed rendering occurs
-        value = self.render_callback(self, self.fragment_renderer)
+        value = self.render_callback(self, fragment_renderer)
 
         # do any necessary processing required by the feature managers, in the
         # order they were specified
 
         for feature_manager in self.feature_managers_list:
-            feature_manager.process(self, self.fragment_renderer, value)
+            feature_manager.process(self, fragment_renderer, value)
 
         # now render all the delayed nodes
 
@@ -70,11 +68,11 @@ class LLMDocument:
             # that the node's llm_specinfo must have a render() method because
             # it's a delayed render node.
             self._delayed_render_content[key] = \
-                node.llm_specinfo.render(node, self, self.fragment_renderer)
+                node.llm_specinfo.render(node, self, fragment_renderer)
 
         # now produce the final, rendered result
 
-        if self.fragment_renderer.supports_delayed_render_markers:
+        if fragment_renderer.supports_delayed_render_markers:
 
             # Fix the resulting value, whether it is a dictionary, list, or a
             # single string.  We allow general values like dict or list in case
@@ -82,7 +80,7 @@ class LLMDocument:
             # keep them separate for future use.
 
             fix_string_fn = lambda s: \
-                self.fragment_renderer.replace_delayed_markers_with_final_values(
+                fragment_renderer.replace_delayed_markers_with_final_values(
                     s,
                     self._delayed_render_content
                 )
@@ -102,10 +100,10 @@ class LLMDocument:
 
             # need a second pass to re-render everything with the correct values
             self.two_pass_mode_is_second_pass = True
-            value = self.render_callback(self, self.fragment_renderer)
+            value = self.render_callback(self, fragment_renderer)
 
         for feature_manager in self.feature_managers_list:
-            feature_manager.postprocess(self, self.fragment_renderer, value)
+            feature_manager.postprocess(self, fragment_renderer, value)
 
         return value
 

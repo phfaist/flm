@@ -268,8 +268,17 @@ class LLMStandardEnvironment(LLMEnvironment):
         return self.parsing_state
 
 
-    def make_document(self, render_callback, fragment_renderer):
-        return LLMDocument(render_callback, self, fragment_renderer)
+    def make_document(self, render_callback):
+
+        # TODO: provide a good set of default feature managers, maybe make this
+        # customizable etc.
+        feature_managers = None
+
+        return LLMDocument(
+            render_callback,
+            self,
+            feature_managers=feature_managers
+        )
 
 
     def get_parse_error_message(self, exception_object):

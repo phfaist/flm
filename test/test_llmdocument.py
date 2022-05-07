@@ -142,9 +142,9 @@ we can also have an equation, like this:
             )
 
         fr = HtmlFragmentRenderer()
-        doc = LLMDocument(render_fn, environ, fr)
+        doc = LLMDocument(render_fn, environ)
 
-        result = doc.render()
+        result = doc.render(fr)
         print(result)
 
         self.assertEqual(result, r"""
@@ -184,9 +184,9 @@ we can also have an equation, like this:
             )
 
         fr = TextFragmentRenderer()
-        doc = LLMDocument(render_fn, environ, fr)
+        doc = LLMDocument(render_fn, environ)
 
-        result = doc.render()
+        result = doc.render(fr)
         print(result)
 
         self.assertEqual(result, r"""
@@ -203,8 +203,6 @@ we can also have an equation, like this:
 |||
         """.strip())
         
-
-
 
 
     def test_delayed_render(self):
@@ -244,13 +242,12 @@ we can also have an equation, like this:
         doc = LLMDocument(
             render_fn,
             environ,
-            fr,
             feature_managers=[
                 my_feature_manager
             ]
         )
 
-        result = doc.render()
+        result = doc.render(fr)
         print(result)
 
         predict_docsize = len(r"""

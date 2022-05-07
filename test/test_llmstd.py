@@ -41,9 +41,9 @@ class TestLLMStandardEnvironment(unittest.TestCase):
 
         # LLMStandardEnvironment offers make_document to avoid having to import
         # and instantiate LLMDocuments ourselves.
-        doc = environ.make_document(render_fn, fr)
+        doc = environ.make_document(render_fn)
 
-        result = doc.render()
+        result = doc.render(fr)
 
         self.assertEqual(
             result,
