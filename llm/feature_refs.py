@@ -46,7 +46,7 @@ class SpecInfoRef(LLMSpecInfo):
 
 
 
-class RefsManager:
+class RefsManager(DocumentFeatureBase):
     r"""
     Manager for internal references, such as ``\eqref{...}``, ``\ref{...}``, etc.
     """

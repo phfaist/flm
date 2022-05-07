@@ -2,8 +2,9 @@ from pylatexenc import latexnodes
 from pylatexenc import macrospec
 
 
-from .llmenvironment import (
-    LLMEnvironment, LLMMacroSpec, LLMEnvironmentSpec, LLMSpecialsSpec,
+from .llmenvironment import LLMEnvironment
+from .llmspecinfo import (
+    LLMMacroSpec, LLMEnvironmentSpec, LLMSpecialsSpec,
     TextFormat, Verbatim, MathEnvironment, Error
 )
 from .llmdocument import LLMDocument

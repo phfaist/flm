@@ -31,7 +31,7 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
 
     def wrap_in_link(self, display_html, target_href, *, class_names=None):
         attrs = {
-            'href': htmlescape(target_href)
+            'href': self.htmlescape(target_href)
         }
         if callable(self.use_link_target_blank):
             if self.use_link_target_blank(target_href):
@@ -57,6 +57,10 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
 
     def render_empty_error_placeholder(self):
         return "<span class=\"empty-error-placeholder\">(?)</span>"
+
+    def render_nothing(self, annotation):
+        annotation = annotation.replace('--', '- - ')
+        return '<!-- {} -->'.format(annotation)
 
     def render_verbatim(self, value, annotation):
         return self.wrap_in_tag(
@@ -92,6 +96,9 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
     
     def render_delayed_marker(self, node, delayed_key, doc):
         return f"<LLM:DLYD:{delayed_key}/>"
+
+    def render_delayed_dummy_placeholder(self, node, delayed_key, doc):
+        return '<!-- delayed:{delayed_key} -->'
 
     def replace_delayed_markers_with_final_values(self, content, delayed_values):
         return _rx_delayed_markers.sub(

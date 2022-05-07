@@ -118,7 +118,7 @@ class FragmentRenderer:
 
             if is_first_pass:
                 llm_specinfo.prepare_delayed_render(node, doc, self)
-                delayed_key = doc.register_delayed_render(node)
+                delayed_key = doc.register_delayed_render(node, self)
 
             if self.supports_delayed_render_markers:
                 # first pass, there's only one pass anyways; we're generating
@@ -128,7 +128,7 @@ class FragmentRenderer:
                 # first pass of a two-pass scheme
                 llm_specinfo.prepare_delayed_render(node, doc, self)
                 # dummy placeholder, you'll never see it unless there's a bug:
-                return '#DELAYED#'
+                return self.render_delayed_dummy_placeholder(node, delayed_key, doc)
             else:
                 # second pass of the two-pass scheme
                 assert( doc.two_pass_mode_is_second_pass )
@@ -252,6 +252,12 @@ class TextFragmentRenderer(FragmentRenderer):
     def render_delayed_marker(self, node, delayed_key, doc):
         return ''
 
+    def render_delayed_dummy_placeholder(self, node, delayed_key, doc):
+        return '#DELAYED#'
+
+    def render_nothing(self, annotation):
+        return ''
+
     def render_empty_error_placeholder(self, debug_str):
         return ''
 
@@ -278,5 +284,4 @@ class TextFragmentRenderer(FragmentRenderer):
         if self.display_href_urls:
             return f"{display_content} <{href}>"
         return display_content
-
 

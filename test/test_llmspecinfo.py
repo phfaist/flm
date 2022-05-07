@@ -1,7 +1,6 @@
 import unittest
 
-from llm.llmenvironment import (
-    LLMEnvironment,
+from llm.llmspecinfo import (
     LLMSpecInfo,
     LLMSpecInfoSpecClass,
     LLMMacroSpec,

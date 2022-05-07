@@ -61,11 +61,11 @@ class LLMDocument:
         # order they were specified
 
         for feature_manager in self.feature_managers_list:
-            feature_manager.process(self, self.fragment_renderer)
+            feature_manager.process(self, self.fragment_renderer, value)
 
         # now render all the delayed nodes
 
-        for key, node in self._delayed_render_nodes:
+        for key, node in self._delayed_render_nodes.items():
             # render the content of these delayed-render nodes now.  We know
             # that the node's llm_specinfo must have a render() method because
             # it's a delayed render node.
@@ -104,6 +104,9 @@ class LLMDocument:
             self.two_pass_mode_is_second_pass = True
             value = self.render_callback(self, self.fragment_renderer)
 
+        for feature_manager in self.feature_managers_list:
+            feature_manager.postprocess(self, self.fragment_renderer, value)
+
         return value
 
 
@@ -111,7 +114,7 @@ class LLMDocument:
         return fragment_renderer.render_fragment(fragment, self)
 
 
-    def register_delayed_render(self, node, stage, fragment_renderer):
+    def register_delayed_render(self, node, fragment_renderer):
         # register the node for delayed render, generate a key for it, and
         # return the key
         key = self._delayed_id_counter
