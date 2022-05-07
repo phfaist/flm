@@ -7,7 +7,7 @@ The syntax of LLM is essentially a subset of standard LaTeX commands, including
 macros, environments, and some characters that have a special meaning; these
 features are parsed in a similar fashion to a TeX/LaTeX engine.
 
-See [Latex-Like Markup Language Features](#llm_features.md) for more some
+See [Latex-Like Markup Language Features](llm_features.md) for more some
 standard features that you can expect with a default set of commands.
 
 The framework is meant to be very easily extendible and customizable.  The
