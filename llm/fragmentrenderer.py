@@ -108,23 +108,29 @@ class FragmentRenderer:
         if llm_specinfo.delayed_render:
             # requested a delayed rendering -- 
 
-            if self.supports_delayed_render_markers:
+            is_first_pass = (self.supports_delayed_render_markers
+                             or not doc.two_pass_mode_is_second_pass)
+            delayed_key = None
 
+            if is_first_pass:
+                llm_specinfo.prepare_delayed_render(node, doc, self)
                 delayed_key = doc.register_delayed_render(node)
+
+            if self.supports_delayed_render_markers:
+                # first pass, there's only one pass anyways; we're generating
+                # the marker for the delayed content now -->
                 return self.render_delayed_marker(node, delayed_key, doc)
-
-            else:
-                # otherwise, we're in a two-pass scheme
-
-                if doc.two_pass_mode_is_second_pass:
-                    # can produce rendered content now
-                    return doc.get_delayed_render_content(node)
-
-                # register the delayed node, we don't need the delayed_key
-                _ = doc.register_delayed_render(node)
-
+            elif is_first_pass:
+                # first pass of a two-pass scheme
+                llm_specinfo.prepare_delayed_render(node, doc, self)
                 # dummy placeholder, you'll never see it unless there's a bug:
-                return '<#>'
+                return '#DELAYED#'
+            else:
+                # second pass of the two-pass scheme
+                assert( doc.two_pass_mode_is_second_pass )
+                # can return content that has been rendered by now
+                return doc.get_delayed_render_content(node)
+
 
         # simply call render() to get the rendered value
 

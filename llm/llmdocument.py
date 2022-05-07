@@ -75,10 +75,27 @@ class LLMDocument:
 
         if self.fragment_renderer.supports_delayed_render_markers:
 
-            value = self.fragment_renderer.replace_delayed_markers_with_final_values(
-                value,
-                self._delayed_render_content
-            )
+            # Fix the resulting value, whether it is a dictionary, list, or a
+            # single string.  We allow general values like dict or list in case
+            # the renderer actually wants to render separate parts of a page and
+            # keep them separate for future use.
+
+            fix_string_fn = lambda s: \
+                self.fragment_renderer.replace_delayed_markers_with_final_values(
+                    s,
+                    self._delayed_render_content
+                )
+
+            if isinstance(value, dict):
+                # dictionary, fix it
+                value = {
+                    k: fix_string_fn(s)
+                    for k, s in value.items()
+                }
+            elif isinstance(value, list):
+                value = [ fix_string_fn(x) for x in value ]
+            else:
+                value = fix_string_fn( value )
 
         else:
 

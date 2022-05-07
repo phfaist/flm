@@ -97,6 +97,41 @@ class LLMSpecialsSpec(LLMSpecInfoSpecClass, macrospec.SpecialsSpec):
 # ------------------------------------------------------------------------------
 
 
+
+class TextFormat(LLMSpecInfo):
+    # any additional 
+    def __init__(self, text_formats):
+        r"""
+        The argument `text_formats` is a list of strings, each string is a format
+        name to apply.  Format names are inspired from the corresponding
+        canonical LaTeX macros that apply them.  They are:
+
+        - `textit`
+
+        - `textbf`
+
+        - (possibly more in the future)
+        """
+        super().__init__()
+        self.text_formats = text_formats
+
+    def render(self, node, doc, fragment_renderer):
+
+        node_args = fragment_renderer.get_arguments_nodelists(
+            node,
+            ('text',) ,
+            all=True
+        )
+
+        content = fragment_renderer.render_nodelist(
+            node_args['text'], doc,
+            use_paragraphs=False
+        )
+
+        return fragment_renderer.render_text_format(self.text_formats, content)
+
+
+
 class Verbatim(LLMSpecInfo):
     r"""
     Wraps an argument, or an environment body, as verbatim content.
@@ -137,52 +172,6 @@ class MathEnvironment(LLMSpecInfo):
             'display',
             environmentname
         )
-
-class TextFormat(LLMSpecInfo):
-    # any additional 
-    def __init__(self, text_formats):
-        r"""
-        The argument `text_formats` is a list of strings, each string is a format
-        name to apply.  Format names are inspired from the corresponding
-        canonical LaTeX macros that apply them.  They are:
-
-        - `textit`
-
-        - `textbf`
-
-        - (possibly more in the future)
-        """
-        super().__init__()
-        self.text_formats = text_formats
-
-    def render(self, node, doc, fragment_renderer):
-
-        node_args = fragment_renderer.get_arguments_nodelists(
-            node,
-            ('text',) ,
-            all=True
-        )
-
-        content = fragment_renderer.render_nodelist(
-            node_args['text'], doc,
-            use_paragraphs=False
-        )
-
-        return fragment_renderer.render_text_format(self.text_formats, content)
-
-
-
-# class FloatGraphics(LLMSpecInfo):
-#     def __init__(self, float_type='figure', float_caption_name='Figure'):
-#         super().__init__()
-#         self.float_type = float_type
-#         self.float_caption_name = float_caption_name
-        
-#     def finalize_parsed_node(self, node):
-#         ...
-
-#     def render(self, node, doc, fragment_renderer):
-        
 
 
 
