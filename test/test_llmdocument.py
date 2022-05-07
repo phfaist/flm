@@ -158,7 +158,7 @@ block of text here.</p>
 \end{align}</span></p></div>
 </main>
         """.strip())
-        
+    
 
     def test_simple_text(self):
     
@@ -264,6 +264,55 @@ we can also have an equation, like this:
 </main>
         """.strip().format(docsize=predict_docsize))
 
+
+
+    # ------------------
+
+    def test_more_basic_features_html(self):
+    
+        environ = LLMStandardEnvironment()
+
+        # -- unknown macros in math --
+        frag1 = environ.make_fragment(
+            r"\textbf{Hello} \textit{world}, we know that \(\alpha+\beta=\gamma\)."
+        )
+        frag2 = environ.make_fragment(
+            r"""
+We can also split text across multiple paragraphs, like this
+block of text here.
+
+we can also have an equation, like this:
+\begin{align}
+    1 + 3 - 5 = -1
+\end{align}
+            """.strip()
+        )
+
+        def render_fn(docobj, frobj):
+            return (
+                "<main>\n"
+                "<div>" + frag1.render(docobj, frobj) + "</div>\n"
+                "<div>" + frag2.render(docobj, frobj) + "</div>\n"
+                "</main>"
+            )
+
+        fr = HtmlFragmentRenderer()
+        doc = LLMDocument(render_fn, environ)
+
+        result = doc.render(fr)
+        print(result)
+
+        self.assertEqual(result, r"""
+<main>
+<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(\alpha+\beta=\gamma\)</span>.</p></div>
+<div><p>We can also split text across multiple paragraphs, like this
+block of text here.</p>
+<p>we can also have an equation, like this:
+<span class="display-math env-align">\begin{align}
+    1 + 3 - 5 = -1
+\end{align}</span></p></div>
+</main>
+        """.strip())
 
 
 
