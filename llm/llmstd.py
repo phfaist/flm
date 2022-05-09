@@ -16,6 +16,7 @@ from .llmdocument import LLMDocument
 
 from .feature_endnotes import FeatureEndnotes, EndnoteCategory
 from .feature_cite import FeatureExternalPrefixedCitations
+from .feature_refs import FeatureRefs
 
 
 
@@ -354,7 +355,7 @@ def standard_parsing_state(*,
 def standard_features(
         *,
         external_citations_provider=None,
-        external_ref_provider=None,
+        external_ref_resolver=None,
 ):
     features = [
         FeatureEndnotes(categories=[
@@ -368,6 +369,11 @@ def standard_features(
                 external_citations_provider=external_citations_provider
             )
         )
+    features.append(
+        FeatureRefs(
+            external_ref_resolver=external_ref_resolver,
+        )
+    )
     return features
 
 
@@ -383,7 +389,7 @@ class LLMStandardEnvironment(LLMEnvironment):
                  *,
                  enable_comments=None,
                  external_citations_provider=None,
-                 external_ref_provider=None,
+                 external_ref_resolver=None,
                  **kwargs):
 
         if latex_context is None:
@@ -395,7 +401,7 @@ class LLMStandardEnvironment(LLMEnvironment):
         if features is None:
             features = standard_features(
                 external_citations_provider=external_citations_provider,
-                external_ref_provider=external_ref_provider
+                external_ref_resolver=external_ref_resolver
             )
 
         super().__init__(

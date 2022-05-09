@@ -6,6 +6,7 @@ from llm.llmstd import LLMStandardEnvironment
 from llm.htmlfragmentrenderer import HtmlFragmentRenderer
 
 from llm.feature_endnotes import FeatureEndnotes, EndnoteCategory
+from llm import feature_refs
 
 
 class TestLLMStandardEnvironment(unittest.TestCase):
@@ -222,6 +223,61 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It
 <div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It is <span class="textit">true</span>!</dd></dl><dl class="enumeration citation-list"><dt>[1]</dt><dd><p><span class="textit">arXiv</span> paper arXiv:1234.56789</p></dd><dt>[2]</dt><dd><p><span class="textit">arXiv</span> paper arXiv:0000.11111</p></dd><dt>[3]</dt><dd><p><p>My custom <span class="textit">reference</span> (2022).</p></p></dd><dt>[4]</dt><dd><p><span class="textit">arXiv</span> paper arXiv:3333.99999</p></dd></dl></div>
             """.strip()
 )
+
+
+
+
+
+    def test_simple_ref_external(self):
+
+        class MyRefResolver:
+            def get_ref(self, ref_type, ref_target):
+                if ref_type == 'code':
+                    if ref_target == 'surface':
+                        return feature_refs.RefInstance(
+                            ref_type='code',
+                            ref_target='surface',
+                            formatted_ref_text='Kitaev surface code',
+                            target_href='https://errorcorrectionzoo.org/c/surface',
+                        )
+                    if ref_target == 'self':
+                        return feature_refs.RefInstance(
+                            ref_type='code',
+                            ref_target='self',
+                            formatted_ref_text='(this exact code)',
+                            target_href='#',
+                        )
+                    raise ValueError(f"Invalid ref target: ‘{ref_type}:{ref_target}’")
+                raise ValueError(f"Invalid ref type: {ref_type!r}")
+
+
+        environ = LLMStandardEnvironment(
+            external_ref_resolver=MyRefResolver()
+        )
+
+        frag1 = environ.make_fragment(
+            r"""
+\textbf{Hello}, reference to \ref{code:self}. Check out the \ref{code:surface}, too.
+""".strip()
+        )
+
+        def render_fn(docobj, frobj):
+            return frag1.render(docobj, frobj)
+
+        doc = environ.make_document(render_fn)
+
+        fr = HtmlFragmentRenderer()
+        result = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result,
+            r"""
+<p><span class="textbf">Hello</span>, reference to <a href="#" class="href-ref ref-code">(this exact code)</a>. Check out the <a href="https://errorcorrectionzoo.org/c/surface" class="href-ref ref-code">Kitaev surface code</a>, too.</p>
+""".strip()
+        )
+
+
+
 
 
 

@@ -171,14 +171,14 @@ class MathEqref(LLMSpecInfo):
             all=True
         )
         
-        ref_prefix = None
+        ref_type = None
         ref_target = fragment_renderer.get_nodelist_as_chars(
             node_args['ref_target'].nodelist
         )
         if ':' in ref_target:
-            ref_prefix, ref_target = ref_target.split(':', 1)
+            ref_type, ref_target = ref_target.split(':', 1)
 
-        if ref_prefix != 'eq':
+        if ref_type != 'eq':
             raise ValueError(
                 f"Equation labels must begin with “eq:” (error in ‘\\{node.macroname}’)"
             )
