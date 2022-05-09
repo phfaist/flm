@@ -5,7 +5,7 @@ class LLMDocument:
     def __init__(self,
                  render_callback,
                  environment,
-                 feature_managers=None):
+                 features=None):
         super().__init__()
 
         # set up environment, callback function, fragment_renderer
@@ -13,15 +13,21 @@ class LLMDocument:
         self.render_callback = render_callback
 
         # set up feature managers
-        if feature_managers is None:
-            feature_managers = []
-        elif callable(feature_managers):
-            feature_managers = feature_managers()
+        if not features:
+            features = []
         else:
-            feature_managers = list(feature_managers)
+            features = list(features)
 
-        self.feature_managers_list = feature_managers
-        self.feature_managers = { fm.feature_name: fm for fm in feature_managers }
+        self.features = features
+
+        self.feature_managers_list = [
+            f.spawn_document_manager(self)
+            for f in self.features
+        ]
+        self.feature_managers = {
+            fm.feature_name: fm
+            for fm in self.feature_managers_list
+        }
 
         # more flags, etc.
 
@@ -49,7 +55,7 @@ class LLMDocument:
 
         # first, initialize our feature managers
         for feature_manager in self.feature_managers_list:
-            feature_manager.initialize(self)
+            feature_manager.initialize()
 
 
         # assumes no delayed rendering occurs
@@ -59,7 +65,7 @@ class LLMDocument:
         # order they were specified
 
         for feature_manager in self.feature_managers_list:
-            feature_manager.process(self, fragment_renderer, value)
+            feature_manager.process(fragment_renderer, value)
 
         # now render all the delayed nodes
 
@@ -103,7 +109,7 @@ class LLMDocument:
             value = self.render_callback(self, fragment_renderer)
 
         for feature_manager in self.feature_managers_list:
-            feature_manager.postprocess(self, fragment_renderer, value)
+            feature_manager.postprocess(fragment_renderer, value)
 
         return value
 

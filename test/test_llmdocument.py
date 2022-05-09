@@ -11,36 +11,16 @@ from llm import llmstd
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
 from llm.llmspecinfo import LLMMacroSpec, LLMSpecInfo
-from llm.feature import DocumentFeatureBase
+from llm.feature import Feature, FeatureDocumentManager
 
-class _MyFeatureManager(DocumentFeatureBase):
+
+class _MyFeature(Feature):
     feature_name = 'my-test-feature'
 
-    def initialize(self, doc):
-        self.doc = doc
-        self.anchors = {}
-        self.document_size = None
-        self.final_document_size = None
+    def spawn_document_manager(self, doc):
+        return _MyFeatureDocManager(self, doc)
 
-    def process(self, doc, fragment_renderer, first_pass_value):
-        print("Document after first pass:\n********\n"+first_pass_value+"\n********")
-        self.document_size = len(first_pass_value)
-
-    def postprocess(self, doc, fragment_renderer, final_value):
-        self.final_document_size = len(final_value)
-
-    def register_anchor(self, name, node, label):
-        self.anchors[name] = {
-            'node': node,
-            'label': label,
-            'number': 1+len(self.anchors)
-        }
-
-    def get_anchor_number(self, name):
-        return self.anchors[name]['number']
-
-    @classmethod
-    def latex_context_definitions(cls):
+    def add_latex_context_definitions(self):
         return dict(
             macros=[
                 LLMMacroSpec('myAnchor', '',
@@ -57,6 +37,32 @@ class _MyFeatureManager(DocumentFeatureBase):
             environments=[],
             specials=[],
         )
+
+class _MyFeatureDocManager(FeatureDocumentManager):
+
+    def __init__(self, feature, doc):
+        super().__init__(feature, doc)
+        self.anchors = {}
+        self.document_size = None
+        self.final_document_size = None
+
+    def process(self, fragment_renderer, first_pass_value):
+        print("Document after first pass:\n********\n"+first_pass_value+"\n********")
+        self.document_size = len(first_pass_value)
+
+    def postprocess(self, fragment_renderer, final_value):
+        self.final_document_size = len(final_value)
+
+    def register_anchor(self, name, node, label):
+        self.anchors[name] = {
+            'node': node,
+            'label': label,
+            'number': 1+len(self.anchors)
+        }
+
+    def get_anchor_number(self, name):
+        return self.anchors[name]['number']
+
 
 class _MyDocumentSizeMacroSpecInfo(LLMSpecInfo):
 
@@ -80,10 +86,10 @@ class _MyDocumentSizeMacroSpecInfo(LLMSpecInfo):
 
         if node.isNodeType(latexnodes_nodes.LatexMacroNode)\
 	   and node.macroname == 'myAnchor':
-            return fragment_renderer.render_nothing('anchor myAnchor')
+            return fragment_renderer.render_nothing(['anchor', 'myAnchor'])
         if node.isNodeType(latexnodes_nodes.LatexMacroNode)\
 	   and node.macroname == 'anotherAnchor':
-            return fragment_renderer.render_nothing('anchor anotherAnchor')
+            return fragment_renderer.render_nothing(['anchor', 'anotherAnchor'])
         if node.isNodeType(latexnodes_nodes.LatexMacroNode)\
 	   and node.macroname == 'linkMyAnchor':
             return fragment_renderer.render_link(
@@ -104,6 +110,9 @@ class _MyDocumentSizeMacroSpecInfo(LLMSpecInfo):
             )
 
         raise ValueError("I don't know what to print: " + repr(node))
+
+
+
 
 
 
@@ -207,17 +216,24 @@ we can also have an equation, like this:
 
     def test_delayed_render(self):
 
-        my_feature_manager = _MyFeatureManager()
+        my_feature = _MyFeature()
 
-        latex_context = llmstd.standard_latex_context_db()
-        latex_context.add_context_category(
-            'my-test-feature-macros',
-            **my_feature_manager.latex_context_definitions()
+        # we need to add the definitions manually here because I'm not using
+        # latex_context = llmstd.standard_latex_context_db()
+        # latex_context.add_context_category(
+        #     'my-test-feature-macros',
+        #     **my_feature_manager.add_latex_context_definitions()
+        # )
+        # latex_context.freeze()
+        parsing_state = llmstd.standard_parsing_state()
+
+        environ = LLMStandardEnvironment(
+            latex_context=None, #llmstd.standard_latex_context_db(), #latex_context,
+            parsing_state=parsing_state,
+            features=[
+                my_feature
+            ]
         )
-        latex_context.freeze()
-        parsing_state = llmstd.standard_parsing_state(latex_context=latex_context)
-
-        environ = LLMStandardEnvironment(parsing_state=parsing_state)
 
         frag1 = environ.make_fragment(
             r"\anotherAnchor\textbf{Hello} \textit{world}. Here is a \linkMyAnchor."
@@ -239,12 +255,12 @@ we can also have an equation, like this:
             )
 
         fr = HtmlFragmentRenderer()
+        # could be environ.make_document(...) instead, avoids having to repeat
+        # feature_managers
         doc = LLMDocument(
             render_fn,
             environ,
-            feature_managers=[
-                my_feature_manager
-            ]
+            environ.features,
         )
 
         result = doc.render(fr)

@@ -58,15 +58,17 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
     def render_empty_error_placeholder(self):
         return "<span class=\"empty-error-placeholder\">(?)</span>"
 
-    def render_nothing(self, annotation):
-        annotation = annotation.replace('--', '- - ')
-        return '<!-- {} -->'.format(annotation)
+    def render_nothing(self, annotations=None):
+        if not annotations:
+            annotations = []
+        annotations = [a.replace('--', '- - ') for a in annotations]
+        return '<!-- {} -->'.format(" ".join(annotations))
 
-    def render_verbatim(self, value, annotation):
+    def render_verbatim(self, value, annotations):
         return self.wrap_in_tag(
             'span',
             self.htmlescape(value),
-            class_names=[annotation if annotation else 'verbatim']
+            class_names=(annotations if annotations else ['verbatim'])
         )
 
     def render_math_content(self, delimiters, nodelist, doc, displaytype, environmentname):
@@ -89,9 +91,37 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
             class_names=text_formats
         )
 
+    def render_semantic_block(self, content, role, annotations=None):
+        if role in ('section', 'main', 'article', ): # todo, add
+            return self.wrap_in_tag(
+                role,
+                content,
+                class_names=annotations
+            )
+        return self.wrap_in_tag(
+            'div',
+            content,
+            class_names=[role]+(annotations if annotations else [])
+        )
+            
 
-    def render_link(self, ref_type, href, display_content):
-        return self.wrap_in_link(display_content, href, class_names=[ f"href-{ref_type}" ])
+    def render_enumeration(self, iter_items_content, counter_formatter, annotations=None):
+        return self.wrap_in_tag(
+            'dl',
+            self.render_join([
+                self.wrap_in_tag('dt', counter_formatter(j)) + self.wrap_in_tag('dd', item_content)
+                for j, item_content in enumerate(iter_items_content)
+            ]),
+            class_names=['enumeration'] + (annotations if annotations else [])
+        )
+
+
+    def render_link(self, ref_type, href, display_content, annotations=None):
+        return self.wrap_in_link(
+            display_content,
+            href,
+            class_names=[ f"href-{ref_type}" ] + (annotations if annotations else [])
+        )
 
     
     def render_delayed_marker(self, node, delayed_key, doc):

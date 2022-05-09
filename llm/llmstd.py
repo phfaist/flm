@@ -3,7 +3,7 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc import latexnodes
 from pylatexenc import macrospec
-from pylatexenc import latexwalker
+#from pylatexenc import latexwalker
 
 
 from .llmenvironment import LLMEnvironment
@@ -12,6 +12,11 @@ from .llmspecinfo import (
     TextFormat, Verbatim, MathEnvironment, Error
 )
 from .llmdocument import LLMDocument
+
+from .feature_endnotes import FeatureEndnotes, EndnoteCategory
+from .feature_cite import FeatureExternalPrefixedCitations
+
+
 
 
 _single_text_arg = [
@@ -52,6 +57,12 @@ class LLMWalkerEventsParsingStateDeltasProvider(
     
 
 def standard_latex_context_db():
+    r"""
+    ............
+
+    The returned instance is not frozen, so you can continue adding new
+    definition categories etc.
+    """
 
     lw_context = macrospec.LatexContextDb()
 
@@ -255,19 +266,24 @@ def standard_latex_context_db():
     #     }
     # )
 
-    # # ignore unknown macros -- TODO !! only ignore in math mode !!  (note
-    # # unknown macro instances are still caught and reported at to-html time)
-    # lw_context.set_unknown_macro_spec(LLMMacroSpec(''))
-    # lw_context.set_unknown_environment_spec(LLMEnvironmentSpec(''))
-
     return lw_context
 
 
 
-def standard_parsing_state(latex_context,
-                           *,
+def standard_parsing_state(*,
                            enable_comments=False,
                            dollar_inline_math_mode=False):
+    r"""
+    Return a `ParsingState` configured in a standard way for parsing LLM
+    content.  E.g., we typically disable commands and $-math mode, unless you
+    specify keyword arguments to override this behavior.
+
+    .. note:
+
+       The `latex_context` field of the returned object is `None`.  You should
+       set it yourself to a suitable `LatexContextDb` instance.  See
+       `standard_latex_context_db()` for sensible defaults.
+    """
 
     forbidden_characters = ''
     if not dollar_inline_math_mode:
@@ -281,7 +297,7 @@ def standard_parsing_state(latex_context,
         latex_inline_math_delimiters.append( ('$', '$') )
 
     return latexnodes.ParsingState(
-        latex_context=latex_context,
+        latex_context=None,
         enable_comments=enable_comments,
         latex_inline_math_delimiters=latex_inline_math_delimiters,
         latex_display_math_delimiters=[ (r'\[', r'\]') ],
@@ -289,49 +305,72 @@ def standard_parsing_state(latex_context,
     )
 
 
+
+
+
+def standard_features(
+        *,
+        external_citations_provider=None,
+        external_ref_provider=None,
+):
+    features = [
+        FeatureEndnotes(categories=[
+            EndnoteCategory('footnote', 'alph', 'footnote'),
+            EndnoteCategory('citation', lambda n: '[{:d}]'.format(n), None),
+        ])
+    ]
+    if external_citations_provider is not None:
+        features.append(
+            FeatureExternalPrefixedCitations(
+                external_citations_provider=external_citations_provider
+            )
+        )
+    return features
+
+
+
+
+
+
 class LLMStandardEnvironment(LLMEnvironment):
-    def __init__(self, parsing_state=None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self,
+                 latex_context=None,
+                 parsing_state=None,
+                 features=None,
+                 *,
+                 enable_comments=None,
+                 external_citations_provider=None,
+                 external_ref_provider=None,
+                 **kwargs):
 
-        self.latex_context = None
-
-        if parsing_state is None:
+        if latex_context is None:
             latex_context = standard_latex_context_db()
-            parsing_state = standard_parsing_state(latex_context)
+        if parsing_state is None:
+            parsing_state = standard_parsing_state(
+                enable_comments=enable_comments,
+            )
+        if features is None:
+            features = standard_features(
+                external_citations_provider=external_citations_provider,
+                external_ref_provider=external_ref_provider
+            )
 
-        self.parsing_state = parsing_state
+        super().__init__(
+            latex_context=latex_context,
+            parsing_state=parsing_state,
+            features=features,
+            **kwargs
+        )
+
 
     def make_latex_walker(self, llm_text):
 
-        latex_walker = latexwalker.LatexWalker(
-            llm_text,
-            # the latex_context will be overwritten anyway; don't specify `None`
-            # here because that will cause pylatexenc to load its big default
-            # database:
-            latex_context=self.parsing_state.latex_context,
-            tolerant_parsing=self.tolerant_parsing
-        )
-
-        # Set the default_parsing_state directly.
-        latex_walker.default_parsing_state = self.parsing_state
+        latex_walker = super().make_latex_walker(llm_text)
 
         latex_walker.parsing_state_deltas_provider = \
             LLMWalkerEventsParsingStateDeltasProvider()
 
         return latex_walker
-
-
-    def make_document(self, render_callback):
-
-        # TODO: provide a good set of default feature managers, maybe make this
-        # customizable etc.
-        feature_managers = None
-
-        return LLMDocument(
-            render_callback,
-            self,
-            feature_managers=feature_managers
-        )
 
 
     def get_parse_error_message(self, exception_object):

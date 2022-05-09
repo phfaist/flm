@@ -21,8 +21,8 @@ class _MyTestFragmentRenderer(FragmentRenderer):
 
     # --
 
-    def render_join_pieces(self, pieces):
-        _register_call(self.store, 'render_join_pieces', (pieces,))
+    def render_join(self, pieces):
+        _register_call(self.store, 'render_join', (pieces,))
         return self.pieces_joiner_string.join(pieces)
 
     def render_join_as_paragraphs(self, paragraphs_content):
@@ -83,10 +83,10 @@ class TestFragmentRenderer(unittest.TestCase):
             [
                 ('render_value', ('Hello ',)),
                 ('render_value', ('world',)),
-                ('render_join_pieces', (['world'],)),
+                ('render_join', (['world'],)),
                 ('render_text_format', (('textbf',), 'world',)),
                 ('render_value', ('.',)),
-                ('render_join_pieces', (['Hello ', '[world]', '.'],)),
+                ('render_join', (['Hello ', '[world]', '.'],)),
                 ('render_join_as_paragraphs', (['Hello [world].'],)),
             ]
         )

@@ -34,7 +34,7 @@ class FragmentRenderer:
             use_paragraphs = self.use_paragraphs
 
         if not use_paragraphs:
-            return self.render_join_pieces(
+            return self.render_join(
                 [
                     self.render_node(n, doc)
                     for n in nodelist
@@ -48,7 +48,7 @@ class FragmentRenderer:
 
         # convert to HTML per-paragraph
         rendered_paragraphs_content = [
-            self.render_join_pieces([
+            self.render_join([
                 self.render_node(node, doc)
                 for node in para_nodelist
             ])
@@ -162,13 +162,13 @@ class FragmentRenderer:
     # ---
     
 
-    def render_join_pieces(self, pieces):
+    def render_join(self, content_list):
         r"""
-        Join together a collection of pieces that have already been rendered.
-        Usually you'd want to simply join the strings together with no joiner,
-        which is what the default implementation does.
+        Join together a collection of pieces of content that have already been
+        rendered.  Usually you'd want to simply join the strings together with
+        no joiner, which is what the default implementation does.
         """
-        return "".join(pieces)
+        return "".join(content_list)
 
     def render_join_as_paragraphs(self, paragraphs_content):
         r"""
@@ -179,6 +179,24 @@ class FragmentRenderer:
         ``\n\n`` or etc.).
         """
         return "\n\n".join(paragraphs_content)
+
+    def render_join_blocks(self, content_list):
+        r"""
+        Join together a collection of pieces of content that have already been
+        rendered.  Each piece is itself a block of content, which can assumed to
+        be at least paragraph-level or even semantic blocks.  Usually you'd want
+        to simply join the strings together with no joiner, which is what the
+        default implementation does.
+        """
+        return "".join(content_list)
+
+    def render_semantic_block(self, content, role, annotations=None):
+        r"""
+        Enclose the given content in a block (say, a DOM <section> or such) that is
+        meant to convey semantic information about the document's structure, but
+        with no necessary impact on the layout or appearance of the text itself.
+        """
+        return content
 
 
     # ---
@@ -255,7 +273,7 @@ class TextFragmentRenderer(FragmentRenderer):
     def render_delayed_dummy_placeholder(self, node, delayed_key, doc):
         return '#DELAYED#'
 
-    def render_nothing(self, annotation):
+    def render_nothing(self, annotations=None):
         return ''
 
     def render_empty_error_placeholder(self, debug_str):
@@ -264,10 +282,21 @@ class TextFragmentRenderer(FragmentRenderer):
     def render_text_format(self, text_formats, content):
         return content
     
-    def render_verbatim(self, value, annotation):
+    def render_enumeration(self, iter_items_content, counter_formatter, annotations=None):
+        all_items = [
+            (counter_formatter(j), item_content)
+            for j, item_content in enumerate(iter_items_content)
+        ]
+        max_item_width = max([ len(fmtcnt) for fmtcnt, item_content in all_items ])
+        return self.render_join_as_paragraphs([
+            fmtcnt.rjust(max_item_width+1, ' ') + item_content + "\n"
+            for fmtcnt, item_content in all_items
+        ])
+
+    def render_verbatim(self, value, annotations=None):
         return value
 
-    def render_link(self, ref_type, href, display_content):
+    def render_link(self, ref_type, href, display_content, annotations=None):
         r"""
         .....
 

@@ -10,7 +10,7 @@ class LLMFragment:
     def __init__(
             self,
             llm_text,
-            llm_environment,
+            environment,
             *,
             what='(unknown)',
             silent=False,
@@ -19,17 +19,17 @@ class LLMFragment:
         self.llm_text = llm_text
         self.what = what
 
-        self.llm_environment = llm_environment
+        self.environment = environment
 
         self.silent = silent
 
         try:
             self.latex_walker, self.nodes = \
                 LLMFragment.parse(self.llm_text,
-                                  self.llm_environment,)
+                                  self.environment,)
         except latexnodes.LatexWalkerParseError as e:
             if not self.silent:
-                error_message = self.llm_environment.get_parse_error_message(e)
+                error_message = self.environment.get_parse_error_message(e)
                 logger.error(f"Parse error in latex-like markup ‘{self.what}’: {error_message}\n"
                              f"Given text was:\n‘{self.llm_text}’\n\n")
             raise
@@ -45,11 +45,11 @@ class LLMFragment:
 
 
     @classmethod
-    def parse(cls, llm_text, llm_environment):
+    def parse(cls, llm_text, environment):
 
-        tolerant_parsing = llm_environment.tolerant_parsing
+        tolerant_parsing = environment.tolerant_parsing
 
-        latex_walker = llm_environment.make_latex_walker(llm_text)
+        latex_walker = environment.make_latex_walker(llm_text)
 
         nodes, _ = latex_walker.parse_content(
             latexnodes_parsers.LatexGeneralNodesParser(),
@@ -68,7 +68,7 @@ class LLMFragment:
                        and n.specials_chars == '\n\n'),
             max_split=1
         )
-        return self.llm_environment.make_fragment(
+        return self.environment.make_fragment(
             llm_text=nodelists_paragraphs[0].latex_verbatim(),
             what=f"{self.what}:first-paragraph",
             silent=self.silent
