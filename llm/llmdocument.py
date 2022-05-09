@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 
 
 class LLMDocument:
@@ -52,14 +54,19 @@ class LLMDocument:
 
         must be called only once on a given instance!
         """
+        logger.debug("document render()")
 
         # first, initialize our feature managers
         for feature_manager in self.feature_managers_list:
             feature_manager.initialize()
 
-
         # assumes no delayed rendering occurs
         value = self.render_callback(self, fragment_renderer)
+        if value is None:
+            logger.warning("The LLM document render callback function returned `None`! Did "
+                           "you forget a ‘return ...’ instruction?")
+
+        logger.debug("first pass -> value = %r", value)
 
         # do any necessary processing required by the feature managers, in the
         # order they were specified
@@ -107,6 +114,8 @@ class LLMDocument:
             # need a second pass to re-render everything with the correct values
             self.two_pass_mode_is_second_pass = True
             value = self.render_callback(self, fragment_renderer)
+
+        logger.debug("ok, got final_value = %r", value)
 
         for feature_manager in self.feature_managers_list:
             feature_manager.postprocess(fragment_renderer, value)

@@ -3,13 +3,14 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc import latexnodes
 from pylatexenc import macrospec
+from pylatexenc.latexnodes import parsers as latexnodes_parsers
 #from pylatexenc import latexwalker
 
 
 from .llmenvironment import LLMEnvironment
 from .llmspecinfo import (
     LLMMacroSpec, LLMEnvironmentSpec, LLMSpecialsSpec,
-    TextFormat, Verbatim, MathEnvironment, Error
+    TextFormat, HrefHyperlink, Verbatim, MathEnvironment, Error
 )
 from .llmdocument import LLMDocument
 
@@ -122,6 +123,35 @@ def standard_latex_context_db():
                     'split',
                     'split*',
             )
+        ]
+    )
+    lw_context.add_context_category(
+        'href',
+        macros=[
+            LLMMacroSpec(
+                'href',
+                arguments_spec_list=[
+                    macrospec.LatexArgumentSpec(
+                        latexnodes_parsers.LatexDelimitedVerbatimParser( ('{','}') ),
+                        argname='target_href',
+                    ),
+                    macrospec.LatexArgumentSpec(
+                        '{',
+                        argname='display_text',
+                    )
+                ],
+                llm_specinfo=HrefHyperlink(),
+            ),
+            LLMMacroSpec(
+                'url',
+                arguments_spec_list=[
+                    macrospec.LatexArgumentSpec(
+                        latexnodes_parsers.LatexDelimitedVerbatimParser( ('{','}') ),
+                        argname='target_href',
+                    )
+                ],
+                llm_specinfo=HrefHyperlink(command_arguments=('target_href',)),
+            ),
         ]
     )
     # lw_context.add_context_category(

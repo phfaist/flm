@@ -48,7 +48,7 @@ class EndnoteSpecInfo(LLMSpecInfo):
         )
 
         content = fragment_renderer.render_nodelist(
-            node_args['endnote_content'],
+            node_args['endnote_content'].nodelist,
             doc,
             use_paragraphs=False
         )

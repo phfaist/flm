@@ -73,6 +73,30 @@ class TestLLMStandardEnvironment(unittest.TestCase):
 
 
 
+    def test_provides_href(self):
+
+        environ = LLMStandardEnvironment()
+
+        frag1 = environ.make_fragment(
+            r"\textbf{Hello} \href{https://github.com/}{\textit{world}}, check out our "
+            r"\url{https://errorcorrectionzoo.org/?}."
+        )
+
+        def render_fn(docobj, frobj):
+            return frag1.render(docobj, frobj)
+
+        doc = environ.make_document(render_fn)
+
+        fr = HtmlFragmentRenderer()
+        result = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result,
+            r"""
+<p><span class="textbf">Hello</span> <a href="https://github.com/" class="href-href"><span class="textit">world</span></a>, check out our <a href="https://errorcorrectionzoo.org/?" class="href-href">errorcorrectionzoo.org</a>.</p>""".strip()
+        )
+
+
     def test_provides_footnotes_by_default(self):
 
         environ = LLMStandardEnvironment()

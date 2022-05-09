@@ -87,16 +87,15 @@ class CiteSpecInfo(LLMSpecInfo):
         )
 
         optional_cite_extra_content = None
-        if node_args['cite_pre_text'] \
-           and node_args['cite_pre_text'] != latexnodes_nodes.LatexNodeList([None]):
+        if node_args['cite_pre_text'].provided:
             #
             optional_cite_extra_content = fragment_renderer.render_nodelist(
-                node_args['cite_pre_text'],
+                node_args['cite_pre_text'].nodelist,
                 doc,
                 use_paragraphs=False
             )
 
-        citekeylist_nodelist = node_args['citekey']
+        citekeylist_nodelist = node_args['citekey'].nodelist
 
         # citekeylist_nodelist is a list of groups, each group is delimited by
         # ('', ',') and represents a citation key.  It was parsed using

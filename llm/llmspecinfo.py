@@ -111,7 +111,7 @@ class TextFormat(LLMSpecInfo):
         )
 
         content = fragment_renderer.render_nodelist(
-            node_args['text'], doc,
+            node_args['text'].nodelist, doc,
             use_paragraphs=False
         )
 
@@ -158,6 +158,63 @@ class MathEnvironment(LLMSpecInfo):
             doc,
             'display',
             environmentname
+        )
+
+
+
+class HrefHyperlink(LLMSpecInfo):
+    def __init__(
+            self,
+            command_arguments=('target_href', 'display_text',),
+            ref_type='href',
+    ):
+        super().__init__()
+        self.command_arguments = command_arguments
+        self.ref_type = ref_type
+
+    @classmethod
+    def pretty_url(self, target_href):
+        url_display = str(target_href)
+        for prefix in ('http://', 'https://'):
+            if url_display.startswith(prefix):
+                url_display = url_display[len(prefix):]
+                break
+        url_display = url_display.rstrip('/#?')
+        # for suffix in ('/', '#', '?',):
+        #     if url_display.endswith(suffix):
+        #         url_display = url_display[:-len(suffix)]
+        return url_display
+
+    def render(self, node, doc, fragment_renderer):
+
+        node_args = fragment_renderer.get_arguments_nodelists(
+            node,
+            self.command_arguments,
+            all=True
+        )
+        
+        target_href = None
+        display_text = None
+
+        if 'target_href' in node_args:
+            target_href = fragment_renderer.get_nodelist_as_chars(
+                node_args['target_href'].nodelist
+            )
+        if 'display_text' in node_args:
+            display_text = fragment_renderer.render_nodelist(
+                node_args['display_text'].nodelist,
+                doc=doc,
+                use_paragraphs=False,
+            )
+
+        # show URL by default
+        if display_text is None:
+            display_text = self.pretty_url(target_href)
+
+        return fragment_renderer.render_link(
+            self.ref_type,
+            target_href,
+            display_text,
         )
 
 

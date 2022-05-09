@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+
 from pylatexenc.latexnodes import nodes
 
 class FragmentRenderer:
@@ -55,7 +58,9 @@ class FragmentRenderer:
             for para_nodelist in nodelists_paragraphs
         ]
 
-        return self.render_join_as_paragraphs(rendered_paragraphs_content)
+        rendered = self.render_join_as_paragraphs(rendered_paragraphs_content)
+        logger.debug("render_nodelist: rendered -> %r", rendered)
+        return rendered
 
     def render_node(self, node, doc):
         if node.isNodeType(nodes.LatexCharsNode):
@@ -236,14 +241,22 @@ class FragmentRenderer:
                 continue
             argnode = node.nodeargd.argnlist[j]
             argnames_seen.add(arg_spec.argname)
+            main_arg_node = None
             if argnode is None:
                 argnodelist = nodes.LatexNodeList([None])
+                main_arg_node = None
             elif argnode.isNodeType(nodes.LatexGroupNode):
                 argnodelist = argnode.nodelist
+                main_arg_node = argnode
             else:
                 argnodelist = nodes.LatexNodeList([argnode])
+                main_arg_node = argnode
 
-            args_nodelists[arg_spec.argname] = argnodelist
+            args_nodelists[arg_spec.argname] = _NodeArgInfo(
+                nodelist=argnodelist,
+                main_arg_node=main_arg_node,
+                provided=(True if main_arg_node is not None else False),
+            )
 
         if not skip_nonexistent:
             # if there's an argument in argnames that wasn't seen, that's an
@@ -254,6 +267,33 @@ class FragmentRenderer:
                 
         return args_nodelists
         
+    def get_nodelist_as_chars(self, nodelist):
+        charslist = []
+        for n in nodelist:
+            if n is None:
+                continue
+            if not n.isNodeType(nodes.LatexCharsNode):
+                raise ValueError(
+                    f"Expected chars-only nodes, got "
+                    f"‘{n.latex_verbatim()}<{n.__class__.__name__}>’ in "
+                    f"‘{nodelist.latex_verbatim()}’"
+                )
+            charslist.append(n.chars)
+        return "".join(charslist)
+
+
+class _NodeArgInfo:
+    def __init__(self, nodelist, main_arg_node, provided):
+        super().__init__()
+        self.nodelist = nodelist
+        self.main_arg_node = main_arg_node
+        self.provided = provided
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(nodelist={self.nodelist!r}, "
+            f"main_arg_node={self.main_arg_node!r})"
+        )
 
 
 
