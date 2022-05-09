@@ -57,6 +57,44 @@ class TestLLMStandardEnvironment(unittest.TestCase):
 
 
 
+    def test_with_math_and_eqref(self):
+
+        environ = LLMStandardEnvironment()
+
+        frag1 = environ.make_fragment(
+            r"""
+\textbf{Hello}, see \eqref{eq:my-equation}.
+
+Here is the equation:
+\begin{align}
+  \label{eq:my-equation}
+  \int f(x)\, dx = -1\ .
+\end{align}
+""".strip()
+        )
+
+        def render_fn(docobj, frobj):
+            return frag1.render(docobj, frobj)
+
+        doc = environ.make_document(render_fn)
+
+        fr = HtmlFragmentRenderer()
+        result = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result,
+            r"""
+<p><span class="textbf">Hello</span>, see <span class="inline-math">\(\eqref{eq:my-equation}\)</span>.</p>
+<p>Here is the equation:
+<span class="display-math env-align">\begin{align}
+  \label{eq:my-equation}
+  \int f(x)\, dx = -1\ .
+\end{align}</span></p>
+""".strip()
+        )
+
+
+
     def test_unknown_macros_in_math(self):
         environ = LLMStandardEnvironment()
         frag1 = environ.make_fragment(

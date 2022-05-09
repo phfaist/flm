@@ -71,7 +71,8 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
             class_names=(annotations if annotations else ['verbatim'])
         )
 
-    def render_math_content(self, delimiters, nodelist, doc, displaytype, environmentname):
+    def render_math_content(self, delimiters, nodelist, doc, displaytype,
+                            environmentname=None):
         class_names = [ f"{displaytype}-math" ]
         if environmentname is not None:
             class_names.append(f"env-{environmentname.replace('*','-star')}")

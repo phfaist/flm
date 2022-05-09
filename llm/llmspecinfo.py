@@ -52,30 +52,34 @@ class LLMSpecInfoSpecClass:
     
 
 class LLMMacroSpec(LLMSpecInfoSpecClass, macrospec.MacroSpec):
-    def __init__(self, macroname, arguments_spec_list=None, llm_specinfo=None):
+    def __init__(self, macroname, arguments_spec_list=None, *,
+                 llm_specinfo=None, **kwargs):
         super().__init__(
             macroname=macroname,
             arguments_spec_list=arguments_spec_list,
             llm_specinfo=llm_specinfo,
+            **kwargs
         )
 
 
 class LLMEnvironmentSpec(LLMSpecInfoSpecClass, macrospec.EnvironmentSpec):
-    def __init__(self, environmentname, arguments_spec_list=None, body_parser=None,
-                 llm_specinfo=None):
+    def __init__(self, environmentname, arguments_spec_list=None, *,
+                 llm_specinfo=None, **kwargs):
         super().__init__(
             environmentname=environmentname,
             arguments_spec_list=arguments_spec_list,
-            body_parser=body_parser,
             llm_specinfo=llm_specinfo,
+            **kwargs
         )
 
 class LLMSpecialsSpec(LLMSpecInfoSpecClass, macrospec.SpecialsSpec):
-    def __init__(self, specials_chars, arguments_spec_list=None, llm_specinfo=None):
+    def __init__(self, specials_chars, arguments_spec_list=None, *,
+                 llm_specinfo=None, **kwargs):
         super().__init__(
             specials_chars=specials_chars,
             arguments_spec_list=arguments_spec_list,
             llm_specinfo=llm_specinfo,
+            **kwargs
         )
 
 
@@ -149,7 +153,6 @@ class Verbatim(LLMSpecInfo):
         )
 
 class MathEnvironment(LLMSpecInfo):
-
     def render(self, node, doc, fragment_renderer):
         environmentname = node.environmentname
         return fragment_renderer.render_math_content(
@@ -160,6 +163,35 @@ class MathEnvironment(LLMSpecInfo):
             environmentname
         )
 
+class MathEqref(LLMSpecInfo):
+    def render(self, node, doc, fragment_renderer):
+        node_args = fragment_renderer.get_arguments_nodelists(
+            node,
+            ('ref_target',),
+            all=True
+        )
+        
+        ref_prefix = None
+        ref_target = fragment_renderer.get_nodelist_as_chars(
+            node_args['ref_target'].nodelist
+        )
+        if ':' in ref_target:
+            ref_prefix, ref_target = ref_target.split(':', 1)
+
+        if ref_prefix != 'eq':
+            raise ValueError(
+                f"Equation labels must begin with “eq:” (error in ‘\\{node.macroname}’)"
+            )
+
+        # simply emit the \eqref{...} call as we got it directly, and let
+        # MathJax handle the referencing
+
+        return fragment_renderer.render_math_content(
+            (r"\(", r"\)"),
+            latexnodes_nodes.LatexNodeList([node]),
+            doc,
+            'inline',
+        )
 
 
 class HrefHyperlink(LLMSpecInfo):

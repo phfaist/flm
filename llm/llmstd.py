@@ -10,7 +10,7 @@ from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from .llmenvironment import LLMEnvironment
 from .llmspecinfo import (
     LLMMacroSpec, LLMEnvironmentSpec, LLMSpecialsSpec,
-    TextFormat, HrefHyperlink, Verbatim, MathEnvironment, Error
+    TextFormat, HrefHyperlink, Verbatim, MathEnvironment, MathEqref, Error
 )
 from .llmdocument import LLMDocument
 
@@ -109,11 +109,24 @@ def standard_latex_context_db():
     )
     lw_context.add_context_category(
         'math-environments',
+        macros=[
+            LLMMacroSpec(
+                'eqref',
+                arguments_spec_list=[
+                    macrospec.LatexArgumentSpec(
+                        latexnodes_parsers.LatexCharsGroupParser(),
+                        argname='ref_target',
+                    ),
+                ],
+                llm_specinfo=MathEqref(),
+            ),
+        ],
         environments=[
             LLMEnvironmentSpec(
                 math_environment_name,
                 '',
-                llm_specinfo=MathEnvironment()
+                llm_specinfo=MathEnvironment(),
+                is_math_mode=True,
             )
             for math_environment_name in (
                     'align',
@@ -123,7 +136,7 @@ def standard_latex_context_db():
                     'split',
                     'split*',
             )
-        ]
+        ],
     )
     lw_context.add_context_category(
         'href',

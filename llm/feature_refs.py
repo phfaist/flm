@@ -1,3 +1,51 @@
+
+from .feature import Feature, FeatureDocumentManager
+
+
+
+class RefInstance:
+    def __init__(self, ref_type, ref_target, formatted_ref_text, target_node):
+        super().__init__()
+        self.ref_type = ref_type
+        self.ref_target = ref_target
+        self.formatted_ref_text = formatted_ref_text
+        self.target_node = target_node
+
+
+
+class FeatureRefsDocumentManager(FeatureDocumentManager):
+
+    def initialize(self):
+        self.ref_labels = {}
+        
+    def register_reference(self, ref_type, ref_target, target_node):
+        self.ref_labels[(ref_type, ref_target)] = target_node
+
+    def get_ref(self, ref_type, ref_target):
+        if (ref_type, ref_target) in self.ref_labels:
+            return 
+
+    def process(self, doc, fragment_renderer):
+        pass
+
+
+
+class FeatureRefs(Feature):
+    r"""
+    Manager for internal references, such as ``\eqref{...}``, ``\ref{...}``, etc.
+    """
+
+    feature_name = 'refs'
+    feature_manager_class = FeatureRefsDocumentManager
+
+    def __init__(self, external_resolver=None):
+        super().__init__()
+        # e.g., a different code page in the EC zoo!
+        self.external_resolver = external_resolver
+
+
+
+
 class SpecInfoRef(LLMSpecInfo):
 
     delayed_render = True
@@ -42,36 +90,4 @@ class SpecInfoRef(LLMSpecInfo):
         ..........
 
         return doc.render_ref(self.ref_type, reftarget, display_content)
-
-
-
-
-class RefsManager(DocumentFeatureBase):
-    r"""
-    Manager for internal references, such as ``\eqref{...}``, ``\ref{...}``, etc.
-    """
-
-    feature_name = 'refs'
-
-
-    def __init__(self, external_resolver=None):
-        super().__init__()
-        self.external_resolver = external_resolver # e.g., a different code page in the EC zoo!
-
-
-    def initialize(self, doc):
-        self.ref_labels = {}
-        self.doc = doc
-
-        
-    def register_label(self, ref_type, ref_target, target_node):
-        .............
-
-    def register_reference(self, ref_type, ref_target, target_node):
-        self.ref_labels[(ref_type, ref_target)] = target_node
-
-    
-
-    def process(self, doc, fragment_renderer):
-        pass
 

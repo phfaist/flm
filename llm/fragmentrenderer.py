@@ -114,6 +114,9 @@ class FragmentRenderer:
 
     def render_invocable_node_call_render(self, node, llm_specinfo, doc):
 
+        if llm_specinfo is None:
+            raise ValueError(f"Cannot render {node=!r} because specinfo is None!")
+
         if llm_specinfo.delayed_render:
             # requested a delayed rendering -- 
 
@@ -152,7 +155,8 @@ class FragmentRenderer:
                                          node.displaytype, None )
 
 
-    def render_math_content(self, delimiters, nodelist, doc, displaytype, environmentname):
+    def render_math_content(self, delimiters, nodelist, doc, displaytype,
+                            environmentname=None):
         # Use verbatim to render math in the base implementation. It will work
         # for our HTML implementation as well since we'll rely on MathJax.
         # Other implementations that don't want to render math in this type of
