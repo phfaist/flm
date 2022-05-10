@@ -1,6 +1,7 @@
+
 from pylatexenc import macrospec
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
-
+from pylatexenc.latexnodes import LatexWalkerParseError
 
 
 class LLMSpecInfo:
@@ -10,8 +11,8 @@ class LLMSpecInfo:
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    # def finalize_parsed_node(self, node):
-    #     return node
+    def finalize_parsed_node(self, node):
+        return node
 
     def scan(self, node, scanner):
         r"""
@@ -45,7 +46,14 @@ class LLMSpecInfoSpecClass:
         else:
             self.llm_specinfo_string = llm_specinfo
 
+    def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
+        if hasattr(self.llm_specinfo, 'make_body_parser'):
+            return self.llm_specinfo.make_body_parser(token, nodeargd, arg_parsing_state_delta)
+        return super().make_body_parser(token, nodeargd, arg_parsing_state_delta)
+
     def finalize_node(self, node):
+        if hasattr(self.llm_specinfo, 'finalize_parsed_node'):
+            node = self.llm_specinfo.finalize_parsed_node(node)
         node.llm_specinfo = self.llm_specinfo
         return node
 
@@ -116,41 +124,11 @@ class TextFormat(LLMSpecInfo):
 
         content = fragment_renderer.render_nodelist(
             node_args['text'].nodelist, doc,
-            use_paragraphs=False
+            is_block_level=False
         )
 
         return fragment_renderer.render_text_format(self.text_formats, content)
 
-
-
-class Verbatim(LLMSpecInfo):
-    r"""
-    Wraps an argument, or an environment body, as verbatim content.
-
-    The `annotation` is basically a HTML class name to apply to the block of
-    content.  Use this for instance to separate out math content, etc.
-    """
-    def __init__(self, annotation=None, include_environment_begin_end=False):
-        super().__init__()
-        self.annotation = annotation
-        self.include_environment_begin_end = include_environment_begin_end
-
-    def render(self, node, doc, fragment_renderer):
-
-        if node.isNodeType(latexnodes_nodes.LatexEnvironmentNode):
-            if self.include_environment_begin_end:
-                verbatim_contents = node.latex_verbatim()
-            else:
-                # it's an environment node, and we only want to render the contents of
-                # the environment.
-                verbatim_contents = node.nodelist.latex_verbatim()
-        else:
-            verbatim_contents = node.latex_verbatim()
-        
-        return fragment_renderer.render_verbatim(
-            verbatim_contents,
-            self.annotation
-        )
 
 class MathEnvironment(LLMSpecInfo):
     def render(self, node, doc, fragment_renderer):
@@ -236,7 +214,7 @@ class HrefHyperlink(LLMSpecInfo):
             display_text = fragment_renderer.render_nodelist(
                 node_args['display_text'].nodelist,
                 doc=doc,
-                use_paragraphs=False,
+                is_block_level=False,
             )
 
         # show URL by default
@@ -249,6 +227,35 @@ class HrefHyperlink(LLMSpecInfo):
             display_text,
         )
 
+
+class Verbatim(LLMSpecInfo):
+    r"""
+    Wraps an argument, or an environment body, as verbatim content.
+
+    The `annotation` is basically a HTML class name to apply to the block of
+    content.  Use this for instance to separate out math content, etc.
+    """
+    def __init__(self, annotation=None, include_environment_begin_end=False):
+        super().__init__()
+        self.annotation = annotation
+        self.include_environment_begin_end = include_environment_begin_end
+
+    def render(self, node, doc, fragment_renderer):
+
+        if node.isNodeType(latexnodes_nodes.LatexEnvironmentNode):
+            if self.include_environment_begin_end:
+                verbatim_contents = node.latex_verbatim()
+            else:
+                # it's an environment node, and we only want to render the contents of
+                # the environment.
+                verbatim_contents = node.nodelist.latex_verbatim()
+        else:
+            verbatim_contents = node.latex_verbatim()
+        
+        return fragment_renderer.render_verbatim(
+            verbatim_contents,
+            self.annotation
+        )
 
 
 class Error(LLMSpecInfo):

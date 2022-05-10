@@ -50,7 +50,7 @@ class EndnoteSpecInfo(LLMSpecInfo):
         content = fragment_renderer.render_nodelist(
             node_args['endnote_content'].nodelist,
             doc,
-            use_paragraphs=False
+            is_block_level=False
         )
 
         # register & render the end note
@@ -121,7 +121,7 @@ class FeatureEndnotesDocumentManager(FeatureDocumentManager):
         return fragment_renderer.render_enumeration(
             ( en.content for en in self.endnotes[category_name] ),
             counter_formatter=\
-                lambda n: self.endnotes[category_name][n].formatted_counter_value,
+                lambda n: self.endnotes[category_name][n-1].formatted_counter_value,
             annotations=[category_name+'-list'], # "footnote" -> "footnote-list"
         )
 

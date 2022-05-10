@@ -14,6 +14,8 @@ from .llmspecinfo import (
 )
 from .llmdocument import LLMDocument
 
+from .enumeration import Enumeration
+
 from .feature_endnotes import FeatureEndnotes, EndnoteCategory
 from .feature_cite import FeatureExternalPrefixedCitations
 from .feature_refs import FeatureRefs
@@ -140,6 +142,37 @@ def standard_latex_context_db():
         ],
     )
     lw_context.add_context_category(
+        'enumeration',
+        environments=[
+            LLMEnvironmentSpec(
+                'itemize',
+                arguments_spec_list=[
+                    macrospec.LatexArgumentSpec(
+                        latexnodes_parsers.LatexCharsGroupParser(
+                            delimiters=('[',']'),
+                            optional=True
+                        ),
+                        argname='tag_template',
+                    )
+                ],
+                llm_specinfo=Enumeration(annotations=['itemize']),
+            ),
+            LLMEnvironmentSpec(
+                'enumerate',
+                arguments_spec_list=[
+                    macrospec.LatexArgumentSpec(
+                        latexnodes_parsers.LatexCharsGroupParser(
+                            delimiters=('[',']'),
+                            optional=True
+                        ),
+                        argname='tag_template',
+                    )
+                ],
+                llm_specinfo=Enumeration(annotations=['enumerate']),
+            ),
+        ]
+    )
+    lw_context.add_context_category(
         'href',
         macros=[
             LLMMacroSpec(
@@ -168,95 +201,6 @@ def standard_latex_context_db():
             ),
         ]
     )
-    # lw_context.add_context_category(
-    #     'x-refs',
-    #     macros=[
-    #         LLMMacroSpec(
-    #             'ref',
-    #             arguments_spec_list=[
-    #                 LatexArgumentSpec(LatexCharsGroupParser(), argname='reftarget'),
-    #             ],
-    #             item_to_html=ItemToHtmlRef()
-    #         ),
-    #         LLMMacroSpec(
-    #             'eqref',
-    #             arguments_spec_list=[
-    #                 LatexArgumentSpec(LatexCharsGroupParser(), argname='reftarget'),
-    #             ],
-    #             item_to_html=ItemToHtmlEqRef()
-    #         ),
-    #         # \label{...} for equations
-    #         LLMMacroSpec(
-    #             'label',
-    #             arguments_spec_list=[
-    #                 LatexArgumentSpec(LatexCharsGroupParser(), argname='reftarget'),
-    #             ],
-    #             item_to_html=ItemToHtmlError()
-    #         ),
-    #         LLMMacroSpec(
-    #             'cite',
-    #             arguments_spec_list=[
-    #                 LatexArgumentSpec(
-    #                     '[',
-    #                     argname='cite_pre_text'
-    #                 ),
-    #                 LatexArgumentSpec(
-    #                     LatexCharsCommaSeparatedListParser(enable_comments=False),
-    #                     argname='citekey'
-    #                 ),
-    #             ],
-    #             item_to_html=ItemToHtmlCite()
-    #         ),
-    #         LLMMacroSpec(
-    #             'footnote',
-    #             arguments_spec_list=[
-    #                 LatexArgumentSpec(
-    #                     '{',
-    #                     argname='footnotetext'
-    #                 ),
-    #             ],
-    #             item_to_html=ItemToHtmlFootnote()
-    #         ),
-    #         LLMMacroSpec(
-    #             'href',
-    #             arguments_spec_list=[
-    #                 LatexArgumentSpec(
-    #                     LatexDelimitedVerbatimParser( ('{','}') ),
-    #                     argname='url',
-    #                 ),
-    #                 LatexArgumentSpec(
-    #                     '{',
-    #                     argname='displaytext',
-    #                 )
-    #             ],
-    #             item_to_html=ItemToHtmlHref()
-    #         ),
-    #         LLMMacroSpec(
-    #             'hyperref',
-    #             arguments_spec_list=[
-    #                 LatexArgumentSpec(
-    #                     '[',
-    #                     argname='target'
-    #                 ),
-    #                 LatexArgumentSpec(
-    #                     '{',
-    #                     argname='displaytext'
-    #                 ),
-    #             ],
-    #             item_to_html=ItemToHtmlHyperref()
-    #         ),
-    #         LLMMacroSpec(
-    #             'url',
-    #             arguments_spec_list=[
-    #                 LatexArgumentSpec(
-    #                     LatexDelimitedVerbatimParser( ('{','}') ),
-    #                     argname='url',
-    #                 )
-    #             ],
-    #             item_to_html=ItemToHtmlUrl()
-    #         ),
-    #     ]
-    # )
     # lw_context.add_context_category(
     #     'floats',
     #     macros=[

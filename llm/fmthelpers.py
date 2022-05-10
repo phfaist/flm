@@ -12,6 +12,10 @@ def alphacounter(n, lower=True):
         return s
     return s.upper()
     
+def Alphacounter(n):
+    return alphacounter(n, lower=False)
+
+
 _romancounterchars = (
     (1000, "M"),
     (900, "CM"),
@@ -37,6 +41,9 @@ def romancounter(n, lower=True):
     if lower:
         return s.lower()
     return s
+
+def Romancounter(n):
+    return romancounter(n, lower=False)
 
 _fnsymbols = [
     '*',

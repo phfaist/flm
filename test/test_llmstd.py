@@ -36,7 +36,7 @@ class TestLLMStandardEnvironment(unittest.TestCase):
         def render_fn(docobj, frobj):
             return (
                 "<main>\n"
-                "<div>" + frag1.render(docobj, frobj) + "</div>\n"
+                "<div>" + frag1.render(docobj, frobj, is_block_level=True) + "</div>\n"
                 "</main>"
             )
 
@@ -85,8 +85,7 @@ Here is the equation:
         self.assertEqual(
             result,
             r"""
-<p><span class="textbf">Hello</span>, see <span class="inline-math">\(\eqref{eq:my-equation}\)</span>.</p>
-<p>Here is the equation:
+<p><span class="textbf">Hello</span>, see <span class="inline-math">\(\eqref{eq:my-equation}\)</span>.</p><p>Here is the equation:
 <span class="display-math env-align">\begin{align}
   \label{eq:my-equation}
   \int f(x)\, dx = -1\ .
@@ -122,7 +121,7 @@ Here is the equation:
         )
 
         def render_fn(docobj, frobj):
-            return frag1.render(docobj, frobj)
+            return frag1.render(docobj, frobj, is_block_level=True)
 
         doc = environ.make_document(render_fn)
 
@@ -133,6 +132,93 @@ Here is the equation:
             result,
             r"""
 <p><span class="textbf">Hello</span> <a href="https://github.com/" class="href-href"><span class="textit">world</span></a>, check out our <a href="https://errorcorrectionzoo.org/?" class="href-href">errorcorrectionzoo.org</a>.</p>""".strip()
+        )
+
+
+
+    def test_provides_itemize(self):
+
+        environ = LLMStandardEnvironment()
+
+        frag1 = environ.make_fragment(
+r"""
+\begin{itemize}
+\item First
+\item Second
+\end{itemize}
+"""
+        )
+
+        def render_fn(docobj, frobj):
+            return frag1.render(docobj, frobj)
+
+        doc = environ.make_document(render_fn)
+
+        fr = HtmlFragmentRenderer()
+        result = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result,
+            r"""
+<dl class="enumeration itemize"><dt>•</dt><dd><p>First</p></dd><dt>•</dt><dd><p>Second</p></dd></dl>
+""".strip()
+        )
+
+    def test_provides_itemize_custombullets(self):
+
+        environ = LLMStandardEnvironment()
+
+        frag1 = environ.make_fragment(
+r"""
+\begin{itemize}[*]
+\item First
+\item[-] Second
+\end{itemize}
+"""
+        )
+
+        def render_fn(docobj, frobj):
+            return frag1.render(docobj, frobj)
+
+        doc = environ.make_document(render_fn)
+
+        fr = HtmlFragmentRenderer()
+        result = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result,
+            r"""
+<dl class="enumeration itemize"><dt>*</dt><dd><p>First</p></dd><dt>-</dt><dd><p>Second</p></dd></dl>
+""".strip()
+        )
+
+    def test_provides_enumerate_custombullets(self):
+
+        environ = LLMStandardEnvironment()
+
+        frag1 = environ.make_fragment(
+r"""
+\begin{enumerate}[{(a.)}]
+\item First
+\item[!] Second
+\item Third
+\end{enumerate}
+"""
+        )
+
+        def render_fn(docobj, frobj):
+            return frag1.render(docobj, frobj)
+
+        doc = environ.make_document(render_fn)
+
+        fr = HtmlFragmentRenderer()
+        result = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result,
+            r"""
+<dl class="enumeration enumerate"><dt>(a.)</dt><dd><p>First</p></dd><dt>!</dt><dd><p>Second</p></dd><dt>(c.)</dt><dd><p>Third</p></dd></dl>
+""".strip()
         )
 
 
@@ -148,7 +234,7 @@ Here is the equation:
         def render_fn(docobj, frobj):
             return (
                 "<main>\n"
-                "<div>" + frag1.render(docobj, frobj) + "</div>\n"
+                "<div>" + frag1.render(docobj, frobj, is_block_level=True) + "</div>\n"
                 "</main>"
             )
 
@@ -165,7 +251,7 @@ Here is the equation:
 </main>""".strip()
         )
 
-        endnotes_result = doc.feature_manager('endnotes').render_endnotes(fr)
+        endnotes_result = str( doc.feature_manager('endnotes').render_endnotes(fr) )
         print(endnotes_result)
         self.assertEqual(
             endnotes_result,
@@ -197,7 +283,7 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It
         def render_fn(docobj, frobj):
             return (
                 "<main>\n"
-                "<div>" + frag1.render(docobj, frobj) + "</div>\n"
+                "<div>" + frag1.render(docobj, frobj, is_block_level=True) + "</div>\n"
                 "</main>"
             )
 
@@ -215,15 +301,14 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It
 """.strip()
         )
 
-        endnotes_result = doc.feature_manager('endnotes').render_endnotes(fr)
+        endnotes_result = str( doc.feature_manager('endnotes').render_endnotes(fr) )
         print(endnotes_result)
         self.assertEqual(
             endnotes_result,
             r"""
-<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It is <span class="textit">true</span>!</dd></dl><dl class="enumeration citation-list"><dt>[1]</dt><dd><p><span class="textit">arXiv</span> paper arXiv:1234.56789</p></dd><dt>[2]</dt><dd><p><span class="textit">arXiv</span> paper arXiv:0000.11111</p></dd><dt>[3]</dt><dd><p><p>My custom <span class="textit">reference</span> (2022).</p></p></dd><dt>[4]</dt><dd><p><span class="textit">arXiv</span> paper arXiv:3333.99999</p></dd></dl></div>
+<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It is <span class="textit">true</span>!</dd></dl><dl class="enumeration citation-list"><dt>[1]</dt><dd><span class="textit">arXiv</span> paper arXiv:1234.56789</dd><dt>[2]</dt><dd><span class="textit">arXiv</span> paper arXiv:0000.11111</dd><dt>[3]</dt><dd>My custom <span class="textit">reference</span> (2022).</dd><dt>[4]</dt><dd><span class="textit">arXiv</span> paper arXiv:3333.99999</dd></dl></div>
             """.strip()
 )
-
 
 
 
@@ -262,7 +347,7 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It
         )
 
         def render_fn(docobj, frobj):
-            return frag1.render(docobj, frobj)
+            return frag1.render(docobj, frobj, is_block_level=True)
 
         doc = environ.make_document(render_fn)
 

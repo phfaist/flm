@@ -14,6 +14,7 @@ class _MyTestFragmentRenderer(FragmentRenderer):
 
     mark_paragraphs = False
     pieces_joiner_string = ""
+    blocks_joiner_string = "\n\n"
 
     def __init__(self, store):
         super().__init__()
@@ -21,18 +22,21 @@ class _MyTestFragmentRenderer(FragmentRenderer):
 
     # --
 
-    def render_join(self, pieces):
-        _register_call(self.store, 'render_join', (pieces,))
-        return self.pieces_joiner_string.join(pieces)
+    def render_join(self, content_list):
+        _register_call(self.store, 'render_join', (content_list,))
+        return self.pieces_joiner_string.join(content_list)
 
-    def render_join_as_paragraphs(self, paragraphs_content):
-        _register_call(self.store, 'render_join_as_paragraphs', (paragraphs_content,))
+    def render_build_paragraph(self, content_list):
+        print("content_list = ", content_list)
+        _register_call(self.store, 'render_build_paragraph', (list(content_list),))
         if self.mark_paragraphs:
-            return "\n".join( [
-                "<P>" + para_content + "</P>"
-                for para_content in paragraphs_content
-            ] )
-        return "\n\n".join(paragraphs_content)
+            return "<P>" + self.pieces_joiner_string.join(content_list) + "</P>"
+        return self.pieces_joiner_string.join(content_list)
+
+    def render_join_blocks(self, content_list):
+        _register_call(self.store, 'render_join_blocks', (content_list,))
+        return self.blocks_joiner_string.join(content_list)
+
     # --
 
     def render_value(self, value):
@@ -74,6 +78,7 @@ class TestFragmentRenderer(unittest.TestCase):
         store = {'calls': []}
         fr = _MyTestFragmentRenderer(store)
 
+        # auto-detect block level, here auto-detects no block level.
         render_result = fr.render_fragment(frag, None)
 
         self.assertEqual(render_result, r"Hello [world].")
@@ -87,9 +92,94 @@ class TestFragmentRenderer(unittest.TestCase):
                 ('render_text_format', (('textbf',), 'world',)),
                 ('render_value', ('.',)),
                 ('render_join', (['Hello ', '[world]', '.'],)),
-                ('render_join_as_paragraphs', (['Hello [world].'],)),
             ]
         )
+
+
+    def test_render_nodelist_with_block_level(self):
+
+        env = LLMStandardEnvironment()
+        s = r'''Hello.
+
+New paragraph.'''
+        frag = env.make_fragment(s, what='example text fragment')
+
+        store = {'calls': []}
+        fr = _MyTestFragmentRenderer(store)
+
+        render_result = fr.render_fragment(frag, None, is_block_level=True)
+
+        self.assertEqual(render_result, r"""Hello.
+
+New paragraph.""")
+
+        self.assertEqual(
+            store['calls'],
+            [
+                ('render_value', ('Hello.',)),
+                ('render_build_paragraph', (['Hello.'],)),
+                ('render_value', ('New paragraph.',)),
+                ('render_build_paragraph', (['New paragraph.'],)),
+                ('render_join_blocks', (['Hello.', 'New paragraph.'],)),
+            ]
+        )
+
+
+    def test_render_nodelist_no_block_level(self):
+
+        env = LLMStandardEnvironment()
+        s = r'Hello \textbf{world}.'
+        frag = env.make_fragment(s, what='example text fragment')
+
+        store = {'calls': []}
+        fr = _MyTestFragmentRenderer(store)
+
+        render_result = fr.render_fragment(frag, None, is_block_level=False)
+
+        self.assertEqual(render_result, r"Hello [world].")
+
+        self.assertEqual(
+            store['calls'],
+            [
+                ('render_value', ('Hello ',)),
+                ('render_value', ('world',)),
+                ('render_join', (['world'],)),
+                ('render_text_format', (('textbf',), 'world',)),
+                ('render_value', ('.',)),
+                ('render_join', (['Hello ', '[world]', '.'],)),
+            ]
+        )
+
+
+    def test_render_nodelist_autodetect_block_level(self):
+
+        env = LLMStandardEnvironment()
+        s = r'''Hello.
+
+New paragraph.'''
+        frag = env.make_fragment(s, what='example text fragment')
+
+        store = {'calls': []}
+        fr = _MyTestFragmentRenderer(store)
+
+        # auto-detect block level, here auto-detects no block level.
+        render_result = fr.render_fragment(frag, None)
+
+        self.assertEqual(render_result, r"""Hello.
+
+New paragraph.""")
+
+        self.assertEqual(
+            store['calls'],
+            [
+                ('render_value', ('Hello.',)),
+                ('render_build_paragraph', (['Hello.'],)),
+                ('render_value', ('New paragraph.',)),
+                ('render_build_paragraph', (['New paragraph.'],)),
+                ('render_join_blocks', (['Hello.', 'New paragraph.'],)),
+            ]
+        )
+
 
     def test_render_nodelist_with_paragraphs(self):
 
@@ -112,12 +202,12 @@ another one.
         fr = _MyTestFragmentRenderer(store)
         fr.mark_paragraphs = True
 
-        render_result = fr.render_nodelist(frag.nodes, None, use_paragraphs=True)
+        render_result = fr.render_nodelist(frag.nodes, None, is_block_level=True)
 
         self.assertEqual(
             render_result,
-            "<P>Hello world.</P>\n"
-            "<P>Here is a new\n paragraph.</P>\n"
+            "<P>Hello world.</P>\n\n"
+            "<P>Here is a new\n paragraph.</P>\n\n"
             "<P>And here comes\nanother one.</P>"
         )
 
@@ -141,7 +231,7 @@ function.
         fr.pieces_joiner_string = "|"
         fr.mark_paragraphs = True
 
-        render_result = fr.render_nodelist(frag.nodes, None, use_paragraphs=True)
+        render_result = fr.render_nodelist(frag.nodes, None, is_block_level=True)
 
         self.assertEqual(
             render_result,
@@ -173,7 +263,7 @@ function.
         fr.pieces_joiner_string = "|"
         fr.mark_paragraphs = True
 
-        render_result = fr.render_nodelist(frag.nodes, None, use_paragraphs=False)
+        render_result = fr.render_nodelist(frag.nodes, None, is_block_level=False)
 
         self.assertEqual(
             render_result,

@@ -123,8 +123,8 @@ class LLMDocument:
         return value
 
 
-    def render_fragment(self, fragment, fragment_renderer):
-        return fragment_renderer.render_fragment(fragment, self)
+    def render_fragment(self, fragment, fragment_renderer, **kwargs):
+        return fragment_renderer.render_fragment(fragment, self, **kwargs)
 
 
     def register_delayed_render(self, node, fragment_renderer):

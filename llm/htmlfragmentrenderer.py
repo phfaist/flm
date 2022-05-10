@@ -1,9 +1,14 @@
 import html
 import re
 
-from . import fragmentrenderer
+import logging
+logger = logging.getLogger(__name__)
 
-class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
+from .fragmentrenderer import FragmentRenderer, BlockLevelContent
+
+
+
+class HtmlFragmentRenderer(FragmentRenderer):
 
     supports_delayed_render_markers = True
     # we use <LLM:DLYD:delayed_key/> marker, which cannot be confused with
@@ -17,7 +22,8 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
     def htmlescape(self, value):
         return html.escape(value)
 
-    def wrap_in_tag(self, tagname, content_html, *, attrs=None, class_names=None):
+    def wrap_in_tag(self, tagname, content_html, *,
+                    attrs=None, class_names=None, is_block_level=False):
         s = f'<{tagname}'
         if attrs:
             for aname, aval in dict(attrs).items():
@@ -27,6 +33,8 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
         s += '>'
         s += str(content_html)
         s += f'</{tagname}>'
+        if is_block_level:
+            return BlockLevelContent(s)
         return s
 
     def wrap_in_link(self, display_html, target_href, *, class_names=None):
@@ -47,8 +55,31 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
 
     # -----------------
 
-    def render_join_as_paragraphs(self, paragraphs_content):
-        return "\n".join([ f"<p>{p}</p>" for p in paragraphs_content ])
+    def render_join(self, content_list):
+        r"""
+        Join together a collection of pieces of content that have already been
+        rendered.  Usually you'd want to simply join the strings together with
+        no joiner, which is what the default implementation does.
+        """
+        return "".join([str(s) for s in content_list])
+
+    def render_build_paragraph(self, content_list):
+        return BlockLevelContent(
+            "<p>"
+            + "".join([ content for content in content_list ]).strip()
+            + "</p>"
+        )
+
+    def render_join_blocks(self, content_list):
+        r"""
+        Join together a collection of pieces of content that have already been
+        rendered.  Each piece is itself a block of content, which can assumed to
+        be at least paragraph-level or even semantic blocks.  Usually you'd want
+        to simply join the strings together with no joiner, which is what the
+        default implementation does.
+        """
+        return BlockLevelContent("".join([str(s) for s in content_list]))
+
 
     # ------------------
 
@@ -76,9 +107,22 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
         class_names = [ f"{displaytype}-math" ]
         if environmentname is not None:
             class_names.append(f"env-{environmentname.replace('*','-star')}")
+
+        content_html = self.htmlescape( delimiters[0] + nodelist.latex_verbatim() + delimiters[1] )
+
+        if displaytype == 'display':
+            # BlockLevelContent( # -- don't use blockcontent as display
+            # equations might or might not be in their separate paragraph.
+            return (
+                self.wrap_in_tag(
+                    'span',
+                    content_html,
+                    class_names=class_names
+                )
+            )
         return self.wrap_in_tag(
             'span',
-            self.htmlescape( delimiters[0] + nodelist.latex_verbatim() + delimiters[1] ),
+            content_html,
             class_names=class_names
         )
 
@@ -97,23 +141,31 @@ class HtmlFragmentRenderer(fragmentrenderer.FragmentRenderer):
             return self.wrap_in_tag(
                 role,
                 content,
-                class_names=annotations
+                class_names=annotations,
+                is_block_level=True,
             )
         return self.wrap_in_tag(
             'div',
             content,
-            class_names=[role]+(annotations if annotations else [])
+            class_names=[role]+(annotations if annotations else []),
+            is_block_level=True,
         )
             
 
     def render_enumeration(self, iter_items_content, counter_formatter, annotations=None):
+        r"""
+        
+        ... remember, counter_formatter is given a number starting at 1.
+        """
         return self.wrap_in_tag(
             'dl',
             self.render_join([
-                self.wrap_in_tag('dt', counter_formatter(j)) + self.wrap_in_tag('dd', item_content)
+                self.wrap_in_tag('dt', counter_formatter(1+j))
+                + self.wrap_in_tag('dd', item_content)
                 for j, item_content in enumerate(iter_items_content)
             ]),
-            class_names=['enumeration'] + (annotations if annotations else [])
+            class_names=['enumeration'] + (annotations if annotations else []),
+            is_block_level=True,
         )
 
 

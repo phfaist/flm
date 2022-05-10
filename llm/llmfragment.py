@@ -40,8 +40,8 @@ class LLMFragment:
             raise
 
 
-    def render(self, doc, fragment_renderer):
-        return doc.render_fragment(self, fragment_renderer)
+    def render(self, doc, fragment_renderer, **kwargs):
+        return doc.render_fragment(self, fragment_renderer, **kwargs)
 
 
     @classmethod

@@ -92,7 +92,7 @@ class CiteSpecInfo(LLMSpecInfo):
             optional_cite_extra_content = fragment_renderer.render_nodelist(
                 node_args['cite_pre_text'].nodelist,
                 doc,
-                use_paragraphs=False
+                is_block_level=False
             )
 
         citekeylist_nodelist = node_args['citekey'].nodelist

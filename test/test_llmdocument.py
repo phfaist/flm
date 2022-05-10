@@ -145,8 +145,8 @@ we can also have an equation, like this:
         def render_fn(docobj, frobj):
             return (
                 "<main>\n"
-                "<div>" + frag1.render(docobj, frobj) + "</div>\n"
-                "<div>" + frag2.render(docobj, frobj) + "</div>\n"
+                "<div>" + frag1.render(docobj, frobj, is_block_level=True) + "</div>\n"
+                "<div>" + frag2.render(docobj, frobj, is_block_level=True) + "</div>\n"
                 "</main>"
             )
 
@@ -160,8 +160,7 @@ we can also have an equation, like this:
 <main>
 <div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.</p></div>
 <div><p>We can also split text across multiple paragraphs, like this
-block of text here.</p>
-<p>we can also have an equation, like this:
+block of text here.</p><p>we can also have an equation, like this:
 <span class="display-math env-align">\begin{align}
     1 + 3 - 5 = -1
 \end{align}</span></p></div>
@@ -206,6 +205,7 @@ We can also split text across multiple paragraphs, like this
 block of text here.
 
 we can also have an equation, like this:
+
 \begin{align}
     1 + 3 - 5 = -1
 \end{align}
@@ -249,8 +249,8 @@ we can also have an equation, like this:
                 (f1, f2) = (frag1 ,frag2)
             return (
                 "<main>\n"
-                "<div>" + f1.render(docobj, frobj) + "</div>\n"
-                "<div>" + f2.render(docobj, frobj) + "</div>\n"
+                "<div>" + f1.render(docobj, frobj, is_block_level=True) + "</div>\n"
+                "<div>" + f2.render(docobj, frobj, is_block_level=True) + "</div>\n"
                 "</main>"
             )
 
@@ -320,10 +320,9 @@ we can also have an equation, like this:
 
         self.assertEqual(result, r"""
 <main>
-<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(\alpha+\beta=\gamma\)</span>.</p></div>
+<div><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(\alpha+\beta=\gamma\)</span>.</div>
 <div><p>We can also split text across multiple paragraphs, like this
-block of text here.</p>
-<p>we can also have an equation, like this:
+block of text here.</p><p>we can also have an equation, like this:
 <span class="display-math env-align">\begin{align}
     1 + 3 - 5 = -1
 \end{align}</span></p></div>
