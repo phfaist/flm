@@ -11,14 +11,38 @@ from llm import llmstd
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
 from llm.llmspecinfo import LLMMacroSpec, LLMSpecInfo
-from llm.feature import Feature, FeatureDocumentManager
+from llm.feature import Feature
 
+
+
+class _MyFeatureRenderManager(Feature.RenderManager):
+
+    def initialize(self):
+        self.anchors = {}
+        self.document_size = None
+        self.final_document_size = None
+
+    def process(self, first_pass_value):
+        print("Document after first pass:\n********\n"+first_pass_value+"\n********")
+        self.document_size = len(first_pass_value)
+
+    def postprocess(self, final_value):
+        self.final_document_size = len(final_value)
+
+    def register_anchor(self, name, node, label):
+        self.anchors[name] = {
+            'node': node,
+            'label': label,
+            'number': 1+len(self.anchors)
+        }
+
+    def get_anchor_number(self, name):
+        return self.anchors[name]['number']
 
 class _MyFeature(Feature):
     feature_name = 'my-test-feature'
 
-    def spawn_document_manager(self, doc):
-        return _MyFeatureDocManager(self, doc)
+    RenderManager = _MyFeatureRenderManager
 
     def add_latex_context_definitions(self):
         return dict(
@@ -38,31 +62,6 @@ class _MyFeature(Feature):
             specials=[],
         )
 
-class _MyFeatureDocManager(FeatureDocumentManager):
-
-    def __init__(self, feature, doc):
-        super().__init__(feature, doc)
-        self.anchors = {}
-        self.document_size = None
-        self.final_document_size = None
-
-    def process(self, fragment_renderer, first_pass_value):
-        print("Document after first pass:\n********\n"+first_pass_value+"\n********")
-        self.document_size = len(first_pass_value)
-
-    def postprocess(self, fragment_renderer, final_value):
-        self.final_document_size = len(final_value)
-
-    def register_anchor(self, name, node, label):
-        self.anchors[name] = {
-            'node': node,
-            'label': label,
-            'number': 1+len(self.anchors)
-        }
-
-    def get_anchor_number(self, name):
-        return self.anchors[name]['number']
-
 
 class _MyDocumentSizeMacroSpecInfo(LLMSpecInfo):
 
@@ -71,18 +70,20 @@ class _MyDocumentSizeMacroSpecInfo(LLMSpecInfo):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def prepare_delayed_render(self, node, doc, fragment_renderer):
-        if node.isNodeType(latexnodes_nodes.LatexMacroNode)\
+    def prepare_delayed_render(self, node, render_context):
+        if node.isNodeType(latexnodes_nodes.LatexMacroNode) \
 	   and node.macroname == 'myAnchor':
-            doc.feature_manager('my-test-feature').register_anchor('myAnchor', node, 'myAnchor')
-        if node.isNodeType(latexnodes_nodes.LatexMacroNode)\
+            render_context.feature_render_manager('my-test-feature') \
+                          .register_anchor('myAnchor', node, 'myAnchor')
+        if node.isNodeType(latexnodes_nodes.LatexMacroNode) \
 	   and node.macroname == 'anotherAnchor':
-            doc.feature_manager('my-test-feature').register_anchor('anotherAnchor', node,
-                                                                   'anotherAnchor')
+            render_context.feature_render_manager('my-test-feature') \
+                          .register_anchor('anotherAnchor', node, 'anotherAnchor')
 
-    def render(self, node, doc, fragment_renderer):
+    def render(self, node, render_context):
 
-        mgr = doc.feature_manager('my-test-feature')
+        fragment_renderer = render_context.fragment_renderer
+        mgr = render_context.feature_render_manager('my-test-feature')
 
         if node.isNodeType(latexnodes_nodes.LatexMacroNode)\
 	   and node.macroname == 'myAnchor':
@@ -142,18 +143,18 @@ we can also have an equation, like this:
             """.strip()
         )
 
-        def render_fn(docobj, frobj):
+        def render_fn(render_context):
             return (
                 "<main>\n"
-                "<div>" + frag1.render(docobj, frobj, is_block_level=True) + "</div>\n"
-                "<div>" + frag2.render(docobj, frobj, is_block_level=True) + "</div>\n"
+                "<div>" + frag1.render(render_context, is_block_level=True) + "</div>\n"
+                "<div>" + frag2.render(render_context, is_block_level=True) + "</div>\n"
                 "</main>"
             )
 
         fr = HtmlFragmentRenderer()
         doc = LLMDocument(render_fn, environ)
 
-        result = doc.render(fr)
+        result, _ = doc.render(fr)
         print(result)
 
         self.assertEqual(result, r"""
@@ -185,16 +186,16 @@ we can also have an equation, like this:
             """.strip()
         )
 
-        def render_fn(docobj, frobj):
+        def render_fn(render_context):
             return (
-                "|||\n" + frag1.render(docobj, frobj) + "\n|||\n"
-                + frag2.render(docobj, frobj) + "\n|||"
+                "|||\n" + frag1.render(render_context) + "\n|||\n"
+                + frag2.render(render_context) + "\n|||"
             )
 
         fr = TextFragmentRenderer()
         doc = LLMDocument(render_fn, environ)
 
-        result = doc.render(fr)
+        result, _ = doc.render(fr)
         print(result)
 
         self.assertEqual(result, r"""
@@ -242,15 +243,15 @@ we can also have an equation, like this:
             r"\myAnchor We meet \textbf{again}. Here is a \linkAnotherAnchor. Total document size is (approx.) = \printDocumentSize."
         )
 
-        def render_fn(docobj, frobj, flip_order=False):
+        def render_fn(render_context, flip_order=False):
             if flip_order:
                 (f1, f2) = (frag2, frag1)
             else:
                 (f1, f2) = (frag1 ,frag2)
             return (
                 "<main>\n"
-                "<div>" + f1.render(docobj, frobj, is_block_level=True) + "</div>\n"
-                "<div>" + f2.render(docobj, frobj, is_block_level=True) + "</div>\n"
+                "<div>" + f1.render(render_context, is_block_level=True) + "</div>\n"
+                "<div>" + f2.render(render_context, is_block_level=True) + "</div>\n"
                 "</main>"
             )
 
@@ -263,7 +264,7 @@ we can also have an equation, like this:
             environ.features,
         )
 
-        result = doc.render(fr)
+        result, _ = doc.render(fr)
         print(result)
 
         predict_docsize = len(r"""
@@ -304,18 +305,18 @@ we can also have an equation, like this:
             """.strip()
         )
 
-        def render_fn(docobj, frobj):
+        def render_fn(render_context):
             return (
                 "<main>\n"
-                "<div>" + frag1.render(docobj, frobj) + "</div>\n"
-                "<div>" + frag2.render(docobj, frobj) + "</div>\n"
+                "<div>" + frag1.render(render_context) + "</div>\n"
+                "<div>" + frag2.render(render_context) + "</div>\n"
                 "</main>"
             )
 
         fr = HtmlFragmentRenderer()
         doc = LLMDocument(render_fn, environ)
 
-        result = doc.render(fr)
+        result, _ = doc.render(fr)
         print(result)
 
         self.assertEqual(result, r"""

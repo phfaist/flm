@@ -22,6 +22,7 @@ class BlockLevelContent:
 
 
 
+
 class FragmentRenderer:
     r"""
     .................
@@ -35,12 +36,14 @@ class FragmentRenderer:
     """
 
 
-    def render_fragment(self, llm_fragment, doc, is_block_level=None):
+    def render_fragment(self, llm_fragment, render_context, is_block_level=None):
         return str(
-            self.render_nodelist(llm_fragment.nodes, doc, is_block_level=is_block_level)
+            self.render_nodelist(llm_fragment.nodes,
+                                 self._ensure_render_context(render_context),
+                                 is_block_level=is_block_level)
         )
 
-    def render_nodelist(self, nodelist, doc, is_block_level=None):
+    def render_nodelist(self, nodelist, render_context, is_block_level=None):
         r"""
         Render a nodelist, splitting the contents into paragraphs if applicable.
 
@@ -89,7 +92,7 @@ class FragmentRenderer:
                 # only white space, and we haven't started a new paragraph yet -- ignore it.
                 continue
 
-            rendered = self.render_node(n, doc)
+            rendered = self.render_node(n, self._ensure_render_context(render_context))
             if isinstance(rendered, BlockLevelContent):
                 if is_block_level is None:
                     is_block_level = True # saw block-level content -- autodetected block level
@@ -127,44 +130,49 @@ class FragmentRenderer:
         logger.debug("render_nodelist: rendered -> %r", rendered)
         return rendered
 
-    def render_node(self, node, doc):
+    def render_node(self, node, render_context):
+        render_context = self._ensure_render_context(render_context)
         if node.isNodeType(nodes.LatexCharsNode):
-            return self.render_node_chars(node, doc)
+            return self.render_node_chars(node, render_context)
         if node.isNodeType(nodes.LatexCommentNode):
-            return self.render_node_comment(node, doc)
+            return self.render_node_comment(node, render_context)
         if node.isNodeType(nodes.LatexGroupNode):
-            return self.render_node_group(node, doc)
+            return self.render_node_group(node, render_context)
         if node.isNodeType(nodes.LatexMacroNode):
-            return self.render_node_macro(node, doc)
+            return self.render_node_macro(node, render_context)
         if node.isNodeType(nodes.LatexEnvironmentNode):
-            return self.render_node_environment(node, doc)
+            return self.render_node_environment(node, render_context)
         if node.isNodeType(nodes.LatexSpecialsNode):
-            return self.render_node_specials(node, doc)
+            return self.render_node_specials(node, render_context)
         if node.isNodeType(nodes.LatexMathNode):
-            return self.render_node_math(node, doc)
+            return self.render_node_math(node, render_context)
 
         raise ValueError(f"Invalid node type: {node!r}")
         
 
-    def render_node_chars(self, node, doc):
+    def render_node_chars(self, node, render_context):
         return self.render_value( node.chars )
 
-    def render_node_comment(self, node, doc):
+    def render_node_comment(self, node, render_context):
         return ''
 
-    def render_node_group(self, node, doc):
-        return self.render_nodelist( node.nodelist, doc )
+    def render_node_group(self, node, render_context):
+        return self.render_nodelist( node.nodelist,
+                                     self._ensure_render_context(render_context) )
 
-    def render_node_macro(self, node, doc):
-        return self.render_invocable_node(node, doc)
+    def render_node_macro(self, node, render_context):
+        return self.render_invocable_node(node,
+                                          self._ensure_render_context(render_context))
 
-    def render_node_environment(self, node, doc):
-        return self.render_invocable_node(node, doc)
+    def render_node_environment(self, node, render_context):
+        return self.render_invocable_node(node,
+                                          self._ensure_render_context(render_context))
 
-    def render_node_specials(self, node, doc):
-        return self.render_invocable_node(node, doc)
+    def render_node_specials(self, node, render_context):
+        return self.render_invocable_node(node,
+                                          self._ensure_render_context(render_context))
 
-    def render_invocable_node(self, node, doc):
+    def render_invocable_node(self, node, render_context):
         if node.spec.llm_specinfo_string is not None:
             # simple pre-set string
             return self.render_value( node.spec.llm_specinfo_string )
@@ -173,11 +181,18 @@ class FragmentRenderer:
         # Rendering result will be obtained by calling render() on the
         # specinfo object
         #
-        return self.render_invocable_node_call_render(node, node.spec.llm_specinfo, doc)
+        return self.render_invocable_node_call_render(
+            node,
+            node.spec.llm_specinfo,
+            self._ensure_render_context(render_context)
+        )
 
 
 
-    def render_invocable_node_call_render(self, node, llm_specinfo, doc):
+    def render_invocable_node_call_render(self, node, llm_specinfo, render_context):
+
+        # render_context is not None because of internal call
+        assert( render_context is not None )
 
         if llm_specinfo is None:
             raise ValueError(f"Cannot render {node=!r} because specinfo is None!")
@@ -186,41 +201,46 @@ class FragmentRenderer:
             # requested a delayed rendering -- 
 
             is_first_pass = (self.supports_delayed_render_markers
-                             or not doc.two_pass_mode_is_second_pass)
+                             or not render_context.two_pass_mode_is_second_pass)
             delayed_key = None
 
             if is_first_pass:
-                llm_specinfo.prepare_delayed_render(node, doc, self)
-                delayed_key = doc.register_delayed_render(node, self)
+                llm_specinfo.prepare_delayed_render(node, render_context)
+                delayed_key = render_context.register_delayed_render(node, self)
 
             if self.supports_delayed_render_markers:
                 # first pass, there's only one pass anyways; we're generating
                 # the marker for the delayed content now -->
-                return self.render_delayed_marker(node, delayed_key, doc)
+                return self.render_delayed_marker(node, delayed_key, render_context)
             elif is_first_pass:
                 # first pass of a two-pass scheme
-                llm_specinfo.prepare_delayed_render(node, doc, self)
+                llm_specinfo.prepare_delayed_render(node, render_context)
                 # dummy placeholder, you'll never see it unless there's a bug:
-                return self.render_delayed_dummy_placeholder(node, delayed_key, doc)
+                return self.render_delayed_dummy_placeholder(node, delayed_key, render_context)
             else:
                 # second pass of the two-pass scheme
-                assert( doc.two_pass_mode_is_second_pass )
+                assert( render_context.two_pass_mode_is_second_pass )
                 # can return content that has been rendered by now
-                return doc.get_delayed_render_content(node)
+                return render_context.get_delayed_render_content(node)
 
 
         # simply call render() to get the rendered value
 
-        value = llm_specinfo.render(node, doc, self)
+        value = llm_specinfo.render(node, render_context)
         return value
 
 
-    def render_node_math(self, node, doc):
-        return self.render_math_content( node.delimiters, node.nodelist, doc,
-                                         node.displaytype, None )
+    def render_node_math(self, node, render_context):
+        return self.render_math_content(
+            node.delimiters,
+            node.nodelist,
+            self._ensure_render_context(render_context),
+            node.displaytype,
+            None
+        )
 
 
-    def render_math_content(self, delimiters, nodelist, doc, displaytype,
+    def render_math_content(self, delimiters, nodelist, render_context, displaytype,
                             environmentname=None):
         # Use verbatim to render math in the base implementation. It will work
         # for our HTML implementation as well since we'll rely on MathJax.
@@ -366,6 +386,25 @@ class FragmentRenderer:
         return "".join(charslist)
 
 
+
+    # --
+
+    def _ensure_render_context(self, render_context):
+        return render_context or _OnlyFragmentRendererRenderContext(self)
+
+
+class _OnlyFragmentRendererRenderContext:
+    def __init__(self, fragment_renderer):
+        self.doc = None
+        self.fragment_renderer = fragment_renderer
+
+    def supports_feature(self, feature_name):
+        return False
+
+    def feature_render_manager(self, feature_name):
+        return None
+
+
 class _NodeArgInfo:
     def __init__(self, nodelist, main_arg_node, provided):
         super().__init__()
@@ -391,10 +430,10 @@ class TextFragmentRenderer(FragmentRenderer):
     def render_value(self, value):
         return value
 
-    def render_delayed_marker(self, node, delayed_key, doc):
+    def render_delayed_marker(self, node, delayed_key, render_context):
         return ''
 
-    def render_delayed_dummy_placeholder(self, node, delayed_key, doc):
+    def render_delayed_dummy_placeholder(self, node, delayed_key, render_context):
         return '#DELAYED#'
 
     def render_nothing(self, annotations=None):

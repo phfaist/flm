@@ -33,10 +33,10 @@ class TestLLMStandardEnvironment(unittest.TestCase):
             r"\textbf{Hello} \textit{world}, we know that \(a+b=c\)."
         )
 
-        def render_fn(docobj, frobj):
+        def render_fn(render_context):
             return (
                 "<main>\n"
-                "<div>" + frag1.render(docobj, frobj, is_block_level=True) + "</div>\n"
+                "<div>" + frag1.render(render_context, is_block_level=True) + "</div>\n"
                 "</main>"
             )
 
@@ -46,7 +46,7 @@ class TestLLMStandardEnvironment(unittest.TestCase):
         # and instantiate LLMDocuments ourselves.
         doc = environ.make_document(render_fn)
 
-        result = doc.render(fr)
+        result, _ = doc.render(fr)
 
         self.assertEqual(
             result,
@@ -74,13 +74,13 @@ Here is the equation:
 """.strip()
         )
 
-        def render_fn(docobj, frobj):
-            return frag1.render(docobj, frobj)
+        def render_fn(render_context):
+            return frag1.render(render_context)
 
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
-        result = doc.render(fr)
+        result, _ = doc.render(fr)
         print(result)
         self.assertEqual(
             result,
@@ -120,13 +120,13 @@ Here is the equation:
             r"\url{https://errorcorrectionzoo.org/?}."
         )
 
-        def render_fn(docobj, frobj):
-            return frag1.render(docobj, frobj, is_block_level=True)
+        def render_fn(render_context):
+            return frag1.render(render_context, is_block_level=True)
 
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
-        result = doc.render(fr)
+        result, _ = doc.render(fr)
         print(result)
         self.assertEqual(
             result,
@@ -149,13 +149,13 @@ r"""
 """
         )
 
-        def render_fn(docobj, frobj):
-            return frag1.render(docobj, frobj)
+        def render_fn(render_context):
+            return frag1.render(render_context)
 
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
-        result = doc.render(fr)
+        result, _ = doc.render(fr)
         print(result)
         self.assertEqual(
             result,
@@ -177,13 +177,13 @@ r"""
 """
         )
 
-        def render_fn(docobj, frobj):
-            return frag1.render(docobj, frobj)
+        def render_fn(render_context):
+            return frag1.render(render_context)
 
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
-        result = doc.render(fr)
+        result, _ = doc.render(fr)
         print(result)
         self.assertEqual(
             result,
@@ -206,13 +206,13 @@ r"""
 """
         )
 
-        def render_fn(docobj, frobj):
-            return frag1.render(docobj, frobj)
+        def render_fn(render_context):
+            return frag1.render(render_context)
 
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
-        result = doc.render(fr)
+        result, _ = doc.render(fr)
         print(result)
         self.assertEqual(
             result,
@@ -231,17 +231,17 @@ r"""
             r"\textit{true}!} I checked it."
         )
 
-        def render_fn(docobj, frobj):
+        def render_fn(render_context):
             return (
                 "<main>\n"
-                "<div>" + frag1.render(docobj, frobj, is_block_level=True) + "</div>\n"
+                "<div>" + frag1.render(render_context, is_block_level=True) + "</div>\n"
                 "</main>"
             )
 
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
-        result = doc.render(fr)
+        result, render_context = doc.render(fr)
         print(result)
         self.assertEqual(
             result,
@@ -251,7 +251,9 @@ r"""
 </main>""".strip()
         )
 
-        endnotes_result = str( doc.feature_manager('endnotes').render_endnotes(fr) )
+        endnotes_result = str(
+            render_context.feature_render_manager('endnotes').render_endnotes(fr)
+        )
         print(endnotes_result)
         self.assertEqual(
             endnotes_result,
@@ -280,17 +282,17 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It
             r"\emph{reference} (2022).},arxiv:3333.99999}"
         )
 
-        def render_fn(docobj, frobj):
+        def render_fn(render_context):
             return (
                 "<main>\n"
-                "<div>" + frag1.render(docobj, frobj, is_block_level=True) + "</div>\n"
+                "<div>" + frag1.render(render_context, is_block_level=True) + "</div>\n"
                 "</main>"
             )
 
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
-        result = doc.render(fr)
+        result, render_context = doc.render(fr)
         print(result)
         self.assertEqual(
             result,
@@ -301,7 +303,7 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It
 """.strip()
         )
 
-        endnotes_result = str( doc.feature_manager('endnotes').render_endnotes(fr) )
+        endnotes_result = str( render_context.feature_render_manager('endnotes').render_endnotes(fr) )
         print(endnotes_result)
         self.assertEqual(
             endnotes_result,
@@ -346,13 +348,13 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It
 """.strip()
         )
 
-        def render_fn(docobj, frobj):
-            return frag1.render(docobj, frobj, is_block_level=True)
+        def render_fn(render_context):
+            return frag1.render(render_context, is_block_level=True)
 
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
-        result = doc.render(fr)
+        result, _ = doc.render(fr)
         print(result)
         self.assertEqual(
             result,

@@ -5,23 +5,23 @@ from pylatexenc import macrospec
 
 from .llmspecinfo import LLMSpecInfo, LLMMacroSpec
 
-from .feature import Feature, FeatureDocumentManager
+from .feature import Feature
 
 
-class FeatureExternalPrefixedCitationsDocumentManager(FeatureDocumentManager):
+class FeatureExternalPrefixedCitationsRenderManager(Feature.RenderManager):
 
     def initialize(self):
         self.citation_endnotes = {}
 
-    def get_citation_endnote(self, cite_prefix, cite_key, doc, fragment_renderer):
-        endnotes_mgr = self.doc.feature_manager('endnotes')
+    def get_citation_endnote(self, cite_prefix, cite_key):
+        endnotes_mgr = self.render_context.feature_render_manager('endnotes')
         if endnotes_mgr is None:
             raise RuntimeError("No 'endnotes' feature manager found to add citations")
 
         if (cite_prefix, cite_key) in self.citation_endnotes:
             return self.citation_endnotes[(cite_prefix, cite_key)]
 
-        citation_llm = doc.environment.make_fragment(
+        citation_llm = render_context.doc.environment.make_fragment(
             self.feature.external_citations_provider.get_citation_full_text_llm(
                 cite_prefix, cite_key
             )
@@ -29,7 +29,7 @@ class FeatureExternalPrefixedCitationsDocumentManager(FeatureDocumentManager):
 
         formatted_citation = fragment_renderer.render_fragment(
             citation_llm, 
-            doc=None
+            render_context=None
         )
 
         endnote = endnotes_mgr.add_endnote(
@@ -46,7 +46,7 @@ class FeatureExternalPrefixedCitationsDocumentManager(FeatureDocumentManager):
 class FeatureExternalPrefixedCitations(Feature):
 
     feature_name = 'citations'
-    feature_manager_class = FeatureExternalPrefixedCitationsDocumentManager
+    RenderManager = FeatureExternalPrefixedCitationsRenderManager
 
     def __init__(self, external_citations_provider):
         super().__init__()
@@ -78,7 +78,7 @@ class FeatureExternalPrefixedCitations(Feature):
 
 class CiteSpecInfo(LLMSpecInfo):
 
-    def render(self, node, doc, fragment_renderer):
+    def render(self, node, render_context):
 
         node_args = fragment_renderer.get_arguments_nodelists(
             node,
@@ -91,7 +91,7 @@ class CiteSpecInfo(LLMSpecInfo):
             #
             optional_cite_extra_content = fragment_renderer.render_nodelist(
                 node_args['cite_pre_text'].nodelist,
-                doc,
+                render_context,
                 is_block_level=False
             )
 
@@ -103,11 +103,8 @@ class CiteSpecInfo(LLMSpecInfo):
 
         #logger.debug(f"Citation key nodes: {citekeylist_nodelist=}")
 
-        cite_mgr = None
-        endnotes_mgr = None
-        if doc is not None:
-            cite_mgr = doc.feature_manager('citations')
-            endnotes_mgr = doc.feature_manager('endnotes')
+        cite_mgr = render_context.feature_render_manager('citations')
+        endnotes_mgr = render_context.feature_render_manager('endnotes')
 
         s_items = []
         for citekeygroupnode in citekeylist_nodelist:
@@ -147,11 +144,9 @@ class CiteSpecInfo(LLMSpecInfo):
             endnote = cite_mgr.get_citation_endnote(
                 citation_key_prefix,
                 citation_key,
-                doc,
-                fragment_renderer,
             )
             s_items.append(
-                endnotes_mgr.render_endnote_mark(endnote, fragment_renderer)
+                endnotes_mgr.render_endnote_mark(endnote, render_context)
             )
 
         return fragment_renderer.render_join(s_items)

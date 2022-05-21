@@ -102,7 +102,11 @@ class HtmlFragmentRenderer(FragmentRenderer):
             class_names=(annotations if annotations else ['verbatim'])
         )
 
-    def render_math_content(self, delimiters, nodelist, doc, displaytype,
+    def render_math_content(self,
+                            delimiters,
+                            nodelist,
+                            render_context,
+                            displaytype,
                             environmentname=None):
         class_names = [ f"{displaytype}-math" ]
         if environmentname is not None:
@@ -177,10 +181,10 @@ class HtmlFragmentRenderer(FragmentRenderer):
         )
 
     
-    def render_delayed_marker(self, node, delayed_key, doc):
+    def render_delayed_marker(self, node, delayed_key, render_context):
         return f"<LLM:DLYD:{delayed_key}/>"
 
-    def render_delayed_dummy_placeholder(self, node, delayed_key, doc):
+    def render_delayed_dummy_placeholder(self, node, delayed_key, render_context):
         return '<!-- delayed:{delayed_key} -->'
 
     def replace_delayed_markers_with_final_values(self, content, delayed_values):

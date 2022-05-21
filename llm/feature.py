@@ -1,31 +1,35 @@
 
-
-class FeatureDocumentManager:
-
-    def __init__(self, feature, doc, **kwargs):
-        super().__init__(**kwargs)
-        self.feature_name = feature.feature_name
-        self.feature = feature
-        self.doc = doc
-
-    def initialize(self):
-        pass
-
-    def process(self, fragment_renderer, first_pass_value):
-        pass
-
-    def postprocess(self, fragment_renderer, final_value):
-        pass
-
-
-
 class Feature:
 
     feature_name = None
-    feature_manager_class = FeatureDocumentManager
 
-    def spawn_document_manager(self, doc):
-        return self.feature_manager_class(self, doc)
+    class DocumentManager:
+        def __init__(self, feature, doc, **kwargs):
+            super().__init__(**kwargs)
+            self.feature = feature
+            self.feature_name = self.feature.feature_name
+            self.RenderManager = self.feature.RenderManager
+
+        def initialize(self):
+            pass
+
+    class RenderManager:
+        def __init__(self, feature_document_manager, render_context, **kwargs):
+            super().__init__(**kwargs)
+            self.feature_document_manager = feature_document_manager
+            self.feature = self.feature_document_manager.feature
+            self.feature_name = self.feature.feature_name
+            self.render_context = render_context
+
+        def initialize(self):
+            pass
+
+        def process(self, first_pass_value):
+            pass
+
+        def postprocess(self, final_value):
+            pass
+
 
     def add_latex_context_definitions(self):
         return {}

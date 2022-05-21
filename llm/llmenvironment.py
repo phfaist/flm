@@ -75,11 +75,13 @@ class LLMEnvironment:
 
 
     def make_document(self, render_callback):
-        return LLMDocument(
+        doc = LLMDocument(
             render_callback,
             environment=self,
             features=self.features,
         )
+        doc.initialize()
+        return doc
 
 
     def get_parse_error_message(self, exception_object):

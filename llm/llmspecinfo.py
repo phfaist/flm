@@ -4,6 +4,8 @@ from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import LatexWalkerParseError
 
 
+
+
 class LLMSpecInfo:
 
     delayed_render = False
@@ -20,7 +22,7 @@ class LLMSpecInfo:
         """
         pass
 
-    def prepare_delayed_render(self, node, doc, fragment_renderer):
+    def prepare_delayed_render(self, node, render_context):
         r"""
         For items with `delayed_render=True`, this method is called instead of
         render() on the first pass, so that this document item has the
@@ -30,7 +32,7 @@ class LLMSpecInfo:
         """
         raise RuntimeError("Reimplement me!")
 
-    def render(self, node, doc, fragment_renderer):
+    def render(self, node, render_context):
         raise RuntimeError(
             f"Element ‘{node}’ cannot be placed here, render() not reimplemented."
         )
@@ -114,43 +116,46 @@ class TextFormat(LLMSpecInfo):
         super().__init__()
         self.text_formats = text_formats
 
-    def render(self, node, doc, fragment_renderer):
+    def render(self, node, render_context):
 
-        node_args = fragment_renderer.get_arguments_nodelists(
+        node_args = render_context.fragment_renderer.get_arguments_nodelists(
             node,
             ('text',) ,
             all=True
         )
 
-        content = fragment_renderer.render_nodelist(
-            node_args['text'].nodelist, doc,
+        content = render_context.fragment_renderer.render_nodelist(
+            node_args['text'].nodelist, render_context,
             is_block_level=False
         )
 
-        return fragment_renderer.render_text_format(self.text_formats, content)
+        return render_context.fragment_renderer.render_text_format(
+            self.text_formats,
+            content
+        )
 
 
 class MathEnvironment(LLMSpecInfo):
-    def render(self, node, doc, fragment_renderer):
+    def render(self, node, render_context):
         environmentname = node.environmentname
-        return fragment_renderer.render_math_content(
+        return render_context.fragment_renderer.render_math_content(
             (f"\\begin{{{environmentname}}}", f"\\end{{{environmentname}}}",),
             node.nodelist,
-            doc,
+            render_context,
             'display',
             environmentname
         )
 
 class MathEqref(LLMSpecInfo):
-    def render(self, node, doc, fragment_renderer):
-        node_args = fragment_renderer.get_arguments_nodelists(
+    def render(self, node, render_context):
+        node_args = render_context.fragment_renderer.get_arguments_nodelists(
             node,
             ('ref_target',),
             all=True
         )
         
         ref_type = None
-        ref_target = fragment_renderer.get_nodelist_as_chars(
+        ref_target = render_context.fragment_renderer.get_nodelist_as_chars(
             node_args['ref_target'].nodelist
         )
         if ':' in ref_target:
@@ -164,10 +169,10 @@ class MathEqref(LLMSpecInfo):
         # simply emit the \eqref{...} call as we got it directly, and let
         # MathJax handle the referencing
 
-        return fragment_renderer.render_math_content(
+        return render_context.fragment_renderer.render_math_content(
             (r"\(", r"\)"),
             latexnodes_nodes.LatexNodeList([node]),
-            doc,
+            render_context,
             'inline',
         )
 
@@ -195,9 +200,9 @@ class HrefHyperlink(LLMSpecInfo):
         #         url_display = url_display[:-len(suffix)]
         return url_display
 
-    def render(self, node, doc, fragment_renderer):
+    def render(self, node, render_context):
 
-        node_args = fragment_renderer.get_arguments_nodelists(
+        node_args = render_context.fragment_renderer.get_arguments_nodelists(
             node,
             self.command_arguments,
             all=True
@@ -207,13 +212,13 @@ class HrefHyperlink(LLMSpecInfo):
         display_text = None
 
         if 'target_href' in node_args:
-            target_href = fragment_renderer.get_nodelist_as_chars(
+            target_href = render_context.fragment_renderer.get_nodelist_as_chars(
                 node_args['target_href'].nodelist
             )
         if 'display_text' in node_args:
-            display_text = fragment_renderer.render_nodelist(
+            display_text = render_context.fragment_renderer.render_nodelist(
                 node_args['display_text'].nodelist,
-                doc=doc,
+                render_context=render_context,
                 is_block_level=False,
             )
 
@@ -221,7 +226,7 @@ class HrefHyperlink(LLMSpecInfo):
         if display_text is None:
             display_text = self.pretty_url(target_href)
 
-        return fragment_renderer.render_link(
+        return render_context.fragment_renderer.render_link(
             self.ref_type,
             target_href,
             display_text,
@@ -240,7 +245,7 @@ class Verbatim(LLMSpecInfo):
         self.annotation = annotation
         self.include_environment_begin_end = include_environment_begin_end
 
-    def render(self, node, doc, fragment_renderer):
+    def render(self, node, render_context):
 
         if node.isNodeType(latexnodes_nodes.LatexEnvironmentNode):
             if self.include_environment_begin_end:
@@ -252,7 +257,7 @@ class Verbatim(LLMSpecInfo):
         else:
             verbatim_contents = node.latex_verbatim()
         
-        return fragment_renderer.render_verbatim(
+        return render_context.fragment_renderer.render_verbatim(
             verbatim_contents,
             self.annotation
         )
@@ -263,7 +268,7 @@ class Error(LLMSpecInfo):
         super().__init__()
         self.error_msg = error_msg
     
-    def render(self, node, doc, fragment_renderer):
+    def render(self, node, render_context):
         if self.error_msg:
             raise ValueError(self.error_msg)
         else:

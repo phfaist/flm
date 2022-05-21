@@ -3,7 +3,7 @@ from pylatexenc import macrospec
 
 from .llmspecinfo import LLMSpecInfo, LLMMacroSpec
 
-from .feature import Feature, FeatureDocumentManager
+from .feature import Feature
 
 
 
@@ -16,7 +16,7 @@ class RefInstance:
         self.target_href = target_href
 
 
-class FeatureRefsDocumentManager(FeatureDocumentManager):
+class FeatureRefsRenderManager(Feature.RenderManager):
 
     def initialize(self):
         self.ref_labels = {}
@@ -49,7 +49,7 @@ class FeatureRefs(Feature):
     """
 
     feature_name = 'refs'
-    feature_manager_class = FeatureRefsDocumentManager
+    RenderManager = FeatureRefsRenderManager
 
     def __init__(self, external_ref_resolver=None):
         super().__init__()

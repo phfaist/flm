@@ -30,8 +30,10 @@ class LLMFragment:
         except latexnodes.LatexWalkerParseError as e:
             if not self.silent:
                 error_message = self.environment.get_parse_error_message(e)
-                logger.error(f"Parse error in latex-like markup ‘{self.what}’: {error_message}\n"
-                             f"Given text was:\n‘{self.llm_text}’\n\n")
+                logger.error(
+                    f"Parse error in latex-like markup ‘{self.what}’: {error_message}\n"
+                    f"Given text was:\n‘{self.llm_text}’\n\n"
+                )
             raise
         except Exception as e:
             if not self.silent:
@@ -40,8 +42,8 @@ class LLMFragment:
             raise
 
 
-    def render(self, doc, fragment_renderer, **kwargs):
-        return doc.render_fragment(self, fragment_renderer, **kwargs)
+    def render(self, render_context, **kwargs):
+        return render_context.fragment_renderer.render_fragment(self, render_context, **kwargs)
 
 
     @classmethod

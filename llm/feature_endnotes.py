@@ -1,7 +1,7 @@
 from pylatexenc import macrospec
 
 from .llmspecinfo import LLMMacroSpec, LLMSpecInfo
-from .feature import Feature, FeatureDocumentManager
+from .feature import Feature
 from . import fmthelpers
 
 
@@ -33,9 +33,10 @@ class EndnoteSpecInfo(LLMSpecInfo):
         super().__init__(**kwargs)
         self.endnote_category_name = endnote_category_name
         
-    def render(self, node, doc, fragment_renderer):
+    def render(self, node, render_context):
 
-        mgr = doc.feature_manager('endnotes')
+        fragment_renderer = render_context.fragment_renderer
+        mgr = render_context.feature_render_manager('endnotes')
         if mgr is None:
             raise RuntimeError(
                 "You did not set up the feature 'endnotes' in your LLM environment"
@@ -49,7 +50,7 @@ class EndnoteSpecInfo(LLMSpecInfo):
 
         content = fragment_renderer.render_nodelist(
             node_args['endnote_content'].nodelist,
-            doc,
+            render_context,
             is_block_level=False
         )
 
@@ -73,7 +74,7 @@ class EndnoteInstance:
         self.label = label
 
 
-class FeatureEndnotesDocumentManager(FeatureDocumentManager):
+class FeatureEndnotesRenderManager(Feature.RenderManager):
 
     def initialize(self):
         self.endnotes = {
@@ -84,7 +85,6 @@ class FeatureEndnotesDocumentManager(FeatureDocumentManager):
             c.category_name: 1
             for c in self.feature.categories
         }
-
 
     def add_endnote(self, category_name, content, label=None):
         fmtcounter = self.feature.categories_by_name[category_name].counter_formatter
@@ -100,9 +100,9 @@ class FeatureEndnotesDocumentManager(FeatureDocumentManager):
         self.endnotes[category_name].append( endnote )
         return endnote
 
-    def render_endnote_mark(self, endnote, fragment_renderer):
+    def render_endnote_mark(self, endnote, render_context):
         endnote_link_href = f"#{endnote.category_name}-{endnote.number}"
-        return fragment_renderer.render_link(
+        return render_context.fragment_renderer.render_link(
             'endnote',
             endnote_link_href,
             endnote.formatted_counter_value,
@@ -110,7 +110,10 @@ class FeatureEndnotesDocumentManager(FeatureDocumentManager):
         )
 
 
-    def render_endnote_category(self, category_name, fragment_renderer):
+    def render_endnote_category(self, category_name):
+
+        render_context = self.render_context
+        fragment_renderer = render_context.fragment_renderer
 
         if hasattr(category_name, 'category_name'):
             encat = category_name
@@ -126,7 +129,10 @@ class FeatureEndnotesDocumentManager(FeatureDocumentManager):
         )
 
 
-    def render_endnotes(self, fragment_renderer):
+    def render_endnotes(self):
+
+        render_context = self.render_context
+        fragment_renderer = render_context.fragment_renderer
 
         blocks = [
             self.render_endnote_category(encat, fragment_renderer)
@@ -144,7 +150,7 @@ class FeatureEndnotesDocumentManager(FeatureDocumentManager):
 class FeatureEndnotes(Feature):
 
     feature_name = 'endnotes'
-    feature_manager_class = FeatureEndnotesDocumentManager
+    RenderManager = FeatureEndnotesRenderManager
 
     def __init__(self, categories):
         r"""
