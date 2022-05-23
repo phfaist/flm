@@ -92,10 +92,12 @@ class RefSpecInfo(LLMSpecInfo):
         self.ref_type = ref_type
         self.command_arguments = command_arguments
         
-    def prepare_delayed_render(self, node, doc, fragment_renderer):
+    def prepare_delayed_render(self, node, render_context):
         pass
 
-    def render(self, node, doc, fragment_renderer):
+    def render(self, node, render_context):
+
+        fragment_renderer = render_context.fragment_renderer
 
         node_args = fragment_renderer.get_arguments_nodelists(
             node,
@@ -114,12 +116,12 @@ class RefSpecInfo(LLMSpecInfo):
         if 'display_text' in node_args:
             display_content = fragment_renderer.render_nodelist(
                 node_args['display_text'],
-                doc=doc,
+                render_context=render_context,
             )
         else:
             display_content = None
 
-        mgr = doc.feature_manager('refs')
+        mgr = render_context.feature_render_manager('refs')
 
         ref_instance = mgr.get_ref(ref_type, ref_target)
 

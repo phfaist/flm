@@ -252,7 +252,7 @@ r"""
         )
 
         endnotes_result = str(
-            render_context.feature_render_manager('endnotes').render_endnotes(fr)
+            render_context.feature_render_manager('endnotes').render_endnotes()
         )
         print(endnotes_result)
         self.assertEqual(
@@ -303,7 +303,9 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It
 """.strip()
         )
 
-        endnotes_result = str( render_context.feature_render_manager('endnotes').render_endnotes(fr) )
+        endnotes_result = str(
+            render_context.feature_render_manager('endnotes').render_endnotes()
+        )
         print(endnotes_result)
         self.assertEqual(
             endnotes_result,

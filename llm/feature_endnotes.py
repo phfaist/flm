@@ -59,7 +59,7 @@ class EndnoteSpecInfo(LLMSpecInfo):
             self.endnote_category_name,
             content
         )
-        return mgr.render_endnote_mark(endnote, fragment_renderer)
+        return mgr.render_endnote_mark(endnote)
 
 
 
@@ -100,9 +100,9 @@ class FeatureEndnotesRenderManager(Feature.RenderManager):
         self.endnotes[category_name].append( endnote )
         return endnote
 
-    def render_endnote_mark(self, endnote, render_context):
+    def render_endnote_mark(self, endnote):
         endnote_link_href = f"#{endnote.category_name}-{endnote.number}"
-        return render_context.fragment_renderer.render_link(
+        return self.render_context.fragment_renderer.render_link(
             'endnote',
             endnote_link_href,
             endnote.formatted_counter_value,
@@ -135,7 +135,7 @@ class FeatureEndnotesRenderManager(Feature.RenderManager):
         fragment_renderer = render_context.fragment_renderer
 
         blocks = [
-            self.render_endnote_category(encat, fragment_renderer)
+            self.render_endnote_category(encat)
             for encat in self.feature.categories
         ]
 

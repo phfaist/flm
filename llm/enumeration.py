@@ -93,7 +93,9 @@ class Enumeration(LLMSpecInfo):
         node.enumeration_items = enumeration_items
         return node
 
-    def render(self, node, doc, fragment_renderer):
+    def render(self, node, render_context):
+
+        fragment_renderer = render_context.fragment_renderer
 
         node_args = fragment_renderer.get_arguments_nodelists(
             node,
@@ -117,7 +119,7 @@ class Enumeration(LLMSpecInfo):
             items_content.append(
                 fragment_renderer.render_nodelist(
                     item_content_nodelist,
-                    doc=doc,
+                    render_context=render_context,
                     is_block_level=True,
                 )
             )
@@ -131,7 +133,7 @@ class Enumeration(LLMSpecInfo):
             if 'custom_tag' in item_node_args and item_node_args['custom_tag'].provided:
                 items_custom_tags[1+j] = fragment_renderer.render_nodelist(
                     item_node_args['custom_tag'].nodelist,
-                    doc=doc,
+                    render_context=render_context,
                     is_block_level=False,
                 )
 

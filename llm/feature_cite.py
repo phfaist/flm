@@ -21,13 +21,13 @@ class FeatureExternalPrefixedCitationsRenderManager(Feature.RenderManager):
         if (cite_prefix, cite_key) in self.citation_endnotes:
             return self.citation_endnotes[(cite_prefix, cite_key)]
 
-        citation_llm = render_context.doc.environment.make_fragment(
+        citation_llm = self.render_context.doc.environment.make_fragment(
             self.feature.external_citations_provider.get_citation_full_text_llm(
                 cite_prefix, cite_key
             )
         )
 
-        formatted_citation = fragment_renderer.render_fragment(
+        formatted_citation = self.render_context.fragment_renderer.render_fragment(
             citation_llm, 
             render_context=None
         )
@@ -79,6 +79,8 @@ class FeatureExternalPrefixedCitations(Feature):
 class CiteSpecInfo(LLMSpecInfo):
 
     def render(self, node, render_context):
+
+        fragment_renderer = render_context.fragment_renderer
 
         node_args = fragment_renderer.get_arguments_nodelists(
             node,
@@ -146,7 +148,7 @@ class CiteSpecInfo(LLMSpecInfo):
                 citation_key,
             )
             s_items.append(
-                endnotes_mgr.render_endnote_mark(endnote, render_context)
+                endnotes_mgr.render_endnote_mark(endnote)
             )
 
         return fragment_renderer.render_join(s_items)
