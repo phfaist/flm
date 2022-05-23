@@ -41,7 +41,13 @@ environ = llmstd.LLMStandardEnvironment()
 # suppose we have fragments of LLM text
 fragment_1 = environ.make_fragment(r'Hello, \emph{world}.')
 fragment_2 = environ.make_fragment(
-    r'Question: \(1+2=?\)'
+    r'''Here's a question: \(1+2=?\)
+\begin{enumerate}[(a)]
+\item 1
+\item 2
+\item 3
+\end{enumerate}
+'''
 )
 
 # we can define a callback to render these fragments within an
@@ -52,7 +58,7 @@ def render_fn(doc, fragment_renderer):
     return (
         "<main>\n"
         + "<div>" + fragment_1.render(doc, fragment_renderer) + "</div>\n"
-        + "<div>" + fragment_2.render(doc, fragment_renderer) + "</div>\n"
+        + fragment_2.render(doc, fragment_renderer) + "\n"
         + "</main>"
     )
 
@@ -65,7 +71,8 @@ print(result_html)
 # *** Prints:
 #
 # <main>
-# <div><p>Hello, <span class="textit">world</span>.</p></div>
-# <div><p>Question: <span class="inline-math">\(1+2=?\)</span></p></div>
+# <div>Hello, <span class="textit">world</span>.</div>
+# <p>Here&#x27;s a question: <span class="inline-math">\(1+2=?\)</span></p>
+# <dl class="enumeration enumerate"><dt>(a)</dt><dd><p>1</p></dd><dt>(b)</dt><dd><p>2</p></dd><dt>(c)</dt><dd><p>3</p></dd></dl>
 # </main>
 ```
