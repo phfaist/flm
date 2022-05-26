@@ -74,8 +74,8 @@ class FragmentRenderer:
         for n in nodelist:
             if n.isNodeType(nodes.LatexSpecialsNode) and n.specials_chars == '\n\n':
                 if is_block_level is None:
-                    is_block_level = True # saw paragraph break -- autodetected block level to True
-                # paragraph break
+                    is_block_level = True # saw paragraph break -- autodetected
+                                          # block level to True paragraph break
                 if is_block_level:
                     flush_para()
                 else:

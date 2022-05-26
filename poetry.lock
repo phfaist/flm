@@ -80,7 +80,7 @@ develop = false
 type = "git"
 url = "https://github.com/phfaist/pylatexenc.git"
 reference = "devel"
-resolved_reference = "410ce60905573c178c1f7444ea6e07e33034af5b"
+resolved_reference = "934fa2d04bbffc838b5dd810fb3ef2b6fed9bfd9"
 
 [[package]]
 name = "pyparsing"

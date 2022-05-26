@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 from pylatexenc import latexnodes
 from pylatexenc import macrospec
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
-#from pylatexenc import latexwalker
+from pylatexenc import latexwalker
 
 
 from .llmenvironment import LLMEnvironment
@@ -21,14 +21,11 @@ from .feature_cite import FeatureExternalPrefixedCitations
 from .feature_refs import FeatureRefs
 
 
+# ------------------------------------------------------------------------------
 
 
-_single_text_arg = [
-    macrospec.LatexArgumentSpec('{', argname='text')
-]
-
-class LLMWalkerEventsParsingStateDeltasProvider(
-        latexnodes.WalkerEventsParsingStateDeltasProvider
+class LLMLatexWalkerParsingStateEventHandler(
+        latexnodes.LatexWalkerParsingStateEventHandler
 ):
 
     def enter_math_mode(self, math_mode_delimiter=None, trigger_token=None):
@@ -58,7 +55,27 @@ class LLMWalkerEventsParsingStateDeltasProvider(
                 unknown_specials_spec=None,
             )
         )
-    
+
+
+
+_parsing_state_walker_event_handler = LLMLatexWalkerParsingStateEventHandler()
+
+
+class LLMStandardLatexWalker(latexwalker.LatexWalker):
+    def parsing_state_event_handler(self):
+        return _parsing_state_walker_event_handler
+
+
+
+# ------------------------------------------------------------------------------
+
+
+
+_single_text_arg = [
+    macrospec.LatexArgumentSpec('{', argname='text')
+]
+
+
 
 def standard_latex_context_db():
     r"""
@@ -356,14 +373,7 @@ class LLMStandardEnvironment(LLMEnvironment):
         )
 
 
-    def make_latex_walker(self, llm_text):
-
-        latex_walker = super().make_latex_walker(llm_text)
-
-        latex_walker.parsing_state_deltas_provider = \
-            LLMWalkerEventsParsingStateDeltasProvider()
-
-        return latex_walker
+    use_latex_walker_class = LLMStandardLatexWalker
 
 
     def get_parse_error_message(self, exception_object):

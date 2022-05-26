@@ -11,11 +11,36 @@ from .fragmentrenderer import FragmentRenderer, BlockLevelContent
 class HtmlFragmentRenderer(FragmentRenderer):
 
     supports_delayed_render_markers = True
-    # we use <LLM:DLYD:delayed_key/> marker, which cannot be confused with
-    # the rest of the HTML code that can be generated
-
+    """
+    We use the marker ``<LLM:DLYD:delayed_key/>`` for delayed content, which
+    cannot be confused with the rest of the HTML code that can be generated from
+    this code generator.
+    """
 
     use_link_target_blank = False
+    """
+    Links will never open in a new tab.  Set to `True` on a specific instance to
+    open links in a new tab (but this never applies to anchor links, i.e., urls
+    that begin with '#').
+
+    Set this attribute to a callable to decide whether or not to set
+    `target="_blank"` on a per-URL basis.  The callable accepts a single
+    argument, the URL given as a string, and returns True (open in new tab) or
+    False (don't).
+    """
+    
+    
+    #fix_punctuation_line_wrapping = True  # TODO!
+    """
+    Enable a fix that prevents punctuation marks (e.g., period, comma, etc.)
+    from appearing on a new line after content wrapped in a tag, such as a
+    citation or a footnote mark.
+    """
+
+
+    # ------------------
+
+    
 
     # ------------------
 
@@ -112,7 +137,9 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if environmentname is not None:
             class_names.append(f"env-{environmentname.replace('*','-star')}")
 
-        content_html = self.htmlescape( delimiters[0] + nodelist.latex_verbatim() + delimiters[1] )
+        content_html = (
+            self.htmlescape( delimiters[0] + nodelist.latex_verbatim() + delimiters[1] )
+        )
 
         if displaytype == 'display':
             # BlockLevelContent( # -- don't use blockcontent as display

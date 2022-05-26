@@ -7,6 +7,7 @@ from .llmdocument import LLMDocument
 # ------------------------------------------------------------------------------
 
 
+
 class LLMEnvironment:
     def __init__(self,
                  *,
@@ -53,9 +54,11 @@ class LLMEnvironment:
 
 
 
+    use_latex_walker_class = latexwalker.LatexWalker
+
     def make_latex_walker(self, llm_text):
 
-        latex_walker = latexwalker.LatexWalker(
+        latex_walker = self.use_latex_walker_class(
             llm_text,
             # the latex_context will be overwritten anyway; don't specify `None`
             # here because that will cause pylatexenc to load its big default
