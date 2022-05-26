@@ -11,6 +11,8 @@ from llm import feature_refs
 
 class TestLLMStandardEnvironment(unittest.TestCase):
 
+    maxDiff = None
+
     def test_no_comments(self):
 
         environ = LLMStandardEnvironment()
@@ -79,13 +81,14 @@ Here is the equation:
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
+        fr.html_blocks_joiner = ''
+
         result, _ = doc.render(fr)
         print(result)
         self.assertEqual(
             result,
             r"""
-<p><span class="textbf">Hello</span>, see <span class="inline-math">\(\eqref{eq:my-equation}\)</span>.</p><p>Here is the equation:
-<span class="display-math env-align">\begin{align}
+<p><span class="textbf">Hello</span>, see <span class="inline-math">\(\eqref{eq:my-equation}\)</span>.</p><p>Here is the equation: <span class="display-math env-align">\begin{align}
   \label{eq:my-equation}
   \int f(x)\, dx = -1\ .
 \end{align}</span></p>
@@ -125,6 +128,8 @@ Here is the equation:
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
+        fr.html_blocks_joiner = ''
+
         result, _ = doc.render(fr)
         print(result)
         self.assertEqual(
@@ -154,6 +159,8 @@ r"""
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
+        fr.html_blocks_joiner = ''
+
         result, _ = doc.render(fr)
         print(result)
         self.assertEqual(
@@ -182,6 +189,8 @@ r"""
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
+        fr.html_blocks_joiner = ''
+
         result, _ = doc.render(fr)
         print(result)
         self.assertEqual(
@@ -211,6 +220,8 @@ r"""
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
+        fr.html_blocks_joiner = ''
+
         result, _ = doc.render(fr)
         print(result)
         self.assertEqual(
@@ -240,6 +251,8 @@ r"""
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
+        fr.html_blocks_joiner = "\n"
+
         result, render_context = doc.render(fr)
         print(result)
         self.assertEqual(
@@ -256,7 +269,8 @@ r"""
         print(endnotes_result)
         self.assertEqual(
             endnotes_result,
-r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It is <span class="textit">true</span>!</dd></dl><dl class="enumeration citation-list"></dl></div>'''
+r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It is <span class="textit">true</span>!</dd></dl>
+<dl class="enumeration citation-list"></dl></div>'''
 )
 
 
@@ -309,7 +323,8 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It
         self.assertEqual(
             endnotes_result,
             r"""
-<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It is <span class="textit">true</span>!</dd></dl><dl class="enumeration citation-list"><dt>[1]</dt><dd><span class="textit">arXiv</span> paper arXiv:1234.56789</dd><dt>[2]</dt><dd><span class="textit">arXiv</span> paper arXiv:0000.11111</dd><dt>[3]</dt><dd>My custom <span class="textit">reference</span> (2022).</dd><dt>[4]</dt><dd><span class="textit">arXiv</span> paper arXiv:3333.99999</dd></dl></div>
+<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It is <span class="textit">true</span>!</dd></dl>
+<dl class="enumeration citation-list"><dt>[1]</dt><dd><span class="textit">arXiv</span> paper arXiv:1234.56789</dd><dt>[2]</dt><dd><span class="textit">arXiv</span> paper arXiv:0000.11111</dd><dt>[3]</dt><dd>My custom <span class="textit">reference</span> (2022).</dd><dt>[4]</dt><dd><span class="textit">arXiv</span> paper arXiv:3333.99999</dd></dl></div>
             """.strip()
 )
 

@@ -160,9 +160,8 @@ we can also have an equation, like this:
         self.assertEqual(result, r"""
 <main>
 <div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.</p></div>
-<div><p>We can also split text across multiple paragraphs, like this
-block of text here.</p><p>we can also have an equation, like this:
-<span class="display-math env-align">\begin{align}
+<div><p>We can also split text across multiple paragraphs, like this block of text here.</p>
+<p>we can also have an equation, like this: <span class="display-math env-align">\begin{align}
     1 + 3 - 5 = -1
 \end{align}</span></p></div>
 </main>
@@ -202,12 +201,9 @@ we can also have an equation, like this:
 |||
 Hello world, we know that \(a+b=c\).
 |||
-We can also split text across multiple paragraphs, like this
-block of text here.
+We can also split text across multiple paragraphs, like this block of text here.
 
-we can also have an equation, like this:
-
-\begin{align}
+we can also have an equation, like this: \begin{align}
     1 + 3 - 5 = -1
 \end{align}
 |||
@@ -322,9 +318,8 @@ we can also have an equation, like this:
         self.assertEqual(result, r"""
 <main>
 <div><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(\alpha+\beta=\gamma\)</span>.</div>
-<div><p>We can also split text across multiple paragraphs, like this
-block of text here.</p><p>we can also have an equation, like this:
-<span class="display-math env-align">\begin{align}
+<div><p>We can also split text across multiple paragraphs, like this block of text here.</p>
+<p>we can also have an equation, like this: <span class="display-math env-align">\begin{align}
     1 + 3 - 5 = -1
 \end{align}</span></p></div>
 </main>

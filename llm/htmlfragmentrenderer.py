@@ -4,7 +4,7 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 
-from .fragmentrenderer import FragmentRenderer, BlockLevelContent
+from .fragmentrenderer import FragmentRenderer
 
 
 
@@ -48,7 +48,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         return html.escape(value)
 
     def wrap_in_tag(self, tagname, content_html, *,
-                    attrs=None, class_names=None, is_block_level=False):
+                    attrs=None, class_names=None):
         s = f'<{tagname}'
         if attrs:
             for aname, aval in dict(attrs).items():
@@ -58,8 +58,6 @@ class HtmlFragmentRenderer(FragmentRenderer):
         s += '>'
         s += str(content_html)
         s += f'</{tagname}>'
-        if is_block_level:
-            return BlockLevelContent(s)
         return s
 
     def wrap_in_link(self, display_html, target_href, *, class_names=None):
@@ -80,6 +78,18 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     # -----------------
 
+    def render_build_paragraph(self, nodelist, render_context):
+        return (
+            "<p>"
+            + self.render_inline_content(nodelist, render_context)
+            + "</p>"
+        )
+
+    def render_inline_content(self, nodelist, render_context):
+        return self.render_join(
+            [ self.render_node(n, render_context) for n in nodelist ]
+        )
+
     def render_join(self, content_list):
         r"""
         Join together a collection of pieces of content that have already been
@@ -88,12 +98,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         """
         return "".join([str(s) for s in content_list])
 
-    def render_build_paragraph(self, content_list):
-        return BlockLevelContent(
-            "<p>"
-            + "".join([ content for content in content_list ]).strip()
-            + "</p>"
-        )
+    html_blocks_joiner = "\n"
 
     def render_join_blocks(self, content_list):
         r"""
@@ -103,7 +108,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         to simply join the strings together with no joiner, which is what the
         default implementation does.
         """
-        return BlockLevelContent("".join([str(s) for s in content_list]))
+        return self.html_blocks_joiner.join(content_list)
 
 
     # ------------------
@@ -173,13 +178,11 @@ class HtmlFragmentRenderer(FragmentRenderer):
                 role,
                 content,
                 class_names=annotations,
-                is_block_level=True,
             )
         return self.wrap_in_tag(
             'div',
             content,
             class_names=[role]+(annotations if annotations else []),
-            is_block_level=True,
         )
             
 
@@ -196,7 +199,6 @@ class HtmlFragmentRenderer(FragmentRenderer):
                 for j, item_content in enumerate(iter_items_content)
             ]),
             class_names=['enumeration'] + (annotations if annotations else []),
-            is_block_level=True,
         )
 
 

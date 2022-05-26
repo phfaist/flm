@@ -6,22 +6,6 @@ from pylatexenc.latexnodes import nodes
 
 
 
-class BlockLevelContent:
-    r"""
-    Used to mark content that is block-level, i.e., that is not part of a
-    paragraph and that should not wrapped to be part of a paragraph.
-    """
-    def __init__(self, content):
-        self.content = content
-
-    def __str__(self):
-        return self.content
-    
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.content!r})"
-
-
-
 
 class FragmentRenderer:
     r"""
@@ -37,11 +21,9 @@ class FragmentRenderer:
 
 
     def render_fragment(self, llm_fragment, render_context, is_block_level=None):
-        return str(
-            self.render_nodelist(llm_fragment.nodes,
-                                 self._ensure_render_context(render_context),
-                                 is_block_level=is_block_level)
-        )
+        return self.render_nodelist(llm_fragment.nodes,
+                                    self._ensure_render_context(render_context),
+                                    is_block_level=is_block_level)
 
     def render_nodelist(self, nodelist, render_context, is_block_level=None):
         r"""
@@ -58,77 +40,27 @@ class FragmentRenderer:
         don't know if the content is block-level or not.
         """
 
-        rendered_block_items = []
+        if is_block_level is None:
+            is_block_level = nodelist.llm_is_block_level
 
-        # used also in non-block-level mode for the list of items
-        building_paragraph_rendered_items = []
-
-        def flush_para():
-            if not building_paragraph_rendered_items:
-                return
-            rendered_block_items.append(
-                self.render_build_paragraph( building_paragraph_rendered_items )
+        if not is_block_level and nodelist.llm_is_block_level:
+            raise ValueError(
+                f"Cannot render node list ‘{nodelist!r}’ in inline mode (not block "
+                f"level mode) as it contains block-level elements."
             )
-            building_paragraph_rendered_items.clear()
-
-        for n in nodelist:
-            if n.isNodeType(nodes.LatexSpecialsNode) and n.specials_chars == '\n\n':
-                if is_block_level is None:
-                    is_block_level = True # saw paragraph break -- autodetected
-                                          # block level to True paragraph break
-                if is_block_level:
-                    flush_para()
-                else:
-                    posfmt = n.latex_walker.format_pos(n.pos)
-                    raise ValueError(
-                        f"You cannot use a paragraph break in inline text {posfmt}: "
-                        f" ‘{nodelist.latex_verbatim}’"
-                    )
-                continue
-
-            if (not building_paragraph_rendered_items
-                and n.isNodeType(nodes.LatexCharsNode)
-                and not n.chars.strip()):
-                # only white space, and we haven't started a new paragraph yet -- ignore it.
-                continue
-
-            rendered = self.render_node(n, self._ensure_render_context(render_context))
-            if isinstance(rendered, BlockLevelContent):
-                if is_block_level is None:
-                    is_block_level = True # saw block-level content -- autodetected block level
-
-                if not is_block_level:
-                    posfmt = n.latex_walker.format_pos(n.pos)
-                    raise ValueError(
-                        f"Block-level content cannot be used in inline text {posfmt}: "
-                        f" ‘{nodelist.latex_verbatim}’"
-                    )
-                # make sure this block-level item is not included in a paragraph.
-                flush_para()
-                rendered_block_items.append(rendered)
-                continue
-
-            # add to last paragraph being built (which is simply the list of
-            # nodes if we're not in block-level mode)
-            building_paragraph_rendered_items.append(rendered)
 
         if is_block_level:
 
-            # finalize the last paragraph with any pending items
-            flush_para()
+            # it could be that nodelist doesn't have an llm_blocks attribute;
+            # e.g., if it's actually a node list without any block-level items
+            # that was seen as inline content but which we're now forcing to be
+            # rendered as a paragraph in block mode.
+            node_blocks = getattr(nodelist, 'llm_blocks', [nodelist])
 
-            rendered = self.render_join_blocks(
-                rendered_block_items
-            )
+            return self.render_blocks(node_blocks, render_context)
 
-        else:
+        return self.render_inline_content(nodelist, render_context)
 
-            assert( len(rendered_block_items) == 0 )
-
-            rendered = self.render_join( building_paragraph_rendered_items )
-
-        logger.debug("render_nodelist: rendered -> %r", rendered)
-        return rendered
 
     def render_node(self, node, render_context):
         render_context = self._ensure_render_context(render_context)
@@ -151,7 +83,11 @@ class FragmentRenderer:
         
 
     def render_node_chars(self, node, render_context):
-        return self.render_value( node.chars )
+        chars_value = getattr(node, 'llm_chars_value', None)
+        if chars_value is None:
+            # might happen if the chars is not specifically in a node list
+            chars_value = node.chars
+        return self.render_value( chars_value )
 
     def render_node_comment(self, node, render_context):
         return ''
@@ -251,7 +187,7 @@ class FragmentRenderer:
             f'{displaytype}-math'
         )
         if displaytype == 'display':
-            return BlockLevelContent(rendered)
+            return rendered
         return rendered
     
 
@@ -259,29 +195,36 @@ class FragmentRenderer:
     # ---
 
 
+    def render_blocks(self, node_blocks, render_context):
+
+        rendered_blocks = []
+
+        for block in node_blocks:
+            if isinstance(block, nodes.LatexNodeList):
+                rendered_blocks.append( self.render_build_paragraph(block, render_context) )
+            else:
+                rendered_blocks.append( self.render_node(block, render_context) )
+
+        return self.render_join_blocks( rendered_blocks )
+
+
+    def render_build_paragraph(self, nodelist, render_context):
+        r"""
+        Render and join the given content together into one paragraph.
+        """
+        return self.render_inline_content(nodelist, render_context)
+
+    def render_inline_content(self, nodelist, render_context):
+        return self.render_join([ self.render_node(n, render_context)
+                                  for n in nodelist ])
+
+
     def render_join(self, content_list):
         r"""
-        Join together a collection of pieces of content that have already been
-        rendered.  Usually you'd want to simply join the strings together with
-        no joiner, which is what the default implementation does.
+        For inline content; content_list contains already rendered items.
         """
         return "".join(content_list)
 
-    def render_build_paragraph(self, content_list):
-        r"""
-        Join the given content together into one paragraph.
-        """
-        return BlockLevelContent("".join(content_list).strip())
-
-    # def render_join_as_paragraphs(self, paragraphs_content):
-    #     r"""
-    #     Render a sequence of paragraphs.  The argument `paragraphs_content` is a
-    #     sequence (list) of the rendered contents of each paragraph.  This method
-    #     must make sure they are treated as individual paragraphs (e.g., wrap the
-    #     contents in ``<p>...</p>`` tags, or render the contents separated by
-    #     ``\n\n`` or etc.).
-    #     """
-    #     return "\n\n".join(paragraphs_content)
 
     def render_join_blocks(self, content_list):
         r"""
@@ -291,9 +234,11 @@ class FragmentRenderer:
         to simply join the strings together with no joiner, which is what the
         default implementation does.
         """
-        return BlockLevelContent("\n\n".join([str(s) for s in content_list]))
+        return "\n\n".join(content_list)
 
-    # --
+
+    # ---
+
 
     def render_semantic_block(self, content, role, annotations=None):
         r"""
@@ -301,10 +246,11 @@ class FragmentRenderer:
         meant to convey semantic information about the document's structure, but
         with no necessary impact on the layout or appearance of the text itself.
         """
-        return BlockLevelContent(str(content))
+        return content
 
 
     # ---
+
 
     def replace_delayed_markers_with_final_values(self, content, delayed_values):
         r"""
@@ -425,7 +371,7 @@ class TextFragmentRenderer(FragmentRenderer):
 
     display_href_urls = True
 
-    #supports_delayed_render_markers = False # -- inherited alreay
+    #supports_delayed_render_markers = False # -- inherited already
 
     def render_value(self, value):
         return value

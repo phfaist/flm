@@ -22,15 +22,26 @@ class _MyTestFragmentRenderer(FragmentRenderer):
 
     # --
 
+    def render_blocks(self, node_blocks, render_context):
+        _register_call(self.store, 'render_blocks', tuple())
+        return super().render_blocks(node_blocks, render_context)
+
+    def render_build_paragraph(self, nodelist, render_context):
+        _register_call(self.store, 'render_build_paragraph', tuple())
+        joined = self.render_inline_content(nodelist, render_context)
+        if self.mark_paragraphs:
+            return "<P>" + joined + "</P>"
+        return joined
+
+    def render_inline_content(self, nodelist, render_context):
+        _register_call(self.store, 'render_inline_content', tuple())
+        return self.render_join([
+            self.render_node(n, render_context)
+            for n in nodelist
+        ])
+
     def render_join(self, content_list):
         _register_call(self.store, 'render_join', (content_list,))
-        return self.pieces_joiner_string.join(content_list)
-
-    def render_build_paragraph(self, content_list):
-        print("content_list = ", content_list)
-        _register_call(self.store, 'render_build_paragraph', (list(content_list),))
-        if self.mark_paragraphs:
-            return "<P>" + self.pieces_joiner_string.join(content_list) + "</P>"
         return self.pieces_joiner_string.join(content_list)
 
     def render_join_blocks(self, content_list):
@@ -86,7 +97,9 @@ class TestFragmentRenderer(unittest.TestCase):
         self.assertEqual(
             store['calls'],
             [
+                ('render_inline_content', tuple()),
                 ('render_value', ('Hello ',)),
+                ('render_inline_content', tuple()),
                 ('render_value', ('world',)),
                 ('render_join', (['world'],)),
                 ('render_text_format', (('textbf',), 'world',)),
@@ -116,10 +129,16 @@ New paragraph.""")
         self.assertEqual(
             store['calls'],
             [
+                ('render_blocks', tuple()),
+                ('render_build_paragraph', tuple()),
+                ('render_inline_content', tuple()),
                 ('render_value', ('Hello.',)),
-                ('render_build_paragraph', (['Hello.'],)),
+                ('render_join', (['Hello.'],)),
+                ('render_build_paragraph', tuple()),
+                ('render_inline_content', tuple()),
                 ('render_value', ('New paragraph.',)),
-                ('render_build_paragraph', (['New paragraph.'],)),
+                ('render_join', (['New paragraph.'],)),
+                #
                 ('render_join_blocks', (['Hello.', 'New paragraph.'],)),
             ]
         )
@@ -141,7 +160,9 @@ New paragraph.""")
         self.assertEqual(
             store['calls'],
             [
+                ('render_inline_content', tuple()),
                 ('render_value', ('Hello ',)),
+                ('render_inline_content', tuple()),
                 ('render_value', ('world',)),
                 ('render_join', (['world'],)),
                 ('render_text_format', (('textbf',), 'world',)),
@@ -172,10 +193,15 @@ New paragraph.""")
         self.assertEqual(
             store['calls'],
             [
+                ('render_blocks', tuple()),
+                ('render_build_paragraph', tuple()),
+                ('render_inline_content', tuple()),
                 ('render_value', ('Hello.',)),
-                ('render_build_paragraph', (['Hello.'],)),
+                ('render_join', (['Hello.'],)),
+                ('render_build_paragraph', tuple()),
+                ('render_inline_content', tuple()),
                 ('render_value', ('New paragraph.',)),
-                ('render_build_paragraph', (['New paragraph.'],)),
+                ('render_join', (['New paragraph.'],)),
                 ('render_join_blocks', (['Hello.', 'New paragraph.'],)),
             ]
         )
@@ -207,8 +233,8 @@ another one.
         self.assertEqual(
             render_result,
             "<P>Hello world.</P>\n\n"
-            "<P>Here is a new\n paragraph.</P>\n\n"
-            "<P>And here comes\nanother one.</P>"
+            "<P>Here is a new paragraph.</P>\n\n"
+            "<P>And here comes another one.</P>"
         )
 
     def test_render_nodelist_with_paragraphs_single_paragraph(self):

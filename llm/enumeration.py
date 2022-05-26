@@ -6,13 +6,16 @@ import re
 
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 from pylatexenc.macrospec import (
-    LatexArgumentSpec,
     MacroSpec,
     LatexEnvironmentBodyContentsParser,
     ParsingStateDeltaExtendLatexContextDb,
 )
 
 from .llmspecinfo import LLMSpecInfo
+from .llmenvironment import (
+    LLMParsingStateDeltaSetBlockLevel,
+    make_arg_spec,
+)
 
 from . import fmthelpers
 
@@ -39,6 +42,11 @@ def _get_counter_formatter_from_tag_template(tag_template):
 
 
 class Enumeration(LLMSpecInfo):
+
+    is_block_level = True
+
+    body_parsing_state_delta = LLMParsingStateDeltaSetBlockLevel(is_block_level=True)
+
     def __init__(self, counter_formatter='•', annotations=None):
         super().__init__()
         self.counter_formatter = counter_formatter
@@ -51,7 +59,7 @@ class Enumeration(LLMSpecInfo):
                 extend_latex_context=dict(
                     macros=[
                         MacroSpec('item', arguments_spec_list=[
-                            LatexArgumentSpec('[', argname='custom_tag'),
+                            make_arg_spec('[', argname='custom_tag'),
                         ])
                     ]
                 )
@@ -84,7 +92,13 @@ class Enumeration(LLMSpecInfo):
                     msg=f"Expected ‘\\item’ in enumeration environment: {item_macro!r}",
                     pos=item_macro.pos,
                 )
-            item_content_nodelist = latexnodes_nodes.LatexNodeList(item_nodelist[1:])
+            item_content_nodelist = item_macro.latex_walker.make_nodelist(
+                item_nodelist[1:],
+                parsing_state=item_macro.parsing_state,
+            )
+            logger.debug("item_content_nodelist = %r  (blocks = %r)",
+                         item_content_nodelist,
+                         getattr(item_content_nodelist, 'llm_blocks', None))
             
             enumeration_items.append(
                 (item_macro, item_content_nodelist)

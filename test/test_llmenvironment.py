@@ -130,7 +130,7 @@ class TestBlocksBuilder(unittest.TestCase):
 
 class TestLLMEnvironment(unittest.TestCase):
 
-    def test_blocks_paragraphs(self):
+    def test_blocks_paragraphs_correct_number(self):
 
         latex_context = make_simple_context()
         environ = llmenvironment.LLMEnvironment(

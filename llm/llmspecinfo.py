@@ -1,14 +1,14 @@
 
+import logging
+logger = logging.getLogger(__name__)
+
+
 from pylatexenc import macrospec
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import LatexWalkerParseError
 
 
-
-
-
-
-
+# ------------------------------------------------------------------------------
 
 
 class LLMSpecInfo:
@@ -45,6 +45,8 @@ class LLMSpecInfo:
         )
 
 
+# ------------------------------------------------------------------------------
+
 
 class LLMSpecInfoSpecClass:
     def __init__(self, llm_specinfo, **kwargs):
@@ -60,6 +62,18 @@ class LLMSpecInfoSpecClass:
             return self.llm_specinfo.make_body_parser(token, nodeargd, arg_parsing_state_delta)
         return super().make_body_parser(token, nodeargd, arg_parsing_state_delta)
 
+    def make_body_parsing_state_delta(self, token, nodeargd, arg_parsing_state_delta,
+                                      latex_walker):
+        logger.debug("LLM make_body_parsing_state_delta was called.")
+        if hasattr(self.llm_specinfo, 'body_parsing_state_delta'):
+            return getattr(self.llm_specinfo, 'body_parsing_state_delta')
+        return super().make_body_parsing_state_delta(
+            token=token,
+            nodeargd=nodeargd,
+            arg_parsing_state_delta=arg_parsing_state_delta,
+            latex_walker=latex_walker,
+        )
+
     def finalize_node(self, node):
         node.llm_specinfo = self.llm_specinfo
         if hasattr(self.llm_specinfo, 'finalize_parsed_node'):
@@ -71,6 +85,8 @@ class LLMSpecInfoSpecClass:
         return node
 
     
+# ------------------------------------------------------------------------------
+
 
 class LLMMacroSpec(LLMSpecInfoSpecClass, macrospec.MacroSpec):
     def __init__(self, macroname, arguments_spec_list=None, *,

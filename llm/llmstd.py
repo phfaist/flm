@@ -143,7 +143,7 @@ def standard_latex_context_db():
                 math_environment_name,
                 '',
                 llm_specinfo=MathEnvironment(),
-                is_math_mode=True,
+                body_parsing_state_delta=latexnodes.ParsingStateDeltaEnterMathMode(),
             )
             for math_environment_name in (
                     'equation',
