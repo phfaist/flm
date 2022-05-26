@@ -59,9 +59,9 @@ class BlocksBuilder:
         paragraph_nodes = self.finalize_paragraph(paragraph_nodes)
         logger.debug("Flushing paragraph: %r", paragraph_nodes)
         self.blocks.append(
-            paragraph_nodes
+            latexnodes_nodes.LatexNodeList(paragraph_nodes)
         )
-        self.pending_paragraph_nodes.clear()
+        self.pending_paragraph_nodes = []
 
     def simplify_whitespace_chars(self, chars, is_head=False, is_tail=False):
         newchars = self.rx_space.sub(' ', chars)
@@ -79,7 +79,7 @@ class BlocksBuilder:
         lastj = len(paragraph_nodes) - 1
         for j, node in enumerate(paragraph_nodes):
             if node.isNodeType(latexnodes_nodes.LatexCharsNode):
-                node.llm_final_chars = self.simplify_whitespace_chars(
+                node.llm_chars_value = self.simplify_whitespace_chars(
                     node.chars,
                     is_head=(j==0),
                     is_tail=(j==lastj)
