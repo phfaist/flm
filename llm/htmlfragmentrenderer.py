@@ -35,6 +35,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
     Enable a fix that prevents punctuation marks (e.g., period, comma, etc.)
     from appearing on a new line after content wrapped in a tag, such as a
     citation or a footnote mark.
+
+    FIXME: NOT SURE HOW TO DO THIS!
     """
 
 

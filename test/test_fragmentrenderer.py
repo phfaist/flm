@@ -262,10 +262,7 @@ function.
         self.assertEqual(
             render_result,
             r"""
-<P>Hello |[world]|. There are no paragraphs here, but some nodes are
-not only chars nodes (such as math nodes: |\(1+2=3\)|). The different node
-types will have to be joined together with our |[render nodelist]|
-function.</P>
+<P>Hello |[world]|. There are no paragraphs here, but some nodes are not only chars nodes (such as math nodes: |\(1+2=3\)|). The different node types will have to be joined together with our |[render nodelist]| function.</P>
 """.strip()
         )
 
@@ -294,10 +291,7 @@ function.
         self.assertEqual(
             render_result,
             r"""
-Hello |[world]|. There are no paragraphs here, but some nodes are
-not only chars nodes (such as math nodes: |\(1+2=3\)|). The different node
-types will have to be joined together with our |[render nodelist]|
-function.
+Hello |[world]|. There are no paragraphs here, but some nodes are not only chars nodes (such as math nodes: |\(1+2=3\)|). The different node types will have to be joined together with our |[render nodelist]| function.
 """.strip()
         )
 

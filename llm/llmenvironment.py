@@ -164,6 +164,11 @@ class NodeListFinalizer:
                         f"(not block level): ‘{n.latex_verbatim()}’",
                         pos=n.pos,
                     )
+                # simplify any white space!
+                if n.isNodeType(latexnodes_nodes.LatexCharsNode):
+                    n.llm_chars_value = self.simplify_whitespace_chars_inline(
+                        n.chars
+                    )
 
             # all set -- return the node list
             return latexnodelist
@@ -184,8 +189,13 @@ class NodeListFinalizer:
                 return True
         return False
 
+    def simplify_whitespace_chars_inline(self, chars):
+        return self.rx_inline_space.sub(' ', chars)
+
     make_blocks_builder = BlocksBuilder
                     
+    rx_inline_space = BlocksBuilder.rx_space
+
 
 
 class LLMLatexWalker(latexwalker.LatexWalker):
