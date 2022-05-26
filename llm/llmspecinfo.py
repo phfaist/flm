@@ -15,6 +15,8 @@ class LLMSpecInfo:
 
     delayed_render = False
 
+    is_block_level = False
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -59,9 +61,13 @@ class LLMSpecInfoSpecClass:
         return super().make_body_parser(token, nodeargd, arg_parsing_state_delta)
 
     def finalize_node(self, node):
+        node.llm_specinfo = self.llm_specinfo
         if hasattr(self.llm_specinfo, 'finalize_parsed_node'):
             node = self.llm_specinfo.finalize_parsed_node(node)
-        node.llm_specinfo = self.llm_specinfo
+        if hasattr(self.llm_specinfo, 'is_block_level'):
+            node.llm_is_block_level = self.llm_specinfo.is_block_level
+        if hasattr(self.llm_specinfo, 'is_paragraph_break_marker'):
+            node.llm_is_paragraph_break_marker = self.llm_specinfo.is_paragraph_break_marker
         return node
 
     
@@ -268,6 +274,21 @@ class Verbatim(LLMSpecInfo):
         )
 
 
+
+class ParagraphBreak(LLMSpecInfo):
+
+    is_block_level = True
+
+    is_paragraph_break_marker = True
+    
+    def __init__(self):
+        super().__init__()
+
+    def render(self, node, render_context):
+        raise LatexWalkerParseError('Paragraph break is not allowed here', pos=node.pos)
+
+
+
 class Error(LLMSpecInfo):
     def __init__(self, error_msg=None):
         super().__init__()
@@ -275,8 +296,8 @@ class Error(LLMSpecInfo):
     
     def render(self, node, render_context):
         if self.error_msg:
-            raise ValueError(self.error_msg)
+            msg = self.error_msg
         else:
-            raise ValueError(f"The node ‘{node}’ cannot be placed here.")
+            msg = f"The node ‘{node}’ cannot be placed here."
 
-
+        raise LatexWalkerParseError(msg, pos=node.pos)

@@ -57,8 +57,6 @@ class LLMFragment:
             latexnodes_parsers.LatexGeneralNodesParser(),
         )
 
-        #cls.finalize_nodes(nodes, environment)
-
         return latex_walker, nodes
 
     def get_first_paragraph(self):

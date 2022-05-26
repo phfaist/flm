@@ -7,10 +7,15 @@ from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc import latexwalker
 
 
-from .llmenvironment import LLMEnvironment
+from .llmenvironment import (
+    LLMEnvironment,
+    LLMParsingState,
+    make_arg_spec
+)
 from .llmspecinfo import (
     LLMMacroSpec, LLMEnvironmentSpec, LLMSpecialsSpec,
-    TextFormat, HrefHyperlink, Verbatim, MathEnvironment, MathEqref, Error
+    TextFormat, HrefHyperlink, Verbatim, MathEnvironment, MathEqref, Error,
+    ParagraphBreak
 )
 from .llmdocument import LLMDocument
 
@@ -58,21 +63,13 @@ class LLMLatexWalkerParsingStateEventHandler(
 
 
 
-_parsing_state_walker_event_handler = LLMLatexWalkerParsingStateEventHandler()
-
-
-class LLMStandardLatexWalker(latexwalker.LatexWalker):
-    def parsing_state_event_handler(self):
-        return _parsing_state_walker_event_handler
-
+_parsing_state_event_handler = LLMLatexWalkerParsingStateEventHandler()
 
 
 # ------------------------------------------------------------------------------
 
-
-
 _single_text_arg = [
-    macrospec.LatexArgumentSpec('{', argname='text')
+    make_arg_spec('{', argname='text',)
 ]
 
 
@@ -93,7 +90,7 @@ def standard_latex_context_db():
             LLMMacroSpec('textbackslash', '', llm_specinfo='\\'),
             LLMMacroSpec('%', '', llm_specinfo='%'),
             LLMMacroSpec('#', '', llm_specinfo='#'),
-            LLMMacroSpec('&', '', llm_specinfo='&'), # escaped as &amp; automatically
+            LLMMacroSpec('&', '', llm_specinfo='&'), # will do &amp; automatically for HTML
             LLMMacroSpec('$', '', llm_specinfo='$'),
             LLMMacroSpec(' ', '', llm_specinfo=' '),
             LLMMacroSpec('{', '', llm_specinfo='{'),
@@ -123,7 +120,7 @@ def standard_latex_context_db():
             # new paragraph
             LLMSpecialsSpec(
                 '\n\n',
-                llm_specinfo=Error('Paragraph break is not allowed here')
+                llm_specinfo=ParagraphBreak()
             ),
         ]
     )
@@ -133,7 +130,7 @@ def standard_latex_context_db():
             LLMMacroSpec(
                 'eqref',
                 arguments_spec_list=[
-                    macrospec.LatexArgumentSpec(
+                    make_arg_spec(
                         latexnodes_parsers.LatexCharsGroupParser(),
                         argname='ref_target',
                     ),
@@ -149,6 +146,8 @@ def standard_latex_context_db():
                 is_math_mode=True,
             )
             for math_environment_name in (
+                    'equation',
+                    'equation*',
                     'align',
                     'align*',
                     'gather',
@@ -164,7 +163,7 @@ def standard_latex_context_db():
             LLMEnvironmentSpec(
                 'itemize',
                 arguments_spec_list=[
-                    macrospec.LatexArgumentSpec(
+                    make_arg_spec(
                         latexnodes_parsers.LatexCharsGroupParser(
                             delimiters=('[',']'),
                             optional=True
@@ -177,7 +176,7 @@ def standard_latex_context_db():
             LLMEnvironmentSpec(
                 'enumerate',
                 arguments_spec_list=[
-                    macrospec.LatexArgumentSpec(
+                    make_arg_spec(
                         latexnodes_parsers.LatexCharsGroupParser(
                             delimiters=('[',']'),
                             optional=True
@@ -195,11 +194,11 @@ def standard_latex_context_db():
             LLMMacroSpec(
                 'href',
                 arguments_spec_list=[
-                    macrospec.LatexArgumentSpec(
+                    make_arg_spec(
                         latexnodes_parsers.LatexDelimitedVerbatimParser( ('{','}') ),
                         argname='target_href',
                     ),
-                    macrospec.LatexArgumentSpec(
+                    make_arg_spec(
                         '{',
                         argname='display_text',
                     )
@@ -209,7 +208,7 @@ def standard_latex_context_db():
             LLMMacroSpec(
                 'url',
                 arguments_spec_list=[
-                    macrospec.LatexArgumentSpec(
+                    make_arg_spec(
                         latexnodes_parsers.LatexDelimitedVerbatimParser( ('{','}') ),
                         argname='target_href',
                     )
@@ -276,6 +275,7 @@ def standard_latex_context_db():
 
 
 def standard_parsing_state(*,
+                           force_block_level=None,
                            enable_comments=False,
                            dollar_inline_math_mode=False):
     r"""
@@ -301,7 +301,8 @@ def standard_parsing_state(*,
     if dollar_inline_math_mode:
         latex_inline_math_delimiters.append( ('$', '$') )
 
-    return latexnodes.ParsingState(
+    return LLMParsingState(
+        is_block_level=force_block_level,
         latex_context=None,
         enable_comments=enable_comments,
         latex_inline_math_delimiters=latex_inline_math_delimiters,
@@ -373,8 +374,7 @@ class LLMStandardEnvironment(LLMEnvironment):
         )
 
 
-    use_latex_walker_class = LLMStandardLatexWalker
-
+    parsing_state_event_handler = LLMLatexWalkerParsingStateEventHandler()
 
     def get_parse_error_message(self, exception_object):
         error_type_info = exception_object.error_type_info

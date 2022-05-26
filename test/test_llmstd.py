@@ -57,7 +57,6 @@ class TestLLMStandardEnvironment(unittest.TestCase):
         )
 
 
-
     def test_with_math_and_eqref(self):
 
         environ = LLMStandardEnvironment()
