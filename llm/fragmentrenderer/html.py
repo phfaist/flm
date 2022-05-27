@@ -4,8 +4,7 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 
-from .fragmentrenderer import FragmentRenderer
-
+from ._base import FragmentRenderer
 
 
 class HtmlFragmentRenderer(FragmentRenderer):
@@ -164,10 +163,16 @@ class HtmlFragmentRenderer(FragmentRenderer):
             class_names=class_names
         )
 
-    def render_text_format(self, text_formats, content):
+    def render_text_format(self, text_formats, nodelist, render_context):
         r"""
-        The argument `content` is already valid HTML
         """
+
+        content = self.render_nodelist(
+            nodelist,
+            render_context,
+            is_block_level=False
+        )
+
         return self.wrap_in_tag(
             'span',
             content,
@@ -187,24 +192,65 @@ class HtmlFragmentRenderer(FragmentRenderer):
             class_names=[role]+(annotations if annotations else []),
         )
             
+ 
+    def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
+                           annotations=None):
 
-    def render_enumeration(self, iter_items_content, counter_formatter, annotations=None):
         r"""
         
         ... remember, counter_formatter is given a number starting at 1.
         """
+
+        s_items = []
+
+        for j, item_content_nodelist in enumerate(iter_items_nodelists):
+
+            use_block_level = True
+            if item_content_nodelist.parsing_state.is_block_level is False:
+                # if the content is explicitly not in block mode, don't use
+                # block mode.
+                use_block_level = False
+
+            logger.debug("render_enumeration: got %d-th item content nodelist = %r",
+                         j, item_content_nodelist)
+            logger.debug("will use_block_level = %r", use_block_level)
+
+            item_content = self.render_nodelist(
+                item_content_nodelist,
+                render_context=render_context,
+                is_block_level=use_block_level,
+            )
+
+            tag_nodelist = counter_formatter(1+j)
+            if isinstance(tag_nodelist, str):
+                tag_content = self.render_value(tag_nodelist)
+            else:
+                tag_content = self.render_nodelist(
+                    tag_nodelist,
+                    render_context=render_context,
+                    is_block_level=False,
+                )
+
+            s_items.append(
+                self.render_join([
+                    self.wrap_in_tag('dt', tag_content),
+                    self.wrap_in_tag('dd', item_content),
+                ])
+            )
+
         return self.wrap_in_tag(
             'dl',
-            self.render_join([
-                self.wrap_in_tag('dt', counter_formatter(1+j))
-                + self.wrap_in_tag('dd', item_content)
-                for j, item_content in enumerate(iter_items_content)
-            ]),
+            self.render_join(s_items),
             class_names=['enumeration'] + (annotations if annotations else []),
         )
 
 
-    def render_link(self, ref_type, href, display_content, annotations=None):
+    def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
+        display_content = self.render_nodelist(
+            display_nodelist,
+            render_context=render_context,
+            is_block_level=False,
+        )
         return self.wrap_in_link(
             display_content,
             href,

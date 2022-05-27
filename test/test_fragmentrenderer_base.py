@@ -62,16 +62,17 @@ class _MyTestFragmentRenderer(FragmentRenderer):
         _register_call(self.store, 'render_empty_error_placeholder', (debug_str,))
         return ''
 
-    def render_text_format(self, text_formats, content):
-        _register_call(self.store, 'render_text_format', (text_formats, content,))
+    def render_text_format(self, text_formats, nodelist, render_context):
+        _register_call(self.store, 'render_text_format', (text_formats,))
+        content = self.render_nodelist(nodelist, render_context, is_block_level=False)
         return '['+content+']'
     
     def render_verbatim(self, value, annotation):
         _register_call(self.store, 'render_verbatim', (value, annotation,))
         return value
 
-    def render_link(self, ref_type, href, display_content):
-        _register_call(self.store, 'render_link', (ref_type, href, display_content,))
+    def render_link(self, ref_type, href, display_content_nodelist):
+        _register_call(self.store, 'render_link', (ref_type, href,))
         return display_content + ' <' + href + '>'
 
 
@@ -99,10 +100,10 @@ class TestFragmentRenderer(unittest.TestCase):
             [
                 ('render_inline_content', tuple()),
                 ('render_value', ('Hello ',)),
+                ('render_text_format', (('textbf',),)),
                 ('render_inline_content', tuple()),
                 ('render_value', ('world',)),
                 ('render_join', (['world'],)),
-                ('render_text_format', (('textbf',), 'world',)),
                 ('render_value', ('.',)),
                 ('render_join', (['Hello ', '[world]', '.'],)),
             ]
@@ -162,10 +163,10 @@ New paragraph.""")
             [
                 ('render_inline_content', tuple()),
                 ('render_value', ('Hello ',)),
+                ('render_text_format', (('textbf',),)),
                 ('render_inline_content', tuple()),
                 ('render_value', ('world',)),
                 ('render_join', (['world'],)),
-                ('render_text_format', (('textbf',), 'world',)),
                 ('render_value', ('.',)),
                 ('render_join', (['Hello ', '[world]', '.'],)),
             ]

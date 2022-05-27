@@ -12,12 +12,15 @@ class LLMFragment:
             llm_text,
             environment,
             *,
+            is_block_level=None,
             what='(unknown)',
             silent=False,
     ):
 
         self.llm_text = llm_text
         self.what = what
+
+        self.is_block_level = is_block_level
 
         self.environment = environment
 
@@ -26,7 +29,8 @@ class LLMFragment:
         try:
             self.latex_walker, self.nodes = \
                 LLMFragment.parse(self.llm_text,
-                                  self.environment,)
+                                  self.environment,
+                                  is_block_level=self.is_block_level)
         except latexnodes.LatexWalkerParseError as e:
             if not self.silent:
                 error_message = self.environment.get_parse_error_message(e)
@@ -47,14 +51,17 @@ class LLMFragment:
 
 
     @classmethod
-    def parse(cls, llm_text, environment):
+    def parse(cls, llm_text, environment, *, is_block_level=None):
 
         tolerant_parsing = environment.tolerant_parsing
 
         latex_walker = environment.make_latex_walker(llm_text)
 
+        parsing_state = latex_walker.make_parsing_state(is_block_level=is_block_level)
+
         nodes, _ = latex_walker.parse_content(
             latexnodes_parsers.LatexGeneralNodesParser(),
+            parsing_state=parsing_state,
         )
 
         return latex_walker, nodes

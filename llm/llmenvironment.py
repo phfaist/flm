@@ -244,9 +244,9 @@ class LLMEnvironment:
                  tolerant_parsing=False):
         super().__init__()
 
-        print("**** LLMEnvironment constructor ****")
+        logger.debug("LLMEnvironment constructor")
 
-        print(f"{features=}")
+        logger.debug(f"{features=}")
 
         self.latex_context = latex_context
         self.parsing_state = parsing_state
@@ -261,7 +261,7 @@ class LLMEnvironment:
             for f in features:
                 moredefs = f.add_latex_context_definitions()
                 if moredefs:
-                    print(f"*** Adding definitions for “{f.feature_name}”")
+                    logger.debug(f"Adding definitions for “{f.feature_name}”")
                     self.latex_context.add_context_category(
                         f'feature--{f.feature_name}',
                         **moredefs,

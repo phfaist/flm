@@ -1,9 +1,8 @@
+
 import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import nodes
-
-
 
 
 
@@ -266,6 +265,48 @@ class FragmentRenderer:
         raise RuntimeError("Reimplement me!")
 
 
+    # --- to be reimplemented ---
+
+    def render_value(self, value):
+        raise RuntimeError("Subclasses need to reimplement this method")
+
+    def render_delayed_marker(self, node, delayed_key, render_context):
+        raise RuntimeError("Subclasses need to reimplement this method")
+
+    def render_delayed_dummy_placeholder(self, node, delayed_key, render_context):
+        raise RuntimeError("Subclasses need to reimplement this method")
+
+    def render_nothing(self, annotations=None):
+        raise RuntimeError("Subclasses need to reimplement this method")
+
+    def render_empty_error_placeholder(self, debug_str):
+        raise RuntimeError("Subclasses need to reimplement this method")
+
+    def render_text_format(self, text_formats, nodelist, render_context):
+        raise RuntimeError("Subclasses need to reimplement this method")
+    
+    def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
+                           annotations=None):
+        raise RuntimeError("Subclasses need to reimplement this method")
+
+    def render_verbatim(self, value, annotations=None):
+        raise RuntimeError("Subclasses need to reimplement this method")
+
+    def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
+        r"""
+        .....
+
+        `href` can be:
+
+        - a URL (external link)
+        
+        - an anchor fragment only (`#fragment-name`), for links within the
+          document; note that we use #fragment-name universally, even if the
+          output format is not HTML.  It's up to the output format's
+          DocumentContext implementation to translate the linking scheme
+          correctly.
+        """
+        raise RuntimeError("Subclasses need to reimplement this method")
 
 
     # ---
@@ -331,12 +372,13 @@ class FragmentRenderer:
             charslist.append(n.chars)
         return "".join(charslist)
 
-
-
     # --
 
     def _ensure_render_context(self, render_context):
         return render_context or _OnlyFragmentRendererRenderContext(self)
+
+
+
 
 
 class _OnlyFragmentRendererRenderContext:
@@ -363,69 +405,4 @@ class _NodeArgInfo:
             f"{self.__class__.__name__}(nodelist={self.nodelist!r}, "
             f"main_arg_node={self.main_arg_node!r})"
         )
-
-
-
-
-class TextFragmentRenderer(FragmentRenderer):
-
-    display_href_urls = True
-
-    #supports_delayed_render_markers = False # -- inherited already
-
-    def render_value(self, value):
-        return value
-
-    def render_delayed_marker(self, node, delayed_key, render_context):
-        return ''
-
-    def render_delayed_dummy_placeholder(self, node, delayed_key, render_context):
-        return '#DELAYED#'
-
-    def render_nothing(self, annotations=None):
-        return ''
-
-    def render_empty_error_placeholder(self, debug_str):
-        return ''
-
-    def render_text_format(self, text_formats, content):
-        return content
-    
-    def render_enumeration(self, iter_items_content, counter_formatter, annotations=None):
-        all_items = [
-            (counter_formatter(1+j), item_content)
-            for j, item_content in enumerate(iter_items_content)
-        ]
-        max_item_width = max([ len(fmtcnt) for fmtcnt, item_content in all_items ])
-        return self.render_join_blocks([
-            self.render_semantic_block(
-                self.render_join([
-                    self.render_value(fmtcnt.rjust(max_item_width+1, ' ')),
-                    item_content,
-                    "\n"
-                ])
-            )
-            for fmtcnt, item_content in all_items
-        ])
-
-    def render_verbatim(self, value, annotations=None):
-        return value
-
-    def render_link(self, ref_type, href, display_content, annotations=None):
-        r"""
-        .....
-
-        `href` can be:
-
-        - a URL (external link)
-        
-        - an anchor fragment only (`#fragment-name`), for links within the
-          document; note that we use #fragment-name universally, even if the
-          output format is not HTML.  It's up to the output format's
-          DocumentContext implementation to translate the linking scheme
-          correctly.
-        """
-        if self.display_href_urls:
-            return f"{display_content} <{href}>"
-        return display_content
 

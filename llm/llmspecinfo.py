@@ -151,14 +151,10 @@ class TextFormat(LLMSpecInfo):
             all=True
         )
 
-        content = render_context.fragment_renderer.render_nodelist(
-            node_args['text'].nodelist, render_context,
-            is_block_level=False
-        )
-
         return render_context.fragment_renderer.render_text_format(
             self.text_formats,
-            content
+            node_args['text'].nodelist,
+            render_context,
         )
 
 
@@ -236,27 +232,35 @@ class HrefHyperlink(LLMSpecInfo):
         )
         
         target_href = None
-        display_text = None
+        display_text_nodelist = None
 
         if 'target_href' in node_args:
             target_href = render_context.fragment_renderer.get_nodelist_as_chars(
                 node_args['target_href'].nodelist
             )
         if 'display_text' in node_args:
-            display_text = render_context.fragment_renderer.render_nodelist(
-                node_args['display_text'].nodelist,
-                render_context=render_context,
-                is_block_level=False,
-            )
+            display_text_nodelist = node_args['display_text'].nodelist
 
         # show URL by default
-        if display_text is None:
-            display_text = self.pretty_url(target_href)
+        if display_text_nodelist is None:
+            display_text_nodelist = node.latex_walker.make_nodelist(
+                [
+                    node.latex_walker.make_node(
+                        latexnodes_nodes.LatexCharsNode,
+                        parsing_state=node.parsing_state,
+                        chars=self.pretty_url(target_href),
+                        pos=node.pos,
+                        pos_end=node.pos,
+                    )
+                ],
+                parsing_state=node.parsing_state
+            )
 
         return render_context.fragment_renderer.render_link(
             self.ref_type,
             target_href,
-            display_text,
+            display_text_nodelist,
+            render_context,
         )
 
 

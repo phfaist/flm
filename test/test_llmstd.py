@@ -3,7 +3,7 @@ import unittest
 from pylatexenc.latexnodes import LatexWalkerParseError
 
 from llm.llmstd import LLMStandardEnvironment
-from llm.htmlfragmentrenderer import HtmlFragmentRenderer
+from llm.fragmentrenderer.html import HtmlFragmentRenderer
 
 from llm.feature_endnotes import FeatureEndnotes, EndnoteCategory
 from llm import feature_refs
@@ -340,14 +340,14 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It
                         return feature_refs.RefInstance(
                             ref_type='code',
                             ref_target='surface',
-                            formatted_ref_text='Kitaev surface code',
+                            formatted_ref_llm_text=r'Kitaev \emph{surface} code',
                             target_href='https://errorcorrectionzoo.org/c/surface',
                         )
                     if ref_target == 'self':
                         return feature_refs.RefInstance(
                             ref_type='code',
                             ref_target='self',
-                            formatted_ref_text='(this exact code)',
+                            formatted_ref_llm_text=r'(\textbf{this} exact code)',
                             target_href='#',
                         )
                     raise ValueError(f"Invalid ref target: ‘{ref_type}:{ref_target}’")
@@ -375,7 +375,7 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It
         self.assertEqual(
             result,
             r"""
-<p><span class="textbf">Hello</span>, reference to <a href="#" class="href-ref ref-code">(this exact code)</a>. Check out the <a href="https://errorcorrectionzoo.org/c/surface" class="href-ref ref-code">Kitaev surface code</a>, too.</p>
+<p><span class="textbf">Hello</span>, reference to <a href="#" class="href-ref ref-code">(<span class="textbf">this</span> exact code)</a>. Check out the <a href="https://errorcorrectionzoo.org/c/surface" class="href-ref ref-code">Kitaev <span class="textit">surface</span> code</a>, too.</p>
 """.strip()
         )
 

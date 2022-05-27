@@ -127,16 +127,10 @@ class Enumeration(LLMSpecInfo):
             counter_formatter = _get_counter_formatter_from_tag_template(tag_template_chars)
 
         items_custom_tags = {}
-        items_content = []
+        items_nodelists = []
         for j, iteminfo in enumerate(node.enumeration_items):
             item_macro, item_content_nodelist = iteminfo
-            items_content.append(
-                fragment_renderer.render_nodelist(
-                    item_content_nodelist,
-                    render_context=render_context,
-                    is_block_level=True,
-                )
-            )
+            items_nodelists.append( item_content_nodelist )
 
             item_node_args = fragment_renderer.get_arguments_nodelists(
                 item_macro,
@@ -145,11 +139,7 @@ class Enumeration(LLMSpecInfo):
             )
 
             if 'custom_tag' in item_node_args and item_node_args['custom_tag'].provided:
-                items_custom_tags[1+j] = fragment_renderer.render_nodelist(
-                    item_node_args['custom_tag'].nodelist,
-                    render_context=render_context,
-                    is_block_level=False,
-                )
+                items_custom_tags[1+j] = item_node_args['custom_tag'].nodelist
 
         def the_counter_formatter(n):
             if n in items_custom_tags:
@@ -159,7 +149,8 @@ class Enumeration(LLMSpecInfo):
             return counter_formatter
 
         return fragment_renderer.render_enumeration(
-            items_content,
+            items_nodelists,
             the_counter_formatter,
+            render_context=render_context,
             annotations=self.annotations
         )

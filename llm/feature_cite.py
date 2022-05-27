@@ -1,9 +1,12 @@
+import logging
+logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc import macrospec
 
 from .llmspecinfo import LLMSpecInfo, LLMMacroSpec
+from .llmenvironment import make_arg_spec
 
 from .feature import Feature
 
@@ -24,17 +27,16 @@ class FeatureExternalPrefixedCitationsRenderManager(Feature.RenderManager):
         citation_llm = self.render_context.doc.environment.make_fragment(
             self.feature.external_citations_provider.get_citation_full_text_llm(
                 cite_prefix, cite_key
-            )
+            ),
+            is_block_level=False,
+            what=f"Citation text for {cite_prefix}:{cite_key}",
         )
-
-        formatted_citation = self.render_context.fragment_renderer.render_fragment(
-            citation_llm, 
-            render_context=None
-        )
+        
+        logger.debug("Got citation content LLM nodelist = %r", citation_llm.nodes)
 
         endnote = endnotes_mgr.add_endnote(
-            'citation', 
-            formatted_citation,
+            category_name='citation', 
+            content_nodelist=citation_llm.nodes,
             label=f"{cite_prefix}:{cite_key}"
         )
 
@@ -58,11 +60,11 @@ class FeatureExternalPrefixedCitations(Feature):
                 LLMMacroSpec(
                     'cite',
                     [
-                        macrospec.LatexArgumentSpec(
+                        make_arg_spec(
                             '[',
                             argname='cite_pre_text'
                         ),
-                        macrospec.LatexArgumentSpec(
+                        make_arg_spec(
                             latexnodes_parsers.LatexCharsCommaSeparatedListParser(
                                 enable_comments=False
                             ),

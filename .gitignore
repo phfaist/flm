@@ -132,3 +132,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+
+
+# my funny test file
+funnytest.llm

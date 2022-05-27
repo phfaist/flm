@@ -1,8 +1,8 @@
 import unittest
 
 from llm.llmdocument import LLMDocument
-from llm.fragmentrenderer import TextFragmentRenderer
-from llm.htmlfragmentrenderer import HtmlFragmentRenderer
+from llm.fragmentrenderer.text import TextFragmentRenderer
+from llm.fragmentrenderer.html import HtmlFragmentRenderer
 from llm.llmstd import LLMStandardEnvironment
 from llm import llmstd
 
@@ -93,15 +93,40 @@ class _MyDocumentSizeMacroSpecInfo(LLMSpecInfo):
             return fragment_renderer.render_nothing(['anchor', 'anotherAnchor'])
         if node.isNodeType(latexnodes_nodes.LatexMacroNode)\
 	   and node.macroname == 'linkMyAnchor':
+            content_nl = node.latex_walker.make_nodelist(
+                [
+                    node.latex_walker.make_node(
+                        latexnodes_nodes.LatexCharsNode,
+                        chars='link to Anchor #{}'.format(mgr.get_anchor_number('myAnchor')),
+                        parsing_state=node.parsing_state,
+                        pos=node.pos,
+                        pos_end=node.pos,
+                    )
+                ],
+                parsing_state=node.parsing_state,
+            )
             return fragment_renderer.render_link(
                 'anchor', '#myAnchor',
-                'link to Anchor #{}'.format(mgr.get_anchor_number('myAnchor'))
+                content_nl, render_context
             )
         if node.isNodeType(latexnodes_nodes.LatexMacroNode) \
            and node.macroname == 'linkAnotherAnchor':
+            content_nl = node.latex_walker.make_nodelist(
+                [
+                    node.latex_walker.make_node(
+                        latexnodes_nodes.LatexCharsNode,
+                        chars='link to Anchor #{}'
+                            .format(mgr.get_anchor_number('anotherAnchor')),
+                        parsing_state=node.parsing_state,
+                        pos=node.pos,
+                        pos_end=node.pos,
+                    )
+                ],
+                parsing_state=node.parsing_state,
+            )
             return fragment_renderer.render_link(
                 'anchor', '#anotherAnchor',
-                'link to Anchor #{}'.format(mgr.get_anchor_number('anotherAnchor'))
+                content_nl, render_context
             )
 
         if node.isNodeType(latexnodes_nodes.LatexMacroNode) \
