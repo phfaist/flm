@@ -251,6 +251,7 @@ class LLMEnvironment:
         self.latex_context = latex_context
         self.parsing_state = parsing_state
         self.features = features
+        self.features_by_name = {f.feature_name: f for f in self.features}
         self.tolerant_parsing = tolerant_parsing
 
         self._node_list_finalizer = NodeListFinalizer()

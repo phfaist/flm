@@ -318,11 +318,19 @@ def standard_features(
         *,
         external_citations_provider=None,
         external_ref_resolver=None,
+        footnote_counter_formatter=None,
+        citation_counter_formatter=None,
 ):
+
+    if footnote_counter_formatter is None:
+        footnote_counter_formatter = 'alph'
+    if citation_counter_formatter is None:
+        citation_counter_formatter = lambda n: '[{:d}]'.format(n)
+
     features = [
         FeatureEndnotes(categories=[
-            EndnoteCategory('footnote', 'alph', 'footnote'),
-            EndnoteCategory('citation', lambda n: '[{:d}]'.format(n), None),
+            EndnoteCategory('footnote', footnote_counter_formatter, 'footnote'),
+            EndnoteCategory('citation', citation_counter_formatter, None),
         ])
     ]
     if external_citations_provider is not None:
@@ -352,6 +360,8 @@ class LLMStandardEnvironment(LLMEnvironment):
                  enable_comments=None,
                  external_citations_provider=None,
                  external_ref_resolver=None,
+                 footnote_counter_formatter=None,
+                 citation_counter_formatter=None,
                  **kwargs):
 
         if latex_context is None:
@@ -363,7 +373,9 @@ class LLMStandardEnvironment(LLMEnvironment):
         if features is None:
             features = standard_features(
                 external_citations_provider=external_citations_provider,
-                external_ref_resolver=external_ref_resolver
+                external_ref_resolver=external_ref_resolver,
+                footnote_counter_formatter=footnote_counter_formatter,
+                citation_counter_formatter=citation_counter_formatter,
             )
 
         super().__init__(

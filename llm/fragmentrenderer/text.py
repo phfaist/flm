@@ -99,7 +99,8 @@ class TextFragmentRenderer(FragmentRenderer):
             is_block_level=False,
         )
 
-        if self.display_href_urls:
+        # never display local links (e.g. #footnote-X)
+        if self.display_href_urls and not href.startswith("#"):
             return f"{display_content} <{href}>"
         return display_content
 

@@ -3,6 +3,7 @@ import argparse
 import fileinput
 
 from . import llmstd
+from . import fmthelpers
 from .fragmentrenderer.text import TextFragmentRenderer
 from .fragmentrenderer.html import HtmlFragmentRenderer
 
@@ -30,7 +31,31 @@ def main(cmdargs=None):
 
     args = args_parser.parse_args(args=cmdargs)
 
-    environ = llmstd.LLMStandardEnvironment()
+    # Set up the format & formatters
+
+    if args.format == 'text':
+
+        fragment_renderer = TextFragmentRenderer()
+        #footnote_counter_formatter = lambda n: f"[{fmthelpers.alphacounter(n)}]"
+        footnote_counter_formatter = 'fnsymbol'
+
+    elif args.format == 'html':
+
+        fragment_renderer = HtmlFragmentRenderer()
+        footnote_counter_formatter = None # use default
+
+    else:
+        raise ValueError(f"Unknown format: ‘{args.format}’")
+
+
+
+    # Set up the environment
+
+    environ = llmstd.LLMStandardEnvironment(
+        footnote_counter_formatter=footnote_counter_formatter,
+    )
+
+    # Get the LLM content
 
     llm_content = ''
     if args.llm_content:
@@ -44,17 +69,9 @@ def main(cmdargs=None):
         for line in fileinput.input(files=args.files):
             llm_content += line
 
-
     fragment = environ.make_fragment(llm_content)
     
     doc = environ.make_document(fragment.render)
-
-    if args.format == 'text':
-        fragment_renderer = TextFragmentRenderer()
-    elif args.format == 'html':
-        fragment_renderer = HtmlFragmentRenderer()
-    else:
-        raise ValueError(f"Unknown format: ‘{args.format}’")
 
     result, render_context = doc.render(fragment_renderer)
 

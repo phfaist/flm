@@ -61,9 +61,7 @@ def fnsymbolcounter(n, symbols=_fnsymbols):
     w = 1 + (n // N)
     m = n % N
     s = symbols[m] * w
-    if lower:
-        return s
-    return s.upper()
+    return s
     
 
 

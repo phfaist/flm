@@ -215,7 +215,7 @@ class FeatureEndnotes(Feature):
                         [
                             make_arg_spec('{', argname='endnote_content'),
                         ],
-                        llm_specinfo=EndnoteSpecInfo(encat.category_name)
+                        llm_specinfo=EndnoteSpecInfo(encat.category_name,)
                     )
                 )
         logger.debug("Adding macros: %r", macros)
