@@ -57,6 +57,9 @@ class TextFragmentRenderer(FragmentRenderer):
                 (tag_content, item_content),
             )
 
+        if not all_items:
+            return self.render_semantic_block('', 'enumeration', annotations=annotations)
+
         max_item_width = max([ len(fmtcnt) for fmtcnt, item_content in all_items ])
 
         return self.render_join_blocks([

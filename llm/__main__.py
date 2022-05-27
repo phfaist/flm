@@ -58,6 +58,12 @@ def main(cmdargs=None):
 
     result, render_context = doc.render(fragment_renderer)
 
+    # render "artifacts" (like list of footnotes, etc.) as well, if necessary
+    endnotes_mgr = render_context.feature_render_manager('endnotes')
+    if endnotes_mgr is not None and endnotes_mgr.endnotes:
+        # TODO, do something nicer & better
+        result += "\n\nEndnotes:\n\n" + endnotes_mgr.render_endnotes()
+
     sys.stdout.write(result)
     if not args.suppress_final_newline:
         sys.stdout.write("\n")

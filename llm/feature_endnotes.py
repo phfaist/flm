@@ -35,11 +35,16 @@ class EndnoteCategory:
 
 
 class EndnoteSpecInfo(LLMSpecInfo):
+
     def __init__(self, endnote_category_name, **kwargs):
         super().__init__(**kwargs)
         self.endnote_category_name = endnote_category_name
         
     def render(self, node, render_context):
+        
+        if hasattr(node, 'llm_endnotes_rendered_endnote_mark'):
+            # for two-pass rendering, don't add a second endnote!
+            return node.llm_endnotes_rendered_endnote_mark
 
         fragment_renderer = render_context.fragment_renderer
         mgr = render_context.feature_render_manager('endnotes')
@@ -63,7 +68,9 @@ class EndnoteSpecInfo(LLMSpecInfo):
             category_name=self.endnote_category_name,
             content_nodelist=content_nodelist,
         )
-        return mgr.render_endnote_mark(endnote)
+        rendered_endnote_mark = mgr.render_endnote_mark(endnote)
+        node.llm_endnotes_rendered_endnote_mark = rendered_endnote_mark
+        return rendered_endnote_mark
 
 
 
