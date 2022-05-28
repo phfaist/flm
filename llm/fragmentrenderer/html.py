@@ -270,8 +270,9 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     def render_heading(self, heading_nodelist, render_context, *,
                        heading_level=1, target_id=None, annotations=None):
-        if heading_level < 1 or heading_level > 6:
-            raise ValueError(f"Bad {heading_level=}, expected 1..6")
+        if heading_level not in self.heading_tags_by_level:
+            raise ValueError(f"Bad {heading_level=}, expected one of "
+                             f"{list(self.heading_tags_by_level.keys())}")
         return self.wrap_in_tag(
             self.heading_tags_by_level[heading_level],
             self.render_inline_content(heading_nodelist, render_context),
