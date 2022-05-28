@@ -32,7 +32,7 @@ class TextFragmentRenderer(FragmentRenderer):
         return content
     
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
-                           annotations=None):
+                           *, target_id_generator=None, annotations=None):
 
         all_items = []
         for j, item_content_nodelist in enumerate(iter_items_nodelists):
@@ -73,6 +73,27 @@ class TextFragmentRenderer(FragmentRenderer):
             )
             for fmtcnt, item_content in all_items
         ])
+
+    def render_heading(self, heading_nodelist, render_context, *,
+                       heading_level=1, target_id=None, annotations=None):
+
+        rendered_heading = self.render_inline_content(heading_nodelist, render_context)
+
+        if heading_level == 1:
+            return f"{rendered_heading}\n{'='*len(rendered_heading)}"
+        if heading_level == 2:
+            return f"{rendered_heading}\n{'-'*len(rendered_heading)}"
+        if heading_level == 3:
+            return f"{rendered_heading}\n{'~'*len(rendered_heading)}"
+        if heading_level == 4:
+            return f"{rendered_heading}:"
+        if heading_level == 5:
+            return f"    {rendered_heading}:"
+        if heading_level == 6:
+            return f"        {rendered_heading}:"
+
+        raise ValueError(f"Bad {heading_level=}, expected 1..6")
+
 
     def render_verbatim(self, value, annotations=None):
         return value

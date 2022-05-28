@@ -76,12 +76,12 @@ class EndnoteSpecInfo(LLMSpecInfo):
 
 
 class EndnoteInstance:
-    def __init__(self, category_name, number, formatted_counter_value_llm_text,
+    def __init__(self, category_name, number, formatted_counter_value_llm,
                  content_nodelist, label):
         super().__init__()
         self.category_name = category_name
         self.number = number
-        self.formatted_counter_value_llm_text = formatted_counter_value_llm_text
+        self.formatted_counter_value_llm = formatted_counter_value_llm
         self.content_nodelist = content_nodelist
         self.label = label
 
@@ -89,7 +89,7 @@ class EndnoteInstance:
         return (
             f"{self.__class__.__name__}(category_name={self.category_name!r}, "
             f"number={self.number!r}, "
-            f"formatted_counter_value_llm_text={self.formatted_counter_value_llm_text!r}, "
+            f"formatted_counter_value_llm={self.formatted_counter_value_llm!r}, "
             f"content_nodelist={self.content_nodelist!r}, "
             f"label={self.label!r})"
         )
@@ -112,11 +112,16 @@ class FeatureEndnotesRenderManager(Feature.RenderManager):
         self.endnote_counters[category_name] += 1
 
         fmtvalue_llm_text = fmtcounter(number)
+        fmtvalue_llm = self.render_context.doc.environment.make_fragment(
+            fmtvalue_llm_text,
+            is_block_level=False,
+            what=f"{category_name} counter",
+        )
 
         endnote = EndnoteInstance(
             category_name=category_name,
             number=number,
-            formatted_counter_value_llm_text=fmtvalue_llm_text,
+            formatted_counter_value_llm=fmtvalue_llm,
             content_nodelist=content_nodelist,
             label=label,
         )
@@ -125,11 +130,7 @@ class FeatureEndnotesRenderManager(Feature.RenderManager):
 
     def render_endnote_mark(self, endnote):
         endnote_link_href = f"#{endnote.category_name}-{endnote.number}"
-        fmtvalue_llm = self.render_context.doc.environment.make_fragment(
-            endnote.formatted_counter_value_llm_text,
-            is_block_level=False,
-            what=f"Endnote counter ({endnote.category_name})",
-        )
+        fmtvalue_llm = endnote.formatted_counter_value_llm
         return self.render_context.fragment_renderer.render_link(
             'endnote',
             endnote_link_href,
@@ -153,18 +154,18 @@ class FeatureEndnotesRenderManager(Feature.RenderManager):
 
         def the_endnotes_enumeration_counter_formatter(n):
             endnote = self.endnotes[category_name][n-1]
-            fmtvalue_llm = self.render_context.doc.environment.make_fragment(
-                endnote.formatted_counter_value_llm_text,
-                is_block_level=False,
-                what=f"Endnote counter ({endnote.category_name})",
-            )
+            fmtvalue_llm = endnote.formatted_counter_value_llm
             return fmtvalue_llm.nodes
+
+        def the_target_id_generator_fn(n):
+            return f"{category_name}-{n}"
 
         logger.debug("Endnotes are = %r", self.endnotes)
 
         return fragment_renderer.render_enumeration(
             ( en.content_nodelist for en in self.endnotes[category_name] ),
             counter_formatter=the_endnotes_enumeration_counter_formatter,
+            target_id_generator=the_target_id_generator_fn,
             render_context=self.render_context,
             annotations=[category_name+'-list'], # "footnote" -> "footnote-list"
         )

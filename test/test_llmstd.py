@@ -269,7 +269,7 @@ r"""
         print(endnotes_result)
         self.assertEqual(
             endnotes_result,
-r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It is <span class="textit">true</span>!</dd></dl>
+r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote-1">a</dt><dd>It is <span class="textit">true</span>!</dd></dl>
 <dl class="enumeration citation-list"></dl></div>'''
 )
 
@@ -323,8 +323,8 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It
         self.assertEqual(
             endnotes_result,
             r"""
-<div class="endnotes"><dl class="enumeration footnote-list"><dt>a</dt><dd>It is <span class="textit">true</span>!</dd></dl>
-<dl class="enumeration citation-list"><dt>[1]</dt><dd><span class="textit">arXiv</span> paper arXiv:1234.56789</dd><dt>[2]</dt><dd><span class="textit">arXiv</span> paper arXiv:0000.11111</dd><dt>[3]</dt><dd>My custom <span class="textit">reference</span> (2022).</dd><dt>[4]</dt><dd><span class="textit">arXiv</span> paper arXiv:3333.99999</dd></dl></div>
+<div class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote-1">a</dt><dd>It is <span class="textit">true</span>!</dd></dl>
+<dl class="enumeration citation-list"><dt id="citation-1">[1]</dt><dd><span class="textit">arXiv</span> paper arXiv:1234.56789</dd><dt id="citation-2">[2]</dt><dd><span class="textit">arXiv</span> paper arXiv:0000.11111</dd><dt id="citation-3">[3]</dt><dd>My custom <span class="textit">reference</span> (2022).</dd><dt id="citation-4">[4]</dt><dd><span class="textit">arXiv</span> paper arXiv:3333.99999</dd></dl></div>
             """.strip()
 )
 

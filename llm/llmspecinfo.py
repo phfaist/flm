@@ -158,6 +158,36 @@ class TextFormat(LLMSpecInfo):
         )
 
 
+
+
+class Heading(LLMSpecInfo):
+
+    is_block_level = True
+
+    def __init__(self, heading_level=1):
+        r"""
+        Heading level is 1..6, loosely think `\section` ... "`\subsubparagraph`"
+        """
+        super().__init__()
+        self.heading_level = heading_level
+
+    def render(self, node, render_context):
+
+        node_args = render_context.fragment_renderer.get_arguments_nodelists(
+            node,
+            ('text',) ,
+            all=True
+        )
+
+        return render_context.fragment_renderer.render_heading(
+            node_args['text'].nodelist,
+            render_context=render_context,
+            heading_level=self.heading_level,
+        )
+
+
+
+
 class MathEnvironment(LLMSpecInfo):
     def render(self, node, render_context):
         environmentname = node.environmentname

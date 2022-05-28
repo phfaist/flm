@@ -239,7 +239,7 @@ class FragmentRenderer:
     # ---
 
 
-    def render_semantic_block(self, content, role, annotations=None):
+    def render_semantic_block(self, content, role, *, annotations=None, target_id=None):
         r"""
         Enclose the given content in a block (say, a DOM <section> or such) that is
         meant to convey semantic information about the document's structure, but
@@ -286,7 +286,11 @@ class FragmentRenderer:
         raise RuntimeError("Subclasses need to reimplement this method")
     
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
-                           annotations=None):
+                           *, target_id_generator=None, annotations=None):
+        raise RuntimeError("Subclasses need to reimplement this method")
+
+    def render_heading(self, heading_nodelist, render_context, *,
+                       heading_level=1, target_id=None):
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_verbatim(self, value, annotations=None):

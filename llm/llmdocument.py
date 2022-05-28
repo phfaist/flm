@@ -10,12 +10,14 @@ class LLMRenderContext:
         self.fragment_renderer = fragment_renderer
         self.feature_document_managers = feature_document_managers
         self.feature_render_managers = [
-            fdm.RenderManager(fdm, self)
-            for fdm in self.feature_document_managers
+            ( (feature_name, fdm.RenderManager(fdm, self))
+              if fdm is not None and fdm.RenderManager is not None
+              else (feature_name, None) )
+            for feature_name, fdm in self.feature_document_managers
         ]
         self.feature_render_managers_by_name = {
-            f.feature_name: f
-            for f in self.feature_render_managers
+            feature_name: frm
+            for feature_name, frm in self.feature_render_managers
         }
 
         # flags and internal counters for delayed content
@@ -63,18 +65,21 @@ class LLMDocument:
         self.features = features
 
         self.feature_document_managers = [
-            f.DocumentManager(f, self)
+            ( (f.feature_name, f.DocumentManager(f, self))
+              if f.DocumentManager is not None
+              else (f.feature_name, None) )
             for f in self.features
         ]
         self.feature_document_managers_by_name = {
-            fdm.feature_name: fdm
-            for fdm in self.feature_document_managers
+            feature_name: fdm
+            for feature_name, fdm in self.feature_document_managers
         }
 
     def initialize(self):
         # initialize our feature document managers
-        for feature_document_manager in self.feature_document_managers:
-            feature_document_manager.initialize()
+        for feature_name, feature_document_manager in self.feature_document_managers:
+            if feature_document_manager is not None:
+                feature_document_manager.initialize()
 
     def supports_feature(self, feature_name):
         return ( feature_name in self.feature_document_managers_by_name )
@@ -90,8 +95,9 @@ class LLMDocument:
             self.feature_document_managers
         )
         # and initialize our feature render managers
-        for feature_render_manager in render_context.feature_render_managers:
-            feature_render_manager.initialize()
+        for feature_name, feature_render_manager in render_context.feature_render_managers:
+            if feature_render_manager is not None:
+                feature_render_manager.initialize()
         return render_context
 
     def render(self, fragment_renderer):
@@ -113,8 +119,9 @@ class LLMDocument:
         # do any necessary processing required by the feature managers, in the
         # order they were specified
 
-        for feature_render_manager in render_context.feature_render_managers:
-            feature_render_manager.process(value)
+        for feature_name, feature_render_manager in render_context.feature_render_managers:
+            if feature_render_manager is not None:
+                feature_render_manager.process(value)
 
         # now render all the delayed nodes
 
@@ -159,8 +166,9 @@ class LLMDocument:
 
         logger.debug("ok, got final_value = %r", value)
 
-        for feature_render_manager in render_context.feature_render_managers:
-            feature_render_manager.postprocess(value)
+        for feature_name, feature_render_manager in render_context.feature_render_managers:
+            if feature_render_manager is not None:
+                feature_render_manager.postprocess(value)
 
         return value, render_context
 

@@ -24,7 +24,7 @@ from .enumeration import Enumeration
 from .feature_endnotes import FeatureEndnotes, EndnoteCategory
 from .feature_cite import FeatureExternalPrefixedCitations
 from .feature_refs import FeatureRefs
-
+from .feature_headings import FeatureHeadings
 
 # ------------------------------------------------------------------------------
 
@@ -320,6 +320,7 @@ def standard_features(
         external_ref_resolver=None,
         footnote_counter_formatter=None,
         citation_counter_formatter=None,
+        heading_section_commands_by_level=None,
 ):
 
     if footnote_counter_formatter is None:
@@ -328,6 +329,9 @@ def standard_features(
         citation_counter_formatter = lambda n: '[{:d}]'.format(n)
 
     features = [
+        FeatureHeadings(
+            section_commands_by_level=heading_section_commands_by_level,
+        ),
         FeatureEndnotes(categories=[
             EndnoteCategory('footnote', footnote_counter_formatter, 'footnote'),
             EndnoteCategory('citation', citation_counter_formatter, None),

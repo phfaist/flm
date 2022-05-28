@@ -39,6 +39,12 @@ class HtmlFragmentRenderer(FragmentRenderer):
     """
 
 
+    heading_tags_by_level = {
+        j: f"h{j}"
+        for j in range(1,7) # i.e. [1, 2, 3, 4, 5, 6]
+    }
+
+
     # ------------------
 
     
@@ -179,7 +185,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
             class_names=text_formats
         )
 
-    def render_semantic_block(self, content, role, annotations=None):
+    def render_semantic_block(self, content, role, *, annotations=None, target_id=None):
         if role in ('section', 'main', 'article', ): # todo, add
             return self.wrap_in_tag(
                 role,
@@ -194,11 +200,15 @@ class HtmlFragmentRenderer(FragmentRenderer):
             
  
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
-                           annotations=None):
+                           *, target_id_generator=None, annotations=None):
 
         r"""
-        
         ... remember, counter_formatter is given a number starting at 1.
+
+        ... target_id_generator is a callable, takes one argument (item #
+        starting at 1, like counter_formatter), and returns the anchor name to
+        use for the enumeration item (in HTML, the value of the
+        id=... attribute)
         """
 
         s_items = []
@@ -221,7 +231,9 @@ class HtmlFragmentRenderer(FragmentRenderer):
                 is_block_level=use_block_level,
             )
 
-            tag_nodelist = counter_formatter(1+j)
+            enumno = 1+j
+
+            tag_nodelist = counter_formatter(enumno)
             if isinstance(tag_nodelist, str):
                 tag_content = self.render_value(tag_nodelist)
             else:
@@ -231,10 +243,21 @@ class HtmlFragmentRenderer(FragmentRenderer):
                     is_block_level=False,
                 )
 
+            dtattrs = {}
+            if target_id_generator is not None:
+                dtattrs['id'] = target_id_generator(enumno)
+
             s_items.append(
                 self.render_join([
-                    self.wrap_in_tag('dt', tag_content),
-                    self.wrap_in_tag('dd', item_content),
+                    self.wrap_in_tag(
+                        'dt',
+                        tag_content,
+                        attrs=dtattrs,
+                    ),
+                    self.wrap_in_tag(
+                        'dd',
+                        item_content
+                    ),
                 ])
             )
 
@@ -244,6 +267,16 @@ class HtmlFragmentRenderer(FragmentRenderer):
             class_names=['enumeration'] + (annotations if annotations else []),
         )
 
+
+    def render_heading(self, heading_nodelist, render_context, *,
+                       heading_level=1, target_id=None, annotations=None):
+        if heading_level < 1 or heading_level > 6:
+            raise ValueError(f"Bad {heading_level=}, expected 1..6")
+        return self.wrap_in_tag(
+            self.heading_tags_by_level[heading_level],
+            self.render_inline_content(heading_nodelist, render_context),
+            class_names=(annotations if annotations else []),
+        )
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
         display_content = self.render_nodelist(

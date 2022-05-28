@@ -77,9 +77,24 @@ def main(cmdargs=None):
 
     # render "artifacts" (like list of footnotes, etc.) as well, if necessary
     endnotes_mgr = render_context.feature_render_manager('endnotes')
-    if endnotes_mgr is not None and endnotes_mgr.endnotes:
-        # TODO, do something nicer & better
-        result += "\n\nEndnotes:\n\n" + endnotes_mgr.render_endnotes()
+    if endnotes_mgr is not None:
+        for category in endnotes_mgr.feature.categories:
+            category_name = category.category_name
+            endnotes_this_category = endnotes_mgr.endnotes[category_name]
+            if endnotes_this_category:
+                endnote_heading_llm = environ.make_fragment(
+                    (category_name + 's').capitalize(), # footnote -> Footnotes
+                    is_block_level=False,
+                )
+                result = fragment_renderer.render_join_blocks([
+                    result,
+                    fragment_renderer.render_heading(
+                        endnote_heading_llm.nodes,
+                        heading_level=1,
+                        render_context=render_context,
+                    ),
+                    endnotes_mgr.render_endnote_category(category_name),
+                ])
 
     sys.stdout.write(result)
     if not args.suppress_final_newline:
