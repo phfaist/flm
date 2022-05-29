@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc import macrospec
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
-from pylatexenc.latexnodes import LatexWalkerParseError
+from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
 
 
 # ------------------------------------------------------------------------------
@@ -144,15 +144,13 @@ class TextFormat(LLMSpecInfo):
 
     def render(self, node, render_context):
 
-        node_args = render_context.fragment_renderer.get_arguments_nodelists(
-            node,
+        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             ('text',) ,
-            all=True
         )
 
         return render_context.fragment_renderer.render_text_format(
             self.text_formats,
-            node_args['text'].nodelist,
+            node_args['text'].get_content_nodelist(),
             render_context,
         )
 
@@ -198,14 +196,12 @@ class Heading(LLMSpecInfo):
 
     def render(self, node, render_context):
 
-        node_args = render_context.fragment_renderer.get_arguments_nodelists(
-            node,
+        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             ('text',) ,
-            all=True
         )
 
         return render_context.fragment_renderer.render_heading(
-            node_args['text'].nodelist,
+            node_args['text'].get_content_nodelist(),
             render_context=render_context,
             heading_level=self.heading_level,
         )
@@ -236,21 +232,17 @@ class HrefHyperlink(LLMSpecInfo):
 
     def render(self, node, render_context):
 
-        node_args = render_context.fragment_renderer.get_arguments_nodelists(
-            node,
+        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             self.command_arguments,
-            all=True
         )
         
         target_href = None
         display_text_nodelist = None
 
         if 'target_href' in node_args:
-            target_href = render_context.fragment_renderer.get_nodelist_as_chars(
-                node_args['target_href'].nodelist
-            )
+            target_href = node_args['target_href'].get_content_as_chars()
         if 'display_text' in node_args:
-            display_text_nodelist = node_args['display_text'].nodelist
+            display_text_nodelist = node_args['display_text'].get_content_nodelist()
 
         # show URL by default
         if display_text_nodelist is None:

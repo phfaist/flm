@@ -53,7 +53,8 @@ def main(cmdargs=None):
 
         fragment_renderer = TextFragmentRenderer()
         #footnote_counter_formatter = lambda n: f"[{fmthelpers.alphacounter(n)}]"
-        footnote_counter_formatter = 'fnsymbol'
+        #footnote_counter_formatter = 'fnsymbol'
+        footnote_counter_formatter = lambda n: f"[{fmthelpers.fnsymbolcounter(n)}]"
 
     elif args.format == 'html':
 

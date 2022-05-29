@@ -3,7 +3,7 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 
-from pylatexenc.latexnodes import LatexWalkerParseError
+from pylatexenc.latexnodes import LatexWalkerParseError, ParsedArgumentsInfo
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.macrospec import (
@@ -35,14 +35,11 @@ class MathEnvironment(LLMSpecInfo):
         if refs_mgr is not None and hasattr(node, 'llm_equation_label_node'):
             ref_label_node = node.llm_equation_label_node
             logging.debug("Equation has label: %r", ref_label_node)
-            ref_label_node_args = render_context.fragment_renderer.get_arguments_nodelists(
-                ref_label_node,
+            ref_label_node_args = \
+                ParsedArgumentsInfo(node=ref_label_node).get_all_arguments_info(
                 ('label',),
-                all=True
             )
-            ref_label_value = render_context.fragment_renderer.get_nodelist_as_chars(
-                ref_label_node_args['label'].nodelist,
-            )
+            ref_label_value = ref_label_node_args['label'].get_content_as_chars()
             if not ref_label_value.startswith('eq:'):
                 raise LatexWalkerParseError(
                     f"Equation labels must be of the form ‘eq:...’: ‘{ref_label}’",
@@ -109,16 +106,13 @@ class MathEnvironment(LLMSpecInfo):
 
 class MathEqref(LLMSpecInfo):
     def render(self, node, render_context):
-        node_args = render_context.fragment_renderer.get_arguments_nodelists(
-            node,
+
+        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             ('ref_target',),
-            all=True
         )
         
         ref_type = None
-        ref_target = render_context.fragment_renderer.get_nodelist_as_chars(
-            node_args['ref_target'].nodelist
-        )
+        ref_target = node_args['ref_target'].get_content_as_chars()
         if ':' in ref_target:
             ref_type, ref_target = ref_target.split(':', 1)
 

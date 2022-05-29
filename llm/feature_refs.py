@@ -1,6 +1,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
+from pylatexenc.latexnodes import ParsedArgumentsInfo
 from pylatexenc import macrospec
 
 from .llmspecinfo import LLMSpecInfo, LLMMacroSpec
@@ -115,22 +116,18 @@ class RefSpecInfo(LLMSpecInfo):
 
         fragment_renderer = render_context.fragment_renderer
 
-        node_args = fragment_renderer.get_arguments_nodelists(
-            node,
+        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             self.command_arguments,
-            all=True,
-            skip_nonexistent=True,
+            skip_nonexistent_arguments=True,
         )
 
         ref_type = None
-        ref_target = fragment_renderer.get_nodelist_as_chars(
-            node_args['ref_target'].nodelist
-        )
+        ref_target = node_args['ref_target'].get_content_as_chars()
         if ':' in ref_target:
             ref_type, ref_target = ref_target.split(':', 1)
 
         if 'display_text' in node_args:
-            display_content_nodelist = node_args['display_text'].nodelist
+            display_content_nodelist = node_args['display_text'].get_content_nodelist()
         else:
             display_content_nodelist = None
 

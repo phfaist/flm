@@ -1,6 +1,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
+from pylatexenc.latexnodes import ParsedArgumentsInfo
 from pylatexenc import macrospec
 
 from .llmspecinfo import LLMMacroSpec, LLMSpecInfo
@@ -53,13 +54,11 @@ class EndnoteSpecInfo(LLMSpecInfo):
                 "You did not set up the feature 'endnotes' in your LLM environment"
             )
 
-        node_args = fragment_renderer.get_arguments_nodelists(
-            node,
+        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             ('endnote_content',) ,
-            all=True
         )
 
-        content_nodelist = node_args['endnote_content'].nodelist
+        content_nodelist = node_args['endnote_content'].get_content_nodelist()
 
         logger.debug("Endnote command, content_nodelist = %r", content_nodelist)
 

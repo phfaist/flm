@@ -33,7 +33,7 @@ def make_arg_spec(parser, argname, is_block_level=False):
     parsing_state_delta = None
     if is_block_level is not None:
         parsing_state_delta = LLMParsingStateDeltaSetBlockLevel(is_block_level)
-    return macrospec.LatexArgumentSpec(
+    return latexnodes.LatexArgumentSpec(
         parser=parser,
         argname=argname,
         parsing_state_delta=parsing_state_delta,

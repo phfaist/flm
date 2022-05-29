@@ -3,6 +3,7 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
+from pylatexenc.latexnodes import ParsedArgumentsInfo
 from pylatexenc import macrospec
 
 from .llmspecinfo import LLMSpecInfo, LLMMacroSpec
@@ -18,16 +19,18 @@ class FeatureExternalPrefixedCitationsRenderManager(Feature.RenderManager):
 
     def get_citation_endnote(self, cite_prefix, cite_key):
         endnotes_mgr = self.render_context.feature_render_manager('endnotes')
-        if endnotes_mgr is None:
-            raise RuntimeError("No 'endnotes' feature manager found to add citations")
 
         if (cite_prefix, cite_key) in self.citation_endnotes:
             return self.citation_endnotes[(cite_prefix, cite_key)]
 
-        citation_llm = self.render_context.doc.environment.make_fragment(
+        # retrieve citation from citations provider --
+        citation_llm_text = \
             self.feature.external_citations_provider.get_citation_full_text_llm(
                 cite_prefix, cite_key
-            ),
+            )
+
+        citation_llm = self.render_context.doc.environment.make_fragment(
+            citation_llm_text,
             is_block_level=False,
             what=f"Citation text for {cite_prefix}:{cite_key}",
         )
@@ -84,22 +87,20 @@ class CiteSpecInfo(LLMSpecInfo):
 
         fragment_renderer = render_context.fragment_renderer
 
-        node_args = fragment_renderer.get_arguments_nodelists(
-            node,
+        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             ('cite_pre_text', 'citekey') ,
-            all=True
         )
 
         optional_cite_extra_content = None
-        if node_args['cite_pre_text'].provided:
+        if node_args['cite_pre_text'].was_provided():
             #
             optional_cite_extra_content = fragment_renderer.render_nodelist(
-                node_args['cite_pre_text'].nodelist,
+                node_args['cite_pre_text'].get_content_nodelist(),
                 render_context,
                 is_block_level=False
             )
 
-        citekeylist_nodelist = node_args['citekey'].nodelist
+        citekeylist_nodelist = node_args['citekey'].get_content_nodelist()
 
         # citekeylist_nodelist is a list of groups, each group is delimited by
         # ('', ',') and represents a citation key.  It was parsed using

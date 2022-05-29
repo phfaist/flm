@@ -4,6 +4,7 @@ logger = logging.getLogger(__name__)
 
 import re
 
+from pylatexenc.latexnodes import ParsedArgumentsInfo
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 from pylatexenc.macrospec import (
     MacroSpec,
@@ -111,18 +112,14 @@ class Enumeration(LLMSpecInfo):
 
         fragment_renderer = render_context.fragment_renderer
 
-        node_args = fragment_renderer.get_arguments_nodelists(
-            node,
+        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             ('tag_template',),
-            all=True
         )
 
         counter_formatter = self.counter_formatter
 
-        if 'tag_template' in node_args and node_args['tag_template'].provided:
-            tag_template_chars = fragment_renderer.get_nodelist_as_chars(
-                node_args['tag_template'].nodelist
-            )
+        if 'tag_template' in node_args and node_args['tag_template'].was_provided():
+            tag_template_chars = node_args['tag_template'].get_content_as_chars()
 
             counter_formatter = _get_counter_formatter_from_tag_template(tag_template_chars)
 
@@ -132,14 +129,12 @@ class Enumeration(LLMSpecInfo):
             item_macro, item_content_nodelist = iteminfo
             items_nodelists.append( item_content_nodelist )
 
-            item_node_args = fragment_renderer.get_arguments_nodelists(
-                item_macro,
+            item_node_args = ParsedArgumentsInfo(node=item_macro).get_all_arguments_info(
                 ('custom_tag',),
-                all=True
             )
 
-            if 'custom_tag' in item_node_args and item_node_args['custom_tag'].provided:
-                items_custom_tags[1+j] = item_node_args['custom_tag'].nodelist
+            if 'custom_tag' in item_node_args and item_node_args['custom_tag'].was_provided():
+                items_custom_tags[1+j] = item_node_args['custom_tag'].get_content_nodelist()
 
         def the_counter_formatter(n):
             if n in items_custom_tags:
