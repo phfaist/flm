@@ -1,6 +1,7 @@
 import sys
 import argparse
 import fileinput
+import logging
 
 from . import llmstd
 from . import fmthelpers
@@ -23,6 +24,13 @@ def main(cmdargs=None):
     args_parser.add_argument('-n', '--suppress-final-newline', action='store_true',
                              default=False,
                              help="Do not add a newline at the end of the output")
+    args_parser.add_argument('-v', '--verbose', action='store_true',
+                             default=False,
+                             help="Enable verbose/debug output")
+    args_parser.add_argument('-w', '--very-verbose', action='store_const',
+                             dest='verbose',
+                             const=2,
+                             help="Enable long verbose/debug output (include pylatexenc debug)")
 
     args_parser.add_argument('files', metavar="FILE", nargs='*',
                              help='Input files (if none specified, read from stdandard input)')
@@ -30,6 +38,14 @@ def main(cmdargs=None):
     # --
 
     args = args_parser.parse_args(args=cmdargs)
+
+    # set up logging
+    level = logging.INFO
+    if args.verbose:
+        level = logging.DEBUG
+    logging.basicConfig(level=level)
+    if args.verbose != 2:
+        logging.getLogger('pylatexenc').setLevel(level=logging.INFO)
 
     # Set up the format & formatters
 

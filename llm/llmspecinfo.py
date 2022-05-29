@@ -125,7 +125,6 @@ class LLMSpecialsSpec(LLMSpecInfoSpecClass, macrospec.SpecialsSpec):
 # ------------------------------------------------------------------------------
 
 
-
 class TextFormat(LLMSpecInfo):
     # any additional 
     def __init__(self, text_formats):
@@ -158,6 +157,32 @@ class TextFormat(LLMSpecInfo):
         )
 
 
+class ParagraphBreak(LLMSpecInfo):
+
+    is_block_level = True
+
+    is_paragraph_break_marker = True
+    
+    def __init__(self):
+        super().__init__()
+
+    def render(self, node, render_context):
+        raise LatexWalkerParseError('Paragraph break is not allowed here', pos=node.pos)
+
+
+class Error(LLMSpecInfo):
+    def __init__(self, error_msg=None):
+        super().__init__()
+        self.error_msg = error_msg
+    
+    def render(self, node, render_context):
+        if self.error_msg:
+            msg = self.error_msg
+        else:
+            msg = f"The node ‘{node}’ cannot be placed here."
+
+        raise LatexWalkerParseError(msg, pos=node.pos)
+
 
 
 class Heading(LLMSpecInfo):
@@ -183,50 +208,6 @@ class Heading(LLMSpecInfo):
             node_args['text'].nodelist,
             render_context=render_context,
             heading_level=self.heading_level,
-        )
-
-
-
-
-class MathEnvironment(LLMSpecInfo):
-    def render(self, node, render_context):
-        environmentname = node.environmentname
-        return render_context.fragment_renderer.render_math_content(
-            (f"\\begin{{{environmentname}}}", f"\\end{{{environmentname}}}",),
-            node.nodelist,
-            render_context,
-            'display',
-            environmentname
-        )
-
-class MathEqref(LLMSpecInfo):
-    def render(self, node, render_context):
-        node_args = render_context.fragment_renderer.get_arguments_nodelists(
-            node,
-            ('ref_target',),
-            all=True
-        )
-        
-        ref_type = None
-        ref_target = render_context.fragment_renderer.get_nodelist_as_chars(
-            node_args['ref_target'].nodelist
-        )
-        if ':' in ref_target:
-            ref_type, ref_target = ref_target.split(':', 1)
-
-        if ref_type != 'eq':
-            raise ValueError(
-                f"Equation labels must begin with “eq:” (error in ‘\\{node.macroname}’)"
-            )
-
-        # simply emit the \eqref{...} call as we got it directly, and let
-        # MathJax handle the referencing
-
-        return render_context.fragment_renderer.render_math_content(
-            (r"\(", r"\)"),
-            latexnodes_nodes.LatexNodeList([node]),
-            render_context,
-            'inline',
         )
 
 
@@ -325,29 +306,5 @@ class Verbatim(LLMSpecInfo):
 
 
 
-class ParagraphBreak(LLMSpecInfo):
-
-    is_block_level = True
-
-    is_paragraph_break_marker = True
-    
-    def __init__(self):
-        super().__init__()
-
-    def render(self, node, render_context):
-        raise LatexWalkerParseError('Paragraph break is not allowed here', pos=node.pos)
 
 
-
-class Error(LLMSpecInfo):
-    def __init__(self, error_msg=None):
-        super().__init__()
-        self.error_msg = error_msg
-    
-    def render(self, node, render_context):
-        if self.error_msg:
-            msg = self.error_msg
-        else:
-            msg = f"The node ‘{node}’ cannot be placed here."
-
-        raise LatexWalkerParseError(msg, pos=node.pos)

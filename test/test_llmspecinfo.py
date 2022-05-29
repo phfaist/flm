@@ -8,7 +8,6 @@ from llm.llmspecinfo import (
     LLMSpecialsSpec,
     TextFormat,
     Verbatim,
-    MathEnvironment,
     Error
 )
 

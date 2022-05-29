@@ -161,7 +161,7 @@ class LLMDocument:
         else:
 
             # need a second pass to re-render everything with the correct values
-            self.two_pass_mode_is_second_pass = True
+            render_context.two_pass_mode_is_second_pass = True
             value = self.render_callback(render_context)
 
         logger.debug("ok, got final_value = %r", value)

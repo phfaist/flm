@@ -14,12 +14,13 @@ from .llmenvironment import (
 )
 from .llmspecinfo import (
     LLMMacroSpec, LLMEnvironmentSpec, LLMSpecialsSpec,
-    TextFormat, HrefHyperlink, Verbatim, MathEnvironment, MathEqref, Error,
+    TextFormat, HrefHyperlink, Verbatim, Error,
     ParagraphBreak
 )
 from .llmdocument import LLMDocument
 
 from .enumeration import Enumeration
+from .math import MathEnvironment, MathEqref
 
 from .feature_endnotes import FeatureEndnotes, EndnoteCategory
 from .feature_cite import FeatureExternalPrefixedCitations

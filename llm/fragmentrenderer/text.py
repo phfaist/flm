@@ -95,7 +95,7 @@ class TextFragmentRenderer(FragmentRenderer):
         raise ValueError(f"Bad {heading_level=}, expected 1..6")
 
 
-    def render_verbatim(self, value, annotations=None):
+    def render_verbatim(self, value, *, annotations=None, target_id=None):
         return value
 
     def render_link(self, ref_type, href, display_nodelist, render_context,

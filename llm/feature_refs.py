@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 
 from pylatexenc import macrospec
 
@@ -16,6 +18,14 @@ class RefInstance:
         self.formatted_ref_llm_text = formatted_ref_llm_text
         self.target_href = target_href
 
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(ref_type={self.ref_type!r}, "
+            f"ref_target={self.ref_target!r}, "
+            f"formatted_ref_llm_text={self.formatted_ref_llm_text!r}, "
+            f"target_href={self.target_href!r})"
+        )
+
 
 class FeatureRefsRenderManager(Feature.RenderManager):
 
@@ -26,12 +36,14 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         r"""
         `formatted_ref_llm_text` is LLM code.
         """
-        self.ref_labels[(ref_type, ref_target)] = RefInstance(
+        refinstance = RefInstance(
             ref_type=ref_type,
             ref_target=ref_target,
             formatted_ref_llm_text=formatted_ref_llm_text,
             target_href=target_href,
         )
+        self.ref_labels[(ref_type, ref_target)] = refinstance
+        logger.debug("Registered reference: %r", refinstance)
 
     def get_ref(self, ref_type, ref_target):
         if (ref_type, ref_target) in self.ref_labels:

@@ -132,11 +132,15 @@ class HtmlFragmentRenderer(FragmentRenderer):
         annotations = [a.replace('--', '- - ') for a in annotations]
         return '<!-- {} -->'.format(" ".join(annotations))
 
-    def render_verbatim(self, value, annotations):
+    def render_verbatim(self, value, *, annotations, target_id=None):
+        attrs = {}
+        if target_id is not None:
+            attrs['id'] = target_id
         return self.wrap_in_tag(
             'span',
             self.htmlescape(value),
-            class_names=(annotations if annotations else ['verbatim'])
+            class_names=(annotations if annotations else ['verbatim']),
+            attrs=attrs,
         )
 
     def render_math_content(self,
@@ -144,7 +148,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
                             nodelist,
                             render_context,
                             displaytype,
-                            environmentname=None):
+                            environmentname=None,
+                            target_id=None):
         class_names = [ f"{displaytype}-math" ]
         if environmentname is not None:
             class_names.append(f"env-{environmentname.replace('*','-star')}")
@@ -153,6 +158,10 @@ class HtmlFragmentRenderer(FragmentRenderer):
             self.htmlescape( delimiters[0] + nodelist.latex_verbatim() + delimiters[1] )
         )
 
+        attrs = {}
+        if target_id is not None:
+            attrs['id'] = target_id
+
         if displaytype == 'display':
             # BlockLevelContent( # -- don't use blockcontent as display
             # equations might or might not be in their separate paragraph.
@@ -160,13 +169,15 @@ class HtmlFragmentRenderer(FragmentRenderer):
                 self.wrap_in_tag(
                     'span',
                     content_html,
-                    class_names=class_names
+                    class_names=class_names,
+                    attrs=attrs
                 )
             )
         return self.wrap_in_tag(
             'span',
             content_html,
-            class_names=class_names
+            class_names=class_names,
+            attrs=attrs
         )
 
     def render_text_format(self, text_formats, nodelist, render_context):

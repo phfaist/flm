@@ -9,8 +9,9 @@ from pylatexenc.macrospec import LatexContextDb
 from llm import llmenvironment
 from llm.llmspecinfo import (
     LLMMacroSpec, LLMEnvironmentSpec, LLMSpecialsSpec,
-    TextFormat, ParagraphBreak, MathEnvironment,
+    TextFormat, ParagraphBreak,
 )
+from llm.math import MathEnvironment
 from llm.enumeration import Enumeration
 
 

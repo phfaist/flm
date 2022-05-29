@@ -170,20 +170,21 @@ class FragmentRenderer:
             node.delimiters,
             node.nodelist,
             self._ensure_render_context(render_context),
-            node.displaytype,
-            None
+            displaytype=node.displaytype,
+            target_id=None
         )
 
 
-    def render_math_content(self, delimiters, nodelist, render_context, displaytype,
-                            environmentname=None):
+    def render_math_content(self, delimiters, nodelist, render_context, displaytype, *,
+                            environmentname=None, target_id=None):
         # Use verbatim to render math in the base implementation. It will work
         # for our HTML implementation as well since we'll rely on MathJax.
         # Other implementations that don't want to render math in this type of
         # way will have to reimplement render_node_math().
         rendered = self.render_verbatim(
             delimiters[0] + nodelist.latex_verbatim() + delimiters[1],
-            f'{displaytype}-math'
+            annotations=[f'{displaytype}-math'],
+            target_id=target_id,
         )
         if displaytype == 'display':
             return rendered
@@ -293,7 +294,7 @@ class FragmentRenderer:
                        heading_level=1, target_id=None):
         raise RuntimeError("Subclasses need to reimplement this method")
 
-    def render_verbatim(self, value, annotations=None):
+    def render_verbatim(self, value, *, annotations=None, target_id=None):
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
@@ -368,10 +369,11 @@ class FragmentRenderer:
             if n is None:
                 continue
             if not n.isNodeType(nodes.LatexCharsNode):
-                raise ValueError(
+                raise LatexWalkerParseError(
                     f"Expected chars-only nodes, got "
                     f"‘{n.latex_verbatim()}<{n.__class__.__name__}>’ in "
-                    f"‘{nodelist.latex_verbatim()}’"
+                    f"‘{nodelist.latex_verbatim()}’",
+                    pos=n.pos
                 )
             charslist.append(n.chars)
         return "".join(charslist)
