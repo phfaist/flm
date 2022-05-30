@@ -126,3 +126,57 @@ class TextFragmentRenderer(FragmentRenderer):
             return f"{display_content} <{href}>"
         return display_content
 
+
+    def render_float(self, float_instance, render_context):
+
+        full_figcaption_rendered_list = []
+        if float_instance.number is not None:
+            full_figcaption_rendered_list.append(
+                self.render_join([
+                    float_instance.float_type_info.float_caption_name,
+                    ' ',
+                    self.render_nodelist(float_instance.formatted_counter_value_llm.nodes,
+                                         render_context=render_context),
+                ])
+            )
+        elif float_instance.caption_nodelist:
+            full_figcaption_rendered_list.append(
+                float_instance.float_type_info.float_caption_name
+            )
+        else:
+            pass
+        
+        if float_instance.caption_nodelist:
+            full_figcaption_rendered_list.append(
+                ": " # filler between the "Figure X" and the rest of the caption text.
+            )
+            full_figcaption_rendered_list.append(
+                self.render_nodelist(
+                    float_instance.caption_nodelist,
+                    render_context=render_context
+                )
+            )
+
+        rendered_float_caption = None
+        if full_figcaption_rendered_list:
+            rendered_float_caption = self.render_join(full_figcaption_rendered_list)
+
+        float_content_block = self.render_nodelist(
+            float_instance.content_nodelist,
+            render_context=render_context,
+            is_block_level=True,
+        )
+
+        if rendered_float_caption is not None:
+            float_content_with_caption = self.render_join_blocks([
+                float_content_block,
+                rendered_float_caption,
+            ])
+        else:
+            float_content_with_caption = float_content_block
+
+        fig_sep = '.'*80
+
+        return (
+            fig_sep + '\n' + float_content_with_caption + '\n' + fig_sep
+        )
