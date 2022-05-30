@@ -20,17 +20,27 @@ from .llmenvironment import (
 
 
 
+
+
+def sanitize_for_id(x):
+    return re.sub(r'[^a-zA-Z0-9_-]', '-', x)
+
+
+
+
 class MathEnvironment(LLMSpecInfo):
 
-    def render(self, node, render_context, *, target_id=None):
+    def render(self, node, render_context):
         r"""
-        ....
-
-        The `target_id=` parameter is in case subclasses want to call this base
-        class implementation with a custom `target_id` to set to the rendered
-        math content.
         """
         environmentname = node.environmentname
+
+        ref_label_prefix, ref_label = self.get_ref_label(node)
+
+        if ref_label_prefix is not None and ref_label is not None:
+            target_id = f"equation--{sanitize_for_id(ref_label_prefix+':'+ref_label)}"
+        else:
+            target_id = None
 
         return render_context.fragment_renderer.render_math_content(
             (f"\\begin{{{environmentname}}}", f"\\end{{{environmentname}}}",),
@@ -38,8 +48,75 @@ class MathEnvironment(LLMSpecInfo):
             render_context,
             'display',
             environmentname=environmentname,
-            target_id=target_id
+            target_id=target_id,
         )
+
+    def get_ref_label(self, node):
+        r"""
+        Return a tuple of `(ref_label_prefix, ref_label)`.
+        """
+
+        if not hasattr(node, 'llm_equation_label_node'):
+            return (None, None)
+
+        ref_label_node = node.llm_equation_label_node
+        if ref_label_node is None:
+            return (None, None)
+
+        logging.debug("Equation has label: %r", ref_label_node)
+        ref_label_node_args = \
+            ParsedArgumentsInfo(node=ref_label_node).get_all_arguments_info(
+            ('label',),
+        )
+        ref_label_value = ref_label_node_args['label'].get_content_as_chars()
+
+        if ':' in ref_label_value:
+            ref_label_prefix, ref_target = ref_label_value.split(':', 1)
+        else:
+            ref_label_prefix, ref_target = None, ref_label_value
+
+        return ref_label_prefix, ref_target
+
+    def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
+        return LatexEnvironmentBodyContentsParser(
+            environmentname=token.arg,
+            contents_parsing_state_delta=ParsingStateDeltaExtendLatexContextDb(
+                extend_latex_context=dict(
+                    macros=[
+                        MacroSpec('label', arguments_spec_list=[
+                            make_arg_spec(
+                                parser=latexnodes_parsers.LatexCharsGroupParser(
+                                    delimiters=('{','}'),
+                                ),
+                                argname='label',
+                            ),
+                        ])
+                    ]
+                )
+            )
+        )
+
+    def finalize_parsed_node(self, node):
+        # parse the node structure right away when finializing the node to try
+        # to find any \label{} instruction.
+        logger.debug("finalizing math environment node: node = %r", node)
+
+        # find and register \label node
+        node.llm_equation_label_node = None
+        for n in node.nodelist:
+            if n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == 'label':
+                # this is the equation's \label command -- register it
+                if node.llm_equation_label_node is not None:
+                    raise LatexWalkerParseError(
+                        "You cannot use multiple \\label's in an equation",
+                        pos=n.pos
+                    )
+                node.llm_equation_label_node = n
+                logger.debug("Found label node: %r", n)
+
+        return node
+
+
 
 
 

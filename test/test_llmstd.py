@@ -5,8 +5,8 @@ from pylatexenc.latexnodes import LatexWalkerParseError
 from llm.llmstd import LLMStandardEnvironment
 from llm.fragmentrenderer.html import HtmlFragmentRenderer
 
-from llm.feature_endnotes import FeatureEndnotes, EndnoteCategory
-from llm import feature_refs
+from llm.feature.endnotes import FeatureEndnotes, EndnoteCategory
+from llm.feature import refs as feature_refs
 
 
 class TestLLMStandardEnvironment(unittest.TestCase):
@@ -88,7 +88,7 @@ Here is the equation:
         self.assertEqual(
             result,
             r"""
-<p><span class="textbf">Hello</span>, see <span class="inline-math">\(\eqref{eq:my-equation}\)</span>.</p><p>Here is the equation: <span id="equation--my-equation" class="display-math env-align">\begin{align}
+<p><span class="textbf">Hello</span>, see <span class="inline-math">\(\eqref{eq:my-equation}\)</span>.</p><p>Here is the equation: <span id="equation--eq-my-equation" class="display-math env-align">\begin{align}
   \label{eq:my-equation}
   \int f(x)\, dx = -1\ .
 \end{align}</span></p>

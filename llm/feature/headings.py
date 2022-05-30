@@ -1,10 +1,10 @@
 
 from pylatexenc import macrospec
 
-from .llmspecinfo import LLMSpecInfo, LLMMacroSpec, Heading
-from .llmenvironment import make_arg_spec
+from ..llmspecinfo import LLMSpecInfo, LLMMacroSpec, Heading
+from ..llmenvironment import make_arg_spec
 
-from .feature import Feature
+from ._base import Feature
 
 
 

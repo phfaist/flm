@@ -4,11 +4,11 @@ logger = logging.getLogger(__name__)
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 from pylatexenc import macrospec
 
-from .llmspecinfo import LLMMacroSpec, LLMSpecInfo
-from .llmenvironment import make_arg_spec
+from ..llmspecinfo import LLMMacroSpec, LLMSpecInfo
+from ..llmenvironment import make_arg_spec
 
-from .feature import Feature
-from . import fmthelpers
+from ._base import Feature
+from .. import fmthelpers
 
 
 

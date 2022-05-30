@@ -22,10 +22,10 @@ from .llmdocument import LLMDocument
 from .enumeration import Enumeration
 from .math import MathEnvironment, MathEqrefViaMathContent
 
-from .feature_endnotes import FeatureEndnotes, EndnoteCategory
-from .feature_cite import FeatureExternalPrefixedCitations
-from .feature_refs import FeatureRefs
-from .feature_headings import FeatureHeadings
+from .feature.endnotes import FeatureEndnotes, EndnoteCategory
+from .feature.cite import FeatureExternalPrefixedCitations
+from .feature.refs import FeatureRefs
+from .feature.headings import FeatureHeadings
 
 # ------------------------------------------------------------------------------
 
