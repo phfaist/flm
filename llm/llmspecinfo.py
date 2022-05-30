@@ -253,6 +253,7 @@ class HrefHyperlink(LLMSpecInfo):
         url_display = url_display.rstrip('/#?')
         return url_display
 
+
     def render(self, node, render_context):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(

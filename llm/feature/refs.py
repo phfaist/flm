@@ -4,6 +4,7 @@ logger = logging.getLogger(__name__)
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 from pylatexenc import macrospec
 
+from ..llmfragment import LLMFragment
 from ..llmspecinfo import LLMSpecInfo, LLMMacroSpec
 from ..llmenvironment import make_arg_spec
 
@@ -136,9 +137,12 @@ class RefSpecInfo(LLMSpecInfo):
         ref_instance = mgr.get_ref(ref_type, ref_target)
 
         if display_content_nodelist is None:
-            display_content_llm = render_context.doc.environment.make_fragment(
-                ref_instance.formatted_ref_llm_text
-            )
+            if isinstance(ref_instance.formatted_ref_llm_text, LLMFragment):
+                display_content_llm = ref_instance.formatted_ref_llm_text
+            else:
+                display_content_llm = render_context.doc.environment.make_fragment(
+                    ref_instance.formatted_ref_llm_text
+                )
             display_content_nodelist = display_content_llm.nodes
 
 

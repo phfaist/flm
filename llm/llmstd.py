@@ -26,6 +26,7 @@ from .feature.endnotes import FeatureEndnotes, EndnoteCategory
 from .feature.cite import FeatureExternalPrefixedCitations
 from .feature.refs import FeatureRefs
 from .feature.headings import FeatureHeadings
+from .feature.floats import FeatureFloatsIncludeGraphicsOnly #, FeatureFloats
 
 # ------------------------------------------------------------------------------
 
@@ -127,18 +128,6 @@ def standard_latex_context_db():
     )
     lw_context.add_context_category(
         'math-environments',
-        macros=[
-            LLMMacroSpec(
-                'eqref',
-                arguments_spec_list=[
-                    make_arg_spec(
-                        latexnodes_parsers.LatexCharsGroupParser(),
-                        argname='ref_target',
-                    ),
-                ],
-                llm_specinfo=MathEqrefViaMathContent(),
-            ),
-        ],
         environments=[
             LLMEnvironmentSpec(
                 math_environment_name,
@@ -156,6 +145,21 @@ def standard_latex_context_db():
                     'split',
                     'split*',
             )
+        ],
+    )
+    lw_context.add_context_category(
+        'math-eqref-via-math-content', # e.g., for use with MathJax
+        macros=[
+            LLMMacroSpec(
+                'eqref',
+                arguments_spec_list=[
+                    make_arg_spec(
+                        latexnodes_parsers.LatexCharsGroupParser(),
+                        argname='ref_target',
+                    ),
+                ],
+                llm_specinfo=MathEqrefViaMathContent(),
+            ),
         ],
     )
     lw_context.add_context_category(
@@ -322,6 +326,7 @@ def standard_features(
         footnote_counter_formatter=None,
         citation_counter_formatter=None,
         heading_section_commands_by_level=None,
+        float_types=None
 ):
 
     if footnote_counter_formatter is None:
@@ -336,7 +341,8 @@ def standard_features(
         FeatureEndnotes(categories=[
             EndnoteCategory('footnote', footnote_counter_formatter, 'footnote'),
             EndnoteCategory('citation', citation_counter_formatter, None),
-        ])
+        ]),
+        FeatureFloatsIncludeGraphicsOnly(float_types=float_types),
     ]
     if external_citations_provider is not None:
         features.append(

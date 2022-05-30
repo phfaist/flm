@@ -40,7 +40,8 @@ class FeatureExternalPrefixedCitationsRenderManager(Feature.RenderManager):
         endnote = endnotes_mgr.add_endnote(
             category_name='citation', 
             content_nodelist=citation_llm.nodes,
-            label=f"{cite_prefix}:{cite_key}"
+            ref_label_prefix=cite_prefix,
+            ref_label=cite_key,
         )
 
         self.citation_endnotes[(cite_prefix, cite_key)] = endnote

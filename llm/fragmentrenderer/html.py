@@ -336,6 +336,103 @@ class HtmlFragmentRenderer(FragmentRenderer):
         )
 
 
+    # --
+
+    def render_float(self, float_instance, render_context):
+        # see llm.features.floats for FloatInstance
+        
+        figattrs = {}
+
+        if float_instance.target_id is not None:
+            figattrs['id'] = float_instance.target_id
+
+        rendered_float_content = self.render_nodelist(
+            float_instance.content_nodelist,
+            render_context=render_context,
+        )
+
+        full_figcaption_rendered_list = []
+        if float_instance.number is not None:
+            # numbered float -- generate the "Figure X" part
+            full_figcaption_rendered_list.append(
+                self.wrap_in_tag(
+                    'span',
+                    self.render_join([
+                        self.render_value(float_instance.float_type_info.float_caption_name),
+                        '&nbsp;',
+                        self.render_nodelist(float_instance.formatted_counter_value_llm.nodes,
+                                             render_context=render_context),
+                    ]),
+                    class_names=['float-number'],
+                )
+            )
+        elif float_instance.caption_nodelist:
+            # not a numbered float, but there's a caption, so typeset "Figure: "
+            # before the caption text
+            full_figcaption_rendered_list.append(
+                self.wrap_in_tag(
+                    'span',
+                    self.render_join([
+                        self.render_value(float_instance.float_type_info.float_caption_name),
+                    ]),
+                    class_names=['float-no-number'],
+                )
+            )
+        else:
+            # not a numbered float, and no caption.
+            pass
+
+        if float_instance.caption_nodelist:
+            # we still haven't rendered the caption text itself. We only
+            # rendered the "Figure X" or "Figure" so far.  So now we add the
+            # caption text.
+            full_figcaption_rendered_list.append(
+                ": " # filler between the "Figure X" and the rest of the caption text.
+            )
+            full_figcaption_rendered_list.append(
+                self.render_nodelist(
+                    float_instance.caption_nodelist,
+                    render_context=render_context
+                )
+            )
+
+        rendered_float_caption = None
+        if full_figcaption_rendered_list:
+            rendered_float_caption = self.wrap_in_tag(
+                'figcaption',
+                self.wrap_in_tag(
+                    'span',
+                    self.render_join(full_figcaption_rendered_list),
+                ),
+                class_names=['float-caption-content'],
+            )
+        
+        float_content_block = self.render_nodelist(
+            float_instance.content_nodelist,
+            render_context=render_context,
+            is_block_level=True,
+        )
+
+        if rendered_float_caption is not None:
+            float_content_with_caption = self.render_join_blocks([
+                float_content_block,
+                rendered_float_caption,
+            ])
+        else:
+            float_content_with_caption = float_content_block
+
+        full_figure = self.wrap_in_tag(
+            'figure',
+            float_content_with_caption,
+            attrs=figattrs,
+            class_names=['float', f"float-{float_instance.float_type}",]
+        )
+
+        return full_figure
+
+
+
+# ------------------
 
 
 _rx_delayed_markers = re.compile(r'\<LLM:DLYD:(?P<key>\d+)\s*\/\>')

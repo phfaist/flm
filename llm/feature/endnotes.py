@@ -43,10 +43,6 @@ class EndnoteSpecInfo(LLMSpecInfo):
         
     def render(self, node, render_context):
         
-        if hasattr(node, 'llm_endnotes_rendered_endnote_mark'):
-            # for two-pass rendering, don't add a second endnote!
-            return node.llm_endnotes_rendered_endnote_mark
-
         fragment_renderer = render_context.fragment_renderer
         mgr = render_context.feature_render_manager('endnotes')
         if mgr is None:
@@ -62,13 +58,18 @@ class EndnoteSpecInfo(LLMSpecInfo):
 
         logger.debug("Endnote command, content_nodelist = %r", content_nodelist)
 
-        # register & render the end note
-        endnote = mgr.add_endnote(
-            category_name=self.endnote_category_name,
-            content_nodelist=content_nodelist,
-        )
+        if hasattr(node, 'llm_endnote_instance'):
+            # for two-pass rendering, don't add a second endnote!
+            endnote = node.llm_endnote_instance
+        else:
+            # register & render the end note
+            endnote = mgr.add_endnote(
+                category_name=self.endnote_category_name,
+                content_nodelist=content_nodelist,
+            )
+            node.llm_endnote_instance = endnote
+
         rendered_endnote_mark = mgr.render_endnote_mark(endnote)
-        node.llm_endnotes_rendered_endnote_mark = rendered_endnote_mark
         return rendered_endnote_mark
 
 
@@ -76,22 +77,23 @@ class EndnoteSpecInfo(LLMSpecInfo):
 
 class EndnoteInstance:
     def __init__(self, category_name, number, formatted_counter_value_llm,
-                 content_nodelist, label):
+                 content_nodelist, ref_label_prefix, ref_label):
         super().__init__()
         self.category_name = category_name
         self.number = number
         self.formatted_counter_value_llm = formatted_counter_value_llm
         self.content_nodelist = content_nodelist
-        self.label = label
+        self.ref_label_prefix = ref_label_prefix
+        self.ref_label = ref_label
+        self._fields = ('category_name', 'number', 'formatted_counter_value_llm',
+                        'content_nodelist', 'ref_label_prefix', 'ref_label',)
 
     def __repr__(self):
-        return (
-            f"{self.__class__.__name__}(category_name={self.category_name!r}, "
-            f"number={self.number!r}, "
-            f"formatted_counter_value_llm={self.formatted_counter_value_llm!r}, "
-            f"content_nodelist={self.content_nodelist!r}, "
-            f"label={self.label!r})"
+        return "{}({})".format(
+            self.__class__.__name__,
+            ", ".join([ f"{k}={getattr(self,k)!r}" for k in self._fields ])
         )
+
 
 class FeatureEndnotesRenderManager(Feature.RenderManager):
 
@@ -105,7 +107,8 @@ class FeatureEndnotesRenderManager(Feature.RenderManager):
             for c in self.feature.categories
         }
 
-    def add_endnote(self, category_name, content_nodelist, label=None):
+    def add_endnote(self, category_name, content_nodelist, *,
+                    ref_label_prefix=None, ref_label=None):
         fmtcounter = self.feature.categories_by_name[category_name].counter_formatter
         number = self.endnote_counters[category_name]
         self.endnote_counters[category_name] += 1
@@ -122,7 +125,8 @@ class FeatureEndnotesRenderManager(Feature.RenderManager):
             number=number,
             formatted_counter_value_llm=fmtvalue_llm,
             content_nodelist=content_nodelist,
-            label=label,
+            ref_label_prefix=ref_label_prefix,
+            ref_label=ref_label,
         )
         self.endnotes[category_name].append( endnote )
         return endnote
