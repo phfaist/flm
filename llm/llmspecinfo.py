@@ -14,8 +14,29 @@ from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
 class LLMSpecInfo:
 
     delayed_render = False
+    r"""
+    Whether this node needs to be rendered at the delayed rendering stage, i.e.,
+    after a first pass through the document.  This is the case, for instance,
+    for ``\ref`` commands etc. for which the entire document needs to have been
+    traversed at least once beforehand.  See the delayed render mechanism in the
+    documentation for the :py:class:`llmdocument.LLMDocument` class.
+    """
 
     is_block_level = False
+    r"""
+    If this flag is set to `True`, then elements of this type are always parsed
+    as separate block-level elements (e.g., a section heading, an enumeration
+    list, etc.)
+    """
+
+    is_block_heading = False
+    r"""
+    If `is_block_level=True` and this flag is also set to `True`, then this
+    element *introduces* a new paragraph.  I.e., a block-level/paragraph break
+    is introduced immediately before this item.  The present item is itself
+    included along with the non-block-level content that follows to form a new
+    paragraph.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -80,6 +101,8 @@ class LLMSpecInfoSpecClass:
             node = self.llm_specinfo.finalize_parsed_node(node)
         if hasattr(self.llm_specinfo, 'is_block_level'):
             node.llm_is_block_level = self.llm_specinfo.is_block_level
+        if hasattr(self.llm_specinfo, 'is_block_heading'):
+            node.llm_is_block_heading = self.llm_specinfo.is_block_heading
         if hasattr(self.llm_specinfo, 'is_paragraph_break_marker'):
             node.llm_is_paragraph_break_marker = self.llm_specinfo.is_paragraph_break_marker
         return node
@@ -187,12 +210,15 @@ class Heading(LLMSpecInfo):
 
     is_block_level = True
 
-    def __init__(self, heading_level=1):
+    def __init__(self, heading_level=1, inline_heading=False):
         r"""
         Heading level is 1..6, loosely think `\section` ... "`\subsubparagraph`"
         """
         super().__init__()
         self.heading_level = heading_level
+        self.inline_heading = inline_heading
+        # llmspec API -
+        self.is_block_heading = self.inline_heading
 
     def render(self, node, render_context):
 
@@ -225,9 +251,6 @@ class HrefHyperlink(LLMSpecInfo):
                 url_display = url_display[len(prefix):]
                 break
         url_display = url_display.rstrip('/#?')
-        # for suffix in ('/', '#', '?',):
-        #     if url_display.endswith(suffix):
-        #         url_display = url_display[:-len(suffix)]
         return url_display
 
     def render(self, node, render_context):

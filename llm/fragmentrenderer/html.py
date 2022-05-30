@@ -40,8 +40,15 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
 
     heading_tags_by_level = {
-        j: f"h{j}"
-        for j in range(1,7) # i.e. [1, 2, 3, 4, 5, 6]
+        1: "h1",
+        2: "h2",
+        3: "h3",
+        # we use <span> instead of <h4> because these paragraph headings might
+        # be rendered inline within the <p> element, and <h4> isn't allowed
+        # within <p>...</p>
+        4: "span",
+        5: "span",
+        6: "span",
     }
 
 
@@ -280,14 +287,27 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
 
     def render_heading(self, heading_nodelist, render_context, *,
-                       heading_level=1, target_id=None, annotations=None):
+                       heading_level=1, target_id=None, inline_heading=False,
+                       annotations=None):
+
         if heading_level not in self.heading_tags_by_level:
             raise ValueError(f"Bad {heading_level=}, expected one of "
                              f"{list(self.heading_tags_by_level.keys())}")
+
+        annot = list(annotations) if annotations else []
+        annot.append(f"heading-level-{heading_level}")
+        if inline_heading:
+            annot.append('heading-inline')
+
+        attrs = {}
+        if target_id is not None:
+            attrs['id'] = target_id
+
         return self.wrap_in_tag(
             self.heading_tags_by_level[heading_level],
             self.render_inline_content(heading_nodelist, render_context),
-            class_names=(annotations if annotations else []),
+            class_names=annot,
+            attrs=attrs,
         )
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):

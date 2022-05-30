@@ -96,6 +96,7 @@ class BlocksBuilder:
 
         for n in latexnodelist:
             n_is_block_level = getattr(n, 'llm_is_block_level', None)
+            n_is_block_heading = getattr(n, 'llm_is_block_heading', False)
             if n_is_block_level:
                 # new block-level item -- causes paragraph break
                 self.flush_paragraph()
@@ -103,6 +104,13 @@ class BlocksBuilder:
                 if getattr(n, 'llm_is_paragraph_break_marker', False):
                     # it's only a paragraph break marker '\n\n' -- don't include
                     # it as a block
+                    continue
+
+                if n_is_block_heading:
+                    # block break, but add the item to be included in a new
+                    # paragraph instead of on its own
+                    logger.debug("New block heading node: %r", n)
+                    self.pending_paragraph_nodes.append(n)
                     continue
 
                 # add the node as its own block

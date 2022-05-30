@@ -20,7 +20,7 @@ from .llmspecinfo import (
 from .llmdocument import LLMDocument
 
 from .enumeration import Enumeration
-from .math import MathEnvironment, MathEqref
+from .math import MathEnvironment, MathEqrefViaMathContent
 
 from .feature_endnotes import FeatureEndnotes, EndnoteCategory
 from .feature_cite import FeatureExternalPrefixedCitations
@@ -136,7 +136,7 @@ def standard_latex_context_db():
                         argname='ref_target',
                     ),
                 ],
-                llm_specinfo=MathEqref(),
+                llm_specinfo=MathEqrefViaMathContent(),
             ),
         ],
         environments=[

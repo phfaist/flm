@@ -75,7 +75,8 @@ class TextFragmentRenderer(FragmentRenderer):
         ])
 
     def render_heading(self, heading_nodelist, render_context, *,
-                       heading_level=1, target_id=None, annotations=None):
+                       heading_level=1, target_id=None, inline_heading=False,
+                       annotations=None):
 
         rendered_heading = self.render_inline_content(heading_nodelist, render_context)
 
