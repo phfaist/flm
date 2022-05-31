@@ -15,6 +15,7 @@ from ..llmspecinfo import LLMSpecInfo, LLMMacroSpec, LLMEnvironmentSpec
 from .. import fmthelpers
 
 from ._base import Feature
+from .graphics import LLMIncludeGraphicsMacroSpec
 
 
 # ------------------------------------------------------------------------------
@@ -366,80 +367,6 @@ class FeatureFloats(Feature):
                 float_instance.formatted_counter_value_llm.llm_text
             )
 
-# ------------------------------------------------------------------------------
-
-
-class SimpleIncludeGraphicsSpecInfo(LLMSpecInfo):
-
-    is_block_level = True
-
-    def finalize_parsed_node(self, node):
-
-        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-            ('graphics_options', 'graphics_path',),
-        )
-        node.llmarg_graphics_options_value = \
-            node_args['graphics_options'].get_content_as_chars()
-        node.llmarg_graphics_path = \
-            node_args['graphics_path'].get_content_as_chars()
-
-        return node
-
-    def scan(self, node, scanner):
-        scanner.register_graphics(node.arg_graphics_path)
-
-    def render(self, node, render_context):
-
-        fragment_renderer = render_context.fragment_renderer
-
-        graphics_options_value = node.llmarg_graphics_options_value
-        graphics_path = node.llmarg_graphics_path
-        
-        if graphics_options_value:
-            raise LatexWalkerParseError(
-                f"Graphics options are not supported here: ‘{graphics_options_value}’",
-                pos=node_args['graphics_options'].nodelist.pos,
-            )
-
-        # DEBUG !!! FOR FUN !!!!
-        logger.warning("This is placeholder code! REMOVE ME!")
-        return f'''<IMG src="{graphics_path}" />'''
-        
-
-        if not render_context.supports_feature('graphics_resource_provider'):
-            raise RuntimeError(
-                "LLM's ‘SimpleIncludeGraphicsSpecInfo’ (‘\\includegraphics’) requires a "
-                "‘graphics_resource_provider’ feature to be installed in the render context"
-            )
-        
-        graphics_resource_provider_mgr = \
-            render_context.feature_render_manager('graphics_resource_provider')
-        graphics_resource = \
-            graphics_resource_provider_mgr.get_graphics_resource(graphics_path)
-
-        return fragment_renderer.render_graphics_image( graphics_resource )
-
-
-def LLMIncludeGraphicsMacroSpec():
-    return LLMMacroSpec(
-        'includegraphics',
-        arguments_spec_list=[
-            make_arg_spec(
-                parser=latexnodes_parsers.LatexCharsGroupParser(
-                    delimiters=('[',']'),
-                    optional=True
-                ),
-                argname='graphics_options',
-            ),
-            make_arg_spec(
-                parser=latexnodes_parsers.LatexCharsGroupParser(
-                    delimiters=('{','}'),
-                ),
-                argname='graphics_path',
-            ),
-        ],
-        llm_specinfo=SimpleIncludeGraphicsSpecInfo(),
-    )
 
 
 # ------------------------------------------------

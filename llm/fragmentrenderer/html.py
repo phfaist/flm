@@ -61,15 +61,30 @@ class HtmlFragmentRenderer(FragmentRenderer):
     def htmlescape(self, value):
         return html.escape(value)
 
+    def generate_open_tag(self, tagname, *, attrs=None, class_names=None, self_close_tag=False):
+        s = f'<{tagname}'
+        if not attrs:
+            attrs = {}
+        attrs = dict(attrs) # this way attrs can be either dict or list of 2-tuples
+        if 'class' in attrs:
+            raise ValueError(
+                "generate_open_tag(): set HTML 'class' attribute with "
+                "class_names=, not with attrs="
+            )
+        if class_names:
+            attrs['class'] = f''' class="{self.htmlescape(' '.join(class_names))}"'''
+        if attrs:
+            for aname, aval in attrs.items():
+                s += f''' {aname}="{self.htmlescape(aval)}"'''
+        if self_close_tag:
+            s += '/>'
+        else:
+            s += '>'
+        return s
+
     def wrap_in_tag(self, tagname, content_html, *,
                     attrs=None, class_names=None):
-        s = f'<{tagname}'
-        if attrs:
-            for aname, aval in dict(attrs).items():
-                s += f''' {aname}="{self.htmlescape(aval)}"'''
-        if class_names:
-            s += f''' class="{self.htmlescape(' '.join(class_names))}"'''
-        s += '>'
+        s = self.generate_open_tag(tagname, attrs=attrs, class_names=class_names)
         s += str(content_html)
         s += f'</{tagname}>'
         return s
@@ -430,6 +445,31 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
         return full_figure
 
+
+    graphics_raster_magnification = 1
+    graphics_vector_magnification = 1
+
+    def render_graphics_block(self, graphics_resource):
+
+        imgattrs = {}
+
+        if graphics_resource.physical_dimensions is not None:
+
+            width_pt, height_pt = graphics_resource.physical_dimensions
+
+            if graphics_resource.type == 'raster':
+                width_pt *= self.graphics_raster_magnification
+                height_pt *= self.graphics_raster_magnification
+            elif graphics_resource.type == 'vector':
+                width_pt *= self.graphics_vector_magnification
+                height_pt *= self.graphics_vector_magnification
+
+            imgattrs['style'] = f"width:{width_pt:.6f}pt;height:{height_pt:.6f}pt;"
+        
+        imgattrs['src'] = graphics_resource.src_url
+
+        # HTML does not require any closing tag
+        return self.generate_open_tag('img', attrs=imgattrs)
 
 
 # ------------------

@@ -175,8 +175,13 @@ class TextFragmentRenderer(FragmentRenderer):
         else:
             float_content_with_caption = float_content_block
 
-        fig_sep = '.'*80
+        fig_sep = '·'*80
 
         return (
             fig_sep + '\n' + float_content_with_caption + '\n' + fig_sep
         )
+
+
+    def render_graphics_block(self, graphics_resource):
+
+        return f"{'['+graphics_resource.src_url+']':^80}"

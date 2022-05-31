@@ -27,6 +27,7 @@ from .feature.cite import FeatureExternalPrefixedCitations
 from .feature.refs import FeatureRefs
 from .feature.headings import FeatureHeadings
 from .feature.floats import FeatureFloatsIncludeGraphicsOnly #, FeatureFloats
+from .feature.graphics import FeatureSimplePathGraphicsResourceProvider
 
 # ------------------------------------------------------------------------------
 
@@ -321,12 +322,18 @@ def standard_parsing_state(*,
 
 def standard_features(
         *,
-        external_citations_provider=None,
+        headings=True,
+        heading_section_commands_by_level=None,
+        refs=True,
         external_ref_resolver=None,
+        endnotes=True,
+        citations=True,
+        external_citations_provider=None,
         footnote_counter_formatter=None,
         citation_counter_formatter=None,
-        heading_section_commands_by_level=None,
-        float_types=None
+        use_simple_path_graphics_resource_provider=True,
+        floats=True,
+        float_types=None,
 ):
 
     if footnote_counter_formatter is None:
@@ -334,27 +341,45 @@ def standard_features(
     if citation_counter_formatter is None:
         citation_counter_formatter = lambda n: '[{:d}]'.format(n)
 
-    features = [
-        FeatureHeadings(
-            section_commands_by_level=heading_section_commands_by_level,
-        ),
-        FeatureEndnotes(categories=[
+    features = []
+    if headings:
+        features.append(
+            FeatureHeadings(
+                section_commands_by_level=heading_section_commands_by_level,
+            )
+        )
+    if refs:
+        features.append(
+            FeatureRefs(
+                external_ref_resolver=external_ref_resolver,
+            )
+        )
+    if endnotes:
+        endnote_categories = [
             EndnoteCategory('footnote', footnote_counter_formatter, 'footnote'),
-            EndnoteCategory('citation', citation_counter_formatter, None),
-        ]),
-        FeatureFloatsIncludeGraphicsOnly(float_types=float_types),
-    ]
-    if external_citations_provider is not None:
+        ]
+        if citations:
+            endnote_categories.append(
+                EndnoteCategory('citation', citation_counter_formatter, None)
+            )
+        features.append(
+            FeatureEndnotes(categories=endnote_categories)
+        )
+    if citations and external_citations_provider is not None:
         features.append(
             FeatureExternalPrefixedCitations(
                 external_citations_provider=external_citations_provider
             )
         )
-    features.append(
-        FeatureRefs(
-            external_ref_resolver=external_ref_resolver,
+    if use_simple_path_graphics_resource_provider:
+        features.append(
+            FeatureSimplePathGraphicsResourceProvider()
         )
-    )
+
+    if floats:
+        features.append(
+            FeatureFloatsIncludeGraphicsOnly(float_types=float_types)
+        )
     return features
 
 

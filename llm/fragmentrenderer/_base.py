@@ -314,6 +314,16 @@ class FragmentRenderer:
         raise RuntimeError("Subclasses need to reimplement this method")
 
 
+    # extras:
+
+
+    def render_float(self, float_instance, render_context):
+        raise RuntimeError("Feature is not implemented by subclass")
+
+    def render_graphics_block(self, graphics_resource):
+        raise RuntimeError("Feature is not implemented by subclass")
+
+
     # ---
     
     # helpers
