@@ -28,6 +28,7 @@ from .feature.refs import FeatureRefs
 from .feature.headings import FeatureHeadings
 from .feature.floats import FeatureFloatsIncludeGraphicsOnly #, FeatureFloats
 from .feature.graphics import FeatureSimplePathGraphicsResourceProvider
+from .feature.defterm import FeatureDefTerm
 
 # ------------------------------------------------------------------------------
 
@@ -334,6 +335,7 @@ def standard_features(
         use_simple_path_graphics_resource_provider=True,
         floats=True,
         float_types=None,
+        defterm=True,
 ):
 
     if footnote_counter_formatter is None:
@@ -379,6 +381,10 @@ def standard_features(
     if floats:
         features.append(
             FeatureFloatsIncludeGraphicsOnly(float_types=float_types)
+        )
+    if defterm:
+        features.append(
+            FeatureDefTerm()
         )
     return features
 

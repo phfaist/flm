@@ -3,6 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc import latexnodes
+from pylatexenc.latexnodes import LatexWalkerParseError
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc import macrospec
 from pylatexenc import latexwalker

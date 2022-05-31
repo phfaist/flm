@@ -245,7 +245,7 @@ python-versions = ">=3.6"
 
 [[package]]
 name = "pylatexenc"
-version = "3.0a2"
+version = "3.0a3"
 description = "Simple LaTeX parser providing latex-to-unicode and unicode-to-latex conversion"
 category = "main"
 optional = false
@@ -256,7 +256,7 @@ develop = false
 type = "git"
 url = "https://github.com/phfaist/pylatexenc.git"
 reference = "devel"
-resolved_reference = "731d02d688bf8ba2d1d497497f2559f520f6397d"
+resolved_reference = "e8dd3445683f8fc8f4d5c1e65eb2492ad8a3f828"
 
 [[package]]
 name = "pyparsing"

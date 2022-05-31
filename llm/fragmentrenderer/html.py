@@ -72,7 +72,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
                 "class_names=, not with attrs="
             )
         if class_names:
-            attrs['class'] = f''' class="{self.htmlescape(' '.join(class_names))}"'''
+            attrs['class'] = ' '.join(class_names)
         if attrs:
             for aname, aval in attrs.items():
                 s += f''' {aname}="{self.htmlescape(aval)}"'''
@@ -219,15 +219,20 @@ class HtmlFragmentRenderer(FragmentRenderer):
         )
 
     def render_semantic_block(self, content, role, *, annotations=None, target_id=None):
+        attrs = {}
+        if target_id is not None:
+            attrs['id'] = target_id
         if role in ('section', 'main', 'article', ): # todo, add
             return self.wrap_in_tag(
                 role,
                 content,
+                attrs=attrs,
                 class_names=annotations,
             )
         return self.wrap_in_tag(
             'div',
             content,
+            attrs=attrs,
             class_names=[role]+(annotations if annotations else []),
         )
             
