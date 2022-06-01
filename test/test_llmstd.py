@@ -463,6 +463,7 @@ We can try to add some footnotes, too.\footnote{Like this! Does it work?}  Does 
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
+        fr.html_blocks_joiner = "\n"
         result, render_context = doc.render(fr)
 
         # add footnotes

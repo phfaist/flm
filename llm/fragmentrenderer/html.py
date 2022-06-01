@@ -28,6 +28,15 @@ class HtmlFragmentRenderer(FragmentRenderer):
     False (don't).
     """
     
+
+    html_blocks_joiner = "\n"
+    """
+    Raw HTML string to insert between different blocks.  By default, we use a
+    simple newline to avoid having very long lines in the HTML code.  For
+    slightly smaller HTML code and if you don't mind long lines, use an empty
+    string here.
+    """
+
     
     #fix_punctuation_line_wrapping = True  # TODO!
     """
@@ -126,8 +135,6 @@ class HtmlFragmentRenderer(FragmentRenderer):
         no joiner, which is what the default implementation does.
         """
         return "".join([str(s) for s in content_list])
-
-    html_blocks_joiner = "\n"
 
     def render_join_blocks(self, content_list):
         r"""
