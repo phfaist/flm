@@ -8,6 +8,7 @@ class Feature:
             super().__init__(**kwargs)
             self.feature = feature
             self.feature_name = self.feature.feature_name
+            self.doc = doc
             self.RenderManager = self.feature.RenderManager
 
         def initialize(self):

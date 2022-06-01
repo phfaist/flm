@@ -269,8 +269,7 @@ r"""
         print(endnotes_result)
         self.assertEqual(
             endnotes_result,
-r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote-1">a</dt><dd>It is <span class="textit">true</span>!</dd></dl>
-<dl class="enumeration citation-list"></dl></div>'''
+r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote-1">a</dt><dd>It is <span class="textit">true</span>!</dd></dl></div>'''
 )
 
 
@@ -292,7 +291,8 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote
             r"\textbf{Hello} \textit{world}, we know that \(a+b=c\).\footnote{It is "
             r"\textit{true}!} I checked it~\cite{arxiv:1234.56789}.  And "
             r"again and again~\cite{arxiv:0000.11111,manual:{My custom "
-            r"\emph{reference} (2022).},arxiv:3333.99999}"
+            r"\emph{reference} (2022).},arxiv:3333.99999}.  See "
+            r"also \cite[Theorem~3]{arXiv:0000.11111}."
         )
 
         def render_fn(render_context):
@@ -311,7 +311,7 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote
             result,
             r"""
 <main>
-<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.<a href="#footnote-1" class="href-endnote endnote footnote">a</a> I checked it <a href="#citation-1" class="href-endnote endnote citation">[1]</a>. And again and again <a href="#citation-2" class="href-endnote endnote citation">[2]</a><a href="#citation-3" class="href-endnote endnote citation">[3]</a><a href="#citation-4" class="href-endnote endnote citation">[4]</a></p></div>
+<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.<a href="#footnote-1" class="href-endnote endnote footnote">a</a> I checked it <a href="#citation-1" class="href-endnote endnote citation">[1]</a>. And again and again <a href="#citation-2" class="href-endnote endnote citation">[2]</a><a href="#citation-3" class="href-endnote endnote citation">[3]</a><a href="#citation-4" class="href-endnote endnote citation">[4]</a>. See also <a href="#citation-2" class="href-endnote endnote citation">[2; Theorem 3]</a>.</p></div>
 </main>
 """.strip()
         )
@@ -387,7 +387,7 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote
 
 
 
-    def test_larger_doc(self):
+    def test_larger_doc_does_this_work(self):
 
         environ = LLMStandardEnvironment()
 

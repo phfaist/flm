@@ -95,7 +95,7 @@ def main(cmdargs=None):
     # render "artifacts" (like list of footnotes, etc.) as well, if necessary
     endnotes_mgr = render_context.feature_render_manager('endnotes')
     if endnotes_mgr is not None:
-        for category in endnotes_mgr.feature.categories:
+        for category in endnotes_mgr.feature_document_manager.categories:
             category_name = category.category_name
             endnotes_this_category = endnotes_mgr.endnotes[category_name]
             if endnotes_this_category:

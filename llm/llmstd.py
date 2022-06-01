@@ -304,7 +304,7 @@ def standard_features(
     if footnote_counter_formatter is None:
         footnote_counter_formatter = 'alph'
     if citation_counter_formatter is None:
-        citation_counter_formatter = lambda n: '[{:d}]'.format(n)
+        citation_counter_formatter = 'arabic'
 
     features = []
     if headings:
@@ -323,17 +323,15 @@ def standard_features(
         endnote_categories = [
             EndnoteCategory('footnote', footnote_counter_formatter, 'footnote'),
         ]
-        if citations:
-            endnote_categories.append(
-                EndnoteCategory('citation', citation_counter_formatter, None)
-            )
         features.append(
             FeatureEndnotes(categories=endnote_categories)
         )
     if citations and external_citations_provider is not None:
         features.append(
             FeatureExternalPrefixedCitations(
-                external_citations_provider=external_citations_provider
+                external_citations_provider=external_citations_provider,
+                counter_formatter=citation_counter_formatter,
+                citation_delimiters=('[', ']'),
             )
         )
     if use_simple_path_graphics_resource_provider:
