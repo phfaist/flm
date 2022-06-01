@@ -2,7 +2,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import ParsedArgumentsInfo
-from pylatexenc import macrospec
+#from pylatexenc import macrospec
 
 from ..llmspecinfo import LLMMacroSpec, LLMSpecInfo
 from ..llmenvironment import make_arg_spec
@@ -43,7 +43,6 @@ class EndnoteSpecInfo(LLMSpecInfo):
         
     def render(self, node, render_context):
         
-        fragment_renderer = render_context.fragment_renderer
         mgr = render_context.feature_render_manager('endnotes')
         if mgr is None:
             raise RuntimeError(
@@ -153,7 +152,6 @@ class FeatureEndnotesRenderManager(Feature.RenderManager):
             category_name = encat.category_name
         else:
             encat = self.feature.categories_by_name[category_name]
-
 
         def the_endnotes_enumeration_counter_formatter(n):
             endnote = self.endnotes[category_name][n-1]

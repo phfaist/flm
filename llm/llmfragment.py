@@ -53,8 +53,6 @@ class LLMFragment:
     @classmethod
     def parse(cls, llm_text, environment, *, is_block_level=None):
 
-        tolerant_parsing = environment.tolerant_parsing
-
         latex_walker = environment.make_latex_walker(llm_text)
 
         parsing_state = latex_walker.make_parsing_state(is_block_level=is_block_level)

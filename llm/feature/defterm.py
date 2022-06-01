@@ -3,12 +3,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import (
-    LatexArgumentSpec, LatexWalkerParseError, ParsedArgumentsInfo
+    LatexArgumentSpec, ParsedArgumentsInfo #, LatexWalkerParseError
 )
-from pylatexenc.latexnodes import parsers as latexnodes_parsers
+#from pylatexenc.latexnodes import parsers as latexnodes_parsers
 
 from ..llmspecinfo import LLMSpecInfo, LLMMacroSpec, LLMEnvironmentSpec
-from ..llmenvironment import make_arg_spec
+#from ..llmenvironment import make_arg_spec
 from ._base import Feature
 
 
@@ -33,7 +33,7 @@ class DefineTermSpecInfo(LLMSpecInfo):
 
     is_block_level = True
 
-    def scan(self, node):
+    def scan(self, node, scanner):
         # TODO: -- inform the scanner of this term defined in this document ! -- 
         pass
 

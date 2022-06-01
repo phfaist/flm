@@ -11,7 +11,7 @@ from pylatexenc.macrospec import (
 )
 
 from ..llmenvironment import make_arg_spec
-from ..llmspecinfo import LLMSpecInfo, LLMMacroSpec, LLMEnvironmentSpec
+from ..llmspecinfo import LLMSpecInfo, LLMEnvironmentSpec #, LLMMacroSpec
 from .. import fmthelpers
 
 from ._base import Feature

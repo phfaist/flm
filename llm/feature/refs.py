@@ -2,7 +2,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import ParsedArgumentsInfo
-from pylatexenc import macrospec
+#from pylatexenc import macrospec
 
 from ..llmfragment import LLMFragment
 from ..llmspecinfo import LLMSpecInfo, LLMMacroSpec

@@ -1,7 +1,6 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 from pylatexenc import macrospec
@@ -102,6 +101,8 @@ class CiteSpecInfo(LLMSpecInfo):
             )
 
         citekeylist_nodelist = node_args['citekey'].get_content_nodelist()
+
+        # FIXME: RENDER THE OPTIONAL CITATION CONTENT!
 
         # citekeylist_nodelist is a list of groups, each group is delimited by
         # ('', ',') and represents a citation key.  It was parsed using

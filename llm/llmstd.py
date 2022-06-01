@@ -4,8 +4,6 @@ logger = logging.getLogger(__name__)
 from pylatexenc import latexnodes
 from pylatexenc import macrospec
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
-from pylatexenc import latexwalker
-
 
 from .llmenvironment import (
     LLMEnvironment,
@@ -14,10 +12,11 @@ from .llmenvironment import (
 )
 from .llmspecinfo import (
     LLMMacroSpec, LLMEnvironmentSpec, LLMSpecialsSpec,
-    TextFormat, HrefHyperlink, Verbatim, Error,
+    TextFormat, HrefHyperlink,
+    # Verbatim,
+    # Error,
     ParagraphBreak
 )
-from .llmdocument import LLMDocument
 
 from .enumeration import Enumeration
 from .math import MathEnvironment, MathEqrefViaMathContent

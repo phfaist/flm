@@ -152,8 +152,9 @@ class HtmlFragmentRenderer(FragmentRenderer):
     def render_value(self, value):
         return self.htmlescape(value)
 
-    def render_empty_error_placeholder(self):
-        return "<span class=\"empty-error-placeholder\">(?)</span>"
+    def render_empty_error_placeholder(self, debug_str):
+        debug_str_safe = debug_str.replace('--', '- - ')
+        return f"<span class=\"empty-error-placeholder\"><!-- {debug_str_safe} -->(?)</span>"
 
     def render_nothing(self, annotations=None):
         if not annotations:
@@ -372,11 +373,6 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
         if float_instance.target_id is not None:
             figattrs['id'] = float_instance.target_id
-
-        rendered_float_content = self.render_nodelist(
-            float_instance.content_nodelist,
-            render_context=render_context,
-        )
 
         full_figcaption_rendered_list = []
         if float_instance.number is not None:

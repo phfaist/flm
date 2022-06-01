@@ -13,10 +13,7 @@ from pylatexenc.macrospec import (
 )
 
 from .llmspecinfo import LLMSpecInfo
-from .llmenvironment import (
-    LLMParsingStateDeltaSetBlockLevel,
-    make_arg_spec,
-)
+from .llmenvironment import make_arg_spec
 
 
 
