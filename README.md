@@ -57,8 +57,8 @@ fragment_2 = environ.make_fragment(
 def render_fn(doc, fragment_renderer):
     return (
         "<main>\n"
-        + "<div>" + fragment_1.render(doc, fragment_renderer) + "</div>\n"
-        + fragment_2.render(doc, fragment_renderer) + "\n"
+        + "<div>" + fragment_1.render(render_context) + "</div>\n"
+        + fragment_2.render(render_context) + "\n"
         + "</main>"
     )
 
