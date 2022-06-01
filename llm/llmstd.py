@@ -225,42 +225,6 @@ def standard_latex_context_db():
         ]
     )
     # lw_context.add_context_category(
-    #     'floats',
-    #     macros=[
-    #         LLMMacroSpec(
-    #             'includegraphics',
-    #             arguments_spec_list=[
-    #                 LatexArgumentSpec('[', 'options'),
-    #                 LatexArgumentSpec(LatexCharsGroupParser(), 'filename'),
-    #             ]
-    #         ),
-    #         LLMMacroSpec(
-    #             'caption',
-    #             arguments_spec_list=[
-    #                 LatexArgumentSpec('[', 'shortcaptiontext'),
-    #                 LatexArgumentSpec('{', 'captiontext'),
-    #             ]
-    #         ),
-    #         # ### \label is already defined above (e.g. for equations)
-    #         # LLMMacroSpec(
-    #         #     'label',
-    #         #     arguments_spec_list=[
-    #         #         LatexArgumentSpec(LatexCharsGroupParser(), 'reftarget'),
-    #         #     ]
-    #         # ),
-    #     ],
-    #     environments=[
-    #         LLMEnvironmentSpec(
-    #             'figure',
-    #             item_to_html=ItemToHtmlFloat('figure', 'Figure'),
-    #         ),
-    #         LLMEnvironmentSpec(
-    #             'table',
-    #             item_to_html=ItemToHtmlFloat('table', 'Table'),
-    #         ),
-    #     ],
-    # )
-    # lw_context.add_context_category(
     #     'verbatim-input',
     #     environments={
     #         LLMEnvironmentSpec(
