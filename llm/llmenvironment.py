@@ -5,7 +5,6 @@ logger = logging.getLogger(__name__)
 from pylatexenc import latexnodes
 from pylatexenc.latexnodes import LatexWalkerParseError
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
-#from pylatexenc import macrospec
 from pylatexenc import latexwalker
 
 from .llmfragment import LLMFragment
@@ -208,6 +207,18 @@ class NodeListFinalizer:
 
 
 class LLMLatexWalker(latexwalker.LatexWalker):
+    r"""
+    A LatexWalker class that is meant to parse LLM code.
+
+    This walker class takes care to add additional information to node lists
+    that is then needed by the code that renders LLM fragments into output
+    formats (e.g. HTML).  For instance, node lists need to be split into
+    "blocks" (paragraphs or block-level content) as they are parsed (see
+    :py:meth:`make_nodelist()`).
+
+    This class also accepts a custom parsing state event handler instance.  See
+    :py:mod:`llm.llmstd` for how it is set in the standard environment.
+    """
     def __init__(self, *,
                  llm_text,
                  parsing_state,
@@ -312,7 +323,8 @@ class LLMEnvironment:
         return latex_walker
 
     def make_fragment(self, llm_text, **kwargs):
-        return LLMFragment(llm_text, environment=self, **kwargs)
+        fragment = LLMFragment(llm_text, environment=self, **kwargs)
+        return fragment
 
 
     def node_list_finalizer(self):
@@ -321,6 +333,13 @@ class LLMEnvironment:
     # ---
 
     def make_document(self, render_callback):
+        r"""
+        Instantiates a :py:class:`LLMDocument` object with the relevant arguments
+        (environment instance, feature objects).  This method also calls the
+        document's `initialize()` method.
+
+        Returns the instantiated document object.
+        """
         doc = LLMDocument(
             render_callback,
             environment=self,

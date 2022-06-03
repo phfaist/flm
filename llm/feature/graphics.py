@@ -9,7 +9,6 @@ from ..llmenvironment import make_arg_spec
 from ._base import Feature
 
 
-
 class GraphicsResource:
     def __init__(
             self,
@@ -35,19 +34,6 @@ class GraphicsResource:
 
 
 
-# ------------------------------------------------------------------------------
-
-class FeatureSimplePathGraphicsResourceProvider(Feature):
-
-    feature_name = 'graphics_resource_provider'
-
-    class RenderManager(Feature.RenderManager):
-
-        def get_graphics_resource(self, graphics_path):
-            # return
-            return GraphicsResource(src_url=graphics_path)
-    
-
 
 
 # ------------------------------------------------------------------------------
@@ -68,9 +54,6 @@ class SimpleIncludeGraphicsSpecInfo(LLMSpecInfo):
             node_args['graphics_path'].get_content_as_chars()
 
         return node
-
-    def scan(self, node, scanner):
-        scanner.register_graphics(node.arg_graphics_path)
 
     def render(self, node, render_context):
 
@@ -124,3 +107,23 @@ def LLMIncludeGraphicsMacroSpec():
         ],
         llm_specinfo=SimpleIncludeGraphicsSpecInfo(),
     )
+
+
+
+
+
+
+
+# ------------------------------------------------------------------------------
+
+
+class FeatureSimplePathGraphicsResourceProvider(Feature):
+
+    feature_name = 'graphics_resource_provider'
+
+    class RenderManager(Feature.RenderManager):
+
+        def get_graphics_resource(self, graphics_path):
+            # return
+            return GraphicsResource(src_url=graphics_path)
+    

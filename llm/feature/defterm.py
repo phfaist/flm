@@ -33,10 +33,6 @@ class DefineTermSpecInfo(LLMSpecInfo):
 
     is_block_level = True
 
-    def scan(self, node, scanner):
-        # TODO: -- inform the scanner of this term defined in this document ! -- 
-        pass
-
     def finalize_parsed_node(self, node):
         node_args = \
             ParsedArgumentsInfo(node=node).get_all_arguments_info(

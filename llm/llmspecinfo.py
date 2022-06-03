@@ -5,6 +5,7 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc import macrospec
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
+from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
 
 
@@ -12,6 +13,11 @@ from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
 
 
 class LLMSpecInfo:
+    r"""
+    Class that specifies how to finalize a given parsed node and how to process
+    it to render into primitives understood by
+    :py:class:`~llm.fragmentrenderer.FragmentRenderer` objects
+    """
 
     delayed_render = False
     r"""
@@ -43,12 +49,6 @@ class LLMSpecInfo:
 
     def finalize_parsed_node(self, node):
         return node
-
-    def scan(self, node, scanner):
-        r"""
-        ...
-        """
-        pass
 
     def prepare_delayed_render(self, node, render_context):
         r"""
@@ -212,7 +212,9 @@ class Heading(LLMSpecInfo):
 
     def __init__(self, heading_level=1, inline_heading=False):
         r"""
-        Heading level is 1..6, loosely think `\section` ... "`\subsubparagraph`"
+        Heading level is to be coordinated with fragment renderer and LLM
+        environment/context commands; for example `heading_level=1..6` with
+        commands ``\section`` ... ``\subsubparagraph``
         """
         super().__init__()
         self.heading_level = heading_level
@@ -298,14 +300,30 @@ class Verbatim(LLMSpecInfo):
     The `annotation` is basically a HTML class name to apply to the block of
     content.  Use this for instance to separate out math content, etc.
     """
-    def __init__(self, annotation=None, include_environment_begin_end=False):
+    def __init__(self, annotations=None, environment_name=None,
+                 include_environment_begin_end=False):
         super().__init__()
-        self.annotation = annotation
+        self.annotations = annotations
+        self.environment_name = environment_name
         self.include_environment_begin_end = include_environment_begin_end
+
+    def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
+        r"""
+        Used for environments only
+        """
+        return latexnodes_parsers.LatexVerbatimEnvironmentContentsParser(
+            environment_name=self.environment_name
+        )
+
 
     def render(self, node, render_context):
 
+        environment_node_name = None
+
         if node.isNodeType(latexnodes_nodes.LatexEnvironmentNode):
+
+            environment_node_name = node.environmentname
+
             if self.include_environment_begin_end:
                 verbatim_contents = node.latex_verbatim()
             else:
@@ -315,9 +333,13 @@ class Verbatim(LLMSpecInfo):
         else:
             verbatim_contents = node.latex_verbatim()
         
+        annotations = self.annotations or []
+        if environment_node_name is not None:
+            annotations.append(environment_node_name)
+
         return render_context.fragment_renderer.render_verbatim(
             verbatim_contents,
-            self.annotation
+            annotations=annotations,
         )
 
 

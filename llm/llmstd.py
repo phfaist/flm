@@ -13,7 +13,7 @@ from .llmenvironment import (
 from .llmspecinfo import (
     LLMMacroSpec, LLMEnvironmentSpec, LLMSpecialsSpec,
     TextFormat, HrefHyperlink,
-    # Verbatim,
+    Verbatim,
     # Error,
     ParagraphBreak
 )
@@ -223,22 +223,16 @@ def standard_latex_context_db():
             ),
         ]
     )
-    # lw_context.add_context_category(
-    #     'verbatim-input',
-    #     environments={
-    #         LLMEnvironmentSpec(
-    #             'verbatiminput',
-    #             arguments_spec_list=[],
-    #             body_parser=LatexVerbatimEnvironmentContentsParser(
-    #                 environment_name='verbatiminput'
-    #             ),
-    #             item_to_html=ItemToHtmlVerbatimContentsWrapTag(
-    #                 class_="verbatiminput",
-    #                 is_environment=True,
-    #             ),
-    #         ),
-    #     }
-    # )
+    lw_context.add_context_category(
+        'verbatimtext',
+        environments={
+            LLMEnvironmentSpec(
+                'verbatimtext',
+                arguments_spec_list=[],
+                llm_specinfo=Verbatim(environment_name='verbatimtext'),
+            ),
+        }
+    )
 
     return lw_context
 

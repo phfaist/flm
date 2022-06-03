@@ -64,6 +64,8 @@ class LLMFragment:
 
         return latex_walker, nodes
 
+
+
     def get_first_paragraph(self):
         r"""
         Returns a new :py:class:`LLMFragment` object that contains all material
@@ -80,3 +82,7 @@ class LLMFragment:
             silent=self.silent
         )
 
+
+
+    def start_node_visitor(self, node_visitor):
+        node_visitor.start(self.nodes)

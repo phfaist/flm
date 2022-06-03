@@ -448,7 +448,11 @@ Don't forget how the \term{Pauli matrices} are defined.  Also, \(\sigma_X\) is a
 matrices]{Pauli matrix}).  Recall the definition of a \term{qu\(d\)it}, noting
 that a qubit is also a \term[qu\(d\)it]{qu\(d=2\)it}.
 
-
+\begin{verbatimtext}   Now \!this%$%^}] <is> some text that
+   will be rendered
+verbatim.
+as \{is.\end{verbatim\ ha no, gotcha parser!
+  \end{verbatimtext}
 
 \section{Another section}
 
@@ -502,6 +506,11 @@ We can try to add some footnotes, too.\footnote{Like this! Does it work?}  Does 
 <figure id="figure-1" class="float float-figure"><img src="https://media.giphy.com/media/8Iv5lqKwKsZ2g/giphy.gif">
 <figcaption class="float-caption-content"><span><span class="float-number">Figure&nbsp;1</span>: This figure has a caption.</span></figcaption></figure>
 <p>Don&#x27;t forget how the <a href="#defterm-Pauli_20Xmatrices" class="href-term">Pauli matrices</a> are defined. Also, <span class="inline-math">\(\sigma_X\)</span> is a <a href="#defterm-Pauli_20Xmatrices" class="href-ref ref-defterm">Pauli matrix</a> (or a <a href="#defterm-Pauli_20Xmatrices" class="href-term">Pauli matrix</a>). Recall the definition of a <a href="#defterm-qu_5cX_28Xd_5cX_29Xit" class="href-term">qu<span class="inline-math">\(d\)</span>it</a>, noting that a qubit is also a <a href="#defterm-qu_5cX_28Xd_5cX_29Xit" class="href-term">qu<span class="inline-math">\(d=2\)</span>it</a>.</p>
+<p><span class="verbatimtext">   Now \!this%$%^}] &lt;is&gt; some text that
+   will be rendered
+verbatim.
+as \{is.\end{verbatim\ ha no, gotcha parser!
+  </span></p>
 <h1 class="heading-level-1">Another section</h1>
 <p>We can try to add some footnotes, too.<a href="#footnote-1" class="href-endnote endnote footnote">a</a> Does it work?</p>
 <h1 class="heading-level-1">Footnotes</h1>
