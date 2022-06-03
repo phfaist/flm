@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo
-from pylatexenc import macrospec
+#from pylatexenc import macrospec
 
 from ..llmspecinfo import LLMSpecInfo, LLMMacroSpec
 from ..llmenvironment import make_arg_spec
@@ -162,7 +162,7 @@ class CiteSpecInfo(LLMSpecInfo):
         #logger.debug(f"Citation key nodes: {citekeylist_nodelist=}")
 
         cite_mgr = render_context.feature_render_manager('citations')
-        endnotes_mgr = render_context.feature_render_manager('endnotes')
+        #endnotes_mgr = render_context.feature_render_manager('endnotes')
 
         citation_delimiters = cite_mgr.feature.citation_delimiters
 

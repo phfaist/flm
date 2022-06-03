@@ -90,9 +90,14 @@ def main(cmdargs=None):
     
     doc = environ.make_document(fragment.render)
 
+    #
+    # Render the main document
+    #
     result, render_context = doc.render(fragment_renderer)
 
-    # render "artifacts" (like list of footnotes, etc.) as well, if necessary
+    #
+    # Render endnotes
+    #
     endnotes_mgr = render_context.feature_render_manager('endnotes')
     if endnotes_mgr is not None:
         for category in endnotes_mgr.feature_document_manager.categories:
@@ -110,7 +115,7 @@ def main(cmdargs=None):
                         heading_level=1,
                         render_context=render_context,
                     ),
-                    endnotes_mgr.render_endnote_category(category_name),
+                    endnotes_mgr.render_endnotes_category(category_name),
                 ])
 
     sys.stdout.write(result)

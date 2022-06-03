@@ -475,7 +475,7 @@ We can try to add some footnotes, too.\footnote{Like this! Does it work?}  Does 
                 heading_level=1,
                 render_context=render_context,
             ),
-            endnotes_mgr.render_endnote_category('footnote'),
+            endnotes_mgr.render_endnotes_category('footnote'),
         ])
 
         print(result)

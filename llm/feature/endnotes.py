@@ -191,7 +191,7 @@ class FeatureEndnotes(Feature):
             )
 
 
-        def render_endnote_category(self, category_name):
+        def render_endnotes_category(self, category_name):
 
             render_context = self.render_context
             fragment_renderer = render_context.fragment_renderer
@@ -199,8 +199,8 @@ class FeatureEndnotes(Feature):
             if hasattr(category_name, 'category_name'):
                 encat = category_name
                 category_name = encat.category_name
-            else:
-                encat = self.feature_document_manager.categories_by_name[category_name]
+            # else:
+            #     encat = self.feature_document_manager.categories_by_name[category_name]
 
             def the_endnotes_enumeration_counter_formatter(n):
                 endnote = self.endnotes[category_name][n-1]
@@ -227,7 +227,7 @@ class FeatureEndnotes(Feature):
             fragment_renderer = render_context.fragment_renderer
 
             blocks = [
-                self.render_endnote_category(encat)
+                self.render_endnotes_category(encat)
                 for encat in self.feature_document_manager.categories
             ]
 
