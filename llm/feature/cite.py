@@ -139,10 +139,8 @@ class FeatureExternalPrefixedCitations(Feature):
 
 class CiteSpecInfo(LLMSpecInfo):
 
-    def render(self, node, render_context):
-
-        fragment_renderer = render_context.fragment_renderer
-
+    def finalize_parsed_node(self, node):
+        
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             ('cite_pre_text', 'citekey') ,
         )
@@ -154,8 +152,8 @@ class CiteSpecInfo(LLMSpecInfo):
 
         citekeylist_nodelist = node_args['citekey'].get_content_nodelist()
 
-        resource_info = node.latex_walker.resource_info
-
+        node.llmarg_optional_cite_extra_nodelist = optional_cite_extra_nodelist
+        node.llmarg_citekeylist_nodelist = citekeylist_nodelist
 
         # citekeylist_nodelist is a list of groups, each group is delimited by
         # ('', ',') and represents a citation key.  It was parsed using
@@ -163,12 +161,7 @@ class CiteSpecInfo(LLMSpecInfo):
 
         #logger.debug(f"Citation key nodes: {citekeylist_nodelist=}")
 
-        cite_mgr = render_context.feature_render_manager('citations')
-        #endnotes_mgr = render_context.feature_render_manager('endnotes')
-
-        citation_delimiters = cite_mgr.feature.citation_delimiters
-
-        s_items = []
+        cite_items = []
         for citekeygroupnode in citekeylist_nodelist:
 
             if not citekeygroupnode:
@@ -184,15 +177,6 @@ class CiteSpecInfo(LLMSpecInfo):
                     : -len(citekeygroupnode.delimiters[1])
                 ]
 
-            if cite_mgr is None:
-                s_items.append(
-                    fragment_renderer.render_text_format(
-                        text_formats=['cite'],
-                        content=fragment_renderer.render_value(f'[{citekey_verbatim}]'),
-                    )
-                )
-                continue
-
             #logger.debug(f"Parsing citation {citekey_verbatim=}")
 
             if ':' in citekey_verbatim:
@@ -203,6 +187,40 @@ class CiteSpecInfo(LLMSpecInfo):
             else:
                 citation_key_prefix, citation_key = None, citekey_verbatim
             
+            cite_items.append( (citation_key_prefix, citation_key) )
+
+        node.llmarg_cite_items = cite_items
+
+        return node
+
+
+    def render(self, node, render_context):
+
+        fragment_renderer = render_context.fragment_renderer
+
+        optional_cite_extra_nodelist = node.llmarg_optional_cite_extra_nodelist
+
+        cite_mgr = render_context.feature_render_manager('citations')
+        citation_delimiters = cite_mgr.feature.citation_delimiters
+
+        resource_info = node.latex_walker.resource_info
+
+        s_items = []
+        for cite_item in node.llmarg_cite_items:
+
+            citation_key_prefix, citation_key = cite_item
+
+            if cite_mgr is None:
+                s_items.append(
+                    fragment_renderer.render_text_format(
+                        text_formats=['cite'],
+                        content=fragment_renderer.render_value(
+                            f'[{citation_key_prefix}:{citation_key}]'
+                        ),
+                    )
+                )
+                continue
+
             endnote = cite_mgr.get_citation_endnote(
                 citation_key_prefix,
                 citation_key,
