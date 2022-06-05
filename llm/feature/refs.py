@@ -47,12 +47,16 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         self.ref_labels[(ref_type, ref_target)] = refinstance
         logger.debug("Registered reference: %r", refinstance)
 
-    def get_ref(self, ref_type, ref_target):
+    def get_ref(self, ref_type, ref_target, *, resource_info):
         if (ref_type, ref_target) in self.ref_labels:
             return self.ref_labels[(ref_type, ref_target)]
 
         if self.feature.external_ref_resolver is not None:
-            ref = self.feature.external_ref_resolver.get_ref(ref_type, ref_target)
+            ref = self.feature.external_ref_resolver.get_ref(
+                ref_type,
+                ref_target,
+                resource_info=resource_info
+            )
             if ref is not None:
                 return ref
 
@@ -134,7 +138,15 @@ class RefSpecInfo(LLMSpecInfo):
 
         mgr = render_context.feature_render_manager('refs')
 
-        ref_instance = mgr.get_ref(ref_type, ref_target)
+        resource_info = node.latex_walker.resource_info
+
+        try:
+            ref_instance = mgr.get_ref(ref_type, ref_target, resource_info=resource_info)
+        except Exception as e:
+            raise LatexWalkerParseError(
+                f"Unable to resolve reference to ‘{ref_type}:{ref_target}’: {e}",
+                pos=node.pos,
+            )
 
         if display_content_nodelist is None:
             if isinstance(ref_instance.formatted_ref_llm_text, LLMFragment):

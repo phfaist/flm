@@ -219,11 +219,13 @@ class LLMLatexWalker(latexwalker.LatexWalker):
     This class also accepts a custom parsing state event handler instance.  See
     :py:mod:`llm.llmstd` for how it is set in the standard environment.
     """
-    def __init__(self, *,
+    def __init__(self,
+                 *,
                  llm_text,
                  parsing_state,
                  llm_environment,
                  parsing_state_event_handler=None,
+                 resource_info=None,
                  **kwargs):
 
         super().__init__(
@@ -239,6 +241,10 @@ class LLMLatexWalker(latexwalker.LatexWalker):
         self.default_parsing_state = parsing_state
 
         self.llm_environment = llm_environment
+
+        # user custom additional information that can be useful to locate
+        # additional resources.
+        self.resource_info = resource_info
 
         self._parsing_state_event_handler = parsing_state_event_handler
 
@@ -306,7 +312,7 @@ class LLMEnvironment:
 
     parsing_state_event_handler = None
 
-    def make_latex_walker(self, llm_text):
+    def make_latex_walker(self, llm_text, *, resource_info):
 
         logger.debug("Parsing state walker event handler = %r",
                      self.parsing_state_event_handler,)
@@ -317,6 +323,7 @@ class LLMEnvironment:
             tolerant_parsing=self.tolerant_parsing,
             # custom additions -- 
             llm_environment=self,
+            resource_info=resource_info,
             parsing_state_event_handler=self.parsing_state_event_handler,
         )
 

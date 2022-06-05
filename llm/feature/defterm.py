@@ -103,10 +103,16 @@ class RefTermSpecInfo(LLMSpecInfo):
                 render_context=render_context,
                 is_block_level=False,
             )
+        
+        resource_info = node.latex_walker.resource_info
 
         # grab the reference
         refs_mgr = render_context.feature_render_manager('refs')
-        ref_instance = refs_mgr.get_ref('defterm', term_llm_ref_label_verbatim)
+        ref_instance = refs_mgr.get_ref(
+            'defterm',
+            term_llm_ref_label_verbatim,
+            resource_info=resource_info,
+        )
 
         return render_context.fragment_renderer.render_link(
             'term',

@@ -13,6 +13,7 @@ class LLMFragment:
             environment,
             *,
             is_block_level=None,
+            resource_info=None,
             what='(unknown)',
             silent=False,
     ):
@@ -21,6 +22,10 @@ class LLMFragment:
         self.what = what
 
         self.is_block_level = is_block_level
+
+        # any additional information that can be useful to locate resources
+        # (e.g., graphics, etc.)
+        self.resource_info = resource_info
 
         self.environment = environment
 
@@ -51,9 +56,9 @@ class LLMFragment:
 
 
     @classmethod
-    def parse(cls, llm_text, environment, *, is_block_level=None):
+    def parse(cls, llm_text, environment, *, resource_info=None, is_block_level=None):
 
-        latex_walker = environment.make_latex_walker(llm_text)
+        latex_walker = environment.make_latex_walker(llm_text, resource_info=resource_info)
 
         parsing_state = latex_walker.make_parsing_state(is_block_level=is_block_level)
 

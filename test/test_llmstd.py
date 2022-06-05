@@ -276,7 +276,7 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote
     def test_provides_citations_by_default_if_given_external_citations_provider(self):
 
         class MyCitationsProvider:
-            def get_citation_full_text_llm(self, cite_prefix, cite_key):
+            def get_citation_full_text_llm(self, cite_prefix, cite_key, **kwargs):
                 if cite_prefix == 'arxiv':
                     return r'\textit{arXiv} paper ' + f'arXiv:{cite_key}'
                 if cite_prefix == 'manual':
@@ -334,7 +334,7 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote
     def test_simple_ref_external(self):
 
         class MyRefResolver:
-            def get_ref(self, ref_type, ref_target):
+            def get_ref(self, ref_type, ref_target, **kwargs):
                 if ref_type == 'code':
                     if ref_target == 'surface':
                         return feature_refs.RefInstance(

@@ -57,7 +57,7 @@ class FeatureExternalPrefixedCitations(Feature):
         def initialize(self):
             self.citation_endnotes = {}
 
-        def get_citation_endnote(self, cite_prefix, cite_key):
+        def get_citation_endnote(self, cite_prefix, cite_key, *, resource_info):
             endnotes_mgr = self.render_context.feature_render_manager('endnotes')
 
             if (cite_prefix, cite_key) in self.citation_endnotes:
@@ -66,7 +66,8 @@ class FeatureExternalPrefixedCitations(Feature):
             # retrieve citation from citations provider --
             citation_llm_text = \
                 self.feature.external_citations_provider.get_citation_full_text_llm(
-                    cite_prefix, cite_key
+                    cite_prefix, cite_key,
+                    resource_info=resource_info
                 )
 
             citation_llm = self.render_context.doc.environment.make_fragment(
@@ -153,7 +154,8 @@ class CiteSpecInfo(LLMSpecInfo):
 
         citekeylist_nodelist = node_args['citekey'].get_content_nodelist()
 
-        # FIXME: RENDER THE OPTIONAL CITATION CONTENT!
+        resource_info = node.latex_walker.resource_info
+
 
         # citekeylist_nodelist is a list of groups, each group is delimited by
         # ('', ',') and represents a citation key.  It was parsed using
@@ -204,6 +206,7 @@ class CiteSpecInfo(LLMSpecInfo):
             endnote = cite_mgr.get_citation_endnote(
                 citation_key_prefix,
                 citation_key,
+                resource_info=resource_info
             )
 
             # don't use endnotes_mgr.render_endnote_mark(endnote) because it

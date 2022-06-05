@@ -79,10 +79,12 @@ class SimpleIncludeGraphicsSpecInfo(LLMSpecInfo):
                 "‘graphics_resource_provider’ feature to be installed in the render context"
             )
         
+        resource_info = node.latex_walker.resource_info
+
         graphics_resource_provider_mgr = \
             render_context.feature_render_manager('graphics_resource_provider')
         graphics_resource = \
-            graphics_resource_provider_mgr.get_graphics_resource(graphics_path)
+            graphics_resource_provider_mgr.get_graphics_resource(graphics_path, resource_info)
 
         return fragment_renderer.render_graphics_block( graphics_resource )
 
@@ -123,7 +125,7 @@ class FeatureSimplePathGraphicsResourceProvider(Feature):
 
     class RenderManager(Feature.RenderManager):
 
-        def get_graphics_resource(self, graphics_path):
+        def get_graphics_resource(self, graphics_path, resource_info):
             # return
             return GraphicsResource(src_url=graphics_path)
     
