@@ -3,12 +3,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import (
-    LatexArgumentSpec, ParsedArgumentsInfo #, LatexWalkerParseError
+    LatexArgumentSpec, ParsedArgumentsInfo
 )
 #from pylatexenc.latexnodes import parsers as latexnodes_parsers
 
-from ..llmspecinfo import LLMSpecInfo, LLMMacroSpec, LLMEnvironmentSpec
-#from ..llmenvironment import make_arg_spec
+from ..llmspecinfo import LLMMacroSpecBase, LLMEnvironmentSpecBase
 from ._base import Feature
 
 
@@ -29,13 +28,22 @@ def get_term_safe_target_id(term_ref_label_verbatim):
 
 # ------------------------------------------------------------------------------
 
-class DefineTermSpecInfo(LLMSpecInfo):
+class DefineTermEnvironment(LLMEnvironmentSpecBase):
 
     is_block_level = True
 
     allowed_in_restricted_mode = False
 
-    def finalize_parsed_node(self, node):
+    def __init__(self, environmentname, **kwargs):
+        super().__init__(
+            environmentname=environmentname,
+            arguments_spec_list=[
+                LatexArgumentSpec('{', argname='term'),
+            ],
+            **kwargs
+        )
+
+    def postprocess_parsed_node(self, node):
         node_args = \
             ParsedArgumentsInfo(node=node).get_all_arguments_info(
                 ('term',),
@@ -77,9 +85,19 @@ class DefineTermSpecInfo(LLMSpecInfo):
         )
 
 
-class RefTermSpecInfo(LLMSpecInfo):
+class RefTermMacro(LLMMacroSpecBase):
 
     allowed_in_restricted_mode = False
+
+    def __init__(self, macroname, **kwargs):
+        super().__init__(
+            macroname=macroname,
+            arguments_spec_list=[
+                LatexArgumentSpec('[', argname='ref_term'),
+                LatexArgumentSpec('{', argname='term'),
+            ],
+            **kwargs
+        )
 
     def render(self, node, render_context):
         
@@ -139,22 +157,9 @@ class FeatureDefTerm(Feature):
     def add_latex_context_definitions(self):
         return dict(
             macros=[
-                LLMMacroSpec(
-                    'term',
-                    arguments_spec_list=[
-                        LatexArgumentSpec('[', argname='ref_term'),
-                        LatexArgumentSpec('{', argname='term'),
-                    ],
-                    llm_specinfo=RefTermSpecInfo()
-                ),
+                RefTermMacro('term',)
             ],
             environments=[
-                LLMEnvironmentSpec(
-                    'defterm',
-                    arguments_spec_list=[
-                        LatexArgumentSpec('{', argname='term'),
-                    ],
-                    llm_specinfo=DefineTermSpecInfo()
-                ),
+                DefineTermEnvironment('defterm',)
             ]
         )

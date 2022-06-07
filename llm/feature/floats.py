@@ -10,18 +10,18 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from ..llmenvironment import make_arg_spec
-from ..llmspecinfo import LLMSpecInfo, LLMEnvironmentSpec #, LLMMacroSpec
+from ..llmenvironment import LLMArgumentSpec
+from ..llmspecinfo import LLMEnvironmentSpecBase
 from .. import fmthelpers
 
 from ._base import Feature
-from .graphics import LLMIncludeGraphicsMacroSpec
+from .graphics import SimpleIncludeGraphicsMacro
 
 
 # ------------------------------------------------------------------------------
 
 
-class FloatEnvironmentSpecInfo(LLMSpecInfo):
+class FloatEnvironment(LLMEnvironmentSpecBase):
 
     is_block_level = True
 
@@ -38,7 +38,10 @@ class FloatEnvironmentSpecInfo(LLMSpecInfo):
     allowed_in_restricted_mode = False
 
     def __init__(self, float_type):
-        super().__init__()
+        super().__init__(
+            environmentname=float_type,
+            arguments_spec_list=[],
+        )
         self.float_type = float_type
 
     def float_content_set_extra_definitions(self, extend_latex_context):
@@ -48,7 +51,7 @@ class FloatEnvironmentSpecInfo(LLMSpecInfo):
         extend_latex_context = dict(
             macros=[
                 MacroSpec('label', arguments_spec_list=[
-                    make_arg_spec(
+                    LLMArgumentSpec(
                         parser=latexnodes_parsers.LatexCharsGroupParser(
                             delimiters=('{','}'),
                         ),
@@ -56,10 +59,8 @@ class FloatEnvironmentSpecInfo(LLMSpecInfo):
                     ),
                 ]),
                 MacroSpec('caption', arguments_spec_list=[
-                    make_arg_spec(
-                        parser=latexnodes_parsers.LatexCharsGroupParser(
-                            delimiters=('{','}'),
-                        ),
+                    LLMArgumentSpec(
+                        '{',
                         argname='captiontext',
                     ),
                 ])
@@ -86,7 +87,7 @@ class FloatEnvironmentSpecInfo(LLMSpecInfo):
         # if the node shouldn't appear here.
         return True
 
-    def finalize_parsed_node(self, node):
+    def postprocess_parsed_node(self, node):
         # parse the node structure right away when finializing the node to try
         # to find any \label{} instruction.
         logger.debug("finalizing math environment node: node = %r", node)
@@ -272,17 +273,13 @@ class FeatureFloats(Feature):
             for ft in self.float_types_list
         }
 
-    make_float_environment_spec_info = FloatEnvironmentSpecInfo
+    make_float_environment_spec = FloatEnvironment
 
     def add_latex_context_definitions(self):
         environments = []
         for float_type, ftinfo in self.float_types.items():
             environments.append(
-                LLMEnvironmentSpec(
-                    float_type, # the environment name is identical to float_type
-                    arguments_spec_list=[],
-                    llm_specinfo=self.make_float_environment_spec_info(float_type),
-                )
+                self.make_float_environment_spec(float_type)
             )
         return dict(environments=environments)
 
@@ -374,10 +371,12 @@ class FeatureFloats(Feature):
 # ------------------------------------------------
 
 
-class FloatEnvironmentIncludeGraphicsOnlySpecInfo(FloatEnvironmentSpecInfo):
+class FloatEnvironmentIncludeGraphicsOnly(FloatEnvironment):
 
     def float_content_set_extra_definitions(self, extend_latex_context):
-        extend_latex_context['macros'].append( LLMIncludeGraphicsMacroSpec() )
+        extend_latex_context['macros'].append( 
+            SimpleIncludeGraphicsMacro(macroname='includegraphics')
+        )
 
     def finalize_handle_content_node(self, float_node, content_node):
         if content_node.isNodeType(LatexMacroNode) \
@@ -415,4 +414,4 @@ class FloatEnvironmentIncludeGraphicsOnlySpecInfo(FloatEnvironmentSpecInfo):
 
 class FeatureFloatsIncludeGraphicsOnly(FeatureFloats):
 
-    make_float_environment_spec_info = FloatEnvironmentIncludeGraphicsOnlySpecInfo
+    make_float_environment_spec = FloatEnvironmentIncludeGraphicsOnly

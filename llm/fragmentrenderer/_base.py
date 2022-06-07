@@ -153,17 +153,13 @@ class FragmentRenderer:
                                           self._ensure_render_context(render_context))
 
     def render_invocable_node(self, node, render_context):
-        if node.spec.llm_specinfo_string is not None:
-            # simple pre-set string
-            return self.render_value( node.spec.llm_specinfo_string )
-
         #
         # Rendering result will be obtained by calling render() on the
         # specinfo object
         #
         return self.render_invocable_node_call_render(
             node,
-            node.spec.llm_specinfo,
+            node.llm_specinfo,
             self._ensure_render_context(render_context)
         )
 

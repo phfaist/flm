@@ -8,6 +8,8 @@ from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
 
+from .llmenvironment import LLMArgumentSpec
+
 
 # ------------------------------------------------------------------------------
 
@@ -44,18 +46,28 @@ class LLMSpecInfo:
     paragraph.
     """
 
+    is_paragraph_break_marker = False
+    r"""
+    True if this node's sole purpose is to split paragraphs.  Use this for
+    ``\n\n`` breaks or maybe if the user would like to introduce support for
+    ``\par`` macros.
+    """
+    
     allowed_in_restricted_mode = False
     r"""
     Whether or not this node is allowed in *restricted mode*, i.e., whether or
     not this node can be rendered independently of any document object.
     """
-    
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
 
-    def finalize_parsed_node(self, node):
-        return node
+    def postprocess_parsed_node(self, node):
+        r"""
+        Can be overridden to add additional information to node objects.
+
+        You shouldn't change the node object.  You don't have to return it,
+        either.
+        """
+        pass
 
     def prepare_delayed_render(self, node, render_context):
         r"""
@@ -68,86 +80,43 @@ class LLMSpecInfo:
         raise RuntimeError("Reimplement me!")
 
     def render(self, node, render_context):
+        r"""
+        Produce a final representation of the node, using the given
+        `render_context`.
+        """
         raise RuntimeError(
             f"Element ‘{node}’ cannot be placed here, render() not reimplemented."
         )
 
 
-# ------------------------------------------------------------------------------
+    # ---
 
-
-class LLMSpecInfoSpecClass:
-    def __init__(self, llm_specinfo, **kwargs):
-        super().__init__(**kwargs)
-        self.llm_specinfo = llm_specinfo
-        if hasattr(llm_specinfo, 'render'):
-            self.llm_specinfo_string = None
-        else:
-            self.llm_specinfo_string = llm_specinfo
-
-    def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
-        if hasattr(self.llm_specinfo, 'make_body_parser'):
-            return self.llm_specinfo.make_body_parser(token, nodeargd, arg_parsing_state_delta)
-        return super().make_body_parser(token, nodeargd, arg_parsing_state_delta)
-
-    def make_body_parsing_state_delta(self, token, nodeargd, arg_parsing_state_delta,
-                                      latex_walker):
-        logger.debug("LLM make_body_parsing_state_delta was called.")
-        if hasattr(self.llm_specinfo, 'body_parsing_state_delta'):
-            return getattr(self.llm_specinfo, 'body_parsing_state_delta')
-        return super().make_body_parsing_state_delta(
-            token=token,
-            nodeargd=nodeargd,
-            arg_parsing_state_delta=arg_parsing_state_delta,
-            latex_walker=latex_walker,
-        )
+    # the following method(s) are not meant to be overridden
 
     def finalize_node(self, node):
-        node.llm_specinfo = self.llm_specinfo
-        if hasattr(self.llm_specinfo, 'finalize_parsed_node'):
-            node = self.llm_specinfo.finalize_parsed_node(node)
-        if hasattr(self.llm_specinfo, 'is_block_level'):
-            node.llm_is_block_level = self.llm_specinfo.is_block_level
-        if hasattr(self.llm_specinfo, 'is_block_heading'):
-            node.llm_is_block_heading = self.llm_specinfo.is_block_heading
-        if hasattr(self.llm_specinfo, 'is_paragraph_break_marker'):
-            node.llm_is_paragraph_break_marker = self.llm_specinfo.is_paragraph_break_marker
+        r"""
+        Override this method only if you know what you're doing!
+        """
+        node.llm_specinfo = self
+        self.postprocess_parsed_node(node)
+        node.llm_is_block_level = self.is_block_level
+        node.llm_is_block_heading = self.is_block_heading
+        node.llm_is_paragraph_break_marker = self.is_paragraph_break_marker
         return node
-
     
+
+
 # ------------------------------------------------------------------------------
 
 
-class LLMMacroSpec(LLMSpecInfoSpecClass, macrospec.MacroSpec):
-    def __init__(self, macroname, arguments_spec_list=None, *,
-                 llm_specinfo=None, **kwargs):
-        super().__init__(
-            macroname=macroname,
-            arguments_spec_list=arguments_spec_list,
-            llm_specinfo=llm_specinfo,
-            **kwargs
-        )
+class LLMMacroSpecBase(LLMSpecInfo, macrospec.MacroSpec):
+    pass
 
+class LLMEnvironmentSpecBase(LLMSpecInfo, macrospec.EnvironmentSpec):
+    pass
 
-class LLMEnvironmentSpec(LLMSpecInfoSpecClass, macrospec.EnvironmentSpec):
-    def __init__(self, environmentname, arguments_spec_list=None, *,
-                 llm_specinfo=None, **kwargs):
-        super().__init__(
-            environmentname=environmentname,
-            arguments_spec_list=arguments_spec_list,
-            llm_specinfo=llm_specinfo,
-            **kwargs
-        )
-
-class LLMSpecialsSpec(LLMSpecInfoSpecClass, macrospec.SpecialsSpec):
-    def __init__(self, specials_chars, arguments_spec_list=None, *,
-                 llm_specinfo=None, **kwargs):
-        super().__init__(
-            specials_chars=specials_chars,
-            arguments_spec_list=arguments_spec_list,
-            llm_specinfo=llm_specinfo,
-            **kwargs
-        )
+class LLMSpecialsSpecBase(LLMSpecInfo, macrospec.SpecialsSpec):
+    pass
 
 
 
@@ -155,7 +124,28 @@ class LLMSpecialsSpec(LLMSpecInfoSpecClass, macrospec.SpecialsSpec):
 # ------------------------------------------------------------------------------
 
 
-class TextFormat(LLMSpecInfo):
+class LLMSpecInfoConstantValue(LLMSpecInfo):
+
+    allowed_in_restricted_mode = True
+
+    def __init__(self, *args, value, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.value = value
+
+    def render(self, node, render_context):
+        return render_context.fragment_renderer.render_value(self.value)
+
+
+class ConstantValueMacro(LLMSpecInfoConstantValue, macrospec.MacroSpec):
+    pass
+class ConstantValueSpecials(LLMSpecInfoConstantValue, macrospec.SpecialsSpec):
+    pass
+
+
+_text_arg = LLMArgumentSpec('{', argname='text',)
+
+
+class TextFormatMacro(LLMMacroSpecBase):
     r"""
     The argument `text_formats` is a list of strings, each string is a format
     name to apply.  Format names are inspired from the corresponding canonical
@@ -170,8 +160,11 @@ class TextFormat(LLMSpecInfo):
 
     allowed_in_restricted_mode = True
 
-    def __init__(self, text_formats):
-        super().__init__()
+    def __init__(self, macroname, *, text_formats):
+        super().__init__(
+            macroname=macroname,
+            arguments_spec_list=[_text_arg],
+        )
         self.text_formats = text_formats
 
     def render(self, node, render_context):
@@ -187,7 +180,7 @@ class TextFormat(LLMSpecInfo):
         )
 
 
-class ParagraphBreak(LLMSpecInfo):
+class LLMSpecInfoParagraphBreak(LLMSpecInfo):
 
     is_block_level = True
 
@@ -195,19 +188,24 @@ class ParagraphBreak(LLMSpecInfo):
 
     allowed_in_restricted_mode = True
     
-    def __init__(self):
-        super().__init__()
-
     def render(self, node, render_context):
         raise LatexWalkerParseError('Paragraph break is not allowed here', pos=node.pos)
 
 
-class Error(LLMSpecInfo):
+class ParagraphBreakSpecials(LLMSpecInfoParagraphBreak, macrospec.SpecialsSpec):
+    pass
+class ParagraphBreakMacro(LLMSpecInfoParagraphBreak, macrospec.MacroSpec):
+    pass
+
+
+
+
+class LLMSpecInfoError(LLMSpecInfo):
 
     allowed_in_restricted_mode = True
 
-    def __init__(self, error_msg=None):
-        super().__init__()
+    def __init__(self, *args, error_msg=None, **kwargs):
+        super().__init__(*args, **kwargs)
         self.error_msg = error_msg
     
     def render(self, node, render_context):
@@ -219,20 +217,34 @@ class Error(LLMSpecInfo):
         raise LatexWalkerParseError(msg, pos=node.pos)
 
 
+class LLMMacroSpecError(LLMSpecInfoError, macrospec.MacroSpec):
+    pass
 
-class Heading(LLMSpecInfo):
+class LLMEnvironmentSpecError(LLMSpecInfoError, macrospec.EnvironmentSpec):
+    pass
+
+class LLMSpecialsSpecError(LLMSpecInfoError, macrospec.SpecialsSpec):
+    pass
+
+
+
+
+class HeadingMacro(LLMMacroSpecBase):
 
     is_block_level = True
 
     allowed_in_restricted_mode = True
 
-    def __init__(self, heading_level=1, inline_heading=False):
+    def __init__(self, macroname, *, heading_level=1, inline_heading=False):
         r"""
         Heading level is to be coordinated with fragment renderer and LLM
         environment/context commands; for example `heading_level=1..6` with
         commands ``\section`` ... ``\subsubparagraph``
         """
-        super().__init__()
+        super().__init__(
+            macroname,
+            arguments_spec_list=[ _text_arg ],
+        )
         self.heading_level = heading_level
         self.inline_heading = inline_heading
         # llmspec API -
@@ -251,21 +263,42 @@ class Heading(LLMSpecInfo):
         )
 
 
-class HrefHyperlink(LLMSpecInfo):
+_href_arg_specs = {
+    'target_href': LLMArgumentSpec(
+        parser=latexnodes_parsers.LatexDelimitedVerbatimParser( ('{','}') ),
+        argname='target_href'
+    ),
+    'display_text': LLMArgumentSpec('{', argname='display_text',),
+}
+
+
+class HrefHyperlinkMacro(LLMMacroSpecBase):
 
     allowed_in_restricted_mode = True
 
     def __init__(
             self,
+            macroname,
+            *,
             command_arguments=('target_href', 'display_text',),
             ref_type='href',
     ):
-        super().__init__()
-        self.command_arguments = command_arguments
+        super().__init__(
+            macroname=macroname,
+            arguments_spec_list=self._get_arguments_spec_list(command_arguments)
+        )
+        self.command_arguments = [ c.strip('[]') for c in command_arguments ]
         self.ref_type = ref_type
 
     @classmethod
-    def pretty_url(self, target_href):
+    def _get_arguments_spec_list(cls, command_arguments):
+        return [
+            _href_arg_specs[cmdarg]
+            for cmdarg in command_arguments
+        ]
+
+    @classmethod
+    def pretty_url(cls, target_href):
         url_display = str(target_href)
         for prefix in ('http://', 'https://'):
             if url_display.startswith(prefix):
@@ -275,7 +308,7 @@ class HrefHyperlink(LLMSpecInfo):
         return url_display
 
 
-    def render(self, node, render_context):
+    def postprocess_parsed_node(self, node):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             self.command_arguments,
@@ -288,6 +321,16 @@ class HrefHyperlink(LLMSpecInfo):
             target_href = node_args['target_href'].get_content_as_chars()
         if 'display_text' in node_args:
             display_text_nodelist = node_args['display_text'].get_content_nodelist()
+
+        node.llm_href_info = {
+            'target_href': target_href,
+            'display_text_nodelist': display_text_nodelist
+        }
+
+    def render(self, node, render_context):
+
+        target_href = node.llm_href_info['target_href']
+        display_text_nodelist = node.llm_href_info['display_text_nodelist']
 
         # show URL by default
         if display_text_nodelist is None:
@@ -312,7 +355,7 @@ class HrefHyperlink(LLMSpecInfo):
         )
 
 
-class Verbatim(LLMSpecInfo):
+class VerbatimSpecInfo(LLMSpecInfo):
 
     allowed_in_restricted_mode = True
 
@@ -322,19 +365,22 @@ class Verbatim(LLMSpecInfo):
     The `annotation` is basically a HTML class name to apply to the block of
     content.  Use this for instance to separate out math content, etc.
     """
-    def __init__(self, annotations=None, environment_name=None,
-                 include_environment_begin_end=False):
-        super().__init__()
+    def __init__(self, *args,
+                 annotations=None,
+                 include_environment_begin_end=False,
+                 **kwargs):
+        super().__init__(*args, **kwargs)
         self.annotations = annotations
-        self.environment_name = environment_name
         self.include_environment_begin_end = include_environment_begin_end
 
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
         r"""
-        Used for environments only
+        Used for environments only.
         """
+        assert( token.tok == 'begin_environment' )
+        environment_name = token.arg
         return latexnodes_parsers.LatexVerbatimEnvironmentContentsParser(
-            environment_name=self.environment_name
+            environment_name=environment_name
         )
 
 
@@ -364,7 +410,22 @@ class Verbatim(LLMSpecInfo):
             annotations=annotations,
         )
 
+class VerbatimMacro(VerbatimSpecInfo, macrospec.MacroSpec):
+    def __init__(self, macroname,
+                 verbatim_delimiters=None,
+                 **kwargs):
+        super().__init__(
+            macroname=macroname,
+            arguments_spec_list=[
+                latexnodes_parsers.LatexDelimitedVerbatimParser(
+                    delimiters=verbatim_delimiters,
+                ),
+            ],
+            **kwargs
+        )
 
+class VerbatimEnvironment(VerbatimSpecInfo, macrospec.EnvironmentSpec):
+    pass
 
 
 

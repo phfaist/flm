@@ -10,7 +10,7 @@ from llm import llmstd
 
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
-from llm.llmspecinfo import LLMMacroSpec, LLMSpecInfo
+from llm.llmspecinfo import LLMMacroSpecBase
 from llm.feature import Feature
 
 
@@ -47,28 +47,23 @@ class _MyFeature(Feature):
     def add_latex_context_definitions(self):
         return dict(
             macros=[
-                LLMMacroSpec('myAnchor', '',
-                             llm_specinfo=_MyDocumentSizeMacroSpecInfo()),
-                LLMMacroSpec('anotherAnchor', '',
-                             llm_specinfo=_MyDocumentSizeMacroSpecInfo()),
-                LLMMacroSpec('linkMyAnchor', '',
-                             llm_specinfo=_MyDocumentSizeMacroSpecInfo()),
-                LLMMacroSpec('linkAnotherAnchor', '',
-                             llm_specinfo=_MyDocumentSizeMacroSpecInfo()),
-                LLMMacroSpec('printDocumentSize', '',
-                             llm_specinfo=_MyDocumentSizeMacroSpecInfo()),
+                _MyDocumentSizeMacro('myAnchor'),
+                _MyDocumentSizeMacro('anotherAnchor'),
+                _MyDocumentSizeMacro('linkMyAnchor'),
+                _MyDocumentSizeMacro('linkAnotherAnchor'),
+                _MyDocumentSizeMacro('printDocumentSize'),
             ],
             environments=[],
             specials=[],
         )
 
 
-class _MyDocumentSizeMacroSpecInfo(LLMSpecInfo):
+class _MyDocumentSizeMacro(LLMMacroSpecBase):
 
     delayed_render = True
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, macroname, **kwargs):
+        super().__init__(macroname=macroname, arguments_spec_list='', **kwargs)
 
     def prepare_delayed_render(self, node, render_context):
         if node.isNodeType(latexnodes_nodes.LatexMacroNode) \

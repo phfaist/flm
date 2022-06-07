@@ -29,7 +29,13 @@ class LLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
         )
 
 
-def make_arg_spec(parser, argname, is_block_level=False):
+def LLMArgumentSpec(parser, argname, is_block_level=False):
+    r"""
+    ..........
+
+    I might turn this function into a proper subclass of `LatexArgumentSpec` in
+    the future.
+    """
     parsing_state_delta = None
     if is_block_level is not None:
         parsing_state_delta = LLMParsingStateDeltaSetBlockLevel(is_block_level)

@@ -5,6 +5,7 @@ logger = logging.getLogger(__name__)
 import re
 
 from pylatexenc.latexnodes import ParsedArgumentsInfo
+import pylatexenc.latexnodes.parsers as latexnodes_parsers
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 from pylatexenc.macrospec import (
     MacroSpec,
@@ -12,10 +13,10 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from .llmspecinfo import LLMSpecInfo
+from .llmspecinfo import LLMEnvironmentSpecBase
 from .llmenvironment import (
     LLMParsingStateDeltaSetBlockLevel,
-    make_arg_spec,
+    LLMArgumentSpec,
 )
 
 from . import fmthelpers
@@ -42,18 +43,41 @@ def _get_counter_formatter_from_tag_template(tag_template):
     return tag_template
 
 
-class Enumeration(LLMSpecInfo):
+# "1.", "2.", ...
+_default_enumeration_counter_formatter = lambda n: f"{n}."
+
+
+class Enumeration(LLMEnvironmentSpecBase):
 
     is_block_level = True
 
-    body_parsing_state_delta = LLMParsingStateDeltaSetBlockLevel(is_block_level=True)
-
     allowed_in_restricted_mode = True
 
-    def __init__(self, counter_formatter='•', annotations=None):
-        super().__init__()
+    def __init__(self,
+                 environmentname,
+                 *,
+                 counter_formatter=_default_enumeration_counter_formatter,
+                 annotations=None,
+                 **kwargs):
+        super().__init__(
+            environmentname=environmentname,
+            arguments_spec_list=[
+                LLMArgumentSpec(
+                    latexnodes_parsers.LatexCharsGroupParser(
+                        delimiters=('[',']'),
+                        optional=True
+                    ),
+                    argname='tag_template',
+                )
+            ],
+            **kwargs
+        )
         self.counter_formatter = counter_formatter
         self.annotations = annotations
+
+    def make_body_parsing_state_delta(self, token, nodeargd, arg_parsing_state_delta,
+                                      latex_walker, **kwargs):
+        return LLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level)
         
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
         return LatexEnvironmentBodyContentsParser(
@@ -62,14 +86,14 @@ class Enumeration(LLMSpecInfo):
                 extend_latex_context=dict(
                     macros=[
                         MacroSpec('item', arguments_spec_list=[
-                            make_arg_spec('[', argname='custom_tag'),
+                            LLMArgumentSpec('[', argname='custom_tag'),
                         ])
                     ]
                 )
             )
         )
 
-    def finalize_parsed_node(self, node):
+    def postprocess_parsed_node(self, node):
         # parse the node structure right away when finializing then ode
         logger.debug("finalizing node: node = %r", node)
         item_nodelists = node.nodelist.split_at_node(

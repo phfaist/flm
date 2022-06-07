@@ -4,8 +4,8 @@ logger = logging.getLogger(__name__)
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 #from pylatexenc import macrospec
 
-from ..llmspecinfo import LLMMacroSpec, LLMSpecInfo
-from ..llmenvironment import make_arg_spec
+from ..llmspecinfo import LLMMacroSpecBase
+from ..llmenvironment import LLMArgumentSpec
 
 from ._base import Feature
 from .. import fmthelpers
@@ -35,12 +35,18 @@ class EndnoteCategory:
         self.endnote_command = endnote_command
 
 
-class EndnoteSpecInfo(LLMSpecInfo):
+class EndnoteMacro(LLMMacroSpecBase):
 
     allowed_in_restricted_mode = False
 
-    def __init__(self, endnote_category_name, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, macroname, endnote_category_name, **kwargs):
+        super().__init__(
+            macroname=macroname,
+            arguments_spec_list=[
+                LLMArgumentSpec('{', argname='endnote_content'),
+            ],
+            **kwargs
+        )
         self.endnote_category_name = endnote_category_name
         
     def render(self, node, render_context):
@@ -117,12 +123,9 @@ class FeatureEndnotes(Feature):
         for encat in self.base_categories:
             if encat.endnote_command:
                 macros.append(
-                    LLMMacroSpec(
+                    EndnoteMacro(
                         encat.endnote_command,
-                        [
-                            make_arg_spec('{', argname='endnote_content'),
-                        ],
-                        llm_specinfo=EndnoteSpecInfo(encat.category_name,)
+                        endnote_category_name=encat.category_name,
                     )
                 )
         logger.debug("Adding macros: %r", macros)

@@ -8,8 +8,7 @@ from pylatexenc.macrospec import LatexContextDb
 
 from llm import llmenvironment
 from llm.llmspecinfo import (
-    LLMMacroSpec, LLMEnvironmentSpec, LLMSpecialsSpec,
-    TextFormat, ParagraphBreak,
+    ConstantValueMacro, TextFormatMacro, ParagraphBreakSpecials,
 )
 from llm.math import MathEnvironment
 from llm.enumeration import Enumeration
@@ -20,21 +19,16 @@ def make_simple_context():
     latex_context.add_context_category(
         'my-stuff',
         macros=[
-            LLMMacroSpec('textbf', '{',
-                         llm_specinfo=TextFormat(['textbf'])),
-            LLMMacroSpec('item', '', llm_specinfo='- ')
+            TextFormatMacro('textbf', text_formats=['textbf']),
+            ConstantValueMacro('item', value='- ')
         ],
         environments=[
-            LLMEnvironmentSpec('equation', '',
-                               llm_specinfo=MathEnvironment(),
-                               is_math_mode=True,),
-            LLMEnvironmentSpec('enumerate', '',
-                               llm_specinfo=Enumeration()),
+            MathEnvironment('equation',),
+            Enumeration('enumerate'),
         ],
         specials=[
-            LLMSpecialsSpec(
+            ParagraphBreakSpecials(
                 '\n\n',
-                llm_specinfo=ParagraphBreak()
             ),
         ],
     )

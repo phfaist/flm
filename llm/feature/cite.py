@@ -5,8 +5,8 @@ from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 
-from ..llmspecinfo import LLMSpecInfo, LLMMacroSpec
-from ..llmenvironment import make_arg_spec
+from ..llmspecinfo import LLMMacroSpecBase
+from ..llmenvironment import LLMArgumentSpec
 
 from .. import fmthelpers
 
@@ -115,32 +115,34 @@ class FeatureExternalPrefixedCitations(Feature):
     def add_latex_context_definitions(self):
         return {
             'macros': [
-                LLMMacroSpec(
-                    'cite',
-                    [
-                        make_arg_spec(
-                            '[',
-                            argname='cite_pre_text'
-                        ),
-                        make_arg_spec(
-                            latexnodes_parsers.LatexCharsCommaSeparatedListParser(
-                                enable_comments=False
-                            ),
-                            argname='citekey'
-                        ),
-                    ],
-                    llm_specinfo=CiteSpecInfo(),
-                ),
+                CiteMacro('cite',),
             ]
         }
 
 
 
-class CiteSpecInfo(LLMSpecInfo):
+class CiteMacro(LLMMacroSpecBase):
 
     allowed_in_restricted_mode = False
 
-    def finalize_parsed_node(self, node):
+    def __init__(self, macroname):
+        super().__init__(
+            macroname=macroname,
+            arguments_spec_list=[
+                LLMArgumentSpec(
+                    '[',
+                    argname='cite_pre_text'
+                ),
+                LLMArgumentSpec(
+                    latexnodes_parsers.LatexCharsCommaSeparatedListParser(
+                        enable_comments=False
+                    ),
+                    argname='citekey'
+                ),
+            ]
+        )
+
+    def postprocess_parsed_node(self, node):
         
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             ('cite_pre_text', 'citekey') ,

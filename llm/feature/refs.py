@@ -1,12 +1,13 @@
 import logging
 logger = logging.getLogger(__name__)
 
+from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 #from pylatexenc import macrospec
 
 from ..llmfragment import LLMFragment
-from ..llmspecinfo import LLMSpecInfo, LLMMacroSpec
-from ..llmenvironment import make_arg_spec
+from ..llmspecinfo import LLMMacroSpecBase
+from ..llmenvironment import LLMArgumentSpec
 
 from ._base import Feature
 
@@ -81,49 +82,55 @@ class FeatureRefs(Feature):
     def add_latex_context_definitions(self):
         return dict(
             macros=[
-                LLMMacroSpec(
-                    'ref',
-                    [
-                        make_arg_spec('{', argname='ref_target'),
-                    ],
-                    llm_specinfo=RefSpecInfo('ref', command_arguments=('ref_target',))
-                ),
-                LLMMacroSpec(
-                    'hyperref',
-                    [
-                        make_arg_spec('[', argname='ref_target'),
-                        make_arg_spec('{', argname='display_text'),
-                    ],
-                    llm_specinfo=RefSpecInfo('ref',
-                                             command_arguments=('ref_target','display_text',))
+                RefMacro(macroname='ref', command_arguments=('ref_target',)),
+                RefMacro(
+                    macroname='hyperref',
+                    command_arguments=('[ref_target]','display_text',)
                 ),
             ]
         )
 
 
-class RefSpecInfo(LLMSpecInfo):
+_ref_arg_specs = {
+    'ref_target': LLMArgumentSpec(latexnodes_parsers.LatexCharsGroupParser(),
+                                  argname='ref_target'),
+    '[ref_target]': LLMArgumentSpec(
+        latexnodes_parsers.LatexCharsGroupParser(
+            delimiters=('[', ']'),
+        ),
+        argname='ref_target'
+    ),
+    'display_text': LLMArgumentSpec('{', argname='display_text',),
+}
+
+
+class RefMacro(LLMMacroSpecBase):
 
     delayed_render = True
 
     def __init__(
             self,
-            ref_type,
+            macroname,
+            *,
+            ref_type='ref',
             command_arguments=('ref_target', 'display_text',)
     ):
-        super().__init__()
+        super().__init__(
+            macroname=macroname,
+            arguments_spec_list=self._get_arguments_spec_list(command_arguments),
+        )
         self.ref_type = ref_type
-        self.command_arguments = command_arguments
+        self.command_arguments = [ c.strip('[]') for c in command_arguments ]
         
-    def prepare_delayed_render(self, node, render_context):
-        pass
+    @classmethod
+    def _get_arguments_spec_list(self, command_arguments):
+        return [ _ref_arg_specs[argname]
+                 for argname in command_arguments ]
 
-    def render(self, node, render_context):
-
-        fragment_renderer = render_context.fragment_renderer
+    def postprocess_parsed_node(self, node):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             self.command_arguments,
-            skip_nonexistent_arguments=True,
         )
 
         ref_type = None
@@ -135,6 +142,22 @@ class RefSpecInfo(LLMSpecInfo):
             display_content_nodelist = node_args['display_text'].get_content_nodelist()
         else:
             display_content_nodelist = None
+
+        node.llm_ref_info = {
+            'ref_type_and_target': (ref_type, ref_target),
+            'display_content_nodelist': display_content_nodelist,
+        }
+        
+
+    def prepare_delayed_render(self, node, render_context):
+        pass
+
+    def render(self, node, render_context):
+
+        fragment_renderer = render_context.fragment_renderer
+
+        ref_type, ref_target = node.llm_ref_info['ref_type_and_target']
+        display_content_nodelist = node.llm_ref_info['display_content_nodelist']
 
         mgr = render_context.feature_render_manager('refs')
 

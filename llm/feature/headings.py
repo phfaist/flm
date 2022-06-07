@@ -1,8 +1,8 @@
 
 #from pylatexenc import macrospec
 
-from ..llmspecinfo import LLMMacroSpec, Heading
-from ..llmenvironment import make_arg_spec
+from ..llmspecinfo import HeadingMacro
+from ..llmenvironment import LLMArgumentSpec
 
 from ._base import Feature
 
@@ -51,13 +51,10 @@ class FeatureHeadings(Feature):
     def add_latex_context_definitions(self):
         return dict(
             macros=[
-                LLMMacroSpec(
-                    sectioncmdspec.cmdname,
-                    [
-                        make_arg_spec('{', argname='text'),
-                    ],
-                    llm_specinfo=Heading(heading_level=level,
-                                         inline_heading=sectioncmdspec.inline)
+                HeadingMacro(
+                    macroname=sectioncmdspec.cmdname,
+                    heading_level=level,
+                    inline_heading=sectioncmdspec.inline,
                 )
                 for level, sectioncmdspec in self.section_commands_by_level.items()
             ]

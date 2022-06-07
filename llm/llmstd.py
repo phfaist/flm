@@ -8,14 +8,14 @@ from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from .llmenvironment import (
     LLMEnvironment,
     LLMParsingState,
-    make_arg_spec
 )
 from .llmspecinfo import (
-    LLMMacroSpec, LLMEnvironmentSpec, LLMSpecialsSpec,
-    TextFormat, HrefHyperlink,
-    Verbatim,
-    # Error,
-    ParagraphBreak
+    ConstantValueMacro,
+    ConstantValueSpecials,
+    ParagraphBreakSpecials,
+    TextFormatMacro,
+    HrefHyperlinkMacro,
+    VerbatimEnvironment,
 )
 
 from .enumeration import Enumeration
@@ -44,9 +44,9 @@ class LLMLatexWalkerParsingStateEventHandler(
                 math_mode_delimiter=math_mode_delimiter,
             ),
             extend_latex_context=dict(
-                unknown_macro_spec=LLMMacroSpec(''),
-                unknown_environment_spec=LLMEnvironmentSpec(''),
-                unknown_specials_spec=LLMSpecialsSpec(''),
+                unknown_macro_spec=macrospec.MacroSpec(''),
+                unknown_environment_spec=macrospec.EnvironmentSpec(''),
+                unknown_specials_spec=macrospec.SpecialsSpec(''),
             )
         )
 
@@ -71,10 +71,6 @@ _parsing_state_event_handler = LLMLatexWalkerParsingStateEventHandler()
 
 # ------------------------------------------------------------------------------
 
-_single_text_arg = [
-    make_arg_spec('{', argname='text',)
-]
-
 
 
 def standard_latex_context_db():
@@ -90,51 +86,42 @@ def standard_latex_context_db():
     lw_context.add_context_category(
         'base-formatting',
         macros=[
-            LLMMacroSpec('textbackslash', '', llm_specinfo='\\'),
-            LLMMacroSpec('%', '', llm_specinfo='%'),
-            LLMMacroSpec('#', '', llm_specinfo='#'),
-            LLMMacroSpec('&', '', llm_specinfo='&'), # will do &amp; automatically for HTML
-            LLMMacroSpec('$', '', llm_specinfo='$'),
-            LLMMacroSpec(' ', '', llm_specinfo=' '),
-            LLMMacroSpec('{', '', llm_specinfo='{'),
-            LLMMacroSpec('}', '', llm_specinfo='}'),
+            ConstantValueMacro('textbackslash', value='\\'),
+            ConstantValueMacro('%', value='%'),
+            ConstantValueMacro('#', value='#'),
+            ConstantValueMacro('&', value='&'), # will do &amp; automatically for HTML
+            ConstantValueMacro('$', value='$'),
+            ConstantValueMacro(' ', value=' '),
+            ConstantValueMacro('{', value='{'),
+            ConstantValueMacro('}', value='}'),
 
-            LLMMacroSpec(
-                'emph',
-                _single_text_arg,
-                llm_specinfo=TextFormat(text_formats=('textit',))
-            ),
-            LLMMacroSpec(
+            TextFormatMacro('emph', text_formats=('textit',)),
+
+            TextFormatMacro(
                 'textit',
-                _single_text_arg,
-                llm_specinfo=TextFormat(text_formats=('textit',))
+                text_formats=('textit',),
             ),
-            LLMMacroSpec(
+            TextFormatMacro(
                 'textbf',
-                _single_text_arg,
-                llm_specinfo=TextFormat(text_formats=('textbf',))
+                text_formats=('textbf',),
             ),
         ],
         specials=[
-            LLMSpecialsSpec(
+            ConstantValueSpecials(
                 '~',
-                llm_specinfo=' '
+                value=' '
             ),
             # new paragraph
-            LLMSpecialsSpec(
+            ParagraphBreakSpecials(
                 '\n\n',
-                llm_specinfo=ParagraphBreak()
             ),
         ]
     )
     lw_context.add_context_category(
         'math-environments',
         environments=[
-            LLMEnvironmentSpec(
+            MathEnvironment(
                 math_environment_name,
-                '',
-                llm_specinfo=MathEnvironment(),
-                body_parsing_state_delta=latexnodes.ParsingStateDeltaEnterMathMode(),
             )
             for math_environment_name in (
                     'equation',
@@ -151,86 +138,42 @@ def standard_latex_context_db():
     lw_context.add_context_category(
         'math-eqref-via-math-content', # e.g., for use with MathJax
         macros=[
-            LLMMacroSpec(
-                'eqref',
-                arguments_spec_list=[
-                    make_arg_spec(
-                        latexnodes_parsers.LatexCharsGroupParser(),
-                        argname='ref_target',
-                    ),
-                ],
-                llm_specinfo=MathEqrefViaMathContent(),
+            MathEqrefViaMathContent(
+                macroname='eqref',
             ),
         ],
     )
     lw_context.add_context_category(
         'enumeration',
         environments=[
-            LLMEnvironmentSpec(
-                'itemize',
-                arguments_spec_list=[
-                    make_arg_spec(
-                        latexnodes_parsers.LatexCharsGroupParser(
-                            delimiters=('[',']'),
-                            optional=True
-                        ),
-                        argname='tag_template',
-                    )
-                ],
-                llm_specinfo=Enumeration(annotations=['itemize']),
+            Enumeration(
+                environmentname='itemize',
+                counter_formatter='•',
+                annotations=['itemize'],
             ),
-            LLMEnvironmentSpec(
-                'enumerate',
-                arguments_spec_list=[
-                    make_arg_spec(
-                        latexnodes_parsers.LatexCharsGroupParser(
-                            delimiters=('[',']'),
-                            optional=True
-                        ),
-                        argname='tag_template',
-                    )
-                ],
-                llm_specinfo=Enumeration(annotations=['enumerate']),
+            Enumeration(
+                environmentname='enumerate',
+                annotations=['enumerate'],
             ),
-        ]
+        ],
     )
     lw_context.add_context_category(
         'href',
         macros=[
-            LLMMacroSpec(
-                'href',
-                arguments_spec_list=[
-                    make_arg_spec(
-                        latexnodes_parsers.LatexDelimitedVerbatimParser( ('{','}') ),
-                        argname='target_href',
-                    ),
-                    make_arg_spec(
-                        '{',
-                        argname='display_text',
-                    )
-                ],
-                llm_specinfo=HrefHyperlink(),
+            HrefHyperlinkMacro(
+                macroname='href',
+                command_arguments=('target_href', 'display_text',),
             ),
-            LLMMacroSpec(
-                'url',
-                arguments_spec_list=[
-                    make_arg_spec(
-                        latexnodes_parsers.LatexDelimitedVerbatimParser( ('{','}') ),
-                        argname='target_href',
-                    )
-                ],
-                llm_specinfo=HrefHyperlink(command_arguments=('target_href',)),
+            HrefHyperlinkMacro(
+                macroname='url',
+                command_arguments=('target_href',),
             ),
         ]
     )
     lw_context.add_context_category(
         'verbatimtext',
         environments={
-            LLMEnvironmentSpec(
-                'verbatimtext',
-                arguments_spec_list=[],
-                llm_specinfo=Verbatim(environment_name='verbatimtext'),
-            ),
+            VerbatimEnvironment(environmentname='verbatimtext'),
         }
     )
 

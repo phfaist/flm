@@ -3,17 +3,22 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 
-from pylatexenc.latexnodes import LatexWalkerParseError, ParsedArgumentsInfo
+from pylatexenc.latexnodes import (
+    LatexWalkerParseError,
+    ParsedArgumentsInfo,
+    ParsingStateDeltaEnterMathMode,
+)
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.macrospec import (
     MacroSpec,
+    EnvironmentSpec,
     LatexEnvironmentBodyContentsParser,
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from .llmspecinfo import LLMSpecInfo
-from .llmenvironment import make_arg_spec
+from .llmspecinfo import LLMMacroSpecBase, LLMEnvironmentSpecBase
+from .llmenvironment import LLMArgumentSpec
 
 
 
@@ -21,31 +26,17 @@ def sanitize_for_id(x):
     return re.sub(r'[^a-zA-Z0-9_-]', '-', x)
 
 
-class MathEnvironment(LLMSpecInfo):
+
+class MathEnvironment(LLMEnvironmentSpecBase):
 
     allowed_in_restricted_mode = True
 
-    def render(self, node, render_context):
-        r"""
-        """
-        environmentname = node.environmentname
+    def __init__(self, environmentname):
+        super().__init__(environmentname=environmentname)
 
-        ref_label_prefix = getattr(node, 'llm_equation_ref_label_prefix', None)
-        ref_label = getattr(node, 'llm_equation_ref_label', None)
-
-        if ref_label_prefix is not None and ref_label is not None:
-            target_id = f"equation--{sanitize_for_id(ref_label_prefix+':'+ref_label)}"
-        else:
-            target_id = None
-
-        return render_context.fragment_renderer.render_math_content(
-            (f"\\begin{{{environmentname}}}", f"\\end{{{environmentname}}}",),
-            node.nodelist,
-            render_context,
-            'display',
-            environmentname=environmentname,
-            target_id=target_id,
-        )
+    def make_body_parsing_state_delta(self, token, nodeargd, arg_parsing_state_delta,
+                                      latex_walker, **kwargs):
+        return ParsingStateDeltaEnterMathMode()
 
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
         return LatexEnvironmentBodyContentsParser(
@@ -54,7 +45,7 @@ class MathEnvironment(LLMSpecInfo):
                 extend_latex_context=dict(
                     macros=[
                         MacroSpec('label', arguments_spec_list=[
-                            make_arg_spec(
+                            LLMArgumentSpec(
                                 parser=latexnodes_parsers.LatexCharsGroupParser(
                                     delimiters=('{','}'),
                                 ),
@@ -66,7 +57,7 @@ class MathEnvironment(LLMSpecInfo):
             )
         )
 
-    def finalize_parsed_node(self, node):
+    def postprocess_parsed_node(self, node):
         # parse the node structure right away when finializing the node to try
         # to find any \label{} instruction.
         logger.debug("finalizing math environment node: node = %r", node)
@@ -106,16 +97,48 @@ class MathEnvironment(LLMSpecInfo):
 
         return node
 
+    def render(self, node, render_context):
+        r"""
+        """
+        environmentname = node.environmentname
+
+        ref_label_prefix = getattr(node, 'llm_equation_ref_label_prefix', None)
+        ref_label = getattr(node, 'llm_equation_ref_label', None)
+
+        if ref_label_prefix is not None and ref_label is not None:
+            target_id = f"equation--{sanitize_for_id(ref_label_prefix+':'+ref_label)}"
+        else:
+            target_id = None
+
+        return render_context.fragment_renderer.render_math_content(
+            (f"\\begin{{{environmentname}}}", f"\\end{{{environmentname}}}",),
+            node.nodelist,
+            render_context,
+            'display',
+            environmentname=environmentname,
+            target_id=target_id,
+        )
 
 
 
 
-class MathEqrefViaMathContent(LLMSpecInfo):
+class MathEqrefViaMathContent(LLMMacroSpecBase):
 
     allowed_in_restricted_mode = False
     r"""
     Reference commands are definitly not allowed in restricted mode
     """
+
+    def __init__(self, macroname='eqref', **kwargs):
+        super().__init__(
+            macroname=macroname,
+            arguments_spec_list=[
+                LLMArgumentSpec(
+                    latexnodes_parsers.LatexCharsGroupParser(),
+                    argname='ref_target',
+                )
+            ],
+        )
 
     def render(self, node, render_context):
 

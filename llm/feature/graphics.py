@@ -4,8 +4,8 @@ logger = logging.getLogger(__name__)
 from pylatexenc.latexnodes import LatexWalkerParseError, ParsedArgumentsInfo
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 
-from ..llmspecinfo import LLMSpecInfo, LLMMacroSpec
-from ..llmenvironment import make_arg_spec
+from ..llmspecinfo import LLMMacroSpecBase
+from ..llmenvironment import LLMArgumentSpec
 from ._base import Feature
 
 
@@ -39,16 +39,38 @@ class GraphicsResource:
 # ------------------------------------------------------------------------------
 
 
-class SimpleIncludeGraphicsSpecInfo(LLMSpecInfo):
+class SimpleIncludeGraphicsMacro(LLMMacroSpecBase):
 
     is_block_level = True
 
     allowed_in_restricted_mode = False
     r"""
-    Requires a graphics resource provider, which is provided by a document.
+    Can't allow this macro in restricted mode; rendering this macro requires a
+    graphics resource provider, which in turn must be provided by a document.
     """
 
-    def finalize_parsed_node(self, node):
+    def __init__(self, macroname, **kwargs):
+        super().__init__(
+            macroname='includegraphics',
+            arguments_spec_list=[
+                LLMArgumentSpec(
+                    parser=latexnodes_parsers.LatexCharsGroupParser(
+                        delimiters=('[',']'),
+                        optional=True
+                    ),
+                    argname='graphics_options',
+                ),
+                LLMArgumentSpec(
+                    parser=latexnodes_parsers.LatexCharsGroupParser(
+                        delimiters=('{','}'),
+                    ),
+                    argname='graphics_path',
+                ),
+            ],
+            **kwargs
+        )
+        
+    def postprocess_parsed_node(self, node):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             ('graphics_options', 'graphics_path',),
@@ -73,11 +95,6 @@ class SimpleIncludeGraphicsSpecInfo(LLMSpecInfo):
                 pos=node_args['graphics_options'].nodelist.pos,
             )
 
-        # # DEBUG !!! FOR FUN !!!!
-        # logger.warning("This is placeholder code! REMOVE ME!")
-        # return f'''<IMG src="{graphics_path}" />'''
-        
-
         if not render_context.supports_feature('graphics_resource_provider'):
             raise RuntimeError(
                 "LLM's ‘SimpleIncludeGraphicsSpecInfo’ (‘\\includegraphics’) requires a "
@@ -93,27 +110,6 @@ class SimpleIncludeGraphicsSpecInfo(LLMSpecInfo):
 
         return fragment_renderer.render_graphics_block( graphics_resource )
 
-
-def LLMIncludeGraphicsMacroSpec():
-    return LLMMacroSpec(
-        'includegraphics',
-        arguments_spec_list=[
-            make_arg_spec(
-                parser=latexnodes_parsers.LatexCharsGroupParser(
-                    delimiters=('[',']'),
-                    optional=True
-                ),
-                argname='graphics_options',
-            ),
-            make_arg_spec(
-                parser=latexnodes_parsers.LatexCharsGroupParser(
-                    delimiters=('{','}'),
-                ),
-                argname='graphics_path',
-            ),
-        ],
-        llm_specinfo=SimpleIncludeGraphicsSpecInfo(),
-    )
 
 
 
