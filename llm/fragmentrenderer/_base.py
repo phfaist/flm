@@ -7,6 +7,9 @@ from pylatexenc.latexnodes import nodes
 
 
 class LLMRenderContext:
+
+    is_restricted_mode = False
+
     def __init__(self, fragment_renderer, *, doc=None, **kwargs):
         super().__init__(**kwargs)
         self.doc = doc
@@ -26,6 +29,9 @@ class LLMRenderContext:
 
 
 class LLMRestrictedModeRenderContext(LLMRenderContext):
+
+    is_restricted_mode = True
+
     def __init__(self, fragment_renderer):
         super().__init__(fragment_renderer=fragment_renderer)
 
@@ -157,6 +163,16 @@ class FragmentRenderer:
         # Rendering result will be obtained by calling render() on the
         # specinfo object
         #
+
+        if not hasattr(node, 'llm_specinfo') or node.llm_specinfo is None:
+            raise RuntimeError(f"Node {node} does not have the `llm_specinfo` attribute set")
+
+        if render_context.is_restricted_mode:
+            if not node.llm_specinfo.allowed_in_restricted_mode:
+                raise ValueError(
+                    f"Cannot render ‘{node.latex_verbatim()}’ in restricted mode."
+                )
+
         return self.render_invocable_node_call_render(
             node,
             node.llm_specinfo,

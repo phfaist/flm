@@ -97,6 +97,13 @@ class LLMSpecInfo:
         r"""
         Override this method only if you know what you're doing!
         """
+
+        fragment_is_restricted_mode = node.latex_walker.restricted_mode
+        if fragment_is_restricted_mode and not self.allowed_in_restricted_mode:
+            raise LatexWalkerParseError(
+                f"‘{node.latex_verbatim()}’ is not allowed here (restricted mode)."
+            )
+
         node.llm_specinfo = self
         self.postprocess_parsed_node(node)
         node.llm_is_block_level = self.is_block_level
