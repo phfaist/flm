@@ -4,7 +4,6 @@ logger = logging.getLogger(__name__)
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo
-#from pylatexenc import macrospec
 
 from ..llmspecinfo import LLMSpecInfo, LLMMacroSpec
 from ..llmenvironment import make_arg_spec
@@ -138,6 +137,8 @@ class FeatureExternalPrefixedCitations(Feature):
 
 
 class CiteSpecInfo(LLMSpecInfo):
+
+    allowed_in_restricted_mode = False
 
     def finalize_parsed_node(self, node):
         

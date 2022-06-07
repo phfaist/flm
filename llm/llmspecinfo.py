@@ -44,6 +44,13 @@ class LLMSpecInfo:
     paragraph.
     """
 
+    allowed_in_restricted_mode = False
+    r"""
+    Whether or not this node is allowed in *restricted mode*, i.e., whether or
+    not this node can be rendered independently of any document object.
+    """
+    
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -149,19 +156,21 @@ class LLMSpecialsSpec(LLMSpecInfoSpecClass, macrospec.SpecialsSpec):
 
 
 class TextFormat(LLMSpecInfo):
-    # any additional 
+    r"""
+    The argument `text_formats` is a list of strings, each string is a format
+    name to apply.  Format names are inspired from the corresponding canonical
+    LaTeX macros that apply them.  They are:
+
+    - `textit`
+
+    - `textbf`
+
+    - (possibly more in the future)
+    """
+
+    allowed_in_restricted_mode = True
+
     def __init__(self, text_formats):
-        r"""
-        The argument `text_formats` is a list of strings, each string is a format
-        name to apply.  Format names are inspired from the corresponding
-        canonical LaTeX macros that apply them.  They are:
-
-        - `textit`
-
-        - `textbf`
-
-        - (possibly more in the future)
-        """
         super().__init__()
         self.text_formats = text_formats
 
@@ -183,6 +192,8 @@ class ParagraphBreak(LLMSpecInfo):
     is_block_level = True
 
     is_paragraph_break_marker = True
+
+    allowed_in_restricted_mode = True
     
     def __init__(self):
         super().__init__()
@@ -192,6 +203,9 @@ class ParagraphBreak(LLMSpecInfo):
 
 
 class Error(LLMSpecInfo):
+
+    allowed_in_restricted_mode = True
+
     def __init__(self, error_msg=None):
         super().__init__()
         self.error_msg = error_msg
@@ -209,6 +223,8 @@ class Error(LLMSpecInfo):
 class Heading(LLMSpecInfo):
 
     is_block_level = True
+
+    allowed_in_restricted_mode = True
 
     def __init__(self, heading_level=1, inline_heading=False):
         r"""
@@ -236,6 +252,9 @@ class Heading(LLMSpecInfo):
 
 
 class HrefHyperlink(LLMSpecInfo):
+
+    allowed_in_restricted_mode = True
+
     def __init__(
             self,
             command_arguments=('target_href', 'display_text',),
@@ -294,6 +313,9 @@ class HrefHyperlink(LLMSpecInfo):
 
 
 class Verbatim(LLMSpecInfo):
+
+    allowed_in_restricted_mode = True
+
     r"""
     Wraps an argument, or an environment body, as verbatim content.
 

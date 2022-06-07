@@ -225,6 +225,7 @@ class LLMLatexWalker(latexwalker.LatexWalker):
                  parsing_state,
                  llm_environment,
                  parsing_state_event_handler=None,
+                 restricted_mode=False,
                  resource_info=None,
                  **kwargs):
 
@@ -241,6 +242,8 @@ class LLMLatexWalker(latexwalker.LatexWalker):
         self.default_parsing_state = parsing_state
 
         self.llm_environment = llm_environment
+
+        self.restricted_mode = restricted_mode
 
         # user custom additional information that can be useful to locate
         # additional resources.
@@ -312,7 +315,7 @@ class LLMEnvironment:
 
     parsing_state_event_handler = None
 
-    def make_latex_walker(self, llm_text, *, resource_info):
+    def make_latex_walker(self, llm_text, *, restricted_mode, resource_info, ):
 
         logger.debug("Parsing state walker event handler = %r",
                      self.parsing_state_event_handler,)
@@ -323,6 +326,7 @@ class LLMEnvironment:
             tolerant_parsing=self.tolerant_parsing,
             # custom additions -- 
             llm_environment=self,
+            restricted_mode=restricted_mode,
             resource_info=resource_info,
             parsing_state_event_handler=self.parsing_state_event_handler,
         )

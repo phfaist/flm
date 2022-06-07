@@ -33,6 +33,8 @@ class DefineTermSpecInfo(LLMSpecInfo):
 
     is_block_level = True
 
+    allowed_in_restricted_mode = False
+
     def finalize_parsed_node(self, node):
         node_args = \
             ParsedArgumentsInfo(node=node).get_all_arguments_info(
@@ -76,6 +78,8 @@ class DefineTermSpecInfo(LLMSpecInfo):
 
 
 class RefTermSpecInfo(LLMSpecInfo):
+
+    allowed_in_restricted_mode = False
 
     def render(self, node, render_context):
         

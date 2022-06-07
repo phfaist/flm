@@ -23,6 +23,8 @@ def sanitize_for_id(x):
 
 class MathEnvironment(LLMSpecInfo):
 
+    allowed_in_restricted_mode = True
+
     def render(self, node, render_context):
         r"""
         """
@@ -109,6 +111,12 @@ class MathEnvironment(LLMSpecInfo):
 
 
 class MathEqrefViaMathContent(LLMSpecInfo):
+
+    allowed_in_restricted_mode = False
+    r"""
+    Reference commands are definitly not allowed in restricted mode
+    """
+
     def render(self, node, render_context):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(

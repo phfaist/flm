@@ -48,6 +48,8 @@ class Enumeration(LLMSpecInfo):
 
     body_parsing_state_delta = LLMParsingStateDeltaSetBlockLevel(is_block_level=True)
 
+    allowed_in_restricted_mode = True
+
     def __init__(self, counter_formatter='•', annotations=None):
         super().__init__()
         self.counter_formatter = counter_formatter

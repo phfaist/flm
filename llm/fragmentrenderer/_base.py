@@ -6,6 +6,51 @@ from pylatexenc.latexnodes import nodes
 
 
 
+class LLMRenderContext:
+    def __init__(self, fragment_renderer, *, doc=None, **kwargs):
+        super().__init__(**kwargs)
+        self.doc = doc
+        self.fragment_renderer = fragment_renderer
+
+    def supports_feature(self, feature_name):
+        return False
+
+    def feature_render_manager(self, feature_name):
+        return None
+
+    def register_delayed_render(self, node, fragment_renderer):
+        raise RuntimeError("This render context does not support delayed rendering")
+
+    def get_delayed_render_content(self, node):
+        raise RuntimeError("This render context does not support delayed rendering")
+
+
+class LLMRestrictedModeRenderContext(LLMRenderContext):
+    def __init__(self, fragment_renderer):
+        super().__init__(fragment_renderer=fragment_renderer)
+
+    def supports_feature(self, feature_name):
+        return False
+
+    def feature_render_manager(self, feature_name):
+        raise ValueError(
+            f"There are no document features when rendering LLM text in "
+            f"restricted mode (reqested ‘{feature_name}’)"
+        )
+
+    def register_delayed_render(self, node, fragment_renderer):
+        raise ValueError(
+            f"Cannot render nodes with delayed content in restricted mode"
+        )
+
+    def get_delayed_render_content(self, node):
+        raise ValueError(
+            f"There's no delayed render content in restricted mode"
+        )
+
+
+
+
 class FragmentRenderer:
     r"""
     .................
@@ -329,20 +374,6 @@ class FragmentRenderer:
     # helpers
 
     def _ensure_render_context(self, render_context):
-        return render_context or _OnlyFragmentRendererRenderContext(self)
+        return render_context or LLMRenderContext(fragment_renderer=self)
 
-
-
-
-
-class _OnlyFragmentRendererRenderContext:
-    def __init__(self, fragment_renderer):
-        self.doc = None
-        self.fragment_renderer = fragment_renderer
-
-    def supports_feature(self, feature_name):
-        return False
-
-    def feature_render_manager(self, feature_name):
-        return None
 

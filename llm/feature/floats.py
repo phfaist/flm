@@ -35,6 +35,8 @@ class FloatEnvironmentSpecInfo(LLMSpecInfo):
     feature manager, for instance), to actually render the float somewhere.
     """
 
+    allowed_in_restricted_mode = False
+
     def __init__(self, float_type):
         super().__init__()
         self.float_type = float_type

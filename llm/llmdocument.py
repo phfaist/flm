@@ -1,13 +1,12 @@
 import logging
 logger = logging.getLogger(__name__)
 
+from .fragmentrenderer import LLMRenderContext
 
 
-class LLMRenderContext:
+class LLMDocumentRenderContext(LLMRenderContext):
     def __init__(self, doc, fragment_renderer, feature_document_managers, **kwargs):
-        super().__init__(**kwargs)
-        self.doc = doc
-        self.fragment_renderer = fragment_renderer
+        super().__init__(doc=doc, fragment_renderer=fragment_renderer, **kwargs)
         self.feature_document_managers = feature_document_managers
         self.feature_render_managers = [
             ( (feature_name, fdm.RenderManager(fdm, self))
@@ -89,7 +88,7 @@ class LLMDocument:
 
     def make_render_context(self, fragment_renderer):
         # create the render context
-        render_context = LLMRenderContext(
+        render_context = LLMDocumentRenderContext(
             self,
             fragment_renderer,
             self.feature_document_managers

@@ -37,6 +37,8 @@ class EndnoteCategory:
 
 class EndnoteSpecInfo(LLMSpecInfo):
 
+    allowed_in_restricted_mode = False
+
     def __init__(self, endnote_category_name, **kwargs):
         super().__init__(**kwargs)
         self.endnote_category_name = endnote_category_name

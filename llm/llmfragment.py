@@ -5,6 +5,7 @@ from pylatexenc import latexnodes
 import pylatexenc.latexnodes.parsers as latexnodes_parsers
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
+from .fragmentrenderer import LLMRestrictedModeRenderContext
 
 class LLMFragment:
     def __init__(
@@ -14,6 +15,7 @@ class LLMFragment:
             *,
             is_block_level=None,
             resource_info=None,
+            restricted_mode=False,
             what='(unknown)',
             silent=False,
     ):
@@ -27,6 +29,8 @@ class LLMFragment:
         # (e.g., graphics, etc.)
         self.resource_info = resource_info
 
+        self.restricted_mode = restricted_mode
+
         self.environment = environment
 
         self.silent = silent
@@ -35,6 +39,7 @@ class LLMFragment:
             self.latex_walker, self.nodes = \
                 LLMFragment.parse(self.llm_text,
                                   self.environment,
+                                  restricted_mode=self.restricted_mode,
                                   is_block_level=self.is_block_level)
         except latexnodes.LatexWalkerParseError as e:
             if not self.silent:
@@ -56,9 +61,14 @@ class LLMFragment:
 
 
     @classmethod
-    def parse(cls, llm_text, environment, *, resource_info=None, is_block_level=None):
+    def parse(cls, llm_text, environment, *,
+              restricted_mode=False, resource_info=None, is_block_level=None):
 
-        latex_walker = environment.make_latex_walker(llm_text, resource_info=resource_info)
+        latex_walker = environment.make_latex_walker(
+            llm_text,
+            resource_info=resource_info,
+            restricted_mode=restricted_mode,
+        )
 
         parsing_state = latex_walker.make_parsing_state(is_block_level=is_block_level)
 
