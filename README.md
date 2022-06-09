@@ -34,7 +34,7 @@ Note: Math is simply marked with `<span class=...>` tags for use with
 Example:
 ```py
 from llm import llmstd
-from llm.htmlfragmentrenderer import HtmlFragmentRenderer
+from llm.fragmentrenderer.html import HtmlFragmentRenderer
 
 environ = llmstd.LLMStandardEnvironment()
 
@@ -65,7 +65,7 @@ def render_fn(render_context):
 doc = environ.make_document(render_fn)
 
 fragment_renderer = HtmlFragmentRenderer()
-result_html = doc.render(fragment_renderer)
+result_html, render_context = doc.render(fragment_renderer)
 
 print(result_html)
 # *** Prints:
