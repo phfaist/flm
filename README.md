@@ -54,7 +54,7 @@ fragment_2 = environ.make_fragment(
 # HTML page. The advantage of doing so is that different fragments
 # can "see" each other! (E.g., for \ref's, etc.) This feature can
 # be useful especially in combination with template engines.
-def render_fn(doc, fragment_renderer):
+def render_fn(render_context):
     return (
         "<main>\n"
         + "<div>" + fragment_1.render(render_context) + "</div>\n"
