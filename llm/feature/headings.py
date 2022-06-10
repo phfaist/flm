@@ -2,7 +2,6 @@
 #from pylatexenc import macrospec
 
 from ..llmspecinfo import HeadingMacro
-from ..llmenvironment import LLMArgumentSpec
 
 from ._base import Feature
 

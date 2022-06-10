@@ -12,7 +12,6 @@ from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.macrospec import (
     MacroSpec,
-    EnvironmentSpec,
     LatexEnvironmentBodyContentsParser,
     ParsingStateDeltaExtendLatexContextDb,
 )

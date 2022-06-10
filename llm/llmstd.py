@@ -3,7 +3,6 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc import latexnodes
 from pylatexenc import macrospec
-from pylatexenc.latexnodes import parsers as latexnodes_parsers
 
 from .llmenvironment import (
     LLMEnvironment,

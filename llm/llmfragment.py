@@ -59,6 +59,15 @@ class LLMFragment:
     def render(self, render_context, **kwargs):
         return render_context.fragment_renderer.render_fragment(self, render_context, **kwargs)
 
+    def render_restricted(self, fragment_renderer):
+        if not self.restricted_mode:
+            raise ValueError(
+                "You can only use render_restricted() on a fragment that "
+                "was parsed in restricted mode (use `restricted_mode=True` "
+                "in the LLMFragment constructor)"
+            )
+        render_context = LLMRestrictedModeRenderContext(fragment_renderer=fragment_renderer)
+        return self.render(render_context)
 
     @classmethod
     def parse(cls, llm_text, environment, *,
