@@ -8,7 +8,7 @@ from pylatexenc.latexnodes import nodes
 
 class LLMRenderContext:
 
-    is_restricted_mode = False
+    is_standalone_mode = False
 
     def __init__(self, fragment_renderer, *, doc=None, **kwargs):
         super().__init__(**kwargs)
@@ -28,9 +28,9 @@ class LLMRenderContext:
         raise RuntimeError("This render context does not support delayed rendering")
 
 
-class LLMRestrictedModeRenderContext(LLMRenderContext):
+class LLMStandaloneModeRenderContext(LLMRenderContext):
 
-    is_restricted_mode = True
+    is_standalone_mode = True
 
     def __init__(self, fragment_renderer):
         super().__init__(fragment_renderer=fragment_renderer)
@@ -41,17 +41,17 @@ class LLMRestrictedModeRenderContext(LLMRenderContext):
     def feature_render_manager(self, feature_name):
         raise ValueError(
             f"There are no document features when rendering LLM text in "
-            f"restricted mode (reqested ‘{feature_name}’)"
+            f"standalone mode (reqested ‘{feature_name}’)"
         )
 
     def register_delayed_render(self, node, fragment_renderer):
         raise ValueError(
-            f"Cannot render nodes with delayed content in restricted mode"
+            f"Cannot render nodes with delayed content in standalone mode"
         )
 
     def get_delayed_render_content(self, node):
         raise ValueError(
-            f"There's no delayed render content in restricted mode"
+            f"There's no delayed render content in standalone mode"
         )
 
 
@@ -167,10 +167,10 @@ class FragmentRenderer:
         if not hasattr(node, 'llm_specinfo') or node.llm_specinfo is None:
             raise RuntimeError(f"Node {node} does not have the `llm_specinfo` attribute set")
 
-        if render_context.is_restricted_mode:
-            if not node.llm_specinfo.allowed_in_restricted_mode:
+        if render_context.is_standalone_mode:
+            if not node.llm_specinfo.allowed_in_standalone_mode:
                 raise ValueError(
-                    f"Cannot render ‘{node.latex_verbatim()}’ in restricted mode."
+                    f"Cannot render ‘{node.latex_verbatim()}’ in standalone mode."
                 )
 
         return self.render_invocable_node_call_render(

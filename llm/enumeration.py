@@ -51,7 +51,7 @@ class Enumeration(LLMEnvironmentSpecBase):
 
     is_block_level = True
 
-    allowed_in_restricted_mode = True
+    allowed_in_standalone_mode = True
 
     def __init__(self,
                  environmentname,

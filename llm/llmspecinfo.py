@@ -53,9 +53,9 @@ class LLMSpecInfo:
     ``\par`` macros.
     """
     
-    allowed_in_restricted_mode = False
+    allowed_in_standalone_mode = False
     r"""
-    Whether or not this node is allowed in *restricted mode*, i.e., whether or
+    Whether or not this node is allowed in *standalone mode*, i.e., whether or
     not this node can be rendered independently of any document object.
     """
 
@@ -98,10 +98,10 @@ class LLMSpecInfo:
         Override this method only if you know what you're doing!
         """
 
-        fragment_is_restricted_mode = node.latex_walker.restricted_mode
-        if fragment_is_restricted_mode and not self.allowed_in_restricted_mode:
+        fragment_is_standalone_mode = node.latex_walker.standalone_mode
+        if fragment_is_standalone_mode and not self.allowed_in_standalone_mode:
             raise LatexWalkerParseError(
-                f"‘{node.latex_verbatim()}’ is not allowed here (restricted mode)."
+                f"‘{node.latex_verbatim()}’ is not allowed here (standalone mode)."
             )
 
         node.llm_specinfo = self
@@ -133,7 +133,7 @@ class LLMSpecialsSpecBase(LLMSpecInfo, macrospec.SpecialsSpec):
 
 class LLMSpecInfoConstantValue(LLMSpecInfo):
 
-    allowed_in_restricted_mode = True
+    allowed_in_standalone_mode = True
 
     def __init__(self, *args, value, **kwargs):
         super().__init__(*args, **kwargs)
@@ -165,7 +165,7 @@ class TextFormatMacro(LLMMacroSpecBase):
     - (possibly more in the future)
     """
 
-    allowed_in_restricted_mode = True
+    allowed_in_standalone_mode = True
 
     def __init__(self, macroname, *, text_formats):
         super().__init__(
@@ -193,7 +193,7 @@ class LLMSpecInfoParagraphBreak(LLMSpecInfo):
 
     is_paragraph_break_marker = True
 
-    allowed_in_restricted_mode = True
+    allowed_in_standalone_mode = True
     
     def render(self, node, render_context):
         raise LatexWalkerParseError('Paragraph break is not allowed here', pos=node.pos)
@@ -209,7 +209,7 @@ class ParagraphBreakMacro(LLMSpecInfoParagraphBreak, macrospec.MacroSpec):
 
 class LLMSpecInfoError(LLMSpecInfo):
 
-    allowed_in_restricted_mode = True
+    allowed_in_standalone_mode = True
 
     def __init__(self, *args, error_msg=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -240,7 +240,7 @@ class HeadingMacro(LLMMacroSpecBase):
 
     is_block_level = True
 
-    allowed_in_restricted_mode = True
+    allowed_in_standalone_mode = True
 
     def __init__(self, macroname, *, heading_level=1, inline_heading=False):
         r"""
@@ -281,7 +281,7 @@ _href_arg_specs = {
 
 class HrefHyperlinkMacro(LLMMacroSpecBase):
 
-    allowed_in_restricted_mode = True
+    allowed_in_standalone_mode = True
 
     def __init__(
             self,
@@ -364,7 +364,7 @@ class HrefHyperlinkMacro(LLMMacroSpecBase):
 
 class VerbatimSpecInfo(LLMSpecInfo):
 
-    allowed_in_restricted_mode = True
+    allowed_in_standalone_mode = True
 
     r"""
     Wraps an argument, or an environment body, as verbatim content.

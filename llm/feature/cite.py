@@ -123,7 +123,7 @@ class FeatureExternalPrefixedCitations(Feature):
 
 class CiteMacro(LLMMacroSpecBase):
 
-    allowed_in_restricted_mode = False
+    allowed_in_standalone_mode = False
 
     def __init__(self, macroname):
         super().__init__(

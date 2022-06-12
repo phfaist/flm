@@ -1,6 +1,6 @@
 
 from ._base import (
     LLMRenderContext,
-    LLMRestrictedModeRenderContext,
+    LLMStandaloneModeRenderContext,
     FragmentRenderer,
 )

@@ -32,7 +32,7 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
 
     is_block_level = True
 
-    allowed_in_restricted_mode = False
+    allowed_in_standalone_mode = False
 
     def __init__(self, environmentname, **kwargs):
         super().__init__(
@@ -87,7 +87,7 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
 
 class RefTermMacro(LLMMacroSpecBase):
 
-    allowed_in_restricted_mode = False
+    allowed_in_standalone_mode = False
 
     def __init__(self, macroname, **kwargs):
         super().__init__(

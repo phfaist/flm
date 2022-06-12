@@ -43,9 +43,9 @@ class SimpleIncludeGraphicsMacro(LLMMacroSpecBase):
 
     is_block_level = True
 
-    allowed_in_restricted_mode = False
+    allowed_in_standalone_mode = False
     r"""
-    Can't allow this macro in restricted mode; rendering this macro requires a
+    Can't allow this macro in standalone mode; rendering this macro requires a
     graphics resource provider, which in turn must be provided by a document.
     """
 

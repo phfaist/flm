@@ -5,7 +5,7 @@ from pylatexenc import latexnodes
 import pylatexenc.latexnodes.parsers as latexnodes_parsers
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
-from .fragmentrenderer import LLMRestrictedModeRenderContext
+from .fragmentrenderer import LLMStandaloneModeRenderContext
 
 class LLMFragment:
     def __init__(
@@ -15,7 +15,7 @@ class LLMFragment:
             *,
             is_block_level=None,
             resource_info=None,
-            restricted_mode=False,
+            standalone_mode=False,
             what='(unknown)',
             silent=False,
     ):
@@ -29,7 +29,7 @@ class LLMFragment:
         # (e.g., graphics, etc.)
         self.resource_info = resource_info
 
-        self.restricted_mode = restricted_mode
+        self.standalone_mode = standalone_mode
 
         self.environment = environment
 
@@ -39,7 +39,7 @@ class LLMFragment:
             self.latex_walker, self.nodes = \
                 LLMFragment.parse(self.llm_text,
                                   self.environment,
-                                  restricted_mode=self.restricted_mode,
+                                  standalone_mode=self.standalone_mode,
                                   is_block_level=self.is_block_level)
         except latexnodes.LatexWalkerParseError as e:
             if not self.silent:
@@ -59,24 +59,24 @@ class LLMFragment:
     def render(self, render_context, **kwargs):
         return render_context.fragment_renderer.render_fragment(self, render_context, **kwargs)
 
-    def render_restricted(self, fragment_renderer):
-        if not self.restricted_mode:
+    def render_standalone(self, fragment_renderer):
+        if not self.standalone_mode:
             raise ValueError(
-                "You can only use render_restricted() on a fragment that "
-                "was parsed in restricted mode (use `restricted_mode=True` "
+                "You can only use render_standalone() on a fragment that "
+                "was parsed in standalone mode (use `standalone_mode=True` "
                 "in the LLMFragment constructor)"
             )
-        render_context = LLMRestrictedModeRenderContext(fragment_renderer=fragment_renderer)
+        render_context = LLMStandaloneModeRenderContext(fragment_renderer=fragment_renderer)
         return self.render(render_context)
 
     @classmethod
     def parse(cls, llm_text, environment, *,
-              restricted_mode=False, resource_info=None, is_block_level=None):
+              standalone_mode=False, resource_info=None, is_block_level=None):
 
         latex_walker = environment.make_latex_walker(
             llm_text,
             resource_info=resource_info,
-            restricted_mode=restricted_mode,
+            standalone_mode=standalone_mode,
         )
 
         parsing_state = latex_walker.make_parsing_state(is_block_level=is_block_level)

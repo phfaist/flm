@@ -37,7 +37,7 @@ class EndnoteCategory:
 
 class EndnoteMacro(LLMMacroSpecBase):
 
-    allowed_in_restricted_mode = False
+    allowed_in_standalone_mode = False
 
     def __init__(self, macroname, endnote_category_name, **kwargs):
         super().__init__(

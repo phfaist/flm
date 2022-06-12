@@ -28,7 +28,7 @@ def sanitize_for_id(x):
 
 class MathEnvironment(LLMEnvironmentSpecBase):
 
-    allowed_in_restricted_mode = True
+    allowed_in_standalone_mode = True
 
     def __init__(self, environmentname):
         super().__init__(environmentname=environmentname)
@@ -123,9 +123,9 @@ class MathEnvironment(LLMEnvironmentSpecBase):
 
 class MathEqrefViaMathContent(LLMMacroSpecBase):
 
-    allowed_in_restricted_mode = False
+    allowed_in_standalone_mode = False
     r"""
-    Reference commands are definitly not allowed in restricted mode
+    Reference commands are definitly not allowed in standalone mode
     """
 
     def __init__(self, macroname='eqref', **kwargs):
