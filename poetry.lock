@@ -256,7 +256,7 @@ develop = false
 type = "git"
 url = "https://github.com/phfaist/pylatexenc.git"
 reference = "devel"
-resolved_reference = "3f566301a6b9a604cce07acd620a5f7ba01407b2"
+resolved_reference = "ec32c438da6d407144462f8c9a88c59c88a3ed2b"
 
 [[package]]
 name = "pyparsing"

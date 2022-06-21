@@ -328,19 +328,27 @@ class LLMStandardEnvironment(LLMEnvironment):
     parsing_state_event_handler = LLMLatexWalkerParsingStateEventHandler()
 
     def get_parse_error_message(self, exception_object):
+        msg = None
         error_type_info = exception_object.error_type_info
         if error_type_info:
             what = error_type_info['what']
             if what == 'token_forbidden_character':
                 if error_type_info['forbidden_character'] == '%':
-                    return (
+                    msg = (
                         r"LaTeX comments are not allowed here. Use ‘\%’ to typeset a "
                         r"literal percent sign."
                     )
-                if error_type_info['forbidden_character'] == '$':
-                    return (
+                elif error_type_info['forbidden_character'] == '$':
+                    msg = (
                         r"You can't use ‘$’ here. LaTeX math should be typeset using "
                         r"\(...\) for inline math and \[...\] for unnumbered display "
                         r"equations. Use ‘\$’ for a literal dollar sign."
                     )
-        return str(exception_object)
+        if not msg:
+            msg = exception_object.msg
+
+        errfmt = latexnodes.LatexWalkerParseErrorFormatter(exception_object)
+
+        msg += errfmt.format_full_traceback()
+
+        return msg

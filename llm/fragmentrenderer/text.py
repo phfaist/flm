@@ -80,6 +80,12 @@ class TextFragmentRenderer(FragmentRenderer):
 
         rendered_heading = self.render_inline_content(heading_nodelist, render_context)
 
+        def add_punct(x, c):
+            x = str(x)
+            if x.rstrip()[-1:] in '.,:;?!':
+                return x
+            return x + c
+
         if heading_level == 1:
             return f"{rendered_heading}\n{'='*len(rendered_heading)}"
         if heading_level == 2:
@@ -87,11 +93,11 @@ class TextFragmentRenderer(FragmentRenderer):
         if heading_level == 3:
             return f"{rendered_heading}\n{'~'*len(rendered_heading)}"
         if heading_level == 4:
-            return f"{rendered_heading}:"
+            return f"{add_punct(rendered_heading,':')}"
         if heading_level == 5:
-            return f"    {rendered_heading}:"
+            return f"    {add_punct(rendered_heading,':')}"
         if heading_level == 6:
-            return f"        {rendered_heading}:"
+            return f"        {add_punct(rendered_heading,':')}"
 
         raise ValueError(f"Bad {heading_level=}, expected 1..6")
 
@@ -110,9 +116,9 @@ class TextFragmentRenderer(FragmentRenderer):
         
         - an anchor fragment only (`#fragment-name`), for links within the
           document; note that we use #fragment-name universally, even if the
-          output format is not HTML.  It's up to the output format's
-          DocumentContext implementation to translate the linking scheme
-          correctly.
+          output format is not HTML.  It's up to the output format's render
+          context features / fragment renderer subclass implementations to
+          translate the linking scheme correctly.
         """
 
         display_content = self.render_nodelist(

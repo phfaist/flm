@@ -64,6 +64,33 @@ def fnsymbolcounter(n, symbols=_fnsymbols):
     return s
     
 
+# _unicodesuperscriptdigits[4] == '⁴'
+# _unicodesubscriptdigits[4] == '₄'
+#
+# cf. https://en.wikipedia.org/wiki/Unicode_subscripts_and_superscripts
+_unicodesuperscriptdigits = [
+    chr(0x2070), chr(0x00B9), chr(0x00B2), chr(0x00B3), chr(0x2074),
+    chr(0x2075), chr(0x2076), chr(0x2077), chr(0x2078), chr(0x2079),
+]
+_unicodesubscriptdigits = [
+    chr(0x2080+j)
+    for j in range(10)
+]
+
+
+def customdigitscounter(n, digits='0123456789'):
+    base = len(digits)
+    s = ''
+    while n:
+        q, r = n // base, n % base
+        s = digits[r] + s
+        n = q
+    return ''.join(s)
+
+def unicodesuperscriptcounter(n):
+    return customdigitscounter(n, digits=_unicodesuperscriptdigits)
+def unicodesubscriptcounter(n):
+    return customdigitscounter(n, digits=_unicodesubscriptdigits)
 
 
 standard_counter_formatters = {
@@ -73,6 +100,8 @@ standard_counter_formatters = {
     'Roman': lambda n: romancounter(n, lower=False),
     'arabic': lambda n: str(n),
     'fnsymbol': lambda n: fnsymbolcounter(n),
+    'unicodesuperscript': unicodesuperscriptcounter,
+    'unicodesubscript': unicodesubscriptcounter,
 }
 
 

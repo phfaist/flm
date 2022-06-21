@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc import latexnodes
-from pylatexenc.latexnodes import LatexWalkerParseError
+from pylatexenc.latexnodes import LatexWalkerParseError, LatexWalkerParseErrorFormatter
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc import latexwalker
 
@@ -174,8 +174,8 @@ class NodeListFinalizer:
                 if getattr(n, 'llm_is_block_level', None):
                     raise LatexWalkerParseError(
                         msg=
-                        f"Content is not allowed in inline text "
-                        f"(not block level): ‘{n.latex_verbatim()}’",
+                          f"Content is not allowed in inline text "
+                          f"(not block level): ‘{n.latex_verbatim()}’",
                         pos=n.pos,
                     )
                 # simplify any white space!
@@ -367,7 +367,7 @@ class LLMEnvironment:
 
 
     def get_parse_error_message(self, exception_object):
-        return str( exception_object )
+        return LatexWalkerParseErrorFormatter(exception_object).to_display_string()
 
 
 

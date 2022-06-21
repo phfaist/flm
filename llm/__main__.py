@@ -52,13 +52,17 @@ def main(cmdargs=None):
     if args.format == 'text':
 
         fragment_renderer = TextFragmentRenderer()
+
         #footnote_counter_formatter = lambda n: f"[{fmthelpers.alphacounter(n)}]"
         #footnote_counter_formatter = 'fnsymbol'
-        footnote_counter_formatter = lambda n: f"[{fmthelpers.fnsymbolcounter(n)}]"
+        #footnote_counter_formatter = lambda n: f"[{fmthelpers.fnsymbolcounter(n)}]"
+        footnote_counter_formatter = 'unicodesuperscript'
+        #footnote_counter_formatter = lambda n: f"⁽{fmthelpers.unicodesuperscriptcounter(n)}⁾"
 
     elif args.format == 'html':
 
         fragment_renderer = HtmlFragmentRenderer()
+
         footnote_counter_formatter = None # use default
 
     else:
