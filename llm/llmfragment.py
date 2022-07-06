@@ -62,7 +62,8 @@ class LLMFragment:
                     self.environment,
                     standalone_mode=self.standalone_mode,
                     is_block_level=self.is_block_level,
-                    what=self.what
+                    what=self.what,
+                    resource_info=self.resource_info,
                 )
         except latexnodes.LatexWalkerParseError as e:
             if not self.silent:

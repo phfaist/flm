@@ -465,10 +465,10 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
             width_pt, height_pt = graphics_resource.physical_dimensions
 
-            if graphics_resource.type == 'raster':
+            if graphics_resource.graphics_type == 'raster':
                 width_pt *= self.graphics_raster_magnification
                 height_pt *= self.graphics_raster_magnification
-            elif graphics_resource.type == 'vector':
+            elif graphics_resource.graphics_type == 'vector':
                 width_pt *= self.graphics_vector_magnification
                 height_pt *= self.graphics_vector_magnification
 

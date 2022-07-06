@@ -381,6 +381,36 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote
 
 
 
+    def test_inner_math_mode_changes(self):
+        
+        environ = LLMStandardEnvironment()
+
+        frag1 = environ.make_fragment(
+            r"""
+Here is a display equation:
+\begin{align}
+  S_1 &= I\,Z\,X\,X\,Z\ ;  \nonumber\\
+  S_2, \ldots, S_4 &= \text{cyclical permutations of \(S_1\)}\ .
+\end{align}
+""".lstrip(),
+            is_block_level=True
+        )
+        doc = environ.make_document(frag1.render)
+
+        fr = HtmlFragmentRenderer()
+        result, _ = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result,
+            r"""
+<p>Here is a display equation: <span class="display-math env-align">\begin{align}
+  S_1 &amp;= I\,Z\,X\,X\,Z\ ;  \nonumber\\
+  S_2, \ldots, S_4 &amp;= \text{cyclical permutations of \(S_1\)}\ .
+\end{align}</span></p>
+""".strip()
+        )
+
+
 
 
 

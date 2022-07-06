@@ -265,7 +265,11 @@ class CiteMacro(LLMMacroSpecBase):
                 )
                 show_inline_content_llm = endnote.formatted_inner_counter_value_llm
             else:
-                citation_content_llm = cite_mgr.get_citation_content_llm
+                citation_content_llm = cite_mgr.get_citation_content_llm(
+                    citation_key_prefix,
+                    citation_key,
+                    resource_info=resource_info
+                )
                 show_inline_content_llm = citation_content_llm
 
             # don't use endnotes_mgr.render_endnote_mark(endnote) because it

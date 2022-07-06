@@ -356,7 +356,7 @@ class LLMEnvironment:
 
     # ---
 
-    def make_document(self, render_callback):
+    def make_document(self, render_callback, **kwargs):
         r"""
         Instantiates a :py:class:`LLMDocument` object with the relevant arguments
         (environment instance, feature objects).  This method also calls the
@@ -367,6 +367,7 @@ class LLMEnvironment:
         doc = LLMDocument(
             render_callback,
             environment=self,
+            **kwargs
         )
         doc.initialize()
         return doc

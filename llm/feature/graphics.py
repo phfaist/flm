@@ -21,6 +21,7 @@ class GraphicsResource:
     ):
         super().__init__()
         self.src_url = src_url
+        self.graphics_type = graphics_type
         self.dpi = dpi
         self.pixel_dimensions = pixel_dimensions
         self.physical_dimensions = physical_dimensions
