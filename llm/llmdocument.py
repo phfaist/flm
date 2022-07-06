@@ -1,7 +1,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from .fragmentrenderer import LLMRenderContext
+from .llmrendercontext import LLMRenderContext
 
 
 class LLMDocumentRenderContext(LLMRenderContext):
@@ -14,10 +14,7 @@ class LLMDocumentRenderContext(LLMRenderContext):
               else (feature_name, None) )
             for feature_name, fdm in self.feature_document_managers
         ]
-        self.feature_render_managers_by_name = {
-            feature_name: frm
-            for feature_name, frm in self.feature_render_managers
-        }
+        self.feature_render_managers_by_name = dict(self.feature_render_managers)
 
         # flags and internal counters for delayed content
 
@@ -48,20 +45,33 @@ class LLMDocumentRenderContext(LLMRenderContext):
 
 class LLMDocument:
 
-    def __init__(self,
-                 render_callback,
-                 environment,
-                 features=None):
+    def __init__(
+            self,
+            render_callback,
+            environment,
+            enable_features=None,
+            feature_document_options=None,
+    ):
         super().__init__()
 
         # set up environment, callback function, fragment_renderer
         self.environment = environment
         self.render_callback = render_callback
 
-        # set up feature managers
-        if not features:
-            features = []
-        self.features = features
+        # set up features & feature document managers
+        if enable_features is None:
+            self.features = list( environment.features )
+        else:
+            self.features = [
+                environment.feature(feature_name)
+                for feature_name in enable_features
+            ]
+
+        logger.debug("LLMDocument constructor, features = %r", self.features)
+
+        if feature_document_options is None:
+            feature_document_options = {}
+        self.feature_document_options = feature_document_options
 
         self.feature_document_managers = [
             ( (f.feature_name, f.DocumentManager(f, self))
@@ -69,16 +79,18 @@ class LLMDocument:
               else (f.feature_name, None) )
             for f in self.features
         ]
-        self.feature_document_managers_by_name = {
-            feature_name: fdm
-            for feature_name, fdm in self.feature_document_managers
-        }
+        self.feature_document_managers_by_name = dict(self.feature_document_managers)
+
+        logger.debug("LLMDocument constructor, instantiated feature document managers = %r",
+                     self.feature_document_managers)
 
     def initialize(self):
+        logger.debug("LLMDocument's initialize() called")
         # initialize our feature document managers
         for feature_name, feature_document_manager in self.feature_document_managers:
             if feature_document_manager is not None:
-                feature_document_manager.initialize()
+                feature_options = self.feature_document_options.get(feature_name, {})
+                feature_document_manager.initialize( **feature_options )
 
     def supports_feature(self, feature_name):
         return ( feature_name in self.feature_document_managers_by_name )
@@ -86,27 +98,33 @@ class LLMDocument:
     def feature_document_manager(self, feature_name):
         return self.feature_document_managers_by_name[feature_name]
 
-    def make_render_context(self, fragment_renderer):
+    def make_render_context(self, fragment_renderer, feature_render_options=None):
         # create the render context
         render_context = LLMDocumentRenderContext(
             self,
             fragment_renderer,
-            self.feature_document_managers
+            self.feature_document_managers,
         )
         # and initialize our feature render managers
+        if feature_render_options is None:
+            feature_render_options = {}
         for feature_name, feature_render_manager in render_context.feature_render_managers:
             if feature_render_manager is not None:
-                feature_render_manager.initialize()
+                feature_options = feature_render_options.get(feature_name, {})
+                feature_render_manager.initialize(**feature_options)
         return render_context
 
-    def render(self, fragment_renderer):
+    def render(self, fragment_renderer, feature_render_options=None):
         r"""
         ...........
         """
         logger.debug("document render()")
 
-        render_context = self.make_render_context(fragment_renderer)
-        
+        render_context = self.make_render_context(
+            fragment_renderer,
+            feature_render_options=feature_render_options
+        )
+
         # first pass render or render w/o any delayed content
         value = self.render_callback(render_context)
         if value is None:

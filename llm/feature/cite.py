@@ -42,25 +42,30 @@ class FeatureExternalPrefixedCitations(Feature):
 
     feature_name = 'citations'
 
+    use_endnotes = True
+
     class DocumentManager(Feature.DocumentManager):
-        def initialize(self):
-            endnotes_mgr = self.doc.feature_document_manager('endnotes')
-            self.endnote_category = CitationEndnoteCategory(
-                counter_formatter=self.feature.counter_formatter,
-                citation_delimiters=self.feature.citation_delimiters,
-            )
-            endnotes_mgr.add_endnote_category( self.endnote_category )
+        def initialize(self, use_endnotes=None):
+            if use_endnotes is not None:
+                self.use_endnotes = use_endnotes
+            else:
+                self.use_endnotes = self.feature.use_endnotes
+
+            if self.use_endnotes:
+                endnotes_mgr = self.doc.feature_document_manager('endnotes')
+                self.endnote_category = CitationEndnoteCategory(
+                    counter_formatter=self.feature.counter_formatter,
+                    citation_delimiters=self.feature.citation_delimiters,
+                )
+                endnotes_mgr.add_endnote_category( self.endnote_category )
 
     class RenderManager(Feature.RenderManager):
 
         def initialize(self):
             self.citation_endnotes = {}
+            self.use_endnotes = self.feature_document_manager.use_endnotes
 
-        def get_citation_endnote(self, cite_prefix, cite_key, *, resource_info):
-            endnotes_mgr = self.render_context.feature_render_manager('endnotes')
-
-            if (cite_prefix, cite_key) in self.citation_endnotes:
-                return self.citation_endnotes[(cite_prefix, cite_key)]
+        def get_citation_content_llm(self, cite_prefix, cite_key, *, resource_info):
 
             # retrieve citation from citations provider --
             citation_llm_text = \
@@ -72,10 +77,25 @@ class FeatureExternalPrefixedCitations(Feature):
             citation_llm = self.render_context.doc.environment.make_fragment(
                 citation_llm_text,
                 is_block_level=False,
+                standalone_mode=True,
                 what=f"Citation text for {cite_prefix}:{cite_key}",
             )
 
             logger.debug("Got citation content LLM nodelist = %r", citation_llm.nodes)
+
+            return citation_llm
+            
+
+        def get_citation_endnote(self, cite_prefix, cite_key, *, resource_info):
+            endnotes_mgr = None
+            if self.use_endnotes:
+                endnotes_mgr = self.render_context.feature_render_manager('endnotes')
+
+            if (cite_prefix, cite_key) in self.citation_endnotes:
+                return self.citation_endnotes[(cite_prefix, cite_key)]
+
+            citation_llm = self.get_citation_content_llm(cite_prefix, cite_key,
+                                                         resource_info=resource_info)
 
             endnote = endnotes_mgr.add_endnote(
                 category_name='citation', 
@@ -84,7 +104,9 @@ class FeatureExternalPrefixedCitations(Feature):
                 ref_label=cite_key,
             )
 
-            # also add formatted inner counter text (e.g., "1" for citaiton "[1]")
+            # also add a custom field, the formatted inner counter text (e.g.,
+            # "1" for citation "[1]").  It'll be useful for combining a citation
+            # number with an optional text as in [31; Theorem 4].
             endnote.formatted_inner_counter_value_llm = \
                 self.render_context.doc.environment.make_fragment(
                     self.feature_document_manager.endnote_category.inner_counter_formatter_fn(
@@ -111,6 +133,14 @@ class FeatureExternalPrefixedCitations(Feature):
         self.counter_formatter = counter_formatter
         self.citation_delimiters = citation_delimiters
         self.citation_optional_text_separator = citation_optional_text_separator
+
+    def set_external_citations_provider(self, external_citations_provider):
+        if self.external_citations_provider is not None:
+            logger.warning(
+                "FeatureExternalPrefixedCitations.set_external_citations_provider(): "
+                "There is already an external refs resolver set.  It will be replaced."
+            )
+        self.external_citations_provider = external_citations_provider
 
     def add_latex_context_definitions(self):
         return {
@@ -224,11 +254,19 @@ class CiteMacro(LLMMacroSpecBase):
                 )
                 continue
 
-            endnote = cite_mgr.get_citation_endnote(
-                citation_key_prefix,
-                citation_key,
-                resource_info=resource_info
-            )
+            endnote = None
+            citation_content_llm = None
+            show_inline_content_llm = None
+            if cite_mgr.use_endnotes:
+                endnote = cite_mgr.get_citation_endnote(
+                    citation_key_prefix,
+                    citation_key,
+                    resource_info=resource_info
+                )
+                show_inline_content_llm = endnote.formatted_inner_counter_value_llm
+            else:
+                citation_content_llm = cite_mgr.get_citation_content_llm
+                show_inline_content_llm = citation_content_llm
 
             # don't use endnotes_mgr.render_endnote_mark(endnote) because it
             # can't render the optional citation text.  Form the citation mark
@@ -244,9 +282,7 @@ class CiteMacro(LLMMacroSpecBase):
                         parsing_state=node.parsing_state,
                     )
                 )
-            cite_content_list_of_nodes += list(
-                endnote.formatted_inner_counter_value_llm.nodes
-            )
+            cite_content_list_of_nodes += list( show_inline_content_llm.nodes )
             if optional_cite_extra_nodelist is not None:
                 cite_content_list_of_nodes.append(
                     node.latex_walker.make_node(
@@ -271,20 +307,30 @@ class CiteMacro(LLMMacroSpecBase):
                     )
                 )
 
-            endnote_link_href = f"#{endnote.category_name}-{endnote.number}"
-            full_cite_mark = render_context.fragment_renderer.render_link(
-                'endnote',
-                endnote_link_href,
-                display_nodelist=node.latex_walker.make_nodelist(
-                    cite_content_list_of_nodes,
-                    parsing_state=node.parsing_state,
-                ),
-                render_context=render_context,
-                annotations=['endnote', endnote.category_name],
-            )
+            if cite_mgr.use_endnotes:
+                endnote_link_href = f"#{endnote.category_name}-{endnote.number}"
+                full_cite_mark = render_context.fragment_renderer.render_link(
+                    'endnote',
+                    endnote_link_href,
+                    display_nodelist=node.latex_walker.make_nodelist(
+                        cite_content_list_of_nodes,
+                        parsing_state=node.parsing_state,
+                    ),
+                    render_context=render_context,
+                    annotations=['endnote', endnote.category_name],
+                )
 
-            s_items.append(
-                full_cite_mark
-            )
+                s_items.append(
+                    full_cite_mark
+                )
+            else:
+                full_inline_citation = render_context.fragment_renderer.render_nodelist(
+                    cite_content_list_of_nodes,
+                    render_context
+                )
+
+                s_items.append(
+                    full_inline_citation
+                )
 
         return fragment_renderer.render_join(s_items)

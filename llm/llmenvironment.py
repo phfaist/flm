@@ -233,6 +233,7 @@ class LLMLatexWalker(latexwalker.LatexWalker):
                  parsing_state_event_handler=None,
                  standalone_mode=False,
                  resource_info=None,
+                 what=None,
                  **kwargs):
 
         super().__init__(
@@ -254,6 +255,8 @@ class LLMLatexWalker(latexwalker.LatexWalker):
         # user custom additional information that can be useful to locate
         # additional resources.
         self.resource_info = resource_info
+        
+        self.what = what
 
         self._parsing_state_event_handler = parsing_state_event_handler
 
@@ -318,10 +321,13 @@ class LLMEnvironment:
             )
 
 
+    def feature(self, feature_name):
+        return self.features_by_name[feature_name]
+
 
     parsing_state_event_handler = None
 
-    def make_latex_walker(self, llm_text, *, standalone_mode, resource_info, ):
+    def make_latex_walker(self, llm_text, *, standalone_mode, resource_info, what=None):
 
         logger.debug("Parsing state walker event handler = %r",
                      self.parsing_state_event_handler,)
@@ -334,6 +340,7 @@ class LLMEnvironment:
             llm_environment=self,
             standalone_mode=standalone_mode,
             resource_info=resource_info,
+            what=what,
             parsing_state_event_handler=self.parsing_state_event_handler,
         )
 
@@ -360,7 +367,6 @@ class LLMEnvironment:
         doc = LLMDocument(
             render_callback,
             environment=self,
-            features=self.features,
         )
         doc.initialize()
         return doc

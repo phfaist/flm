@@ -5,9 +5,29 @@ from pylatexenc import latexnodes
 import pylatexenc.latexnodes.parsers as latexnodes_parsers
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
-from .fragmentrenderer import LLMStandaloneModeRenderContext
+from .llmrendercontext import LLMStandaloneModeRenderContext
+
 
 class LLMFragment:
+    r"""
+    A fragment of LLM-formatted code.
+
+    A LLM fragment is intended to later be inserted in a document so that it can
+    be rendered into the desired output format (HTML, plain text).  If the
+    fragment is *standalone* (`standalone_mode=True`), then some LLM features
+    are disabled (typically, for instance, cross-references) and the fragment
+    can be rendered directly on its own without inserting it in a document, see
+    :py:meth:`render_standalone()`.
+
+    .....................
+
+    The argument `resource_info` can be set to any custom object that can help
+    locate resources called by LLM text.  For instance, a `\includegraphics{}`
+    call might wish to look for graphics in the same filesystem folder as a file
+    that contained the LLM code; the `resource_info` object can be used to store
+    the filesystem folder of the LLM code forming this fragment.
+    """
+
     def __init__(
             self,
             llm_text,
@@ -37,10 +57,13 @@ class LLMFragment:
 
         try:
             self.latex_walker, self.nodes = \
-                LLMFragment.parse(self.llm_text,
-                                  self.environment,
-                                  standalone_mode=self.standalone_mode,
-                                  is_block_level=self.is_block_level)
+                LLMFragment.parse(
+                    self.llm_text,
+                    self.environment,
+                    standalone_mode=self.standalone_mode,
+                    is_block_level=self.is_block_level,
+                    what=self.what
+                )
         except latexnodes.LatexWalkerParseError as e:
             if not self.silent:
                 error_message = self.environment.get_parse_error_message(e)
@@ -71,12 +94,13 @@ class LLMFragment:
 
     @classmethod
     def parse(cls, llm_text, environment, *,
-              standalone_mode=False, resource_info=None, is_block_level=None):
+              standalone_mode=False, resource_info=None, is_block_level=None, what=None):
 
         latex_walker = environment.make_latex_walker(
             llm_text,
             resource_info=resource_info,
             standalone_mode=standalone_mode,
+            what=what,
         )
 
         parsing_state = latex_walker.make_parsing_state(is_block_level=is_block_level)

@@ -136,6 +136,7 @@ class FeatureEndnotes(Feature):
             self.categories = list(self.feature.base_categories)
             self.categories_by_name = { c.category_name : c
                                         for c in self.categories }
+            logger.debug("Initialized document endnote categories -- %r", self.categories)
             
         def add_endnote_category(self, endnote_category):
             if endnote_category.category_name in self.categories_by_name:

@@ -76,7 +76,13 @@ class FeatureRefs(Feature):
 
     def __init__(self, external_ref_resolver=None):
         super().__init__()
-        # e.g., a different code page in the EC zoo!
+        # e.g., resolve a reference to a different code page in the EC zoo!
+        self.external_ref_resolver = external_ref_resolver
+
+    def set_external_ref_resolver(self, external_ref_resolver):
+        if self.external_ref_resolver is not None:
+            logger.warning("FeatureRefs.set_external_ref_resolver(): There is already "
+                           "an external refs resolver set.  It will be replaced.")
         self.external_ref_resolver = external_ref_resolver
 
     def add_latex_context_definitions(self):

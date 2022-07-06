@@ -172,7 +172,8 @@ we can also have an equation, like this:
             )
 
         fr = HtmlFragmentRenderer()
-        doc = LLMDocument(render_fn, environ)
+        doc = LLMDocument(render_fn, environ, [])
+        doc.initialize()
 
         result, _ = doc.render(fr)
         print(result)
@@ -213,6 +214,7 @@ we can also have an equation, like this:
 
         fr = TextFragmentRenderer()
         doc = LLMDocument(render_fn, environ)
+        doc.initialize()
 
         result, _ = doc.render(fr)
         print(result)
@@ -277,8 +279,8 @@ we can also have an equation, like this: \begin{align}
         doc = LLMDocument(
             render_fn,
             environ,
-            environ.features,
         )
+        doc.initialize()
 
         result, _ = doc.render(fr)
         print(result)
@@ -331,6 +333,7 @@ we can also have an equation, like this:
 
         fr = HtmlFragmentRenderer()
         doc = LLMDocument(render_fn, environ)
+        doc.initialize()
 
         result, _ = doc.render(fr)
         print(result)
