@@ -234,6 +234,8 @@ class FeatureEndnotes(Feature):
                             annotations=None,
                             include_headings_at_level=None,
                             set_headings_target_ids=False,
+                            endnotes_heading_title=None,
+                            endnotes_heading_level=1,
                             ):
 
             render_context = self.render_context
@@ -248,7 +250,7 @@ class FeatureEndnotes(Feature):
                     heading_nodelist = self.render_context.doc.environment.make_fragment(
                         encat.heading_title,
                         is_block_level=False,
-                        what=f"{encat.category_name} counter",
+                        what=f"{encat.category_name} heading title",
                     )
                     heading_target_id = None
                     if set_headings_target_ids:
@@ -264,6 +266,23 @@ class FeatureEndnotes(Feature):
                 blocks.append(
                     self.render_endnotes_category(encat)
                 )
+
+            if endnotes_heading_title is not None:
+                heading_title_nodelist = \
+                    self.render_context.doc.environment.make_fragment(
+                        endnotes_heading_title,
+                        is_block_level=False,
+                        what=f"endnotes heading title",
+                    )
+                blocks.insert(
+                    0,
+                    fragment_renderer.render_heading(
+                        heading_title_nodelist.nodes,
+                        render_context=self.render_context,
+                        heading_level=endnotes_heading_level,
+                    )
+                )
+                
 
             return fragment_renderer.render_semantic_block(
                 fragment_renderer.render_join_blocks( blocks ),
