@@ -314,7 +314,7 @@ class _NodeListTruncator:
         my_length = len(node.latex_verbatim())
         if my_length < (self.chars - self.count):
             # enough room remaining -- keep going
-            self.count += estimated_length
+            self.count += my_length
             return None
 
         return True # True == stop here, don't include any node
