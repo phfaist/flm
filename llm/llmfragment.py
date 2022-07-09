@@ -1,3 +1,4 @@
+import re
 import logging
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,11 @@ class LLMFragment:
         return latex_walker, nodes
 
 
+    def start_node_visitor(self, node_visitor):
+        node_visitor.start(self.nodes)
+
+
+
     def whitespace_stripped(self):
         new_fragment = self.environment.make_fragment(
             self.llm_text.strip(),
@@ -165,7 +171,209 @@ class LLMFragment:
             **self._attributes(what=f"{self.what}:first-paragraph")
         )
 
+    def truncate_to(self, chars, min_chars=None, truncation_marker=' …'):
+
+        trunc = _NodeListTruncator(chars=chars, min_chars=min_chars,
+                                   truncation_marker=truncation_marker)
+
+        newnodes = trunc.truncate_node_list(self.nodes)
+
+        return self.environment.make_fragment(
+            llm_text=newnodes,
+            **self._attributes(what=f"{self.what}:tr-{chars}")
+        )
 
 
-    def start_node_visitor(self, node_visitor):
-        node_visitor.start(self.nodes)
+
+# ----------------------------
+
+
+
+
+class _NodeListTruncator:
+    def __init__(self, chars, min_chars=None, truncation_marker=None):
+        super().__init__()
+        self.chars = chars
+        self.min_chars = min_chars
+        self.truncation_marker = truncation_marker
+
+        self.count = 0
+
+    def truncate_node_list(self, nodes):
+        self.count = 0
+        newnodes = self.collect_nodes(nodes)
+        if newnodes is None:
+            return nodes # no truncation was necessary
+        return newnodes
+
+    def collect_nodes(self, nodes):
+        for j, node in enumerate(nodes):
+            newnode = self.collect_node(node)
+            if newnode is not None:
+                newnodes = nodes[:j]
+                if newnode is not True: # True == "stop here but don't include this node"
+                    newnodes += [newnode]
+                return nodes.latex_walker.make_nodelist(
+                    newnodes,
+                    parsing_state=nodes.parsing_state,
+                )
+        # all ok
+        return None
+
+    def collect_node(self, node):
+        if node.isNodeType(latexnodes_nodes.LatexGroupNode):
+            return self.collect_nodes_groupnode(node)
+
+        if node.isNodeType(latexnodes_nodes.LatexMacroNode):
+            return self.collect_nodes_macronode(node)
+
+        if node.isNodeType(latexnodes_nodes.LatexEnvironmentNode):
+            return self.collect_nodes_environmentnode(node)
+
+        if node.isNodeType(latexnodes_nodes.LatexSpecialsNode):
+            return self.collect_nodes_specialsnode(node)
+
+        return self.collect_nodes_simplenode(node)
+
+    def collect_nodes_groupnode(self, node):
+        groupnodelist = self.collect_nodes(node.nodelist)
+        if groupnodelist is None:
+            # everything collected ok, with room to spare
+            return
+        # we had to stop at some point --> need new group node here.
+        groupnode = node.latex_walker.make_node(
+            latexnodes_nodes.LatexGroupNode,
+            delimiters=node.delimiters,
+            nodelist=groupnodelist,
+            parsing_state=node.parsing_state,
+            pos=node.pos,
+            pos_end=node.pos_end
+        )
+        return groupnode
+
+
+    def collect_node_argument(self, node):
+        if isinstance(node, latexnodes_nodes.LatexNodeList):
+            return self.collect_nodes(node)
+        return self.collect_node(node)
+
+    def collect_nodes_macronode(self, node):
+
+        # let's try and recognize some known cases
+        if hasattr(node.spec, '_llm_main_text_argument'):
+            main_text_argname = node.spec._llm_main_text_argument
+            # find which argument is the one that counts, by name
+            arg_j = next(j for j, arg in enumerate(node.spec.arguments_spec_list)
+                         if arg.argname == main_text_argname)
+            # descend into the node's argument
+            text_arg = node.nodeargd.argnlist[arg_j]
+            text_arg_new = self.collect_node_argument(text_arg)
+            if text_arg_new:
+                new_argnlist = \
+                    node.nodeargd.argnlist[:arg_j] + [text_arg_new] \
+                    + node.nodeargd.argnlist[arg_j+1:]
+                if text_arg_new is not None:
+                    # new macro node with shortened argument
+                    return node.latex_walker.make_node(
+                        latexnodes_nodes.LatexMacroNode,
+                        macroname=node.macroname,
+                        spec=node.spec,
+                        nodeargd=latexnodes.ParsedArguments(
+                            arguments_spec_list=node.nodeargd.arguments_spec_list,
+                            argnlist=new_argnlist,
+                        ),
+                        macro_post_space=node.macro_post_space,
+                        parsing_state=node.parsing_state,
+                        pos=node.pos,
+                        pos_end=node.pos_end
+                    )
+
+        # all ok
+        return None
+
+    def collect_nodes_environmentnode(self, node):
+        nodelist = self.collect_nodes(node.nodelist)
+        if nodelist is None:
+            # everything collected ok, with room to spare
+            return
+        # we had to stop at some point --> need new group node here.
+        newnode = node.latex_walker.make_node(
+            latexnodes_nodes.LatexEnvironmentNode,
+            environmentname=node.environmentname,
+            nodeargd=node.nodeargd,
+            nodelist=nodelist,
+            parsing_state=node.parsing_state,
+            pos=node.pos,
+            pos_end=node.pos_end
+        )
+        return newnode        
+
+    def collect_nodes_specialsnode(self, node):
+        # no idea how to deal with this in general---let's simply inspect the
+        # entire source code for this specials including arguments
+        my_length = len(node.latex_verbatim())
+        if my_length < (self.chars - self.count):
+            # enough room remaining -- keep going
+            self.count += estimated_length
+            return None
+
+        return True # True == stop here, don't include any node
+
+    def collect_nodes_simplenode(self, node):
+
+        estimated_length = self.estimate_simple_node_char_count(node)
+
+        if estimated_length < (self.chars - self.count):
+            # enough room remaining -- keep going
+            self.count += estimated_length
+            return None
+        
+        # not enough room. Let's see if we can truncate this.
+        if node.isNodeType(latexnodes_nodes.LatexCharsNode):
+            # we can truncate the string?
+            chars = node.chars
+            last_break_pos = 0
+            for j, c in enumerate(chars):
+                if not c.isalpha():
+                    last_break_pos = j
+                if self.count + j > self.chars:
+                    if self.min_chars is None \
+                       or self.count + last_break_pos >= self.min_chars:
+                        # stop here
+                        break
+                continue
+
+            newchars = chars[:last_break_pos] + self.truncation_marker
+
+            new_node = node.latex_walker.make_node(
+                latexnodes_nodes.LatexCharsNode,
+                chars=newchars,
+                parsing_state=node.parsing_state,
+                pos=node.pos,
+                pos_end=node.pos_end,
+            )
+            return new_node
+
+        # We can't split this node.  If we don't have enough chars left but
+        # didn't make the minimum include this node and we're done.
+        if self.count < self.min_chars:
+            # include this node and stop here
+            return node
+            
+
+
+    def estimate_simple_node_char_count(self, node):
+        
+        if node.isNodeType(latexnodes_nodes.LatexCharsNode):
+            return len(node.chars)
+
+        if node.isNodeType(latexnodes_nodes.LatexMathNode):
+            # let's use a brutally terrible model that on average, we can
+            # estimate the effective length of a math environment in effective
+            # number of character widths as 2/3 of the number of chars in the
+            # math's source
+            return len(node.latex_verbatim()) * 2 // 3
+
+        if node.isNodeType(latexnodes_nodes.LatexCommentNode):
+            return 0
+

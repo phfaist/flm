@@ -167,6 +167,10 @@ class TextFormatMacro(LLMMacroSpecBase):
 
     allowed_in_standalone_mode = True
 
+    # internal, used when truncating fragments to a certain number of characters
+    # (see fragment.truncate_to())
+    _llm_main_text_argument = 'text'
+
     def __init__(self, macroname, *, text_formats):
         super().__init__(
             macroname=macroname,
@@ -242,6 +246,10 @@ class HeadingMacro(LLMMacroSpecBase):
 
     allowed_in_standalone_mode = True
 
+    # internal, used when truncating fragments to a certain number of characters
+    # (see fragment.truncate_to())
+    _llm_main_text_argument = 'text'
+
     def __init__(self, macroname, *, heading_level=1, inline_heading=False):
         r"""
         Heading level is to be coordinated with fragment renderer and LLM
@@ -296,6 +304,11 @@ class HrefHyperlinkMacro(LLMMacroSpecBase):
         )
         self.command_arguments = [ c.strip('[]') for c in command_arguments ]
         self.ref_type = ref_type
+
+        if 'display_text' in command_arguments:
+            # internal, used when truncating fragments to a certain number of
+            # characters (see fragment.truncate_to())
+             self._llm_main_text_argument = 'display_text'
 
     @classmethod
     def _get_arguments_spec_list(cls, command_arguments):
