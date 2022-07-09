@@ -257,7 +257,10 @@ def standard_features(
         )
     if endnotes:
         endnote_categories = [
-            EndnoteCategory('footnote', footnote_counter_formatter, 'footnote'),
+            EndnoteCategory(category_name='footnote',
+                            counter_formatter=footnote_counter_formatter,
+                            heading_title='Footnotes',
+                            endnote_command='footnote'),
         ]
         features.append(
             FeatureEndnotes(categories=endnote_categories)

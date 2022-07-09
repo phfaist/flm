@@ -26,12 +26,14 @@ class EndnoteCategory:
     mandatory argument, the contents of the endnote, think like
     `\footnote{...}`.  Leave this to `None` to not define such a macro.
     """
-    def __init__(self, category_name, counter_formatter, endnote_command=None):
+    def __init__(self, category_name, counter_formatter, heading_title,
+                 endnote_command=None):
         super().__init__()
         self.category_name = category_name
         if not callable(counter_formatter):
             counter_formatter = fmthelpers.standard_counter_formatters[counter_formatter]
         self.counter_formatter = counter_formatter
+        self.heading_title = heading_title
         self.endnote_command = endnote_command
 
 
@@ -227,19 +229,46 @@ class FeatureEndnotes(Feature):
             )
 
 
-        def render_endnotes(self, target_id='endnotes'):
+        def render_endnotes(self,
+                            target_id='endnotes',
+                            annotations=None,
+                            include_headings_at_level=None,
+                            set_headings_target_ids=False,
+                            ):
 
             render_context = self.render_context
             fragment_renderer = render_context.fragment_renderer
 
-            blocks = [
-                self.render_endnotes_category(encat)
-                for encat in self.feature_document_manager.categories
-            ]
+            blocks = []
+            for encat in self.feature_document_manager.categories:
+                if not len(self.endnotes[encat.category_name]):
+                    # skip this category rendering, no endnotes
+                    continue
+                if include_headings_at_level is not None:
+                    heading_nodelist = self.render_context.doc.environment.make_fragment(
+                        encat.heading_title,
+                        is_block_level=False,
+                        what=f"{encat.category_name} counter",
+                    )
+                    heading_target_id = None
+                    if set_headings_target_ids:
+                        heading_target_id = f"{target_id}-{encat.category_name}"
+                    blocks.append(
+                        fragment_renderer.render_heading(
+                            heading_nodelist.nodes,
+                            render_context=self.render_context,
+                            heading_level=include_headings_at_level,
+                            target_id=heading_target_id,
+                        )
+                    )
+                blocks.append(
+                    self.render_endnotes_category(encat)
+                )
 
             return fragment_renderer.render_semantic_block(
                 fragment_renderer.render_join_blocks( blocks ),
                 role='endnotes',
+                annotations=annotations,
                 target_id=target_id,
             )
 

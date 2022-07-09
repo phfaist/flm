@@ -34,6 +34,7 @@ class CitationEndnoteCategory(EndnoteCategory):
         super().__init__(
             'citation',
             counter_formatter=full_counter_formatter,
+            heading_title='References',
         )
 
 

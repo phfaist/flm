@@ -139,7 +139,7 @@ class MathEqrefViaMathContent(LLMMacroSpecBase):
             ],
         )
 
-    def render(self, node, render_context):
+    def postprocess_parsed_node(self, node):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             ('ref_target',),
@@ -151,9 +151,16 @@ class MathEqrefViaMathContent(LLMMacroSpecBase):
             ref_type, ref_target = ref_target.split(':', 1)
 
         if ref_type != 'eq':
-            raise ValueError(
-                f"Equation labels must begin with “eq:” (error in ‘\\{node.macroname}’)"
+            raise LatexWalkerParseError(
+                f"Equation labels must begin with “eq:” (error in ‘\\{node.macroname}’)",
+                pos=node.pos
             )
+
+        node.llmarg_ref_type = ref_type
+        node.llmarg_ref_target = ref_target
+
+
+    def render(self, node, render_context):
 
         # simply emit the \eqref{...} call as we got it directly, and let
         # MathJax handle the referencing
