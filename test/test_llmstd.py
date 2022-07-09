@@ -264,12 +264,14 @@ r"""
         )
 
         endnotes_result = str(
-            render_context.feature_render_manager('endnotes').render_endnotes()
+            render_context.feature_render_manager('endnotes').render_endnotes(
+                target_id='my-endnotes'
+            )
         )
         print(endnotes_result)
         self.assertEqual(
             endnotes_result,
-r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote-1">a</dt><dd>It is <span class="textit">true</span>!</dd></dl></div>'''
+r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote-1">a</dt><dd>It is <span class="textit">true</span>!</dd></dl></div>'''
 )
 
 
@@ -317,7 +319,7 @@ r'''<div class="endnotes"><dl class="enumeration footnote-list"><dt id="footnote
         )
 
         endnotes_result = str(
-            render_context.feature_render_manager('endnotes').render_endnotes()
+            render_context.feature_render_manager('endnotes').render_endnotes(target_id=None)
         )
         print(endnotes_result)
         self.assertEqual(

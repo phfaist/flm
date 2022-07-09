@@ -227,7 +227,7 @@ class FeatureEndnotes(Feature):
             )
 
 
-        def render_endnotes(self):
+        def render_endnotes(self, target_id='endnotes'):
 
             render_context = self.render_context
             fragment_renderer = render_context.fragment_renderer
@@ -240,6 +240,7 @@ class FeatureEndnotes(Feature):
             return fragment_renderer.render_semantic_block(
                 fragment_renderer.render_join_blocks( blocks ),
                 role='endnotes',
+                target_id=target_id,
             )
 
 
