@@ -2,7 +2,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
-from pylatexenc.latexnodes import ParsedArgumentsInfo
+from pylatexenc.latexnodes import (
+    LatexWalkerParseError,
+    ParsedArgumentsInfo
+)
 #from pylatexenc import macrospec
 
 from ..llmfragment import LLMFragment
@@ -56,7 +59,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             ref = self.feature.external_ref_resolver.get_ref(
                 ref_type,
                 ref_target,
-                resource_info=resource_info
+                resource_info=resource_info,
             )
             if ref is not None:
                 return ref

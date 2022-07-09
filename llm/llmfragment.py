@@ -41,19 +41,21 @@ class LLMFragment:
     ):
 
         self.llm_text = llm_text
-        self.what = what
-
-        self.is_block_level = is_block_level
-
-        # any additional information that can be useful to locate resources
-        # (e.g., graphics, etc.)
-        self.resource_info = resource_info
-
-        self.standalone_mode = standalone_mode
-
         self.environment = environment
 
+        self.is_block_level = is_block_level
+        self.resource_info = resource_info
+        self.standalone_mode = standalone_mode
+        self.what = what
         self.silent = silent
+
+        if isinstance(llm_text, latexnodes_nodes.LatexNodeList):
+            # We want to initialize a fragment with already-parsed node lists.
+            # This is for internal use only!
+            self.nodes = self.llm_text
+            self.latex_walker = self.nodes.latex_walker
+            self.llm_text = self.nodes.latex_verbatim()
+            return
 
         try:
             self.latex_walker, self.nodes = \
@@ -78,6 +80,18 @@ class LLMFragment:
                 logger.error(f"Error parsing latex-like markup ‘{self.what}’: {e}\n"
                              f"Given text was:\n‘{self.llm_text}’\n\n")
             raise
+
+
+    def _attributes(self, **kwargs):
+        d = dict(
+            is_block_level=self.is_block_level,
+            resource_info=self.resource_info,
+            standalone_mode=self.standalone_mode,
+            silent=self.silent,
+            what=self.what,
+        )
+        d.update(kwargs)
+        return d
 
 
     def render(self, render_context, **kwargs):
@@ -114,6 +128,12 @@ class LLMFragment:
         return latex_walker, nodes
 
 
+    def whitespace_stripped(self):
+        new_fragment = self.environment.make_fragment(
+            self.llm_text.strip(),
+            **self._attributes(what=f"{self.what}:whitespace-stripped")
+        )
+        return new_fragment
 
     def get_first_paragraph(self):
         r"""
@@ -125,10 +145,24 @@ class LLMFragment:
                        and n.specials_chars == '\n\n'),
             max_split=1
         )
+
+        nodelists_paragraphs = [
+            nls_p
+            for nls_p in nodelists_paragraphs
+            if len(nls_p) > 0
+        ]
+
+        if not nodelists_paragraphs:
+            return self
+
+        logger.debug(f"{nodelists_paragraphs[0]=}")
+
+        thenodes = nodelists_paragraphs[0]
+
+        logger.debug(f"First paragraph -> {thenodes=}")
         return self.environment.make_fragment(
-            llm_text=nodelists_paragraphs[0].latex_verbatim(),
-            what=f"{self.what}:first-paragraph",
-            silent=self.silent
+            llm_text=thenodes,
+            **self._attributes(what=f"{self.what}:first-paragraph")
         )
 
 

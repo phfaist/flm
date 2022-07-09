@@ -329,7 +329,10 @@ class CiteMacro(LLMMacroSpecBase):
                 )
             else:
                 full_inline_citation = render_context.fragment_renderer.render_nodelist(
-                    cite_content_list_of_nodes,
+                    node.latex_walker.make_nodelist(
+                        cite_content_list_of_nodes,
+                        parsing_state=node.parsing_state,
+                    ),
                     render_context
                 )
 

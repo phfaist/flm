@@ -40,6 +40,13 @@ class FragmentRenderer:
         don't know if the content is block-level or not.
         """
 
+        if not hasattr(nodelist, 'llm_is_block_level'):
+            logger.debug("The given node list was not parsed & produced by LLM; "
+                         "missing .llm_is_block_level attribute:\n"
+                         f"{nodelist=}")
+            raise ValueError("The given node list was not parsed & produced by LLM; "
+                             "missing .llm_is_block_level attribute")
+
         if is_block_level is None:
             is_block_level = nodelist.llm_is_block_level
 

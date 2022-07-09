@@ -121,6 +121,14 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
 
                     node.llm_float_label['ref_label_prefix'] = ref_label_prefix
                     node.llm_float_label['ref_label'] = ref_label
+
+                    if ref_label_prefix != self.float_type:
+                        raise LatexWalkerParseError(
+                            f"Float's \\label{{...}} must have the "
+                            f"prefix ‘{self.float_type}:’",
+                            pos=n.pos,
+                        )
+
                     continue
 
                 if n.macroname == 'caption':
@@ -347,16 +355,18 @@ class FeatureFloats(Feature):
 
                 refs_mgr = self.render_context.feature_render_manager('refs')
 
-                assert( ref_label_prefix == float_type )
+                if ref_label_prefix is not None and ref_label is not None:
 
-                formatted_ref_llm_text = self.get_formatted_ref_llm_text(float_instance)
+                    assert( ref_label_prefix == float_type )
 
-                refs_mgr.register_reference(
-                    ref_label_prefix,
-                    ref_label,
-                    formatted_ref_llm_text=formatted_ref_llm_text,
-                    target_href=f'#{target_id}',
-                )
+                    formatted_ref_llm_text = self.get_formatted_ref_llm_text(float_instance)
+
+                    refs_mgr.register_reference(
+                        ref_label_prefix,
+                        ref_label,
+                        formatted_ref_llm_text=formatted_ref_llm_text,
+                        target_href=f'#{target_id}',
+                    )
 
             return float_instance
 
