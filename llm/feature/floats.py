@@ -168,10 +168,19 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
             # second time!
             float_instance = node.llm_float_instance
         else:
+            ref_label_prefix = node.llm_float_label['ref_label_prefix']
+            ref_label = node.llm_float_label['ref_label']
+
+            numbered = True
+            if ref_label_prefix is None and ref_label is None:
+                # \label{} omitted -> no numbering
+                numbered = False
+
             float_instance = floats_mgr.register_float(
                 float_type=self.float_type,
-                ref_label_prefix=node.llm_float_label['ref_label_prefix'],
-                ref_label=node.llm_float_label['ref_label'],
+                numbered=numbered,
+                ref_label_prefix=ref_label_prefix,
+                ref_label=ref_label,
                 caption_nodelist=node.llm_float_caption['caption_nodelist'],
                 content_nodelist=node.llm_float_content_nodelist,
             )

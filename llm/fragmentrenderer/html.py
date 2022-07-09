@@ -381,10 +381,14 @@ class HtmlFragmentRenderer(FragmentRenderer):
                 self.wrap_in_tag(
                     'span',
                     self.render_join([
-                        self.render_value(float_instance.float_type_info.float_caption_name),
+                        self.render_value(
+                            float_instance.float_type_info.float_caption_name
+                        ),
                         '&nbsp;',
-                        self.render_nodelist(float_instance.formatted_counter_value_llm.nodes,
-                                             render_context=render_context),
+                        self.render_nodelist(
+                            float_instance.formatted_counter_value_llm.nodes,
+                            render_context=render_context
+                        ),
                     ]),
                     class_names=['float-number'],
                 )

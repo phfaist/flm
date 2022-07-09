@@ -32,14 +32,17 @@ _romancounterchars = (
     (1, "I"),
 )
 
-def romancounter(n, lower=True):
+def romancounter(n, lower=True, zero=''):
     s = ''
-    n -= 1 # start counting at 1
+    if n == 0:
+        return zero
     for romancharvalue, romanchar in _romancounterchars:
         s += romanchar * (n // romancharvalue)
         n = n % romancharvalue
+
     if lower:
         return s.lower()
+
     return s
 
 def Romancounter(n):

@@ -133,6 +133,12 @@ class LLMFragment:
         node_visitor.start(self.nodes)
 
 
+    def __repr__(self):
+        thellmtext = self.llm_text
+        if len(thellmtext) > 50:
+            thellmtext = thellmtext[:49]+'…'
+        return f"<{self.__class__.__name__} {thellmtext!r}>"
+
 
     def whitespace_stripped(self):
         new_fragment = self.environment.make_fragment(
