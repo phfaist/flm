@@ -65,7 +65,7 @@ class EndnoteMacro(LLMMacroSpecBase):
 
         content_nodelist = node_args['endnote_content'].get_content_nodelist()
 
-        logger.debug("Endnote command, content_nodelist = %r", content_nodelist)
+        #logger.debug("Endnote command, content_nodelist = %r", content_nodelist)
 
         if hasattr(node, 'llm_endnote_instance'):
             # for two-pass rendering, don't add a second endnote!
@@ -130,7 +130,7 @@ class FeatureEndnotes(Feature):
                         endnote_category_name=encat.category_name,
                     )
                 )
-        logger.debug("Adding macros: %r", macros)
+        #logger.debug("Adding macros: %r", macros)
         return dict(macros=macros)
 
     class DocumentManager(Feature.DocumentManager):
@@ -138,7 +138,7 @@ class FeatureEndnotes(Feature):
             self.categories = list(self.feature.base_categories)
             self.categories_by_name = { c.category_name : c
                                         for c in self.categories }
-            logger.debug("Initialized document endnote categories -- %r", self.categories)
+            #logger.debug("Initialized document endnote categories -- %r", self.categories)
             
         def add_endnote_category(self, endnote_category):
             if endnote_category.category_name in self.categories_by_name:
@@ -218,7 +218,7 @@ class FeatureEndnotes(Feature):
             def the_target_id_generator_fn(n):
                 return f"{category_name}-{n}"
 
-            logger.debug("Endnotes are = %r", self.endnotes)
+            #logger.debug("Endnotes are = %r", self.endnotes)
 
             return fragment_renderer.render_enumeration(
                 ( en.content_nodelist for en in self.endnotes[category_name] ),
@@ -241,11 +241,16 @@ class FeatureEndnotes(Feature):
             render_context = self.render_context
             fragment_renderer = render_context.fragment_renderer
 
+            has_endnotes = False
+
             blocks = []
             for encat in self.feature_document_manager.categories:
                 if not len(self.endnotes[encat.category_name]):
                     # skip this category rendering, no endnotes
                     continue
+
+                has_endnotes = True
+
                 if include_headings_at_level is not None:
                     heading_nodelist = self.render_context.doc.environment.make_fragment(
                         encat.heading_title,
@@ -265,6 +270,11 @@ class FeatureEndnotes(Feature):
                     )
                 blocks.append(
                     self.render_endnotes_category(encat)
+                )
+
+            if not has_endnotes:
+                return fragment_renderer.render_nothing(
+                    annotations='no-endnotes'
                 )
 
             if endnotes_heading_title is not None:

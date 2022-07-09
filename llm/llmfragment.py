@@ -133,6 +133,9 @@ class LLMFragment:
         node_visitor.start(self.nodes)
 
 
+    def __bool__(self):
+        return len(self.llm_text) > 0
+
     def __repr__(self):
         thellmtext = self.llm_text
         if len(thellmtext) > 50:
@@ -280,7 +283,7 @@ class _NodeListTruncator:
                     + node.nodeargd.argnlist[arg_j+1:]
                 if text_arg_new is not None:
                     # new macro node with shortened argument
-                    return node.latex_walker.make_node(
+                    newmacronode = node.latex_walker.make_node(
                         latexnodes_nodes.LatexMacroNode,
                         macroname=node.macroname,
                         spec=node.spec,
@@ -293,6 +296,10 @@ class _NodeListTruncator:
                         pos=node.pos,
                         pos_end=node.pos_end
                     )
+                    # we need to 'finalize' this node to regenerate all
+                    # necessary meta-information (extra attributes etc.)
+                    newmacronode = node.spec.finalize_node(newmacronode)
+                    return newmacronode
 
         # all ok
         return None
@@ -312,6 +319,7 @@ class _NodeListTruncator:
             pos=node.pos,
             pos_end=node.pos_end
         )
+        newnode = node.spec.finalize_node(newnode)
         return newnode        
 
     def collect_nodes_specialsnode(self, node):

@@ -90,7 +90,7 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
     def postprocess_parsed_node(self, node):
         # parse the node structure right away when finializing the node to try
         # to find any \label{} instruction.
-        logger.debug("finalizing math environment node: node = %r", node)
+        #logger.debug("finalizing float node: node = %r", node)
 
         # find and register child nodes
         node.llm_float_label = dict(ref_label_prefix=None, ref_label=None, label_node=None)

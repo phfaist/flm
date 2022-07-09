@@ -63,7 +63,7 @@ class BlocksBuilder:
             return
         paragraph_nodes = self.pending_paragraph_nodes
         paragraph_nodes = self.finalize_paragraph(paragraph_nodes)
-        logger.debug("Flushing paragraph: %r", paragraph_nodes)
+        #logger.debug("Flushing paragraph: %r", paragraph_nodes)
         self.blocks.append(
             latexnodes_nodes.LatexNodeList(paragraph_nodes)
         )
@@ -96,7 +96,7 @@ class BlocksBuilder:
     def build_blocks(self):
         latexnodelist = self.latexnodelist
 
-        logger.debug("Decomposing node list into blocks -- %r", latexnodelist)
+        #logger.debug("Decomposing node list into blocks -- %r", latexnodelist)
 
         assert( len(self.blocks) == 0 )
 
@@ -115,12 +115,12 @@ class BlocksBuilder:
                 if n_is_block_heading:
                     # block break, but add the item to be included in a new
                     # paragraph instead of on its own
-                    logger.debug("New block heading node: %r", n)
+                    #logger.debug("New block heading node: %r", n)
                     self.pending_paragraph_nodes.append(n)
                     continue
 
                 # add the node as its own block
-                logger.debug("New node block: %r", n)
+                #logger.debug("New node block: %r", n)
                 self.blocks.append(n)
                 continue
 
@@ -329,8 +329,8 @@ class LLMEnvironment:
 
     def make_latex_walker(self, llm_text, *, standalone_mode, resource_info, what=None):
 
-        logger.debug("Parsing state walker event handler = %r",
-                     self.parsing_state_event_handler,)
+        # logger.debug("Parsing state walker event handler = %r",
+        #              self.parsing_state_event_handler,)
 
         latex_walker = LLMLatexWalker(
             llm_text=llm_text,

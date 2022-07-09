@@ -55,6 +55,9 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         if (ref_type, ref_target) in self.ref_labels:
             return self.ref_labels[(ref_type, ref_target)]
 
+        logger.debug(f"Couldn't find {(ref_type, ref_target)} in current document "
+                     f"labels; will query external ref resolver.  {self.ref_labels=}")
+
         if self.feature.external_ref_resolver is not None:
             ref = self.feature.external_ref_resolver.get_ref(
                 ref_type,

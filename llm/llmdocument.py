@@ -67,7 +67,7 @@ class LLMDocument:
                 for feature_name in enable_features
             ]
 
-        logger.debug("LLMDocument constructor, features = %r", self.features)
+        #logger.debug("LLMDocument constructor, features = %r", self.features)
 
         if feature_document_options is None:
             feature_document_options = {}
@@ -81,11 +81,11 @@ class LLMDocument:
         ]
         self.feature_document_managers_by_name = dict(self.feature_document_managers)
 
-        logger.debug("LLMDocument constructor, instantiated feature document managers = %r",
-                     self.feature_document_managers)
+        #logger.debug("LLMDocument constructor, instantiated feature document managers = %r",
+        #             self.feature_document_managers)
 
     def initialize(self):
-        logger.debug("LLMDocument's initialize() called")
+        #logger.debug("LLMDocument's initialize() called")
         # initialize our feature document managers
         for feature_name, feature_document_manager in self.feature_document_managers:
             if feature_document_manager is not None:
@@ -118,7 +118,7 @@ class LLMDocument:
         r"""
         ...........
         """
-        logger.debug("document render()")
+        #logger.debug("document render()")
 
         render_context = self.make_render_context(
             fragment_renderer,
@@ -131,7 +131,7 @@ class LLMDocument:
             logger.warning("The LLM document render callback function returned `None`! Did "
                            "you forget a ‘return ...’ instruction?")
 
-        logger.debug("first pass -> value = %r", value)
+        #logger.debug("first pass -> value = %r", value)
 
         # do any necessary processing required by the feature managers, in the
         # order they were specified
@@ -181,7 +181,7 @@ class LLMDocument:
             render_context.two_pass_mode_is_second_pass = True
             value = self.render_callback(render_context)
 
-        logger.debug("ok, got final_value = %r", value)
+        #logger.debug("document render final_value = %r", value)
 
         for feature_name, feature_render_manager in render_context.feature_render_managers:
             if feature_render_manager is not None:

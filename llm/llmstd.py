@@ -36,7 +36,7 @@ class LLMLatexWalkerParsingStateEventHandler(
 ):
 
     def enter_math_mode(self, math_mode_delimiter=None, trigger_token=None):
-        logger.debug("LLMWalkerEventsParsingStateDeltasProvider.enter_math_mode !")
+        #logger.debug("LLMWalkerEventsParsingStateDeltasProvider.enter_math_mode !")
         return macrospec.ParsingStateDeltaExtendLatexContextDb(
             set_attributes=dict(
                 in_math_mode=True,
@@ -50,7 +50,7 @@ class LLMLatexWalkerParsingStateEventHandler(
         )
 
     def leave_math_mode(self, trigger_token=None):
-        logger.debug("LLMWalkerEventsParsingStateDeltasProvider.leave_math_mode !")
+        #logger.debug("LLMWalkerEventsParsingStateDeltasProvider.leave_math_mode !")
         return macrospec.ParsingStateDeltaExtendLatexContextDb(
             set_attributes=dict(
                 in_math_mode=False,

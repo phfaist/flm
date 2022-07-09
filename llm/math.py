@@ -59,7 +59,7 @@ class MathEnvironment(LLMEnvironmentSpecBase):
     def postprocess_parsed_node(self, node):
         # parse the node structure right away when finializing the node to try
         # to find any \label{} instruction.
-        logger.debug("finalizing math environment node: node = %r", node)
+        #logger.debug("finalizing math environment node: node = %r", node)
 
         # find and register \label node
         node.llm_equation_label_node = None
@@ -72,7 +72,7 @@ class MathEnvironment(LLMEnvironmentSpecBase):
                         pos=n.pos
                     )
 
-                logger.debug("Found label node: %r", n)
+                #logger.debug("Found label node: %r", n)
                 node.llm_equation_label_node = n
                 
                 # extract ref_label_prefix, ref_label and store these values
