@@ -245,18 +245,21 @@ python-versions = ">=3.6"
 
 [[package]]
 name = "pylatexenc"
-version = "3.0a3"
+version = "3.0alpha000004"
 description = "Simple LaTeX parser providing latex-to-unicode and unicode-to-latex conversion"
 category = "main"
 optional = false
-python-versions = "*"
+python-versions = "^3.6" # argh...
 develop = false
+
+[package.extras]
+buildjslib = ["Transcrypt (>=3.9.0,<4.0.0)", "PyYAML (>=6.0,<7.0)"]
 
 [package.source]
 type = "git"
 url = "https://github.com/phfaist/pylatexenc.git"
 reference = "devel"
-resolved_reference = "ec32c438da6d407144462f8c9a88c59c88a3ed2b"
+resolved_reference = "ddee0f285fa088750c137b01b7b5161089a0f6cf"
 
 [[package]]
 name = "pyparsing"
