@@ -434,10 +434,14 @@ class HtmlFragmentRenderer(FragmentRenderer):
                 class_names=['float-caption-content'],
             )
         
-        float_content_block = self.render_nodelist(
+        float_content_block_content = self.render_nodelist(
             float_instance.content_nodelist,
             render_context=render_context,
             is_block_level=True,
+        )
+        float_content_block = self.render_semantic_block(
+            float_content_block_content,
+            'float-contents'
         )
 
         if rendered_float_caption is not None:
