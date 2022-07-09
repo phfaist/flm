@@ -82,7 +82,7 @@ class FeatureExternalPrefixedCitations(Feature):
                 what=f"Citation text for {cite_prefix}:{cite_key}",
             )
 
-            logger.debug("Got citation content LLM nodelist = %r", citation_llm.nodes)
+            #logger.debug("Got citation content LLM nodelist = %r", citation_llm.nodes)
 
             return citation_llm
             
@@ -103,6 +103,7 @@ class FeatureExternalPrefixedCitations(Feature):
                 content_nodelist=citation_llm.nodes,
                 ref_label_prefix=cite_prefix,
                 ref_label=cite_key,
+                node_id=(cite_prefix,cite_key),
             )
 
             # also add a custom field, the formatted inner counter text (e.g.,

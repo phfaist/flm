@@ -154,7 +154,7 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
                 parsing_state=node.nodelist.parsing_state,
             )
 
-        logger.debug("llm_float_content_nodelist = %r", node.llm_float_content_nodelist)
+        #logger.debug("llm_float_content_nodelist = %r", node.llm_float_content_nodelist)
 
         return node
 
@@ -163,30 +163,30 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
 
         floats_mgr = render_context.feature_render_manager('floats')
 
-        if hasattr(node, 'llm_float_instance'):
-            # happens in two-pass rendering schemes. Don't register the float a
-            # second time!
-            float_instance = node.llm_float_instance
-        else:
-            ref_label_prefix = node.llm_float_label['ref_label_prefix']
-            ref_label = node.llm_float_label['ref_label']
+        logger.debug(f"Rendering float: {node=}")
 
-            numbered = True
-            if ref_label_prefix is None and ref_label is None:
-                # \label{} omitted -> no numbering
-                numbered = False
+        ref_label_prefix = node.llm_float_label['ref_label_prefix']
+        ref_label = node.llm_float_label['ref_label']
 
-            float_instance = floats_mgr.register_float(
-                float_type=self.float_type,
-                numbered=numbered,
-                ref_label_prefix=ref_label_prefix,
-                ref_label=ref_label,
-                caption_nodelist=node.llm_float_caption['caption_nodelist'],
-                content_nodelist=node.llm_float_content_nodelist,
-            )
-            node.llm_float_instance = float_instance
+        numbered = True
+        if ref_label_prefix is None and ref_label is None:
+            # \label{} omitted -> no numbering
+            numbered = False
 
-        logger.debug("Rendering float: %r", float_instance)
+        float_instance = floats_mgr.register_float(
+            node_id=id(node),
+            float_type=self.float_type,
+            numbered=numbered,
+            ref_label_prefix=ref_label_prefix,
+            ref_label=ref_label,
+            caption_nodelist=node.llm_float_caption['caption_nodelist'],
+            content_nodelist=node.llm_float_content_nodelist,
+        )
+
+        # note: do NOT store the float instance onto the `node` object, because
+        # the node object might be shared and re-used between multiple documents!
+
+        #logger.debug("Registered float: %r", float_instance)
 
         if self.float_content_render_at_environment_node_location:
             return self.render_float(float_instance, node, render_context)
@@ -312,6 +312,7 @@ class FeatureFloats(Feature):
                 float_type: 1
                 for float_type, ftinfo in self.feature.float_types.items()
             }
+            self.float_instances = {} # node_id -> float_instance
         
         def register_float(
                 self,
@@ -322,9 +323,16 @@ class FeatureFloats(Feature):
                 ref_label=None,
                 caption_nodelist=None,
                 content_nodelist=None,
+                node_id=None,
         ):
 
+            if node_id is not None and node_id in self.float_instances:
+                # this happens on second pass when rendering in two passes.
+                return self.float_instances[node_id]
+
             float_type_info = self.feature.float_types[float_type]
+
+            logger.debug("registering float ... ")
 
             if numbered:
                 fmtcounter = float_type_info.counter_formatter
@@ -357,10 +365,14 @@ class FeatureFloats(Feature):
                 content_nodelist=content_nodelist,
             )
 
+            #logger.debug("registering float ... float instance is = %r", float_instance)
+
             self.floats[float_type].append( float_instance )
 
             # register also the reference in the 'refs' manager, if applicable
             if number is not None and self.render_context.supports_feature('refs'):
+
+                #logger.debug("maybe registering numbered float in refs manager")
 
                 refs_mgr = self.render_context.feature_render_manager('refs')
 
@@ -370,12 +382,18 @@ class FeatureFloats(Feature):
 
                     formatted_ref_llm_text = self.get_formatted_ref_llm_text(float_instance)
 
+                    #logger.debug(f"registering float, {number=} {ref_label_prefix=} "
+                    #             f"{ref_label=}, {formatted_ref_llm_text=}")
+
                     refs_mgr.register_reference(
                         ref_label_prefix,
                         ref_label,
                         formatted_ref_llm_text=formatted_ref_llm_text,
                         target_href=f'#{target_id}',
                     )
+
+            if node_id is not None:
+                self.float_instances[node_id] = float_instance
 
             return float_instance
 

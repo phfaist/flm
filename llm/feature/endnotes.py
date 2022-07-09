@@ -67,16 +67,12 @@ class EndnoteMacro(LLMMacroSpecBase):
 
         #logger.debug("Endnote command, content_nodelist = %r", content_nodelist)
 
-        if hasattr(node, 'llm_endnote_instance'):
-            # for two-pass rendering, don't add a second endnote!
-            endnote = node.llm_endnote_instance
-        else:
-            # register & render the end note
-            endnote = mgr.add_endnote(
-                category_name=self.endnote_category_name,
-                content_nodelist=content_nodelist,
-            )
-            node.llm_endnote_instance = endnote
+        # register & render the end note
+        endnote = mgr.add_endnote(
+            category_name=self.endnote_category_name,
+            content_nodelist=content_nodelist,
+            node_id=id(node)
+        )
 
         rendered_endnote_mark = mgr.render_endnote_mark(endnote)
         return rendered_endnote_mark
@@ -160,9 +156,15 @@ class FeatureEndnotes(Feature):
                 c.category_name: 1
                 for c in self.feature_document_manager.categories
             }
+            self.endnote_instances = {} # node_id -> endnote instance
 
         def add_endnote(self, category_name, content_nodelist, *,
-                        ref_label_prefix=None, ref_label=None):
+                        ref_label_prefix=None, ref_label=None, node_id=None):
+
+            if node_id is not None and node_id in self.endnote_instances:
+                # this happens on second pass when rendering in two passes.
+                return self.endnote_instances[node_id]
+
             endnote_category_info = \
                 self.feature_document_manager.categories_by_name[category_name]
             fmtcounter = endnote_category_info.counter_formatter
@@ -185,6 +187,10 @@ class FeatureEndnotes(Feature):
                 ref_label=ref_label,
             )
             self.endnotes[category_name].append( endnote )
+
+            if node_id is not None:
+                self.endnote_instances[node_id] = endnote
+
             return endnote
 
         def render_endnote_mark(self, endnote):
@@ -274,7 +280,7 @@ class FeatureEndnotes(Feature):
 
             if not has_endnotes:
                 return fragment_renderer.render_nothing(
-                    annotations='no-endnotes'
+                    annotations=['no-endnotes']
                 )
 
             if endnotes_heading_title is not None:
