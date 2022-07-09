@@ -51,6 +51,7 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
         term_llm_ref_label_verbatim = \
             get_term_ref_label_verbatim(node_args['term'].get_content_nodelist())
         node.llm_term_llm_ref_label_verbatim = term_llm_ref_label_verbatim
+        node.llm_term_safe_target_id = get_term_safe_target_id(term_llm_ref_label_verbatim)
         return node
 
     def render(self, node, render_context):
@@ -60,7 +61,7 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
         ref_label_prefix = 'defterm'
         ref_label = term_ref_label_verbatim
         formatted_ref_llm_text = node.llm_term_llm_ref_label_verbatim
-        term_safe_target_id = get_term_safe_target_id(term_ref_label_verbatim)
+        term_safe_target_id = node.llm_term_safe_target_id
 
         # register the term
         if render_context.supports_feature('refs'):
