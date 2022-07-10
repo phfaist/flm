@@ -1,17 +1,10 @@
 import sys
 import argparse
-import fileinput
 import logging
-
 
 from pylatexenc.latexnodes import LatexWalkerParseError
 
-from . import llmstd
-from . import fmthelpers
-from .fragmentrenderer.text import TextFragmentRenderer
-from .fragmentrenderer.html import HtmlFragmentRenderer
-
-
+from .runmain import runmain
 
 
 def main(cmdargs=None):
@@ -44,96 +37,9 @@ def main(cmdargs=None):
 
     args = args_parser.parse_args(args=cmdargs)
 
-    # set up logging
-    level = logging.INFO
-    if args.verbose:
-        level = logging.DEBUG
-    logging.basicConfig(level=level)
-    if args.verbose != 2:
-        logging.getLogger('pylatexenc').setLevel(level=logging.INFO)
+    args.config = None
 
-    # Set up the format & formatters
-
-    if args.format == 'text':
-
-        fragment_renderer = TextFragmentRenderer()
-
-        #footnote_counter_formatter = lambda n: f"[{fmthelpers.alphacounter(n)}]"
-        #footnote_counter_formatter = 'fnsymbol'
-        #footnote_counter_formatter = lambda n: f"[{fmthelpers.fnsymbolcounter(n)}]"
-        footnote_counter_formatter = 'unicodesuperscript'
-        #footnote_counter_formatter = lambda n: f"⁽{fmthelpers.unicodesuperscriptcounter(n)}⁾"
-
-    elif args.format == 'html':
-
-        fragment_renderer = HtmlFragmentRenderer()
-
-        footnote_counter_formatter = None # use default
-
-    else:
-        raise ValueError(f"Unknown format: ‘{args.format}’")
-
-
-
-    # Set up the environment
-
-    environ = llmstd.LLMStandardEnvironment(
-        footnote_counter_formatter=footnote_counter_formatter,
-    )
-
-    # Get the LLM content
-
-    llm_content = ''
-    if args.llm_content:
-        if args.files:
-            raise ValueError(
-                "You cannot specify both FILEs and --llm-content options. "
-                "Type `llm --help` for more information."
-            )
-        llm_content = args.llm_content
-    else:
-        for line in fileinput.input(files=args.files):
-            llm_content += line
-
-    fragment = environ.make_fragment(
-        llm_content,
-        silent=True, # we'll report errors ourselves
-    )
-    
-    doc = environ.make_document(fragment.render)
-
-    #
-    # Render the main document
-    #
-    result, render_context = doc.render(fragment_renderer)
-
-    #
-    # Render endnotes
-    #
-    endnotes_mgr = render_context.feature_render_manager('endnotes')
-    if endnotes_mgr is not None:
-        for category in endnotes_mgr.feature_document_manager.categories:
-            category_name = category.category_name
-            endnotes_this_category = endnotes_mgr.endnotes[category_name]
-            if endnotes_this_category:
-                endnote_heading_llm = environ.make_fragment(
-                    (category_name + 's').capitalize(), # footnote -> Footnotes
-                    is_block_level=False,
-                )
-                result = fragment_renderer.render_join_blocks([
-                    result,
-                    fragment_renderer.render_heading(
-                        endnote_heading_llm.nodes,
-                        heading_level=1,
-                        render_context=render_context,
-                    ),
-                    endnotes_mgr.render_endnotes_category(category_name),
-                ])
-
-    sys.stdout.write(result)
-    if not args.suppress_final_newline:
-        sys.stdout.write("\n")
-    return
+    return runmain(args)
 
 
 if __name__ == '__main__':

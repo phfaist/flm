@@ -284,7 +284,11 @@ class FeatureFloats(Feature):
                 FloatType('figure', 'Figure', 'arabic'),
                 FloatType('table', 'Table', 'arabic'),
             ]
-        self.float_types_list = float_types
+        def _mkfloattypeobj(x):
+            if isinstance(x, FloatType):
+                return x
+            return FloatType(**x)
+        self.float_types_list = [ _mkfloattypeobj(x) for x in float_types ]
         self.float_types = {
             ft.float_type: ft
             for ft in self.float_types_list

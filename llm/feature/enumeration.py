@@ -211,9 +211,12 @@ class Enumeration(LLMEnvironmentSpecBase):
 
 
 
-_default_enumeration_environments = {
+default_enumeration_environments = {
+
     'itemize': {'counter_formatter':['•','-','▸'],},
-    'enumerate': {'counter_formatter': None}, # default formatter 1., 2., ...
+
+    # uses default formatters 1., 2., ... incl. nested (i) etc.
+    'enumerate': {'counter_formatter': None},
 }
 
 
@@ -232,7 +235,7 @@ class FeatureEnumeration(Feature):
     def __init__(self, enumeration_environments=None):
         super().__init__()
         if enumeration_environments is None:
-            enumeration_environments = _default_enumeration_environments
+            enumeration_environments = default_enumeration_environments
         self.enumeration_environments = enumeration_environments
 
     def add_latex_context_definitions(self):

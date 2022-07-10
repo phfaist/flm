@@ -113,7 +113,19 @@ class FeatureEndnotes(Feature):
         Here, `categories` is a list
         """
         super().__init__()
-        self.base_categories = categories
+
+        def _mkcatobj(x):
+            if isinstance(x, EndnoteCategory):
+                return x
+            return EndnoteCategory(**x)
+
+        if not categories:
+            categories = []
+
+        self.base_categories = [
+            _mkcatobj(x)
+            for x in categories
+        ]
 
     def add_latex_context_definitions(self):
 

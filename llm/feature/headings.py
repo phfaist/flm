@@ -40,10 +40,16 @@ class FeatureHeadings(Feature):
                 5: self.SectionCommandSpec(r"subparagraph", inline=True),
                 6: self.SectionCommandSpec(r"subsubparagraph", inline=True),
             }
+
+        def _mkspecobj(x):
+            if isinstance(x, self.SectionCommandSpec):
+                return x
+            if isinstance(x, str):
+                return self.SectionCommandSpec(x)
+            return self.SectionCommandSpec(**x)
+
         self.section_commands_by_level = {
-            level: ( x
-                     if isinstance(x, self.SectionCommandSpec)
-                     else self.SectionCommandSpec(x) )
+            level: _mkspecobj(x)
             for level, x in section_commands_by_level.items()
         }
 
