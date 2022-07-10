@@ -84,12 +84,20 @@ class BlocksBuilder:
         # simplify white space correctly.
         lastj = len(paragraph_nodes) - 1
         for j, node in enumerate(paragraph_nodes):
+
+            is_head = (j == 0)
+            if j == 1 and getattr(paragraph_nodes[0], 'llm_is_block_heading', False):
+                # second item, but the first one was actually the paragraph
+                # run-in header -- this still counts as head
+                is_head = True
+
             if node.isNodeType(latexnodes_nodes.LatexCharsNode):
                 node.llm_chars_value = self.simplify_whitespace_chars(
                     node.chars,
-                    is_head=(j==0),
+                    is_head=is_head,
                     is_tail=(j==lastj)
                 )
+                logger.debug(f"simplifying whitespace for chars node, {is_head=} {j=} {node=} --> {node.llm_chars_value=}")
 
         return paragraph_nodes
 
@@ -124,9 +132,17 @@ class BlocksBuilder:
                 self.blocks.append(n)
                 continue
 
-            if (not self.pending_paragraph_nodes
-                and n.isNodeType(latexnodes_nodes.LatexCharsNode)
-                and self.rx_only_space.match(n.chars)):
+            paragraph_started_yet = True
+            if not self.pending_paragraph_nodes:
+                paragraph_started_yet = False
+            if len(self.pending_paragraph_nodes) == 1:
+                if getattr(self.pending_paragraph_nodes[0], 'llm_is_block_heading', False):
+                    # we've only seen it's a block lead-in heading so far
+                    paragraph_started_yet = False
+
+            if ( not paragraph_started_yet
+                 and n.isNodeType(latexnodes_nodes.LatexCharsNode)
+                 and self.rx_only_space.match(n.chars)):
                 # white space characters, and we haven't started a new paragraph
                 # yet -- ignore them.
                 continue

@@ -262,7 +262,7 @@ class HeadingMacro(LLMMacroSpecBase):
         )
         self.heading_level = heading_level
         self.inline_heading = inline_heading
-        # llmspec API -
+        # reimplemented from llmspecinfo -
         self.is_block_heading = self.inline_heading
 
     def render(self, node, render_context):
@@ -275,6 +275,7 @@ class HeadingMacro(LLMMacroSpecBase):
             node_args['text'].get_content_nodelist(),
             render_context=render_context,
             heading_level=self.heading_level,
+            inline_heading=self.inline_heading
         )
 
 

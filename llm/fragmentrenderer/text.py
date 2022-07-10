@@ -98,11 +98,11 @@ class TextFragmentRenderer(FragmentRenderer):
         if heading_level == 3:
             return f"{rendered_heading}\n{'~'*len(rendered_heading)}"
         if heading_level == 4:
-            return f"{add_punct(rendered_heading,':')}"
+            return f"{add_punct(rendered_heading,':')}  "
         if heading_level == 5:
-            return f"    {add_punct(rendered_heading,':')}"
+            return f"    {add_punct(rendered_heading,':')}  "
         if heading_level == 6:
-            return f"        {add_punct(rendered_heading,':')}"
+            return f"        {add_punct(rendered_heading,':')}  "
 
         raise ValueError(f"Bad {heading_level=}, expected 1..6")
 

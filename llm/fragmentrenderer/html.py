@@ -60,6 +60,12 @@ class HtmlFragmentRenderer(FragmentRenderer):
         6: "span",
     }
 
+    inline_heading_add_space = True
+    r"""
+    Whether or not to include a space after an inline (run-in) heading, e.g.,
+    for ``\paragraph``.  Visually, the space should be there, but removing it
+    makes it much easier to control the space using CSS.
+    """
 
     # ------------------
 
@@ -331,12 +337,17 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if target_id is not None:
             attrs['id'] = target_id
 
-        return self.wrap_in_tag(
+        content = self.wrap_in_tag(
             self.heading_tags_by_level[heading_level],
             self.render_inline_content(heading_nodelist, render_context),
             class_names=annot,
             attrs=attrs,
         )
+        if inline_heading and self.inline_heading_add_space:
+            content += ' '
+        logger.debug(f"Rendered heading: {content=!r}; {inline_heading=}; "
+                     f"add_space={self.inline_heading_add_space}")
+        return content
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
         display_content = self.render_nodelist(
