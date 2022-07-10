@@ -3,6 +3,9 @@ import argparse
 import fileinput
 import logging
 
+
+from pylatexenc.latexnodes import LatexWalkerParseError
+
 from . import llmstd
 from . import fmthelpers
 from .fragmentrenderer.text import TextFragmentRenderer
@@ -90,7 +93,10 @@ def main(cmdargs=None):
         for line in fileinput.input(files=args.files):
             llm_content += line
 
-    fragment = environ.make_fragment(llm_content)
+    fragment = environ.make_fragment(
+        llm_content,
+        silent=True, # we'll report errors ourselves
+    )
     
     doc = environ.make_document(fragment.render)
 
@@ -129,4 +135,12 @@ def main(cmdargs=None):
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except LatexWalkerParseError as e:
+        logging.getLogger('llm').critical(
+            f"Parse Error\n{e}"
+        )
+    except Exception as e:
+        logging.getLogger('llm').critical('Error.', exc_info=e)
+        import pdb; pdb.post_mortem()

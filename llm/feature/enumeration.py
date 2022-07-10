@@ -13,13 +13,16 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from .llmspecinfo import LLMEnvironmentSpecBase
-from .llmenvironment import (
+from ..llmspecinfo import LLMEnvironmentSpecBase
+from ..llmenvironment import (
     LLMParsingStateDeltaSetBlockLevel,
     LLMArgumentSpec,
 )
 
-from . import fmthelpers
+from .. import fmthelpers
+
+from ._base import Feature
+
 
 
 _count_initials_formatters = {
@@ -44,10 +47,29 @@ def _get_counter_formatter_from_tag_template(tag_template):
 
 
 # "1.", "2.", ...
-_default_enumeration_counter_formatter = lambda n: f"{n}."
+_default_enumeration_counter_formatter = [
+    lambda n: f"{n}.",
+    lambda n: f"({fmthelpers.romancounter(n)})",
+    lambda n: f"{fmthelpers.alphacounter(n)}-",
+]
 
 
 class Enumeration(LLMEnvironmentSpecBase):
+    r"""
+    ..............
+
+    `counter_formatter` can be either:
+    
+    - A fixed string -- this string will be used as the item tag
+
+    - A callable -- the callable should accept an integer (starting at one) and
+      return the string to display as item tag
+
+    - A list, with elements being either fixed strings or callables; specify the
+      item tags or how to generate them for nested lists.  The first element is
+      used for the root list, the second is used for the first nested list, etc.
+    """
+
 
     is_block_level = True
 
@@ -56,7 +78,7 @@ class Enumeration(LLMEnvironmentSpecBase):
     def __init__(self,
                  environmentname,
                  *,
-                 counter_formatter=_default_enumeration_counter_formatter,
+                 counter_formatter=None,
                  annotations=None,
                  **kwargs):
         super().__init__(
@@ -72,6 +94,8 @@ class Enumeration(LLMEnvironmentSpecBase):
             ],
             **kwargs
         )
+        if counter_formatter is None:
+            counter_formatter = _default_enumeration_counter_formatter
         self.counter_formatter = counter_formatter
         self.annotations = annotations
 
@@ -134,6 +158,7 @@ class Enumeration(LLMEnvironmentSpecBase):
         node.enumeration_items = enumeration_items
         return node
 
+
     def render(self, node, render_context):
 
         fragment_renderer = render_context.fragment_renderer
@@ -142,7 +167,13 @@ class Enumeration(LLMEnvironmentSpecBase):
             ('tag_template',),
         )
 
+        state = render_context.get_logical_state('enumeration')
+        nested_depth = state.get('nested_depth', 0)
+
+        # determine the base counter formatter to use depending on nested depth
         counter_formatter = self.counter_formatter
+        if not isinstance(counter_formatter, str) and not callable(counter_formatter):
+            counter_formatter = counter_formatter[nested_depth]
 
         if 'tag_template' in node_args and node_args['tag_template'].was_provided():
             tag_template_chars = node_args['tag_template'].get_content_as_chars()
@@ -169,9 +200,49 @@ class Enumeration(LLMEnvironmentSpecBase):
                 return counter_formatter(n)
             return counter_formatter
 
-        return fragment_renderer.render_enumeration(
-            items_nodelists,
-            the_counter_formatter,
-            render_context=render_context,
-            annotations=self.annotations
+        with render_context.push_logical_state('enumeration', 'nested_depth', nested_depth+1):
+            return fragment_renderer.render_enumeration(
+                items_nodelists,
+                the_counter_formatter,
+                render_context=render_context,
+                annotations=self.annotations,
+                nested_depth=nested_depth
+            )
+
+
+
+_default_enumeration_environments = {
+    'itemize': {'counter_formatter':['•','-','▸'],},
+    'enumerate': {'counter_formatter': None}, # default formatter 1., 2., ...
+}
+
+
+class FeatureEnumeration(Feature):
+    r"""
+    Add support for enumeration and itemization lists, e.g., via LaTeX commands
+    ``\begin{enumerate} ... \end{enumerate}`` and ``\begin{itemize}
+    ... \end{itemize}``.
+    """
+
+    feature_name = 'enumeration'
+    # no managers needed
+    DocumentManager = None
+    RenderManager = None
+
+    def __init__(self, enumeration_environments=None):
+        super().__init__()
+        if enumeration_environments is None:
+            enumeration_environments = _default_enumeration_environments
+        self.enumeration_environments = enumeration_environments
+
+    def add_latex_context_definitions(self):
+        return dict(
+            environments=[
+                Enumeration(
+                    environmentname=envname,
+                    counter_formatter=envinfo['counter_formatter'],
+                    annotations=[envname],
+                )
+                for envname, envinfo in self.enumeration_environments.items()
+            ],
         )

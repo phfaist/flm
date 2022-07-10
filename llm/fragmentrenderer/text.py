@@ -32,7 +32,7 @@ class TextFragmentRenderer(FragmentRenderer):
         return content
     
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
-                           *, target_id_generator=None, annotations=None):
+                           *, target_id_generator=None, annotations=None, nested_depth=0):
 
         all_items = []
         for j, item_content_nodelist in enumerate(iter_items_nodelists):
@@ -44,7 +44,9 @@ class TextFragmentRenderer(FragmentRenderer):
             )
 
             tag_nodelist = counter_formatter(1+j)
-            if isinstance(tag_nodelist, str):
+            if tag_nodelist is None:
+                tag_content = '?'
+            elif isinstance(tag_nodelist, str):
                 tag_content = self.render_value(tag_nodelist)
             else:
                 tag_content = self.render_nodelist(
@@ -52,6 +54,9 @@ class TextFragmentRenderer(FragmentRenderer):
                     render_context=render_context,
                     is_block_level=False,
                 )
+                
+            if nested_depth > 0:
+                tag_content = " "*(4*nested_depth) + tag_content
 
             all_items.append(
                 (tag_content, item_content),

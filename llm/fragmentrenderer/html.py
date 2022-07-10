@@ -246,7 +246,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
             
  
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
-                           *, target_id_generator=None, annotations=None):
+                           *, target_id_generator=None, annotations=None, nested_depth=None):
 
         r"""
         ... remember, counter_formatter is given a number starting at 1.

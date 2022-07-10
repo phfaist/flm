@@ -17,10 +17,10 @@ from .llmspecinfo import (
     VerbatimEnvironment,
 )
 
-from .enumeration import Enumeration
 from .math import MathEnvironment, MathEqrefViaMathContent
 
 from .feature.endnotes import FeatureEndnotes, EndnoteCategory
+from .feature.enumeration import FeatureEnumeration
 from .feature.cite import FeatureExternalPrefixedCitations
 from .feature.refs import FeatureRefs
 from .feature.headings import FeatureHeadings
@@ -143,20 +143,6 @@ def standard_latex_context_db():
         ],
     )
     lw_context.add_context_category(
-        'enumeration',
-        environments=[
-            Enumeration(
-                environmentname='itemize',
-                counter_formatter='•',
-                annotations=['itemize'],
-            ),
-            Enumeration(
-                environmentname='enumerate',
-                annotations=['enumerate'],
-            ),
-        ],
-    )
-    lw_context.add_context_category(
         'href',
         macros=[
             HrefHyperlinkMacro(
@@ -226,6 +212,8 @@ def standard_features(
         heading_section_commands_by_level=None,
         refs=True,
         external_ref_resolver=None,
+        enumeration_environments=True,
+        enumeration_environments_dict=None,
         endnotes=True,
         citations=True,
         external_citations_provider=None,
@@ -243,6 +231,12 @@ def standard_features(
         citation_counter_formatter = 'arabic'
 
     features = []
+    if enumeration_environments:
+        features.append(
+            FeatureEnumeration(
+                enumeration_environments=enumeration_environments_dict,
+            )
+        )
     if headings:
         features.append(
             FeatureHeadings(

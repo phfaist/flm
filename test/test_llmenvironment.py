@@ -11,7 +11,7 @@ from llm.llmspecinfo import (
     ConstantValueMacro, TextFormatMacro, ParagraphBreakSpecials,
 )
 from llm.math import MathEnvironment
-from llm.enumeration import Enumeration
+from llm.feature.enumeration import Enumeration
 
 
 def make_simple_context():
