@@ -1,5 +1,9 @@
 # Generate a JavaScript version of LLM via Transcrypt
 
+Set up your poetry environment with extras:
+
+    poetry install -E buildjslib
+
 Commands to run are:
 
     export PYLATEXENC_SRC_DIR=../PATH/TO/pylatexenc

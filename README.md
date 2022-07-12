@@ -16,17 +16,27 @@ parser is based on [*pylatexenc 3*](https://github.com/phfaist/pylatexenc)
 
 # This is work in progress!
 
-This project is still early in its development stage, and a lot of features are
-simply not yet implemented.
+This project is still early in its development stage, and there might still be
+a few bugs around.
 
 Planned features:
 
 - everything described in [`llm_features.md`](llm_features.md)
 
-- JavaScript version via [*Transcrypt*](https://transcrypt.org) !
+# A command-line tool
+
+You can use `llm` in command-line mode to compile your documents:
+```
+> python -m llm mydocument.llm
+```
 
 
-# Converting LLM to HTML
+# A Javascript LLM library
+
+You can transpile this library to Javascript using Transcrypt.  See [the
+`llm-js` subfolder](llm-js/README.md) for more details.
+
+# Example. Converting LLM to HTML
 
 Note: Math is simply marked with `<span class=...>` tags for use with
 [MathJax](https://www.mathjax.org/).
