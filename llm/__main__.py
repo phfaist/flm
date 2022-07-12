@@ -16,6 +16,10 @@ def main(cmdargs=None):
 
     args_parser.add_argument('-c', '--llm-content', action='store',
                              help="LLM content to parse and convert")
+    args_parser.add_argument('-B', '--force-block-level', action='store_true',
+                             default=None,
+                             help="Parse input as block-level (paragraph) content")
+
     args_parser.add_argument('-f', '--format', action='store',
                              default='html',
                              help="LLM content to parse and convert")

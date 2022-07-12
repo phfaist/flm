@@ -173,7 +173,10 @@ class Enumeration(LLMEnvironmentSpecBase):
         # determine the base counter formatter to use depending on nested depth
         counter_formatter = self.counter_formatter
         if not isinstance(counter_formatter, str) and not callable(counter_formatter):
-            counter_formatter = counter_formatter[nested_depth]
+            if nested_depth >= len(counter_formatter):
+                counter_formatter = counter_formatter[len(counter_formatter)-1]
+            else:
+                counter_formatter = counter_formatter[nested_depth]
 
         if 'tag_template' in node_args and node_args['tag_template'].was_provided():
             tag_template_chars = node_args['tag_template'].get_content_as_chars()
@@ -201,13 +204,16 @@ class Enumeration(LLMEnvironmentSpecBase):
             return counter_formatter
 
         with render_context.push_logical_state('enumeration', 'nested_depth', nested_depth+1):
-            return fragment_renderer.render_enumeration(
+            # for transcrypt -- don't return from within a with statement or the
+            # __exit__ won't be called ...?
+            result = fragment_renderer.render_enumeration(
                 items_nodelists,
                 the_counter_formatter,
                 render_context=render_context,
                 annotations=self.annotations,
                 nested_depth=nested_depth
             )
+        return result
 
 
 

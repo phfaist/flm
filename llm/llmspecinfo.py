@@ -116,26 +116,25 @@ class LLMSpecInfo:
 # ------------------------------------------------------------------------------
 
 
+# transcrypt doesn't seem to like super().__init__() (or the default
+# constructor) with multiple inheritance
+### BEGINPATCH_MULTIPLE_BASE_CONSTRUCTORS
+_dobaseconstructors2argslast = \
+    lambda Me, self, args, kwargs: super(Me, self).__init__(*args, **kwargs)
+### ENDPATCH_MULTIPLE_BASE_CONSTRUCTORS
+
+
 class LLMMacroSpecBase(LLMSpecInfo, macrospec.MacroSpec):
     def __init__(self, *args, **kwargs):
-        # transcrypt doesn't seem to like super().__init__() (or the default
-        # constructor) with multiple inheritance
-        LLMSpecInfo.__init__(self)
-        macrospec.MacroSpec.__init__(self, *args, **kwargs)
+        _dobaseconstructors2argslast(LLMMacroSpecBase, self, args, kwargs)
 
 class LLMEnvironmentSpecBase(LLMSpecInfo, macrospec.EnvironmentSpec):
     def __init__(self, *args, **kwargs):
-        # transcrypt doesn't seem to like super().__init__() (or the default
-        # constructor) with multiple inheritance
-        LLMSpecInfo.__init__(self)
-        macrospec.EnvironmentSpec.__init__(self, *args, **kwargs)
+        _dobaseconstructors2argslast(LLMEnvironmentSpecBase, self, args, kwargs)
 
 class LLMSpecialsSpecBase(LLMSpecInfo, macrospec.SpecialsSpec):
     def __init__(self, *args, **kwargs):
-        # transcrypt doesn't seem to like super().__init__() (or the default
-        # constructor) with multiple inheritance
-        LLMSpecInfo.__init__(self)
-        macrospec.SpecialsSpec.__init__(self, *args, **kwargs)
+        _dobaseconstructors2argslast(LLMSpecialsSpecBase, self, args, kwargs)
 
 
 
@@ -156,9 +155,14 @@ class LLMSpecInfoConstantValue(LLMSpecInfo):
 
 
 class ConstantValueMacro(LLMSpecInfoConstantValue, macrospec.MacroSpec):
-    pass
+    def __init__(self, *args, value, **kwargs):
+        _dobaseconstructors2argslast(ConstantValueMacro, self, args, kwargs)
+        self.value = value # hack for transcrypt.... :/
+
 class ConstantValueSpecials(LLMSpecInfoConstantValue, macrospec.SpecialsSpec):
-    pass
+    def __init__(self, *args, value, **kwargs):
+        _dobaseconstructors2argslast(ConstantValueSpecials, self, args, kwargs)
+        self.value = value
 
 
 _text_arg = LLMArgumentSpec('{', argname='text',)
@@ -216,9 +220,12 @@ class LLMSpecInfoParagraphBreak(LLMSpecInfo):
 
 
 class ParagraphBreakSpecials(LLMSpecInfoParagraphBreak, macrospec.SpecialsSpec):
-    pass
+    def __init__(self, *args, **kwargs):
+        _dobaseconstructors2argslast(ParagraphBreakSpecials, self, args, kwargs)
+
 class ParagraphBreakMacro(LLMSpecInfoParagraphBreak, macrospec.MacroSpec):
-    pass
+    def __init__(self, *args, **kwargs):
+        _dobaseconstructors2argslast(ParagraphBreakMacro, self, args, kwargs)
 
 
 
@@ -241,13 +248,16 @@ class LLMSpecInfoError(LLMSpecInfo):
 
 
 class LLMMacroSpecError(LLMSpecInfoError, macrospec.MacroSpec):
-    pass
+    def __init__(self, *args, **kwargs):
+        _dobaseconstructors2argslast(LLMMacroSpecError, self, args, kwargs)
 
 class LLMEnvironmentSpecError(LLMSpecInfoError, macrospec.EnvironmentSpec):
-    pass
+    def __init__(self, *args, **kwargs):
+        _dobaseconstructors2argslast(LLMEnvironmentSpecError, self, args, kwargs)
 
 class LLMSpecialsSpecError(LLMSpecInfoError, macrospec.SpecialsSpec):
-    pass
+    def __init__(self, *args, **kwargs):
+        _dobaseconstructors2argslast(LLMSpecialsSpecError, self, args, kwargs)
 
 
 
@@ -447,7 +457,7 @@ class VerbatimMacro(VerbatimSpecInfo, macrospec.MacroSpec):
     def __init__(self, macroname,
                  verbatim_delimiters=None,
                  **kwargs):
-        super().__init__(
+        newkwargs = dict(
             macroname=macroname,
             arguments_spec_list=[
                 latexnodes_parsers.LatexDelimitedVerbatimParser(
@@ -456,9 +466,12 @@ class VerbatimMacro(VerbatimSpecInfo, macrospec.MacroSpec):
             ],
             **kwargs
         )
+        _dobaseconstructors2argslast(VerbatimMacro, self, [], newkwargs)
+
 
 class VerbatimEnvironment(VerbatimSpecInfo, macrospec.EnvironmentSpec):
-    pass
+    def __init__(self, *args, **kwargs):
+        _dobaseconstructors2argslast(VerbatimEnvironment, self, args, kwargs)
 
 
 

@@ -97,7 +97,7 @@ class FeatureRefs(Feature):
                 RefMacro(macroname='ref', command_arguments=('ref_target',)),
                 RefMacro(
                     macroname='hyperref',
-                    command_arguments=('[ref_target]','display_text',)
+                    command_arguments=('[]ref_target','display_text',)
                 ),
             ]
         )
@@ -106,7 +106,7 @@ class FeatureRefs(Feature):
 _ref_arg_specs = {
     'ref_target': LLMArgumentSpec(latexnodes_parsers.LatexCharsGroupParser(),
                                   argname='ref_target'),
-    '[ref_target]': LLMArgumentSpec(
+    '[]ref_target': LLMArgumentSpec(
         latexnodes_parsers.LatexCharsGroupParser(
             delimiters=('[', ']'),
         ),
@@ -132,7 +132,7 @@ class RefMacro(LLMMacroSpecBase):
             arguments_spec_list=self._get_arguments_spec_list(command_arguments),
         )
         self.ref_type = ref_type
-        self.command_arguments = [ c.strip('[]') for c in command_arguments ]
+        self.command_arguments = [ c.replace('[]','') for c in command_arguments ]
         
     @classmethod
     def _get_arguments_spec_list(self, command_arguments):

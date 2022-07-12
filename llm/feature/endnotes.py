@@ -243,8 +243,15 @@ class FeatureEndnotes(Feature):
 
             #logger.debug("Endnotes are = %r", self.endnotes)
 
+            # I have no idea why transcrypt seems to want a list here and not an
+            # iterable (will render incorrectly otherwise???)
+            iterable_of_content_endnotes = [
+                en.content_nodelist
+                for en in self.endnotes[category_name]
+            ]
+
             return fragment_renderer.render_enumeration(
-                ( en.content_nodelist for en in self.endnotes[category_name] ),
+                iterable_of_content_endnotes,
                 counter_formatter=the_endnotes_enumeration_counter_formatter,
                 target_id_generator=the_target_id_generator_fn,
                 render_context=self.render_context,

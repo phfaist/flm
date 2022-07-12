@@ -1,7 +1,11 @@
 // some custom JS patches are necessary ... comment out these lines to run with python
 import * as llmstd from 'llm-js/llm.llmstd.js';
+import * as fmthelpers from 'llm-js/llm.fmthelpers.js';
+
 import * as fragmentrenderer_html from 'llm-js/llm.fragmentrenderer.html.js';
 const { HtmlFragmentRenderer } = fragmentrenderer_html;
+import * as fragmentrenderer_text from 'llm-js/llm.fragmentrenderer.text.js';
+const { TextFragmentRenderer } = fragmentrenderer_text;
 
 // some setup code
 
@@ -113,7 +117,11 @@ Here is the content of the paragraph.
 `;
 
 
-const llmenviron = new llmstd.LLMStandardEnvironment();
+const config = {
+    footnote_counter_formatter: (n) => '['+fmthelpers.unicodesuperscriptcounter(n)+']'
+};
+
+const llmenviron = new llmstd.LLMStandardEnvironment($$kw(config));
 
 //console.log(llmenviron.parsing_state.latex_context);
 
@@ -125,7 +133,8 @@ try {
 
     llmfragment = llmenviron.make_fragment(llmtext,
                                            $$kw({ what: 'my test fragment',
-                                                  is_block_level: true}));
+                                                  //is_block_level: true
+                                                }));
 
 } catch (err) {
     console.error(err.msg);
@@ -133,8 +142,15 @@ try {
     process.exit();
 }
 
+//console.log(llmfragment.nodes);
+
 const doc = llmenviron.make_document( llmfragment.render );
 
 const [result, render_context] = doc.render( HtmlFragmentRenderer() );
+//const [result, render_context] = doc.render( TextFragmentRenderer() );
 
-//console.log(result);
+console.log(result);
+
+console.log("\n" + render_context.feature_render_manager('endnotes').render_endnotes(
+    $$kw({ include_headings_at_level: 1 })
+))

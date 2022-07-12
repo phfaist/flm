@@ -251,6 +251,7 @@ def runmain(args):
 
     fragment = environ.make_fragment(
         llm_content,
+        is_block_level=args.force_block_level,
         silent=True, # we'll report errors ourselves
     )
     

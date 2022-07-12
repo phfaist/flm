@@ -33,3 +33,8 @@ enabled_features:
     UNIQUE_OBJECT_ID: |
       import unique_object_id
       fn_unique_object_id = unique_object_id.fn_unique_object_id
+    MULTIPLE_BASE_CONSTRUCTORS: |
+      def _dobaseconstructors2argslast(Me, self, args, kwargs):
+        Me.__bases__[0].__init__(self)
+        Me.__bases__[1].__init__(self, *args, **kwargs)
+        
