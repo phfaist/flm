@@ -502,4 +502,4 @@ class HtmlFragmentRenderer(FragmentRenderer):
 # ------------------
 
 
-_rx_delayed_markers = re.compile(r'\<LLM:DLYD:(?P<key>\d+)\s*\/\>')
+_rx_delayed_markers = re.compile(r'<LLM:DLYD:(?P<key>\d+)\s*/>')

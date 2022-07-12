@@ -117,13 +117,25 @@ class LLMSpecInfo:
 
 
 class LLMMacroSpecBase(LLMSpecInfo, macrospec.MacroSpec):
-    pass
+    def __init__(self, *args, **kwargs):
+        # transcrypt doesn't seem to like super().__init__() (or the default
+        # constructor) with multiple inheritance
+        LLMSpecInfo.__init__(self)
+        macrospec.MacroSpec.__init__(self, *args, **kwargs)
 
 class LLMEnvironmentSpecBase(LLMSpecInfo, macrospec.EnvironmentSpec):
-    pass
+    def __init__(self, *args, **kwargs):
+        # transcrypt doesn't seem to like super().__init__() (or the default
+        # constructor) with multiple inheritance
+        LLMSpecInfo.__init__(self)
+        macrospec.EnvironmentSpec.__init__(self, *args, **kwargs)
 
 class LLMSpecialsSpecBase(LLMSpecInfo, macrospec.SpecialsSpec):
-    pass
+    def __init__(self, *args, **kwargs):
+        # transcrypt doesn't seem to like super().__init__() (or the default
+        # constructor) with multiple inheritance
+        LLMSpecInfo.__init__(self)
+        macrospec.SpecialsSpec.__init__(self, *args, **kwargs)
 
 
 

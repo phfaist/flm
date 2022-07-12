@@ -11,6 +11,11 @@ from ._base import Feature
 from .. import fmthelpers
 
 
+### BEGINPATCH_UNIQUE_OBJECT_ID
+fn_unique_object_id = id
+### ENDPATCH_UNIQUE_OBJECT_ID
+
+
 
 class EndnoteCategory:
     r"""
@@ -71,7 +76,7 @@ class EndnoteMacro(LLMMacroSpecBase):
         endnote = mgr.add_endnote(
             category_name=self.endnote_category_name,
             content_nodelist=content_nodelist,
-            node_id=id(node)
+            node_id=fn_unique_object_id(node)
         )
 
         rendered_endnote_mark = mgr.render_endnote_mark(endnote)

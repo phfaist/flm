@@ -101,8 +101,13 @@ class MathEnvironment(LLMEnvironmentSpecBase):
         """
         environmentname = node.environmentname
 
-        ref_label_prefix = getattr(node, 'llm_equation_ref_label_prefix', None)
-        ref_label = getattr(node, 'llm_equation_ref_label', None)
+        # transcrypt doesn't like getattr with default argument
+        ref_label_prefix = None
+        ref_label = None
+        if hasattr(node, 'llm_equation_ref_label_prefix'):
+            ref_label_prefix = node.llm_equation_ref_label_prefix
+        if hasattr(node, 'llm_equation_ref_label'):
+            ref_label = node.llm_equation_ref_label
 
         if ref_label_prefix is not None and ref_label is not None:
             target_id = f"equation--{sanitize_for_id(ref_label_prefix+':'+ref_label)}"
@@ -110,7 +115,7 @@ class MathEnvironment(LLMEnvironmentSpecBase):
             target_id = None
 
         return render_context.fragment_renderer.render_math_content(
-            (f"\\begin{{{environmentname}}}", f"\\end{{{environmentname}}}",),
+            (f"\\begin{'{'}{environmentname}{'}'}", f"\\end{'{'}{environmentname}{'}'}",),
             node.nodelist,
             render_context,
             'display',

@@ -2,7 +2,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
-from pylatexenc.latexnodes.nodes import *
+from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.macrospec import (
     LatexEnvironmentBodyContentsParser,
@@ -16,6 +16,12 @@ from .. import fmthelpers
 
 from ._base import Feature
 from .graphics import SimpleIncludeGraphicsMacro
+
+
+
+### BEGINPATCH_UNIQUE_OBJECT_ID
+fn_unique_object_id = id
+### ENDPATCH_UNIQUE_OBJECT_ID
 
 
 # ------------------------------------------------------------------------------
@@ -97,7 +103,7 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
         node.llm_float_caption = dict(caption_nodelist=None, caption_node=None)
         float_content_items = []
         for n in node.nodelist:
-            if n.isNodeType(LatexMacroNode):
+            if n.isNodeType(latexnodes_nodes.LatexMacroNode):
 
                 if n.macroname == 'label':
                     # this is the figure label.
@@ -124,7 +130,7 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
 
                     if ref_label_prefix != self.float_type:
                         raise LatexWalkerParseError(
-                            f"Float's \\label{{...}} must have the "
+                            f"Float's \\label{'{'}...{'}'} must have the "
                             f"prefix ‘{self.float_type}:’",
                             pos=n.pos,
                         )
@@ -174,7 +180,7 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
             numbered = False
 
         float_instance = floats_mgr.register_float(
-            node_id=id(node),
+            node_id=fn_unique_object_id(node),
             float_type=self.float_type,
             numbered=numbered,
             ref_label_prefix=ref_label_prefix,
@@ -420,10 +426,11 @@ class FloatEnvironmentIncludeGraphicsOnly(FloatEnvironment):
         )
 
     def finalize_handle_content_node(self, float_node, content_node):
-        if content_node.isNodeType(LatexMacroNode) \
+        if content_node.isNodeType(latexnodes_nodes.LatexMacroNode) \
            and content_node.macroname == 'includegraphics':
             # \includegraphics command
-            if getattr(float_node, 'llm_includegraphics_node', None) is not None:
+            if hasattr(float_node, 'llm_includegraphics_node') and \
+               float_node.llm_includegraphics_node is not None:
                 raise LatexWalkerParseError(
                     f"{self.float_type} should contain exactly one "
                     f"\\includegraphics command apart from possible "
@@ -433,12 +440,12 @@ class FloatEnvironmentIncludeGraphicsOnly(FloatEnvironment):
             float_node.llm_includegraphics_node = content_node
             return True
 
-        if content_node.isNodeType(LatexCharsNode) \
+        if content_node.isNodeType(latexnodes_nodes.LatexCharsNode) \
            and len(content_node.chars.strip()) == 0:
             # skip whitespace without errors
             return False
 
-        if content_node.isNodeType(LatexCommentNode):
+        if content_node.isNodeType(latexnodes_nodes.LatexCommentNode):
             # skip comments without errors
             return False
 

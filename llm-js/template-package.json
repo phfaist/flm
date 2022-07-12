@@ -1,0 +1,7 @@
+{
+    "name": "llm-js",
+    "version": "0.0.1",
+    "description": "Automatically translated javascript version of the LLM sources",
+    "type": "module",
+    "private": true
+}

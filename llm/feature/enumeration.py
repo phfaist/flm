@@ -144,7 +144,7 @@ class Enumeration(LLMEnvironmentSpecBase):
                     pos=item_macro.pos,
                 )
             item_content_nodelist = item_macro.latex_walker.make_nodelist(
-                item_nodelist[1:],
+                item_nodelist.nodelist[1:],
                 parsing_state=item_macro.parsing_state,
             )
             logger.debug("item_content_nodelist = %r  (blocks = %r)",

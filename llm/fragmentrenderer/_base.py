@@ -65,7 +65,10 @@ class FragmentRenderer:
             # e.g., if it's actually a node list without any block-level items
             # that was seen as inline content but which we're now forcing to be
             # rendered as a paragraph in block mode.
-            node_blocks = getattr(nodelist, 'llm_blocks', [nodelist])
+            if hasattr(nodelist, 'llm_blocks'):
+                node_blocks = nodelist.llm_blocks
+            else:
+                node_blocks = [nodelist]
 
             return self.render_blocks(node_blocks, render_context)
 
@@ -93,7 +96,10 @@ class FragmentRenderer:
         
 
     def render_node_chars(self, node, render_context):
-        chars_value = getattr(node, 'llm_chars_value', None)
+        if hasattr(node, 'llm_chars_value'): # transcrypt doesn't like getattr with default arg
+            chars_value = node.llm_chars_value
+        else:
+            chars_value = None
         if chars_value is None:
             # might happen if the chars is not specifically in a node list
             chars_value = node.chars

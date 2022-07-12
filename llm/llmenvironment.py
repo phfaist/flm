@@ -15,7 +15,8 @@ from .llmdocument import LLMDocument
 
 class LLMParsingState(latexnodes.ParsingState):
 
-    _fields = tuple([*latexnodes.ParsingState._fields, 'is_block_level'])
+    # transcrypt seems to behave funny with tuple([*list, new_item]) ...
+    _fields = tuple(list(latexnodes.ParsingState._fields)+['is_block_level'])
 
     def set_fields(self, *, is_block_level=None, **kwargs):
         super().set_fields(**kwargs)
@@ -317,10 +318,11 @@ class LLMEnvironment:
                 moredefs = f.add_latex_context_definitions()
                 if moredefs:
                     logger.debug(f"Adding definitions for “{f.feature_name}”")
+                    moredefs2 = dict(moredefs)
+                    moredefs2.update(prepend=True)
                     self.latex_context.add_context_category(
                         f'feature--{f.feature_name}',
-                        **moredefs,
-                        prepend=True,
+                        **moredefs2
                     )
 
             # prevent further changes to latex context
