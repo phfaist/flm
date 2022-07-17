@@ -4,3 +4,5 @@
 # magic, no pkg_resources, no other stuff like that), especially for possible
 # future use with transcrypt.
 __version__ = "0.1.0beta1"
+
+# ALSO BUMP VERSION NUMBER IN pyproject.toml !!
