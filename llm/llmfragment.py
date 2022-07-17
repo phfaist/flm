@@ -96,7 +96,10 @@ class LLMFragment:
 
 
     def render(self, render_context, **kwargs):
-        return render_context.fragment_renderer.render_fragment(self, render_context, **kwargs)
+        return render_context.fragment_renderer.render_fragment(
+            self, render_context,
+            **kwargs
+        )
 
     def render_standalone(self, fragment_renderer):
         if not self.standalone_mode:

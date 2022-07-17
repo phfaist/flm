@@ -115,6 +115,7 @@ class FeatureExternalPrefixedCitations(Feature):
                         endnote.number
                     ),
                     is_block_level=False,
+                    standalone_mode=True,
                     what=f"citation counter (inner)",
                 )
 
@@ -313,6 +314,10 @@ class CiteMacro(LLMMacroSpecBase):
                     )
                 )
 
+            citation_nodes_parsing_state = node.parsing_state.sub_context(
+                is_block_level=False
+            )
+
             if cite_mgr.use_endnotes:
                 endnote_link_href = f"#{endnote.category_name}-{endnote.number}"
                 full_cite_mark = render_context.fragment_renderer.render_link(
@@ -320,7 +325,7 @@ class CiteMacro(LLMMacroSpecBase):
                     endnote_link_href,
                     display_nodelist=node.latex_walker.make_nodelist(
                         cite_content_list_of_nodes,
-                        parsing_state=node.parsing_state,
+                        parsing_state=citation_nodes_parsing_state,
                     ),
                     render_context=render_context,
                     annotations=['endnote', endnote.category_name],
@@ -333,7 +338,7 @@ class CiteMacro(LLMMacroSpecBase):
                 full_inline_citation = render_context.fragment_renderer.render_nodelist(
                     node.latex_walker.make_nodelist(
                         cite_content_list_of_nodes,
-                        parsing_state=node.parsing_state,
+                        parsing_state=citation_nodes_parsing_state,
                     ),
                     render_context
                 )

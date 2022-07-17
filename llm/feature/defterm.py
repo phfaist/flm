@@ -200,12 +200,19 @@ class FeatureDefTerm(Feature):
     FeatureDocumentManager = None
     FeatureRenderManager = None
 
+    render_defterm_with_term = True
+    render_defterm_with_term_suffix = ': '
+
     def add_latex_context_definitions(self):
         return dict(
             macros=[
                 RefTermMacro('term',)
             ],
             environments=[
-                DefineTermEnvironment('defterm',)
+                DefineTermEnvironment(
+                    'defterm',
+                    render_with_term=self.render_defterm_with_term,
+                    render_with_term_suffix=self.render_defterm_with_term_suffix,
+                )
             ]
         )

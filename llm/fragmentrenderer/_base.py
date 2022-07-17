@@ -21,9 +21,13 @@ class FragmentRenderer:
 
 
     def render_fragment(self, llm_fragment, render_context, is_block_level=None):
-        return self.render_nodelist(llm_fragment.nodes,
-                                    self._ensure_render_context(render_context),
-                                    is_block_level=is_block_level)
+        try:
+            return self.render_nodelist(llm_fragment.nodes,
+                                        self._ensure_render_context(render_context),
+                                        is_block_level=is_block_level)
+        except Exception as e:
+            logger.debug(f"Exception while rendering fragment ‘{llm_fragment.what}’: {e}")
+            raise
 
     def render_nodelist(self, nodelist, render_context, is_block_level=None):
         r"""
