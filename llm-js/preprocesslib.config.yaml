@@ -34,7 +34,14 @@ enabled_features:
       import unique_object_id
       fn_unique_object_id = unique_object_id.fn_unique_object_id
     MULTIPLE_BASE_CONSTRUCTORS: |
-      def _dobaseconstructors2argslast(Me, self, args, kwargs):
-        Me.__bases__[0].__init__(self)
-        Me.__bases__[1].__init__(self, *args, **kwargs)
+      def _dobaseconstructors2argslast(Me, self, args, kwargs,
+                                       kwargs_to_first_constructor=None):
+          kwargs1 = {}
+          kwargs2 = dict(kwargs)
+          if kwargs_to_first_constructor:
+              for kwarg in kwargs_to_first_constructor:
+                  if kwarg in kwargs2:
+                      kwargs1[kwarg] = kwargs2.pop(kwarg)
+          Me.__bases__[0].__init__(self, **kwargs1)
+          Me.__bases__[1].__init__(self, *args, **kwargs2)
         

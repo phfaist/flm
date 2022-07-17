@@ -522,12 +522,12 @@ We can try to add some footnotes, too.\footnote{Like this! Does it work?}  Does 
 <dl class="enumeration itemize"><dt>•</dt><dd><p>cool things?</p></dd><dt>•</dt><dd><p>more stuff?</p></dd><dt>!!!</dt><dd><p>Fun stuff??</p></dd></dl>
 <h1 class="heading-level-1">First section</h1>
 <p>From there to here, funny things are everywhere.</p>
-<div id="defterm-Pauli_20Xmatrices" class="defterm"><p> The <span class="textit">Pauli matrices</span> are defined as <span class="display-math env-align">\begin{align}
+<div id="defterm-Pauli_20Xmatrices" class="defterm"><p><span class="defterm-term">Pauli matrices: </span>The <span class="textit">Pauli matrices</span> are defined as <span class="display-math env-align">\begin{align}
     \sigma_X = \begin{pmatrix} 0 &amp; 1\\1 &amp; 0\end{pmatrix}\ ;
     \sigma_Y = \begin{pmatrix} 0 &amp; -i\\i &amp; 0\end{pmatrix}\ ;
     \sigma_Z = \begin{pmatrix} 1 &amp; 0\\0 &amp; -1\end{pmatrix}\ .
-  \end{align}</span> </p></div>
-<div id="defterm-qu_5cX_28Xd_5cX_29Xit" class="defterm"><p> A <span class="textit">qu<span class="inline-math">\(d\)</span>it</span> is a <span class="inline-math">\(d\)</span>-dimensional quantum system. </p></div>
+  \end{align}</span></p></div>
+<div id="defterm-qu_5cX_28Xd_5cX_29Xit" class="defterm"><p><span class="defterm-term">qu<span class="inline-math">\(d\)</span>it: </span>A <span class="textit">qu<span class="inline-math">\(d\)</span>it</span> is a <span class="inline-math">\(d\)</span>-dimensional quantum system.</p></div>
 <p>Here&#x27;s a display equation: <span id="equation--eq-my-equation" class="display-math env-align">\begin{align}
   a + b = c\ .
   \label{eq:my-equation}

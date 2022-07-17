@@ -8,7 +8,9 @@ from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
 
-from .llmenvironment import LLMArgumentSpec
+from .llmenvironment import (
+    LLMArgumentSpec, LLMParsingStateDeltaSetBlockLevel
+)
 
 
 # ------------------------------------------------------------------------------
@@ -113,14 +115,15 @@ class LLMSpecInfo:
     
 
 
+
 # ------------------------------------------------------------------------------
 
 
 # transcrypt doesn't seem to like super().__init__() (or the default
 # constructor) with multiple inheritance
 ### BEGINPATCH_MULTIPLE_BASE_CONSTRUCTORS
-_dobaseconstructors2argslast = \
-    lambda Me, self, args, kwargs: super(Me, self).__init__(*args, **kwargs)
+def _dobaseconstructors2argslast(Me, self, args, kwargs, kwargs_to_1=None):
+    super(Me, self).__init__(*args, **kwargs)
 ### ENDPATCH_MULTIPLE_BASE_CONSTRUCTORS
 
 
@@ -155,17 +158,20 @@ class LLMSpecInfoConstantValue(LLMSpecInfo):
 
 
 class ConstantValueMacro(LLMSpecInfoConstantValue, macrospec.MacroSpec):
-    def __init__(self, *args, value, **kwargs):
-        _dobaseconstructors2argslast(ConstantValueMacro, self, args, kwargs)
-        self.value = value # hack for transcrypt.... :/
+    def __init__(self, *args, **kwargs):
+        _dobaseconstructors2argslast(ConstantValueMacro, self, args, kwargs, ('value',))
 
 class ConstantValueSpecials(LLMSpecInfoConstantValue, macrospec.SpecialsSpec):
-    def __init__(self, *args, value, **kwargs):
-        _dobaseconstructors2argslast(ConstantValueSpecials, self, args, kwargs)
-        self.value = value
+    def __init__(self, *args, **kwargs):
+        _dobaseconstructors2argslast(ConstantValueSpecials, self, args, kwargs, ('value',))
 
 
-_text_arg = LLMArgumentSpec('{', argname='text',)
+_parsing_state_delta_inline_mode = LLMParsingStateDeltaSetBlockLevel(is_block_level=False)
+
+_text_arg = LLMArgumentSpec(
+    parser='{',
+    argname='text',
+)
 
 
 class TextFormatMacro(LLMMacroSpecBase):
@@ -304,9 +310,12 @@ class HeadingMacro(LLMMacroSpecBase):
 _href_arg_specs = {
     'target_href': LLMArgumentSpec(
         parser=latexnodes_parsers.LatexDelimitedVerbatimParser( ('{','}') ),
-        argname='target_href'
+        argname='target_href',
     ),
-    'display_text': LLMArgumentSpec('{', argname='display_text',),
+    'display_text': LLMArgumentSpec(
+        parser='{',
+        argname='display_text',
+    ),
 }
 
 

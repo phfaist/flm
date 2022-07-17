@@ -188,7 +188,8 @@ class RefMacro(LLMMacroSpecBase):
                 display_content_llm = ref_instance.formatted_ref_llm_text
             else:
                 display_content_llm = render_context.doc.environment.make_fragment(
-                    ref_instance.formatted_ref_llm_text
+                    ref_instance.formatted_ref_llm_text,
+                    standalone_mode=True
                 )
             display_content_nodelist = display_content_llm.nodes
 

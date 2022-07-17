@@ -169,6 +169,7 @@ def standard_latex_context_db():
 def standard_parsing_state(*,
                            force_block_level=None,
                            enable_comments=False,
+                           extra_forbidden_characters='',
                            dollar_inline_math_mode=False):
     r"""
     Return a `ParsingState` configured in a standard way for parsing LLM
@@ -182,10 +183,10 @@ def standard_parsing_state(*,
        `standard_latex_context_db()` for sensible defaults.
     """
 
-    forbidden_characters = ''
-    if not dollar_inline_math_mode:
+    forbidden_characters = str(extra_forbidden_characters)
+    if not dollar_inline_math_mode and '$' not in forbidden_characters:
         forbidden_characters += '$'
-    if not enable_comments:
+    if not enable_comments and '%' not in forbidden_characters:
         forbidden_characters += '%'
 
     latex_inline_math_delimiters = [ (r'\(', r'\)'), ]

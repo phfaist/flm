@@ -163,7 +163,7 @@ class CiteMacro(LLMMacroSpecBase):
             arguments_spec_list=[
                 LLMArgumentSpec(
                     '[',
-                    argname='cite_pre_text'
+                    argname='cite_pre_text',
                 ),
                 LLMArgumentSpec(
                     latexnodes_parsers.LatexCharsCommaSeparatedListParser(

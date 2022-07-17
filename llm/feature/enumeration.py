@@ -73,6 +73,8 @@ class Enumeration(LLMEnvironmentSpecBase):
 
     is_block_level = True
 
+    body_contents_is_block_level = True
+
     allowed_in_standalone_mode = True
 
     def __init__(self,
@@ -99,10 +101,10 @@ class Enumeration(LLMEnvironmentSpecBase):
         self.counter_formatter = counter_formatter
         self.annotations = annotations
 
-    def make_body_parsing_state_delta(self, token, nodeargd, arg_parsing_state_delta,
-                                      latex_walker, **kwargs):
-        return LLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level)
+        self.body_parsing_state_delta = \
+            LLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level)
         
+
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
         return LatexEnvironmentBodyContentsParser(
             environmentname=token.arg,

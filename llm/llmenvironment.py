@@ -39,7 +39,9 @@ def LLMArgumentSpec(parser, argname, is_block_level=False):
     """
     parsing_state_delta = None
     if is_block_level is not None:
-        parsing_state_delta = LLMParsingStateDeltaSetBlockLevel(is_block_level)
+        parsing_state_delta = LLMParsingStateDeltaSetBlockLevel(
+            is_block_level=is_block_level
+        )
     return latexnodes.LatexArgumentSpec(
         parser=parser,
         argname=argname,

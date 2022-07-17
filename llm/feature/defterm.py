@@ -3,11 +3,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import (
-    LatexArgumentSpec, ParsedArgumentsInfo
+    LatexArgumentSpec, ParsedArguments, ParsedArgumentsInfo
 )
-#from pylatexenc.latexnodes import parsers as latexnodes_parsers
+from pylatexenc.latexnodes import nodes as latexnodes_nodes
 
-from ..llmspecinfo import LLMMacroSpecBase, LLMEnvironmentSpecBase
+from ..llmspecinfo import LLMMacroSpecBase, LLMEnvironmentSpecBase, TextFormatMacro
+from ..llmenvironment import (
+    LLMParsingStateDeltaSetBlockLevel,
+    LLMArgumentSpec,
+)
 from ._base import Feature
 
 
@@ -34,14 +38,25 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
 
     allowed_in_standalone_mode = False
 
-    def __init__(self, environmentname, **kwargs):
+    def __init__(self, environmentname, render_with_term=True, render_with_term_suffix=': ',
+                 **kwargs):
         super().__init__(
             environmentname=environmentname,
             arguments_spec_list=[
-                LatexArgumentSpec('{', argname='term'),
+                LLMArgumentSpec('{', argname='term'),
             ],
             **kwargs
         )
+        self.render_with_term = render_with_term
+        self.render_with_term_suffix = render_with_term_suffix
+        if self.render_with_term:
+            mspec = TextFormatMacro('', text_formats=['defterm-term'])
+            mspec.is_block_heading = True
+            self.render_term_text_format_spec = mspec
+
+        self.body_parsing_state_delta = \
+            LLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level)
+
 
     def postprocess_parsed_node(self, node):
         node_args = \
@@ -73,11 +88,41 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
                 target_href=f'#defterm-{term_safe_target_id}',
             )
 
+        thenodelist = node.nodelist
+
+        if self.render_with_term:
+            environ = render_context.doc.environment
+            term_fragment = environ.make_fragment(
+                formatted_ref_llm_text + self.render_with_term_suffix,
+                standalone_mode=True
+            )
+            intro_node = term_fragment.latex_walker.make_node(
+                latexnodes_nodes.LatexMacroNode,
+                macroname='',
+                spec=self.render_term_text_format_spec,
+                macro_post_space='',
+                parsing_state=term_fragment.nodes.parsing_state,
+                nodeargd=ParsedArguments(
+                    arguments_spec_list=self.render_term_text_format_spec.arguments_spec_list,
+                    argnlist=[
+                        term_fragment.nodes,
+                    ]
+                ),
+                pos=node.pos,
+                pos_end=node.pos_end
+            )
+            self.render_term_text_format_spec.finalize_node( intro_node )
+
+            thenodelist = term_fragment.latex_walker.make_nodelist(
+                [ intro_node ] + list(thenodelist),
+                parsing_state=node.nodelist.parsing_state,
+            )
+
         # A call to render_semantic_block() is needed around the rendered
         # nodelist so that we can attach a target_id anchor to the content.
         return render_context.fragment_renderer.render_semantic_block(
             content=render_context.fragment_renderer.render_nodelist(
-                node.nodelist,
+                thenodelist,
                 render_context=render_context,
                 is_block_level=True,
             ),
@@ -94,8 +139,8 @@ class RefTermMacro(LLMMacroSpecBase):
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[
-                LatexArgumentSpec('[', argname='ref_term'),
-                LatexArgumentSpec('{', argname='term'),
+                LLMArgumentSpec('[', argname='ref_term'),
+                LLMArgumentSpec('{', argname='term'),
             ],
             **kwargs
         )
