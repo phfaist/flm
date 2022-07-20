@@ -366,7 +366,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         return f"<LLM:DLYD:{delayed_key}/>"
 
     def render_delayed_dummy_placeholder(self, node, delayed_key, render_context):
-        return '<!-- delayed:{delayed_key} -->'
+        return f'<!-- delayed:{delayed_key} -->'
 
     def replace_delayed_markers_with_final_values(self, content, delayed_values):
         return _rx_delayed_markers.sub(
@@ -480,18 +480,29 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
         imgattrs = {}
 
+        styparts = []
         if graphics_resource.physical_dimensions is not None:
 
             width_pt, height_pt = graphics_resource.physical_dimensions
 
             if graphics_resource.graphics_type == 'raster':
-                width_pt *= self.graphics_raster_magnification
-                height_pt *= self.graphics_raster_magnification
+                if width_pt is not None:
+                    width_pt *= self.graphics_raster_magnification
+                if height_pt is not None:
+                    height_pt *= self.graphics_raster_magnification
             elif graphics_resource.graphics_type == 'vector':
-                width_pt *= self.graphics_vector_magnification
-                height_pt *= self.graphics_vector_magnification
+                if width_pt is not None:
+                    width_pt *= self.graphics_vector_magnification
+                if height_pt is not None:
+                    height_pt *= self.graphics_vector_magnification
 
-            imgattrs['style'] = f"width:{width_pt:.6f}pt;height:{height_pt:.6f}pt;"
+            if width_pt is not None:
+                styparts.append(f"width:{width_pt:.6f}pt")
+            if height_pt is not None:
+                styparts.append(f"height:{height_pt:.6f}pt")
+
+        if styparts:
+            imgattrs['style'] = ";".join(styparts)
         
         imgattrs['src'] = graphics_resource.src_url
 
