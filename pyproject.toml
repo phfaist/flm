@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "llm"
-version = "0.1.0beta3" # ALSO BUMP IN llm/llm/__init__.py
+version = "0.1.0beta4" # ALSO BUMP IN llm/llm/__init__.py
 description = "Latex-Like Markup"
 authors = ["Philippe Faist"]
 license = "MIT"
