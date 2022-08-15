@@ -34,6 +34,11 @@ def main(cmdargs=None):
                              const=2,
                              help="Enable long verbose/debug output (include pylatexenc debug)")
 
+    args_parser.add_argument('--html-minimal-document', action='store_true',
+                             default=None,
+                             help="Produce a minimal HTML document markup to be "
+                             "successfully displayed in a browser.  Only for --format=html")
+
     args_parser.add_argument('files', metavar="FILE", nargs='*',
                              help='Input files (if none specified, read from stdandard input)')
 
