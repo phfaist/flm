@@ -12,6 +12,8 @@ from .. import llmspecinfo
 
 from ._base import Feature
 
+from . import refs
+
 
 
 
@@ -56,25 +58,30 @@ class HeadingMacro(llmspecinfo.LLMMacroSpecBase):
             self.allowed_ref_label_prefixes
         )
 
+        node.llm_referenceable_info = refs.ReferenceableInfo(
+            formatted_ref_llm_text=node.llmarg_heading_content_nodelist,
+            labels=node.llmarg_labels,
+        )
+
 
     def render(self, node, render_context):
 
         headings_mgr = render_context.feature_render_manager('headings')
-        target_id = headings_mgr.get_target_id(
-            node.llmarg_labels,
-            node.llmarg_heading_content_nodelist,
-            node=node,
-        )
+        target_id = node.llm_referenceable_info.get_target_id()
+
+        if target_id is None:
+            target_id = headings_mgr.get_default_target_id(
+                node.llmarg_labels,
+                node.llmarg_heading_content_nodelist,
+                node=node,
+            )
 
         if render_context.supports_feature('refs') and render_context.is_first_pass:
             refs_mgr = render_context.feature_render_manager('refs')
-            for ref_type, ref_label in node.llmarg_labels:
-                refs_mgr.register_reference(
-                    ref_type, ref_label,
-                    formatted_ref_llm_text=node.llmarg_heading_content_nodelist,
-                    node=node,
-                    target_href='#'+target_id
-                )
+            refs_mgr.register_reference_referenceable(
+                node=node,
+                referenceable_info=node.llm_referenceable_info,
+            )
 
         return render_context.fragment_renderer.render_heading(
             node.llmarg_heading_content_nodelist,
@@ -104,28 +111,23 @@ class FeatureHeadings(Feature):
             self.target_id_counters = {}
             self.target_ids = {}
 
-        def get_target_id(self, heading_labels, heading_content_nodelist, *, node):
+        def get_default_target_id(self, heading_labels, heading_content_nodelist, *, node):
 
             node_id = self.get_node_id(node)
 
             if node_id in self.target_ids:
                 return self.target_ids[node_id]
 
-            tgtid = self._generate_target_id(heading_labels, heading_content_nodelist)
+            tgtid = self._generate_default_target_id(heading_labels, heading_content_nodelist)
             self.target_ids[node_id] = tgtid
             return tgtid
 
-        def _generate_target_id(self, heading_labels, heading_content_nodelist):
-
-            # If we have a label, use that. (Use the first one provided.)
-            if heading_labels:
-                ref_type, ref_label = heading_labels[0]
-                return f"{ref_type}-{ref_label}"
+        def _generate_default_target_id(self, heading_labels, heading_content_nodelist):
 
             # "slugify" the heading nodelist
             tgtid = heading_content_nodelist.latex_verbatim().strip()
             tgtid = re.sub(r'[^A-Za-z0-9_-]+', '-', tgtid)
-            tgtid = f"sec-{tgtid}"
+            tgtid = f"sec--{tgtid}"
             tgtid = tgtid[:32] # truncate label to 32 chars
             if tgtid in self.target_id_counters:
                 self.target_id_counters[tgtid] += 1

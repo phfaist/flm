@@ -1,3 +1,4 @@
+import re
 import logging
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,30 @@ from ._base import Feature
 
 
 
+class ReferenceableInfo:
+    def __init__(self, formatted_ref_llm_text, labels):
+        super().__init__()
+        self.formatted_ref_llm_text = formatted_ref_llm_text
+        self.labels = labels # list of (ref_type, ref_label)
+
+        self._fields = ('formatted_ref_llm_text', 'labels',)
+
+    def get_target_id(self):
+
+        if not self.labels:
+            return None
+
+        lbl_ref_type, lbl_ref_label = self.labels[0]
+        return get_safe_target_id(lbl_ref_type, lbl_ref_label)
+
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            + ", ".join(f"{k}={getattr(self,k)!r}" for k in self._fields)
+            + ")"
+        )
+
 
 
 class RefInstance:
@@ -27,13 +52,29 @@ class RefInstance:
         self.formatted_ref_llm_text = formatted_ref_llm_text
         self.target_href = target_href
 
+        self._fields = ('ref_type', 'ref_target', 'formatted_ref_llm_text', 'target_href',)
+
     def __repr__(self):
         return (
-            f"{self.__class__.__name__}(ref_type={self.ref_type!r}, "
-            f"ref_target={self.ref_target!r}, "
-            f"formatted_ref_llm_text={self.formatted_ref_llm_text!r}, "
-            f"target_href={self.target_href!r})"
+            f"{self.__class__.__name__}("
+            + ", ".join(f"{k}={getattr(self,k)!r}" for k in self._fields)
+            + ")"
         )
+
+
+
+
+
+_rx_unsafe_char = re.compile(r'[^a-zA-Z0-9-]')
+def _rx_match_safechar(m):
+    return f'_{ord(m.group()):x}X'
+
+def get_safe_target_id(ref_type, ref_label):
+    ref_type_safe = _rx_unsafe_char.sub(_rx_match_safechar, ref_type)
+    ref_label_safe = _rx_unsafe_char.sub(_rx_match_safechar, ref_label)
+    return f"{ref_type_safe}-{ref_label_safe}"
+
+
 
 
 class FeatureRefsRenderManager(Feature.RenderManager):
@@ -42,6 +83,22 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         self.ref_labels = {}
         self.registered_references = {}
         
+    def register_reference_referenceable(self, *, node, referenceable_info):
+
+        if not referenceable_info.labels:
+            return
+
+        target_href = '#' + referenceable_info.get_target_id()
+
+        for ref_type, ref_label in referenceable_info.labels:
+            self.register_reference(
+                ref_type, ref_label,
+                formatted_ref_llm_text=referenceable_info.formatted_ref_llm_text,
+                node=node,
+                target_href=target_href,
+            )
+
+
     def register_reference(self, ref_type, ref_target, *,
                            node, formatted_ref_llm_text, target_href):
         r"""
