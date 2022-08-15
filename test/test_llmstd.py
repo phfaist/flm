@@ -487,6 +487,7 @@ as \{is.\end{verbatim\ ha no, gotcha parser!
   \end{verbatimtext}
 
 \section{Another section}
+\label{sec:test-label-another-sec}
 
 We can try to add some footnotes, too.\footnote{Like this! Does it work?}  Does it work?
 
@@ -520,7 +521,7 @@ We can try to add some footnotes, too.\footnote{Like this! Does it work?}  Does 
             r"""
 <p>Hello, world. <span class="textit">Here I am.</span> What would you like to see?</p>
 <dl class="enumeration itemize"><dt>•</dt><dd><p>cool things?</p></dd><dt>•</dt><dd><p>more stuff?</p></dd><dt>!!!</dt><dd><p>Fun stuff??</p></dd></dl>
-<h1 class="heading-level-1">First section</h1>
+<h1 id="sec-First-section" class="heading-level-1">First section</h1>
 <p>From there to here, funny things are everywhere.</p>
 <div id="defterm-Pauli_20Xmatrices" class="defterm"><p><span class="defterm-term">Pauli matrices: </span>The <span class="textit">Pauli matrices</span> are defined as <span class="display-math env-align">\begin{align}
     \sigma_X = \begin{pmatrix} 0 &amp; 1\\1 &amp; 0\end{pmatrix}\ ;
@@ -532,9 +533,9 @@ We can try to add some footnotes, too.\footnote{Like this! Does it work?}  Does 
   a + b = c\ .
   \label{eq:my-equation}
 \end{align}</span></p>
-<h2 class="heading-level-2">An enumeration list</h2>
+<h2 id="sec-An-enumeration-list" class="heading-level-2">An enumeration list</h2>
 <dl class="enumeration enumerate"><dt>(a.)</dt><dd><p>First thing to see could be something nice. This line might also be pretty long, with lots of unnecessary text that I could have imagined cutting off at some point.</p></dd><dt>(b.)</dt><dd><p>Second nice thing! Check also <span class="inline-math">\(\eqref{eq:my-equation}\)</span> and <a href="#figure-1" class="href-ref ref-figure">Figure 1</a>.</p></dd></dl>
-<p><span class="heading-level-4 heading-inline">A paragraph-level sectioning command</span> Paragraph content goes here. How does this work? I can add a figure, too; let&#x27;s see how it works.</p>
+<p><span id="sec-A-paragraph-level-sectioning" class="heading-level-4 heading-inline">A paragraph-level sectioning command</span> Paragraph content goes here. How does this work? I can add a figure, too; let&#x27;s see how it works.</p>
 <figure id="figure-1" class="float float-figure"><div class="float-contents"><img src="https://media.giphy.com/media/8Iv5lqKwKsZ2g/giphy.gif"></div>
 <figcaption class="float-caption-content"><span><span class="float-number">Figure&nbsp;1</span>: This figure has a caption.</span></figcaption></figure>
 <p>Don&#x27;t forget how the <a href="#defterm-Pauli_20Xmatrices" class="href-term">Pauli matrices</a> are defined. Also, <span class="inline-math">\(\sigma_X\)</span> is a <a href="#defterm-Pauli_20Xmatrices" class="href-ref ref-defterm">Pauli matrix</a> (or a <a href="#defterm-Pauli_20Xmatrices" class="href-term">Pauli matrix</a>). Recall the definition of a <a href="#defterm-qu_5cX_28Xd_5cX_29Xit" class="href-term">qu<span class="inline-math">\(d\)</span>it</a>, noting that a qubit is also a <a href="#defterm-qu_5cX_28Xd_5cX_29Xit" class="href-term">qu<span class="inline-math">\(d=2\)</span>it</a>.</p>
@@ -543,7 +544,7 @@ We can try to add some footnotes, too.\footnote{Like this! Does it work?}  Does 
 verbatim.
 as \{is.\end{verbatim\ ha no, gotcha parser!
   </span></p>
-<h1 class="heading-level-1">Another section</h1>
+<h1 id="sec-test-label-another-sec" class="heading-level-1">Another section</h1>
 <p>We can try to add some footnotes, too.<a href="#footnote-1" class="href-endnote endnote footnote">a</a> Does it work?</p>
 <h1 class="heading-level-1">Footnotes</h1>
 <dl class="enumeration footnote-list"><dt id="footnote-1">a</dt><dd>Like this! Does it work?</dd></dl>

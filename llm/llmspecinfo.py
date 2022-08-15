@@ -168,7 +168,7 @@ class ConstantValueSpecials(LLMSpecInfoConstantValue, macrospec.SpecialsSpec):
 
 _parsing_state_delta_inline_mode = LLMParsingStateDeltaSetBlockLevel(is_block_level=False)
 
-_text_arg = LLMArgumentSpec(
+text_arg = LLMArgumentSpec(
     parser='{',
     argname='text',
 )
@@ -196,7 +196,7 @@ class TextFormatMacro(LLMMacroSpecBase):
     def __init__(self, macroname, *, text_formats):
         super().__init__(
             macroname=macroname,
-            arguments_spec_list=[_text_arg],
+            arguments_spec_list=[text_arg],
         )
         self.text_formats = text_formats
 
@@ -265,46 +265,6 @@ class LLMSpecialsSpecError(LLMSpecInfoError, macrospec.SpecialsSpec):
     def __init__(self, *args, **kwargs):
         _dobaseconstructors2argslast(LLMSpecialsSpecError, self, args, kwargs)
 
-
-
-
-class HeadingMacro(LLMMacroSpecBase):
-
-    is_block_level = True
-
-    allowed_in_standalone_mode = True
-
-    # internal, used when truncating fragments to a certain number of characters
-    # (see fragment.truncate_to())
-    _llm_main_text_argument = 'text'
-
-    def __init__(self, macroname, *, heading_level=1, inline_heading=False):
-        r"""
-        Heading level is to be coordinated with fragment renderer and LLM
-        environment/context commands; for example `heading_level=1..6` with
-        commands ``\section`` ... ``\subsubparagraph``
-        """
-        super().__init__(
-            macroname,
-            arguments_spec_list=[ _text_arg ],
-        )
-        self.heading_level = heading_level
-        self.inline_heading = inline_heading
-        # reimplemented from llmspecinfo -
-        self.is_block_heading = self.inline_heading
-
-    def render(self, node, render_context):
-
-        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-            ('text',) ,
-        )
-
-        return render_context.fragment_renderer.render_heading(
-            node_args['text'].get_content_nodelist(),
-            render_context=render_context,
-            heading_level=self.heading_level,
-            inline_heading=self.inline_heading
-        )
 
 
 _href_arg_specs = {

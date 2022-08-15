@@ -1,9 +1,123 @@
+import re
+import logging
+logger = logging.getLogger(__name__)
 
-#from pylatexenc import macrospec
+from pylatexenc.latexnodes import (
+    ParsedArgumentsInfo,
+    LatexWalkerParseError,
+)
+from pylatexenc.latexnodes import parsers as latexnodes_parsers
 
-from ..llmspecinfo import HeadingMacro
+from .. import llmspecinfo
 
 from ._base import Feature
+
+
+
+
+labels_arg = llmspecinfo.LLMArgumentSpec(
+    parser=latexnodes_parsers.LatexTackOnInformationFieldMacrosParser(
+        ['label'],
+        allow_multiple=True
+    ),
+    argname='label',
+)
+
+
+class HeadingMacro(llmspecinfo.LLMMacroSpecBase):
+
+    is_block_level = True
+
+    allowed_in_standalone_mode = True
+
+    ref_type = 'sec'
+
+    # internal, used when truncating fragments to a certain number of characters
+    # (see fragment.truncate_to())
+    _llm_main_text_argument = 'text'
+
+    def __init__(self, macroname, *, heading_level=1, inline_heading=False):
+        r"""
+        Heading level is to be coordinated with fragment renderer and LLM
+        environment/context commands; for example `heading_level=1..6` with
+        commands ``\section`` ... ``\subsubparagraph``
+        """
+        super().__init__(
+            macroname,
+            arguments_spec_list=[ llmspecinfo.text_arg, labels_arg ],
+        )
+        self.heading_level = heading_level
+        self.inline_heading = inline_heading
+        # reimplemented from llmspecinfo -
+        self.is_block_heading = self.inline_heading
+
+    def postprocess_parsed_node(self, node):
+
+        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
+            ('text', 'label') ,
+        )
+
+        node.llmarg_heading_content_nodelist = node_args['text'].get_content_nodelist()
+
+        if node_args['label'].was_provided():
+            the_labels = []
+            argnodes = node_args['label'].get_content_nodelist()
+            for argnode in argnodes:
+                if argnode.delimiters[0] == r'\label':
+                    logger.debug(f"{argnode=}")
+                    the_label = argnode.nodelist.get_content_as_chars()
+                    if ':' in the_label:
+                        ref_type, ref_label = the_label.split(':', 1)
+                    else:
+                        ref_type, ref_label = None, the_label
+
+                    if ref_type != 'sec':
+                        raise LatexWalkerParseError(
+                            f"Heading-related labels (section, etc.) must have the ‘sec:’ "
+                            f"prefix, your label ‘{the_label}’ has prefix ‘{ref_type}:’.",
+                            pos=argnode.pos,
+                        )
+
+                    the_labels.append( (ref_type, ref_label) )
+
+                    continue
+
+                raise LatexWalkerParseError(
+                    f"Bad information field macro {argnode.delimiters[0]}",
+                    pos=argnode.pos
+                )
+
+            node.llmarg_labels = the_labels
+
+        else:
+            node.llmarg_labels = None
+
+
+    def render(self, node, render_context):
+
+        headings_mgr = render_context.feature_render_manager('headings')
+        target_id = headings_mgr.get_target_id(node.llmarg_labels,
+                                               node.llmarg_heading_content_nodelist)
+
+        if render_context.supports_feature('refs'):
+            refs_mgr = render_context.feature_render_manager('refs')
+            for ref_type, ref_label in node.llmarg_labels:
+                refs_mgr.register_reference(
+                    ref_type, ref_label,
+                    node.llmarg_heading_content_nodelist,
+                    '#'+target_id
+                )
+
+        return render_context.fragment_renderer.render_heading(
+            node.llmarg_heading_content_nodelist,
+            render_context=render_context,
+            heading_level=self.heading_level,
+            inline_heading=self.inline_heading,
+            target_id=target_id
+        )
+
+
+
 
 
 
@@ -14,9 +128,31 @@ class FeatureHeadings(Feature):
     """
 
     feature_name = 'headings'
-    # no managers needed
-    DocumentManager = None
-    RenderManager = None
+
+    class RenderManager(Feature.RenderManager):
+        # the render manager will take care of generating render-context-unique
+        # target id's for headers
+        def initialize(self):
+            self.target_id_counters = {}
+
+        def get_target_id(self, heading_labels, heading_content_nodelist):
+            # If we have a label, use that. (Use the first one provided.)
+            if heading_labels:
+                ref_type, ref_label = heading_labels[0]
+                return f"{ref_type}-{ref_label}"
+
+            # "slugify" the heading nodelist
+            tgtid = heading_content_nodelist.latex_verbatim().strip()
+            tgtid = re.sub(r'[^A-Za-z0-9_-]+', '-', tgtid)
+            tgtid = f"sec-{tgtid}"
+            tgtid = tgtid[:32] # truncate label to 32 chars
+            if tgtid in self.target_id_counters:
+                tgtid += f"-{self.target_id_counters[tgtid]}"
+                self.target_id_counters[tgtid] += 1
+                return tgtid
+
+            self.target_id_counters[tgtid] = 2
+            return tgtid
 
     class SectionCommandSpec:
         def __init__(self, cmdname, inline=False):
