@@ -1,4 +1,11 @@
 
+
+
+### BEGINPATCH_UNIQUE_OBJECT_ID
+fn_unique_object_id = id
+### ENDPATCH_UNIQUE_OBJECT_ID
+
+
 class Feature:
 
     feature_name = None
@@ -13,6 +20,9 @@ class Feature:
 
         def initialize(self):
             pass
+
+        def get_node_id(self, node):
+            return self.feature.get_node_id(node)
 
     class RenderManager:
         def __init__(self, feature_document_manager, render_context, **kwargs):
@@ -31,7 +41,34 @@ class Feature:
         def postprocess(self, final_value):
             pass
 
+        def get_node_id(self, node):
+            return self.feature.get_node_id(node)
+
 
     def add_latex_context_definitions(self):
+        r"""
+        Reimplement to
+        """
         return {}
         
+
+    # ---
+
+    def get_node_id(self, node):
+        r"""
+        Helper method to get a unique hashable identifier key (integer or tuple)
+        associated with the object `node`.  The result can be used for instance
+        as a dictionary key to store data that needs to be associated with a
+        given object instance or with given unique identifying information.
+
+        The argument `node` is assumed to be either an object instance (e.g., a
+        `LatexNode` instance) or a tuple of hashable data.  In the first case,
+        this method returns the object's `id(node)`, providing a unique key
+        associated with that object instance, and in the latter case, the tuple
+        is returned as is.
+        """
+        if isinstance(node, tuple):
+            # In this case, the tuple directly provides a unique identifying
+            # data; return it as is
+            return node
+        return fn_unique_object_id(node)

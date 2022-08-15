@@ -162,8 +162,7 @@ class FragmentRenderer:
         if llm_specinfo.delayed_render:
             # requested a delayed rendering -- 
 
-            is_first_pass = (self.supports_delayed_render_markers
-                             or not render_context.two_pass_mode_is_second_pass)
+            is_first_pass = render_context.is_first_pass
             delayed_key = None
 
             if is_first_pass:
@@ -181,7 +180,7 @@ class FragmentRenderer:
                 return self.render_delayed_dummy_placeholder(node, delayed_key, render_context)
             else:
                 # second pass of the two-pass scheme
-                assert( render_context.two_pass_mode_is_second_pass )
+                assert( not render_context.is_first_pass )
                 # can return content that has been rendered by now
                 return render_context.get_delayed_render_content(node)
 

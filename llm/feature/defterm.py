@@ -85,6 +85,7 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
                 ref_label_prefix,
                 ref_label,
                 formatted_ref_llm_text=formatted_ref_llm_text,
+                node=node,
                 target_href=f'#defterm-{term_safe_target_id}',
             )
 

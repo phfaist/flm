@@ -11,10 +11,6 @@ from ._base import Feature
 from .. import fmthelpers
 
 
-### BEGINPATCH_UNIQUE_OBJECT_ID
-fn_unique_object_id = id
-### ENDPATCH_UNIQUE_OBJECT_ID
-
 
 
 class EndnoteCategory:
@@ -76,7 +72,7 @@ class EndnoteMacro(LLMMacroSpecBase):
         endnote = mgr.add_endnote(
             category_name=self.endnote_category_name,
             content_nodelist=content_nodelist,
-            node_id=fn_unique_object_id(node)
+            node=node,
         )
 
         rendered_endnote_mark = mgr.render_endnote_mark(endnote)
@@ -176,9 +172,11 @@ class FeatureEndnotes(Feature):
             self.endnote_instances = {} # node_id -> endnote instance
 
         def add_endnote(self, category_name, content_nodelist, *,
-                        ref_label_prefix=None, ref_label=None, node_id=None):
+                        node, ref_label_prefix=None, ref_label=None):
 
-            if node_id is not None and node_id in self.endnote_instances:
+            node_id = self.get_node_id(node)
+
+            if node_id in self.endnote_instances:
                 # this happens on second pass when rendering in two passes.
                 return self.endnote_instances[node_id]
 

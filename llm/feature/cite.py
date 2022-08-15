@@ -103,7 +103,7 @@ class FeatureExternalPrefixedCitations(Feature):
                 content_nodelist=citation_llm.nodes,
                 ref_label_prefix=cite_prefix,
                 ref_label=cite_key,
-                node_id=(cite_prefix,cite_key),
+                node=(cite_prefix,cite_key),
             )
 
             # also add a custom field, the formatted inner counter text (e.g.,

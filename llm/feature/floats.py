@@ -19,11 +19,6 @@ from .graphics import SimpleIncludeGraphicsMacro
 
 
 
-### BEGINPATCH_UNIQUE_OBJECT_ID
-fn_unique_object_id = id
-### ENDPATCH_UNIQUE_OBJECT_ID
-
-
 # ------------------------------------------------------------------------------
 
 
@@ -180,7 +175,7 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
             numbered = False
 
         float_instance = floats_mgr.register_float(
-            node_id=fn_unique_object_id(node),
+            node=node,
             float_type=self.float_type,
             numbered=numbered,
             ref_label_prefix=ref_label_prefix,
@@ -328,15 +323,17 @@ class FeatureFloats(Feature):
                 self,
                 float_type,
                 *,
+                node,
                 numbered=True,
                 ref_label_prefix=None,
                 ref_label=None,
                 caption_nodelist=None,
                 content_nodelist=None,
-                node_id=None,
         ):
 
-            if node_id is not None and node_id in self.float_instances:
+            node_id = self.get_node_id(node)
+
+            if node_id in self.float_instances:
                 # this happens on second pass when rendering in two passes.
                 return self.float_instances[node_id]
 
@@ -398,13 +395,12 @@ class FeatureFloats(Feature):
                     refs_mgr.register_reference(
                         ref_label_prefix,
                         ref_label,
+                        node=node,
                         formatted_ref_llm_text=formatted_ref_llm_text,
                         target_href=f'#{target_id}',
                     )
 
-            if node_id is not None:
-                self.float_instances[node_id] = float_instance
-
+            self.float_instances[node_id] = float_instance
             return float_instance
 
         def get_formatted_ref_llm_text(self, float_instance):

@@ -16,6 +16,9 @@ from ._base import Feature
 
 
 
+
+
+
 class RefInstance:
     def __init__(self, ref_type, ref_target, formatted_ref_llm_text, target_href):
         super().__init__()
@@ -37,19 +40,43 @@ class FeatureRefsRenderManager(Feature.RenderManager):
 
     def initialize(self):
         self.ref_labels = {}
+        self.registered_references = {}
         
-    def register_reference(self, ref_type, ref_target, formatted_ref_llm_text, target_href):
+    def register_reference(self, ref_type, ref_target, *,
+                           node, formatted_ref_llm_text, target_href):
         r"""
-        `formatted_ref_llm_text` is LLM code.
+        ........
+        
+        If you call this method a second time on the same render context with
+        the same `node` instance and the same `(ref_type, ref_target)`, then the
+        additional arguments are ignored and the earlier registered reference
+        refinstance is returned instead.
+
+        `formatted_ref_llm_text` is LLM code given as a string or as a
+        LLMFragment instance.
         """
+
+        node_id = self.get_node_id(node)
+        kk = (node_id, ref_type, ref_target)
+        if kk in self.registered_references:
+            return self.registered_references
+
+        if (ref_type, ref_target) in self.ref_labels:
+            raise ValueError(
+                f"Duplicate reference label ‘{ref_type}:{ref_target}’ in the same document!"
+            )
+
         refinstance = RefInstance(
             ref_type=ref_type,
             ref_target=ref_target,
             formatted_ref_llm_text=formatted_ref_llm_text,
             target_href=target_href,
         )
-        self.ref_labels[(ref_type, ref_target)] = refinstance
+        self.registered_references[ kk ] = refinstance
+        self.ref_labels[ (ref_type, ref_target) ] = refinstance
         logger.debug("Registered reference: %r", refinstance)
+        return refinstance
+
 
     def get_ref(self, ref_type, ref_target, *, resource_info):
         if (ref_type, ref_target) in self.ref_labels:

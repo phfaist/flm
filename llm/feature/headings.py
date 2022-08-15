@@ -15,6 +15,7 @@ from ._base import Feature
 
 
 
+
 labels_arg = llmspecinfo.LLMArgumentSpec(
     parser=latexnodes_parsers.LatexTackOnInformationFieldMacrosParser(
         ['label'],
@@ -64,7 +65,7 @@ class HeadingMacro(llmspecinfo.LLMMacroSpecBase):
             argnodes = node_args['label'].get_content_nodelist()
             for argnode in argnodes:
                 if argnode.delimiters[0] == r'\label':
-                    logger.debug(f"{argnode=}")
+                    #logger.debug(f"{argnode=}")
                     the_label = argnode.nodelist.get_content_as_chars()
                     if ':' in the_label:
                         ref_type, ref_label = the_label.split(':', 1)
@@ -96,16 +97,20 @@ class HeadingMacro(llmspecinfo.LLMMacroSpecBase):
     def render(self, node, render_context):
 
         headings_mgr = render_context.feature_render_manager('headings')
-        target_id = headings_mgr.get_target_id(node.llmarg_labels,
-                                               node.llmarg_heading_content_nodelist)
+        target_id = headings_mgr.get_target_id(
+            node.llmarg_labels,
+            node.llmarg_heading_content_nodelist,
+            node=node,
+        )
 
-        if render_context.supports_feature('refs'):
+        if render_context.supports_feature('refs') and render_context.is_first_pass:
             refs_mgr = render_context.feature_render_manager('refs')
             for ref_type, ref_label in node.llmarg_labels:
                 refs_mgr.register_reference(
                     ref_type, ref_label,
-                    node.llmarg_heading_content_nodelist,
-                    '#'+target_id
+                    formatted_ref_llm_text=node.llmarg_heading_content_nodelist,
+                    node=node,
+                    target_href='#'+target_id
                 )
 
         return render_context.fragment_renderer.render_heading(
@@ -134,8 +139,21 @@ class FeatureHeadings(Feature):
         # target id's for headers
         def initialize(self):
             self.target_id_counters = {}
+            self.target_ids = {}
 
-        def get_target_id(self, heading_labels, heading_content_nodelist):
+        def get_target_id(self, heading_labels, heading_content_nodelist, *, node):
+
+            node_id = self.get_node_id(node)
+
+            if node_id in self.target_ids:
+                return self.target_ids[node_id]
+
+            tgtid = self._generate_target_id(heading_labels, heading_content_nodelist)
+            self.target_ids[node_id] = tgtid
+            return tgtid
+
+        def _generate_target_id(self, heading_labels, heading_content_nodelist):
+
             # If we have a label, use that. (Use the first one provided.)
             if heading_labels:
                 ref_type, ref_label = heading_labels[0]
@@ -147,12 +165,12 @@ class FeatureHeadings(Feature):
             tgtid = f"sec-{tgtid}"
             tgtid = tgtid[:32] # truncate label to 32 chars
             if tgtid in self.target_id_counters:
-                tgtid += f"-{self.target_id_counters[tgtid]}"
                 self.target_id_counters[tgtid] += 1
-                return tgtid
+                return f"{tgtid}-{self.target_id_counters[tgtid]}"
 
-            self.target_id_counters[tgtid] = 2
+            self.target_id_counters[tgtid] = 1
             return tgtid
+
 
     class SectionCommandSpec:
         def __init__(self, cmdname, inline=False):

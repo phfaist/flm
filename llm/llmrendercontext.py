@@ -8,10 +8,14 @@ class LLMRenderContext:
 
     is_standalone_mode = False
 
+    is_first_pass = True
+
     def __init__(self, fragment_renderer, *, doc=None, **kwargs):
         super().__init__(**kwargs)
         self.doc = doc
         self.fragment_renderer = fragment_renderer
+        self.pass_name = None
+        self.is_first_pass = True
         self._logical_state = {}
 
     def supports_feature(self, feature_name):
@@ -26,6 +30,12 @@ class LLMRenderContext:
     def get_delayed_render_content(self, node):
         raise RuntimeError("This render context does not support delayed rendering")
 
+    def set_render_pass(self, pass_name):
+        self.pass_name = pass_name
+        if pass_name is None:
+            self.is_first_pass = True
+        else:
+            self.is_first_pass = False
 
     def get_logical_state(self, domainname):
         r"""

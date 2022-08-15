@@ -18,7 +18,7 @@ class LLMDocumentRenderContext(LLMRenderContext):
 
         # flags and internal counters for delayed content
 
-        self.two_pass_mode_is_second_pass = False
+        self.is_first_pass = True
         self._delayed_id_counter = 1 # only used if we have delayed content markers
         self._delayed_render_nodes = {} # key => node
         self._delayed_render_content = {} # key => string-content
@@ -178,7 +178,7 @@ class LLMDocument:
         else:
 
             # need a second pass to re-render everything with the correct values
-            render_context.two_pass_mode_is_second_pass = True
+            render_context.set_render_pass('second-pass')
             value = self.render_callback(render_context)
 
         #logger.debug("document render final_value = %r", value)
