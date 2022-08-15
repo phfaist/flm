@@ -173,6 +173,50 @@ text_arg = LLMArgumentSpec(
     argname='text',
 )
 
+label_arg = LLMArgumentSpec(
+    parser=latexnodes_parsers.LatexTackOnInformationFieldMacrosParser(
+        ['label'],
+        allow_multiple=True
+    ),
+    argname='label',
+)
+
+def helper_collect_labels(node_arg_label, allowed_prefixes):
+
+    if not node_arg_label.was_provided():
+        return None
+
+    the_labels = []
+    argnodes = node_arg_label.get_content_nodelist()
+    for argnode in argnodes:
+        if argnode.delimiters[0] == r'\label':
+            #logger.debug(f"{argnode=}")
+            the_label = argnode.nodelist.get_content_as_chars()
+            if ':' in the_label:
+                ref_type, ref_label = the_label.split(':', 1)
+            else:
+                ref_type, ref_label = None, the_label
+
+            if ref_type not in allowed_prefixes:
+                raise LatexWalkerParseError(
+                    f"Heading label ‘{the_label}’ has incorrect prefix "
+                    f"‘{ref_type}:’; expected one of {allowed_prefixes}",
+                    pos=argnode.pos,
+                )
+
+            the_labels.append( (ref_type, ref_label) )
+            continue
+
+        raise LatexWalkerParseError(
+            f"Bad information field macro {argnode.delimiters[0]}",
+            pos=argnode.pos
+        )
+    
+    return the_labels
+
+
+
+
 
 class TextFormatMacro(LLMMacroSpecBase):
     r"""

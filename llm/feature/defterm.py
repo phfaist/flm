@@ -7,7 +7,10 @@ from pylatexenc.latexnodes import (
 )
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 
-from ..llmspecinfo import LLMMacroSpecBase, LLMEnvironmentSpecBase, TextFormatMacro
+from .. import llmspecinfo
+from ..llmspecinfo import (
+    LLMMacroSpecBase, LLMEnvironmentSpecBase, TextFormatMacro,
+)
 from ..llmenvironment import (
     LLMParsingStateDeltaSetBlockLevel,
     LLMArgumentSpec,
@@ -38,12 +41,15 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
 
     allowed_in_standalone_mode = False
 
+    allowed_ref_label_prefixes = ('topic', )
+
     def __init__(self, environmentname, render_with_term=True, render_with_term_suffix=': ',
                  **kwargs):
         super().__init__(
             environmentname=environmentname,
             arguments_spec_list=[
                 LLMArgumentSpec('{', argname='term'),
+                llmspecinfo.label_arg,
             ],
             **kwargs
         )
@@ -56,17 +62,25 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
 
         self.body_parsing_state_delta = \
             LLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level)
-
+        
 
     def postprocess_parsed_node(self, node):
         node_args = \
             ParsedArgumentsInfo(node=node).get_all_arguments_info(
-                ('term',),
+                ('term','label'),
             )
+
         term_llm_ref_label_verbatim = \
             get_term_ref_label_verbatim(node_args['term'].get_content_nodelist())
         node.llmarg_term_llm_ref_label_verbatim = term_llm_ref_label_verbatim
         node.llmarg_term_safe_target_id = get_term_safe_target_id(term_llm_ref_label_verbatim)
+
+        # pick out \label{}'s, if any
+        node.llmarg_labels = llmspecinfo.helper_collect_labels(
+            node_args['label'],
+            self.allowed_ref_label_prefixes
+        )
+
         return node
 
     def render(self, node, render_context):
@@ -78,6 +92,8 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
         formatted_ref_llm_text = node.llmarg_term_llm_ref_label_verbatim
         term_safe_target_id = node.llmarg_term_safe_target_id
 
+        target_href = f'#defterm-{term_safe_target_id}'
+
         # register the term
         if render_context.supports_feature('refs'):
             refs_mgr = render_context.feature_render_manager('refs')
@@ -86,8 +102,17 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
                 ref_label,
                 formatted_ref_llm_text=formatted_ref_llm_text,
                 node=node,
-                target_href=f'#defterm-{term_safe_target_id}',
+                target_href=target_href,
             )
+            # also add all the custom labels
+            for ref_type, ref_label in node.llmarg_labels:
+                refs_mgr.register_reference(
+                    ref_type, ref_label,
+                    formatted_ref_llm_text=formatted_ref_llm_text,
+                    node=node,
+                    target_href=target_href,
+                )
+                
 
         thenodelist = node.nodelist
 

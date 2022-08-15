@@ -447,6 +447,7 @@ From there to here, funny things are everywhere.
 \end{defterm}
 
 \begin{defterm}{qu\(d\)it}
+  \label{topic:qudit}
   A \emph{qu\(d\)it} is a \(d\)-dimensional quantum system.
 \end{defterm}
 
@@ -490,6 +491,8 @@ as \{is.\end{verbatim\ ha no, gotcha parser!
 \label{sec:test-label-another-sec}
 
 We can try to add some footnotes, too.\footnote{Like this! Does it work?}  Does it work?
+
+See also the topic \ref{topic:qudit}.
 
 """
         )
@@ -546,6 +549,7 @@ as \{is.\end{verbatim\ ha no, gotcha parser!
   </span></p>
 <h1 id="sec-test-label-another-sec" class="heading-level-1">Another section</h1>
 <p>We can try to add some footnotes, too.<a href="#footnote-1" class="href-endnote endnote footnote">a</a> Does it work?</p>
+<p>See also the topic <a href="#defterm-qu_5cX_28Xd_5cX_29Xit" class="href-ref ref-topic">qu<span class="inline-math">\(d\)</span>it</a>.</p>
 <h1 class="heading-level-1">Footnotes</h1>
 <dl class="enumeration footnote-list"><dt id="footnote-1">a</dt><dd>Like this! Does it work?</dd></dl>
 """.strip()

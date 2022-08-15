@@ -16,26 +16,17 @@ from ._base import Feature
 
 
 
-labels_arg = llmspecinfo.LLMArgumentSpec(
-    parser=latexnodes_parsers.LatexTackOnInformationFieldMacrosParser(
-        ['label'],
-        allow_multiple=True
-    ),
-    argname='label',
-)
-
-
 class HeadingMacro(llmspecinfo.LLMMacroSpecBase):
 
     is_block_level = True
 
     allowed_in_standalone_mode = True
 
-    ref_type = 'sec'
-
     # internal, used when truncating fragments to a certain number of characters
     # (see fragment.truncate_to())
     _llm_main_text_argument = 'text'
+
+    allowed_ref_label_prefixes = ('sec', 'topic',)
 
     def __init__(self, macroname, *, heading_level=1, inline_heading=False):
         r"""
@@ -45,7 +36,7 @@ class HeadingMacro(llmspecinfo.LLMMacroSpecBase):
         """
         super().__init__(
             macroname,
-            arguments_spec_list=[ llmspecinfo.text_arg, labels_arg ],
+            arguments_spec_list=[ llmspecinfo.text_arg, llmspecinfo.label_arg ],
         )
         self.heading_level = heading_level
         self.inline_heading = inline_heading
@@ -60,38 +51,10 @@ class HeadingMacro(llmspecinfo.LLMMacroSpecBase):
 
         node.llmarg_heading_content_nodelist = node_args['text'].get_content_nodelist()
 
-        if node_args['label'].was_provided():
-            the_labels = []
-            argnodes = node_args['label'].get_content_nodelist()
-            for argnode in argnodes:
-                if argnode.delimiters[0] == r'\label':
-                    #logger.debug(f"{argnode=}")
-                    the_label = argnode.nodelist.get_content_as_chars()
-                    if ':' in the_label:
-                        ref_type, ref_label = the_label.split(':', 1)
-                    else:
-                        ref_type, ref_label = None, the_label
-
-                    if ref_type != 'sec':
-                        raise LatexWalkerParseError(
-                            f"Heading-related labels (section, etc.) must have the ‘sec:’ "
-                            f"prefix, your label ‘{the_label}’ has prefix ‘{ref_type}:’.",
-                            pos=argnode.pos,
-                        )
-
-                    the_labels.append( (ref_type, ref_label) )
-
-                    continue
-
-                raise LatexWalkerParseError(
-                    f"Bad information field macro {argnode.delimiters[0]}",
-                    pos=argnode.pos
-                )
-
-            node.llmarg_labels = the_labels
-
-        else:
-            node.llmarg_labels = None
+        node.llmarg_labels = llmspecinfo.helper_collect_labels(
+            node_args['label'],
+            self.allowed_ref_label_prefixes
+        )
 
 
     def render(self, node, render_context):
