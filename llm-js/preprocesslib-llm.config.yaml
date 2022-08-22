@@ -7,6 +7,8 @@ source_dir: ..
 module_list:
   - 'llm'
   - 'llm.llmstd'
+  - 'llm.feature'
+  - 'llm.fragmentrenderer'
   - 'llm.fragmentrenderer.html'
   - 'llm.fragmentrenderer.text'
 
