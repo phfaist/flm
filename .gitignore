@@ -138,3 +138,4 @@ dmypy.json
 
 # my funny test file
 funnytest.llm
+mydraft*.llm
