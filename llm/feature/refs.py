@@ -136,7 +136,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         return refinstance
 
 
-    def get_ref(self, ref_type, ref_target, *, resource_info):
+    def get_ref(self, ref_type, ref_target, resource_info):
         if (ref_type, ref_target) in self.ref_labels:
             return self.ref_labels[(ref_type, ref_target)]
 
@@ -147,7 +147,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             ref = resolver.get_ref(
                 ref_type,
                 ref_target,
-                resource_info=resource_info,
+                resource_info,
             )
             if ref is not None:
                 return ref
@@ -264,7 +264,7 @@ class RefMacro(LLMMacroSpecBase):
         resource_info = node.latex_walker.resource_info
 
         try:
-            ref_instance = mgr.get_ref(ref_type, ref_target, resource_info=resource_info)
+            ref_instance = mgr.get_ref(ref_type, ref_target, resource_info)
         except Exception as e:
             raise LatexWalkerParseError(
                 f"Unable to resolve reference to ‘{ref_type}:{ref_target}’: {e}",

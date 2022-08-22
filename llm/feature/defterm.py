@@ -218,7 +218,7 @@ class RefTermMacro(LLMMacroSpecBase):
         ref_instance = refs_mgr.get_ref(
             'defterm',
             term_llm_ref_label_verbatim,
-            resource_info=resource_info,
+            resource_info,
         )
 
         return render_context.fragment_renderer.render_link(

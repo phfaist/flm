@@ -67,13 +67,13 @@ class FeatureExternalPrefixedCitations(Feature):
             self.use_endnotes = self.feature_document_manager.use_endnotes
             self.external_citations_provider = self.feature.external_citations_provider
 
-        def get_citation_content_llm(self, cite_prefix, cite_key, *, resource_info):
+        def get_citation_content_llm(self, cite_prefix, cite_key, resource_info):
 
             # retrieve citation from citations provider --
             citation_llm_text = \
                 self.external_citations_provider.get_citation_full_text_llm(
                     cite_prefix, cite_key,
-                    resource_info=resource_info
+                    resource_info
                 )
 
             citation_llm = self.render_context.doc.environment.make_fragment(
@@ -88,7 +88,7 @@ class FeatureExternalPrefixedCitations(Feature):
             return citation_llm
             
 
-        def get_citation_endnote(self, cite_prefix, cite_key, *, resource_info):
+        def get_citation_endnote(self, cite_prefix, cite_key, resource_info):
             endnotes_mgr = None
             if self.use_endnotes:
                 endnotes_mgr = self.render_context.feature_render_manager('endnotes')
@@ -97,7 +97,7 @@ class FeatureExternalPrefixedCitations(Feature):
                 return self.citation_endnotes[(cite_prefix, cite_key)]
 
             citation_llm = self.get_citation_content_llm(cite_prefix, cite_key,
-                                                         resource_info=resource_info)
+                                                         resource_info)
 
             endnote = endnotes_mgr.add_endnote(
                 category_name='citation', 
@@ -265,14 +265,14 @@ class CiteMacro(LLMMacroSpecBase):
                 endnote = cite_mgr.get_citation_endnote(
                     citation_key_prefix,
                     citation_key,
-                    resource_info=resource_info
+                    resource_info
                 )
                 show_inline_content_llm = endnote.formatted_inner_counter_value_llm
             else:
                 citation_content_llm = cite_mgr.get_citation_content_llm(
                     citation_key_prefix,
                     citation_key,
-                    resource_info=resource_info
+                    resource_info
                 )
                 show_inline_content_llm = citation_content_llm
 
