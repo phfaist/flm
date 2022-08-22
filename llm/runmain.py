@@ -144,7 +144,7 @@ def setup_features(features_config):
     if features_config.get('refs', {}) is not None:
         features.append(
             FeatureRefs(
-                external_ref_resolver=None,
+                external_ref_resolvers=None,
             )
         )
 

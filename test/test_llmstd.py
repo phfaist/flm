@@ -357,7 +357,7 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
 
 
         environ = LLMStandardEnvironment(
-            external_ref_resolver=MyRefResolver()
+            external_ref_resolvers=[MyRefResolver()]
         )
 
         frag1 = environ.make_fragment(

@@ -212,7 +212,7 @@ def standard_features(
         headings=True,
         heading_section_commands_by_level=None,
         refs=True,
-        external_ref_resolver=None,
+        external_ref_resolvers=None,
         enumeration_environments=True,
         enumeration_environments_dict=None,
         endnotes=True,
@@ -247,7 +247,7 @@ def standard_features(
     if refs:
         features.append(
             FeatureRefs(
-                external_ref_resolver=external_ref_resolver,
+                external_ref_resolvers=external_ref_resolvers,
             )
         )
     if endnotes:
@@ -296,7 +296,7 @@ class LLMStandardEnvironment(LLMEnvironment):
                  *,
                  enable_comments=None,
                  external_citations_provider=None,
-                 external_ref_resolver=None,
+                 external_ref_resolvers=None,
                  footnote_counter_formatter=None,
                  citation_counter_formatter=None,
                  **kwargs):
@@ -310,7 +310,7 @@ class LLMStandardEnvironment(LLMEnvironment):
         if features is None:
             features = standard_features(
                 external_citations_provider=external_citations_provider,
-                external_ref_resolver=external_ref_resolver,
+                external_ref_resolvers=external_ref_resolvers,
                 footnote_counter_formatter=footnote_counter_formatter,
                 citation_counter_formatter=citation_counter_formatter,
             )

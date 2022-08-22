@@ -65,12 +65,13 @@ class FeatureExternalPrefixedCitations(Feature):
         def initialize(self):
             self.citation_endnotes = {}
             self.use_endnotes = self.feature_document_manager.use_endnotes
+            self.external_citations_provider = self.feature.external_citations_provider
 
         def get_citation_content_llm(self, cite_prefix, cite_key, *, resource_info):
 
             # retrieve citation from citations provider --
             citation_llm_text = \
-                self.feature.external_citations_provider.get_citation_full_text_llm(
+                self.external_citations_provider.get_citation_full_text_llm(
                     cite_prefix, cite_key,
                     resource_info=resource_info
                 )

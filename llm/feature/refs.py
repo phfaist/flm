@@ -82,6 +82,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
     def initialize(self):
         self.ref_labels = {}
         self.registered_references = {}
+        self.external_ref_resolvers = self.feature.external_ref_resolvers
         
     def register_reference_referenceable(self, *, node, referenceable_info):
 
@@ -142,8 +143,8 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         logger.debug(f"Couldn't find {(ref_type, ref_target)} in current document "
                      f"labels; will query external ref resolver.  {self.ref_labels=}")
 
-        if self.feature.external_ref_resolver is not None:
-            ref = self.feature.external_ref_resolver.get_ref(
+        for resolver in self.external_ref_resolvers:
+            ref = resolver.get_ref(
                 ref_type,
                 ref_target,
                 resource_info=resource_info,
@@ -164,16 +165,19 @@ class FeatureRefs(Feature):
     feature_name = 'refs'
     RenderManager = FeatureRefsRenderManager
 
-    def __init__(self, external_ref_resolver=None):
+    def __init__(self, external_ref_resolvers=None):
         super().__init__()
         # e.g., resolve a reference to a different code page in the EC zoo!
-        self.external_ref_resolver = external_ref_resolver
+        self.external_ref_resolvers = external_ref_resolvers
 
-    def set_external_ref_resolver(self, external_ref_resolver):
-        if self.external_ref_resolver is not None:
-            logger.warning("FeatureRefs.set_external_ref_resolver(): There is already "
-                           "an external refs resolver set.  It will be replaced.")
-        self.external_ref_resolver = external_ref_resolver
+    def set_external_ref_resolvers(self, external_ref_resolvers):
+        if self.external_ref_resolvers is not None:
+            logger.warning("FeatureRefs.set_external_ref_resolvers(): There were already "
+                           "external refs resolvers set.  They will be replaced.")
+        self.external_ref_resolvers = external_ref_resolvers
+
+    def add_external_ref_resolver(self, external_ref_resolver):
+        self.external_ref_resolvers.append( external_ref_resolver )
 
     def add_latex_context_definitions(self):
         return dict(
