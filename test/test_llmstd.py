@@ -336,23 +336,23 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
     def test_simple_ref_external(self):
 
         class MyRefResolver:
-            def get_ref(self, ref_type, ref_target, resource_info):
+            def get_ref(self, ref_type, ref_label, resource_info):
                 if ref_type == 'code':
-                    if ref_target == 'surface':
+                    if ref_label == 'surface':
                         return feature_refs.RefInstance(
                             ref_type='code',
-                            ref_target='surface',
+                            ref_label='surface',
                             formatted_ref_llm_text=r'Kitaev \emph{surface} code',
                             target_href='https://errorcorrectionzoo.org/c/surface',
                         )
-                    if ref_target == 'self':
+                    if ref_label == 'self':
                         return feature_refs.RefInstance(
                             ref_type='code',
-                            ref_target='self',
+                            ref_label='self',
                             formatted_ref_llm_text=r'(\textbf{this} exact code)',
                             target_href='#',
                         )
-                    raise ValueError(f"Invalid ref target: ‘{ref_type}:{ref_target}’")
+                    raise ValueError(f"Invalid ref target: ‘{ref_type}:{ref_label}’")
                 raise ValueError(f"Invalid ref type: {ref_type!r}")
 
 

@@ -167,9 +167,11 @@ class FeatureHeadings(Feature):
                 return self.SectionCommandSpec(x)
             return self.SectionCommandSpec(**x)
 
+        # below, dict(...) seems to be needed to force a python-style dict
+        # object when using Transcrypt.
         self.section_commands_by_level = {
             level: _mkspecobj(x)
-            for level, x in section_commands_by_level.items()
+            for level, x in dict(section_commands_by_level).items()
         }
 
     def add_latex_context_definitions(self):

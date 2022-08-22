@@ -45,14 +45,14 @@ class ReferenceableInfo:
 
 
 class RefInstance:
-    def __init__(self, ref_type, ref_target, formatted_ref_llm_text, target_href):
+    def __init__(self, ref_type, ref_label, formatted_ref_llm_text, target_href):
         super().__init__()
         self.ref_type = ref_type
-        self.ref_target = ref_target
+        self.ref_label = ref_label
         self.formatted_ref_llm_text = formatted_ref_llm_text
         self.target_href = target_href
 
-        self._fields = ('ref_type', 'ref_target', 'formatted_ref_llm_text', 'target_href',)
+        self._fields = ('ref_type', 'ref_label', 'formatted_ref_llm_text', 'target_href',)
 
     def __repr__(self):
         return (
@@ -100,13 +100,13 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             )
 
 
-    def register_reference(self, ref_type, ref_target, *,
+    def register_reference(self, ref_type, ref_label, *,
                            node, formatted_ref_llm_text, target_href):
         r"""
         ........
         
         If you call this method a second time on the same render context with
-        the same `node` instance and the same `(ref_type, ref_target)`, then the
+        the same `node` instance and the same `(ref_type, ref_label)`, then the
         additional arguments are ignored and the earlier registered reference
         refinstance is returned instead.
 
@@ -115,44 +115,44 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         """
 
         node_id = self.get_node_id(node)
-        kk = (node_id, ref_type, ref_target)
+        kk = (node_id, ref_type, ref_label)
         if kk in self.registered_references:
             return self.registered_references
 
-        if (ref_type, ref_target) in self.ref_labels:
+        if (ref_type, ref_label) in self.ref_labels:
             raise ValueError(
-                f"Duplicate reference label ‘{ref_type}:{ref_target}’ in the same document!"
+                f"Duplicate reference label ‘{ref_type}:{ref_label}’ in the same document!"
             )
 
         refinstance = RefInstance(
             ref_type=ref_type,
-            ref_target=ref_target,
+            ref_label=ref_label,
             formatted_ref_llm_text=formatted_ref_llm_text,
             target_href=target_href,
         )
         self.registered_references[ kk ] = refinstance
-        self.ref_labels[ (ref_type, ref_target) ] = refinstance
+        self.ref_labels[ (ref_type, ref_label) ] = refinstance
         logger.debug("Registered reference: %r", refinstance)
         return refinstance
 
 
-    def get_ref(self, ref_type, ref_target, resource_info):
-        if (ref_type, ref_target) in self.ref_labels:
-            return self.ref_labels[(ref_type, ref_target)]
+    def get_ref(self, ref_type, ref_label, resource_info):
+        if (ref_type, ref_label) in self.ref_labels:
+            return self.ref_labels[(ref_type, ref_label)]
 
-        logger.debug(f"Couldn't find {(ref_type, ref_target)} in current document "
+        logger.debug(f"Couldn't find {(ref_type, ref_label)} in current document "
                      f"labels; will query external ref resolver.  {self.ref_labels=}")
 
         for resolver in self.external_ref_resolvers:
             ref = resolver.get_ref(
                 ref_type,
-                ref_target,
+                ref_label,
                 resource_info,
             )
             if ref is not None:
                 return ref
 
-        raise ValueError(f"Ref target not found: ‘{ref_type}:{ref_target}’")
+        raise ValueError(f"Ref target not found: ‘{ref_type}:{ref_label}’")
 
 
 
@@ -182,23 +182,23 @@ class FeatureRefs(Feature):
     def add_latex_context_definitions(self):
         return dict(
             macros=[
-                RefMacro(macroname='ref', command_arguments=('ref_target',)),
+                RefMacro(macroname='ref', command_arguments=('ref_label',)),
                 RefMacro(
                     macroname='hyperref',
-                    command_arguments=('[]ref_target','display_text',)
+                    command_arguments=('[]ref_label','display_text',)
                 ),
             ]
         )
 
 
 _ref_arg_specs = {
-    'ref_target': LLMArgumentSpec(latexnodes_parsers.LatexCharsGroupParser(),
-                                  argname='ref_target'),
-    '[]ref_target': LLMArgumentSpec(
+    'ref_label': LLMArgumentSpec(latexnodes_parsers.LatexCharsGroupParser(),
+                                  argname='ref_label'),
+    '[]ref_label': LLMArgumentSpec(
         latexnodes_parsers.LatexCharsGroupParser(
             delimiters=('[', ']'),
         ),
-        argname='ref_target'
+        argname='ref_label'
     ),
     'display_text': LLMArgumentSpec('{', argname='display_text',),
 }
@@ -213,7 +213,7 @@ class RefMacro(LLMMacroSpecBase):
             macroname,
             *,
             ref_type='ref',
-            command_arguments=('ref_target', 'display_text',)
+            command_arguments=('ref_label', 'display_text',)
     ):
         super().__init__(
             macroname=macroname,
@@ -234,9 +234,9 @@ class RefMacro(LLMMacroSpecBase):
         )
 
         ref_type = None
-        ref_target = node_args['ref_target'].get_content_as_chars()
-        if ':' in ref_target:
-            ref_type, ref_target = ref_target.split(':', 1)
+        ref_label = node_args['ref_label'].get_content_as_chars()
+        if ':' in ref_label:
+            ref_type, ref_label = ref_label.split(':', 1)
 
         if 'display_text' in node_args:
             display_content_nodelist = node_args['display_text'].get_content_nodelist()
@@ -244,7 +244,7 @@ class RefMacro(LLMMacroSpecBase):
             display_content_nodelist = None
 
         node.llm_ref_info = {
-            'ref_type_and_target': (ref_type, ref_target),
+            'ref_type_and_target': (ref_type, ref_label),
             'display_content_nodelist': display_content_nodelist,
         }
         
@@ -256,7 +256,7 @@ class RefMacro(LLMMacroSpecBase):
 
         fragment_renderer = render_context.fragment_renderer
 
-        ref_type, ref_target = node.llm_ref_info['ref_type_and_target']
+        ref_type, ref_label = node.llm_ref_info['ref_type_and_target']
         display_content_nodelist = node.llm_ref_info['display_content_nodelist']
 
         mgr = render_context.feature_render_manager('refs')
@@ -264,10 +264,10 @@ class RefMacro(LLMMacroSpecBase):
         resource_info = node.latex_walker.resource_info
 
         try:
-            ref_instance = mgr.get_ref(ref_type, ref_target, resource_info)
+            ref_instance = mgr.get_ref(ref_type, ref_label, resource_info)
         except Exception as e:
             raise LatexWalkerParseError(
-                f"Unable to resolve reference to ‘{ref_type}:{ref_target}’: {e}",
+                f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e}",
                 pos=node.pos,
             )
 

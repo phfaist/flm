@@ -139,7 +139,7 @@ class MathEqrefViaMathContent(LLMMacroSpecBase):
             arguments_spec_list=[
                 LLMArgumentSpec(
                     latexnodes_parsers.LatexCharsGroupParser(),
-                    argname='ref_target',
+                    argname='ref_label',
                 )
             ],
         )
@@ -147,13 +147,13 @@ class MathEqrefViaMathContent(LLMMacroSpecBase):
     def postprocess_parsed_node(self, node):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-            ('ref_target',),
+            ('ref_label',),
         )
         
         ref_type = None
-        ref_target = node_args['ref_target'].get_content_as_chars()
-        if ':' in ref_target:
-            ref_type, ref_target = ref_target.split(':', 1)
+        ref_label = node_args['ref_label'].get_content_as_chars()
+        if ':' in ref_label:
+            ref_type, ref_label = ref_label.split(':', 1)
 
         if ref_type != 'eq':
             raise LatexWalkerParseError(
@@ -162,7 +162,7 @@ class MathEqrefViaMathContent(LLMMacroSpecBase):
             )
 
         node.llmarg_ref_type = ref_type
-        node.llmarg_ref_target = ref_target
+        node.llmarg_ref_label = ref_label
 
 
     def render(self, node, render_context):

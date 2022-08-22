@@ -307,7 +307,7 @@ class LLMEnvironment:
 
         self.latex_context = latex_context
         self.parsing_state = parsing_state
-        self.features = features
+        self.features = list(features) # maybe list() for Transcrypt ?
         self.features_by_name = {f.feature_name: f for f in self.features}
         self.tolerant_parsing = tolerant_parsing
 
@@ -316,7 +316,7 @@ class LLMEnvironment:
         if self.parsing_state.latex_context is None:
 
             # set the parsing_state's latex_context appropriately.
-            for f in features:
+            for f in self.features:
                 moredefs = f.add_latex_context_definitions()
                 if moredefs:
                     logger.debug(f"Adding definitions for “{f.feature_name}”")
