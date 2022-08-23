@@ -13,7 +13,8 @@ logger = logging.getLogger('generate_llm_js')
 
 
 transcrypt_options = (
-    '--dassert --dext --gen --tconv --sform --kwargs --keycheck --opov --xreex '
+    '--dassert --dext --gen --tconv --sform --kwargs --keycheck --xreex '
+    '--opov ' # let's hope we can get away w/o this one sometime in the future....
     '--nomin --build --anno --parent .none -u .auto'.split()
 )
 

@@ -367,9 +367,13 @@ class LLMEnvironment:
         return latex_walker
 
     def make_fragment(self, llm_text, **kwargs):
-        fragment = LLMFragment(llm_text, environment=self, **kwargs)
-        return fragment
-
+        try:
+            fragment = LLMFragment(llm_text, environment=self, **kwargs)
+            return fragment
+        except: # Exception as e: --- catch anything in JS
+            logger.error("Error compiling fragment for {}\nContent was:\n{}\n"
+                         .format( kwargs.get('what','(unknown)'), llm_text, exc_info=True) )
+            raise
 
     def node_list_finalizer(self):
         return self._node_list_finalizer

@@ -115,6 +115,8 @@ class LLMFragment:
     def parse(cls, llm_text, environment, *,
               standalone_mode=False, resource_info=None, is_block_level=None, what=None):
 
+        logger.debug("Parsing LLM content %r", llm_text)
+
         latex_walker = environment.make_latex_walker(
             llm_text,
             resource_info=resource_info,
