@@ -42,6 +42,8 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
     allowed_in_standalone_mode = False
 
     allowed_ref_label_prefixes = ('topic', )
+    
+    defterm_ref_type = 'defterm'
 
     def __init__(self, environmentname, render_with_term=True, render_with_term_suffix=': ',
                  **kwargs):
@@ -84,7 +86,7 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
         node.llm_referenceable_info = refs.ReferenceableInfo(
             formatted_ref_llm_text=node.llmarg_term_llm_ref_label_verbatim,
             labels=(
-                [('defterm', node.llmarg_term_llm_ref_label_verbatim)]
+                [(self.defterm_ref_type, node.llmarg_term_llm_ref_label_verbatim)]
                 + list(node.llmarg_labels)
             ),
         )
@@ -174,6 +176,8 @@ class RefTermMacro(LLMMacroSpecBase):
 
     allowed_in_standalone_mode = False
 
+    defterm_ref_type = 'defterm'
+
     def __init__(self, macroname, **kwargs):
         super().__init__(
             macroname=macroname,
@@ -184,24 +188,29 @@ class RefTermMacro(LLMMacroSpecBase):
             **kwargs
         )
 
-    def render(self, node, render_context):
-        
+    def postprocess_parsed_node(self, node):
         node_args = \
             ParsedArgumentsInfo(node=node).get_all_arguments_info(
                 ('ref_term', 'term',),
             )
-
-        logger.debug("ref term: node_args = %r", node_args)
-
+        
         if node_args['ref_term'].was_provided():
-            term_llm_show_term_nodelist = \
+            node.llm_term_llm_show_term_nodelist = \
                 node_args['term'].get_content_nodelist()
-            term_llm_ref_label_verbatim = \
+            node.llm_term_llm_ref_label_verbatim = \
                 get_term_ref_label_verbatim(node_args['ref_term'].get_content_nodelist())
         else:
-            term_llm_show_term_nodelist = node_args['term'].get_content_nodelist()
-            term_llm_ref_label_verbatim = \
-                get_term_ref_label_verbatim(term_llm_show_term_nodelist)
+            node.llm_term_llm_show_term_nodelist = node_args['term'].get_content_nodelist()
+            node.llm_term_llm_ref_label_verbatim = \
+                get_term_ref_label_verbatim(node.llm_term_llm_show_term_nodelist)
+        
+        node.llmarg_ref = (self.defterm_ref_type, node.llm_term_llm_ref_label_verbatim)
+
+
+    def render(self, node, render_context):
+
+        term_llm_show_term_nodelist = node.llm_term_llm_show_term_nodelist
+        term_llm_ref_label_verbatim = node.llm_term_llm_ref_label_verbatim
         
         if not render_context.supports_feature('refs'):
             # no support for 'refs' -- simply render the term, no reference
@@ -216,7 +225,7 @@ class RefTermMacro(LLMMacroSpecBase):
         # grab the reference
         refs_mgr = render_context.feature_render_manager('refs')
         ref_instance = refs_mgr.get_ref(
-            'defterm',
+            self.defterm_ref_type,
             term_llm_ref_label_verbatim,
             resource_info,
         )

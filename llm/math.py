@@ -161,8 +161,7 @@ class MathEqrefViaMathContent(LLMMacroSpecBase):
                 pos=node.pos
             )
 
-        node.llmarg_ref_type = ref_type
-        node.llmarg_ref_label = ref_label
+        node.llmarg_ref = (ref_type, ref_label)
 
 
     def render(self, node, render_context):

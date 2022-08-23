@@ -243,6 +243,7 @@ class RefMacro(LLMMacroSpecBase):
         else:
             display_content_nodelist = None
 
+        node.llmarg_ref = (ref_type, ref_label)
         node.llm_ref_info = {
             'ref_type_and_target': (ref_type, ref_label),
             'display_content_nodelist': display_content_nodelist,
