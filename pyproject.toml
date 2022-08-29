@@ -5,6 +5,9 @@ description = "Latex-Like Markup"
 authors = ["Philippe Faist"]
 license = "MIT"
 
+[tool.poetry.scripts]
+poetry = 'llm.__main__:main'
+
 [tool.poetry.dependencies]
 python = "^3.8"
 pylatexenc = {'git' = "https://github.com/phfaist/pylatexenc.git", branch = "devel" }
