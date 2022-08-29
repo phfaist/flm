@@ -107,7 +107,7 @@ class FeatureEndnotes(Feature):
 
     feature_name = 'endnotes'
 
-    def __init__(self, categories, render_options):
+    def __init__(self, categories, render_options=None):
         r"""
         .....
 
@@ -128,7 +128,7 @@ class FeatureEndnotes(Feature):
             for x in categories
         ]
         
-        self.default_render_options = render_options
+        self.default_render_options = render_options if render_options else {}
 
     def add_latex_context_definitions(self):
 
