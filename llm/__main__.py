@@ -16,6 +16,7 @@ def main(cmdargs=None):
 
     args_parser.add_argument('-c', '--llm-content', action='store',
                              help="LLM content to parse and convert")
+
     args_parser.add_argument('-B', '--force-block-level', action='store_true',
                              default=None,
                              help="Parse input as block-level (paragraph) content")
@@ -23,6 +24,10 @@ def main(cmdargs=None):
     args_parser.add_argument('-f', '--format', action='store',
                              default='html',
                              help="LLM content to parse and convert")
+    args_parser.add_argument('-o', '--output', action='store',
+                             default=None,
+                             help="Output file name (stdout by default with ‘--output=-’)")
+
     args_parser.add_argument('-n', '--suppress-final-newline', action='store_true',
                              default=False,
                              help="Do not add a newline at the end of the output")
@@ -33,6 +38,10 @@ def main(cmdargs=None):
                              dest='verbose',
                              const=2,
                              help="Enable long verbose/debug output (include pylatexenc debug)")
+
+    args_parser.add_argument('-C', '--config', action='store', default=None,
+                             help="YAML Configuration file for LLM parse settings and "
+                             "features (but input front matter takes precedence)")
 
     args_parser.add_argument('--html-minimal-document', action='store_true',
                              default=None,
@@ -45,8 +54,6 @@ def main(cmdargs=None):
     # --
 
     args = args_parser.parse_args(args=cmdargs)
-
-    args.config = None
 
     return runmain(args)
 

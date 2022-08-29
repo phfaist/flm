@@ -320,11 +320,26 @@ tomli = ">=1.0.0"
 testing = ["argcomplete", "hypothesis (>=3.56)", "mock", "nose", "pygments (>=2.7.2)", "requests", "xmlschema"]
 
 [[package]]
+name = "python-frontmatter"
+version = "1.0.0"
+description = "Parse and manage posts with YAML (or other) frontmatter"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+PyYAML = "*"
+
+[package.extras]
+test = ["pyaml", "toml", "pytest"]
+docs = ["sphinx"]
+
+[[package]]
 name = "pyyaml"
 version = "6.0"
 description = "YAML parser and emitter for Python"
 category = "main"
-optional = true
+optional = false
 python-versions = ">=3.6"
 
 [[package]]
@@ -411,7 +426,7 @@ buildjslib = ["Transcrypt", "PyYAML"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "e3285da6d6aeb39109edf571d6ea5b6ba3da8cfc517505112f6d1969d14a1bcf"
+content-hash = "237bbd2c37ce1f132672de008b4d2631e4c0405f7d776ca87449c39599125991"
 
 [metadata.files]
 appnope = []
@@ -441,6 +456,7 @@ pygments = []
 pylatexenc = []
 pyparsing = []
 pytest = []
+python-frontmatter = []
 pyyaml = []
 six = []
 stack-data = []

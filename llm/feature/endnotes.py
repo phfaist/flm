@@ -107,7 +107,7 @@ class FeatureEndnotes(Feature):
 
     feature_name = 'endnotes'
 
-    def __init__(self, categories):
+    def __init__(self, categories, render_options):
         r"""
         .....
 
@@ -127,6 +127,8 @@ class FeatureEndnotes(Feature):
             _mkcatobj(x)
             for x in categories
         ]
+        
+        self.default_render_options = render_options
 
     def add_latex_context_definitions(self):
 
@@ -261,10 +263,24 @@ class FeatureEndnotes(Feature):
                             target_id='endnotes',
                             annotations=None,
                             include_headings_at_level=None,
-                            set_headings_target_ids=False,
+                            set_headings_target_ids=None, #False,
                             endnotes_heading_title=None,
-                            endnotes_heading_level=1,
+                            endnotes_heading_level=None, #1,
                             ):
+
+            if include_headings_at_level is None:
+                include_heaings_at_level = \
+                    self.feature.default_render_options.get('include_heaings_at_level', None)
+            if set_headings_target_ids is None:
+                set_headings_target_ids = \
+                    self.feature.default_render_options.get('set_headings_target_ids', False)
+            if endnotes_heading_title is None:
+                endnotes_heading_title = \
+                    self.feature.default_render_options.get('endnotes_heading_title', None)
+            if endnotes_heading_level is None:
+                endnotes_heading_level = \
+                    self.feature.default_render_options.get('endnotes_heading_level', 1)
+
 
             render_context = self.render_context
             fragment_renderer = render_context.fragment_renderer

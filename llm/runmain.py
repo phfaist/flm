@@ -1,7 +1,17 @@
 import sys
 import fileinput
+import json
+
 import logging
+logger = logging.getLogger(__name__)
+
+from copy import copy
 from collections import namedtuple
+
+import importlib
+
+import yaml
+import frontmatter
 
 from pylatexenc.latexnodes import LatexWalkerParseError
 
@@ -10,37 +20,88 @@ from . import fmthelpers
 
 from .fragmentrenderer.text import TextFragmentRenderer
 from .fragmentrenderer.html import HtmlFragmentRenderer
+from .fragmentrenderer.latex import LatexFragmentRenderer
 
-from .feature.endnotes import FeatureEndnotes, EndnoteCategory
-from .feature.enumeration import FeatureEnumeration, default_enumeration_environments
-from .feature.cite import FeatureExternalPrefixedCitations
-from .feature.refs import FeatureRefs
-from .feature.headings import FeatureHeadings
-from .feature.floats import FeatureFloatsIncludeGraphicsOnly #, FeatureFloats
-from .feature.graphics import FeatureSimplePathGraphicsResourceProvider
-from .feature.defterm import FeatureDefTerm
+# from .feature.endnotes import FeatureEndnotes, EndnoteCategory
+from .feature.enumeration import default_enumeration_environments
+# from .feature.cite import FeatureExternalPrefixedCitations
+# from .feature.refs import FeatureRefs
+# from .feature.headings import FeatureHeadings
+# from .feature.floats import FeatureFloatsIncludeGraphicsOnly #, FeatureFloats
+# from .feature.graphics import FeatureSimplePathGraphicsResourceProvider
+# from .feature.defterm import FeatureDefTerm
 
 
 
 LLMMainArguments = namedtuple('LLMMainArguments',
-                              ['llm_content', 'files', 'config', 'format',
+                              ['llm_content', 'files', 'config', 'format', 'output',
                                'suppress_final_newline', 'verbose'],
-                              defaults=[None, None, None, 'html',
+                              defaults=[None, None, None, None, None,
                                         False, False],
                               )
 
-parsing_defaults = dict(
-    enable_comments=False,
-    dollar_inline_math_mode=False,
-    force_block_level=None,
-)
 
-endnote_render_options = dict(
-    include_headings_at_level=1,
-    set_headings_target_ids=True,
-    endnotes_heading_title=None,
-    endnotes_heading_level=1,
-)
+
+class _PresetDefaults:
+    def process_list_item(self, obj1, k, j, obj2k):
+        logger.debug("defaults!")
+        obj1[k][j:j+1] = obj2k
+        return j+len(obj2k)
+
+class _PresetFeatureConfig:
+    def process_list_item(self, obj1, k, j, obj2k):
+        logger.debug("feature-config, process_list_item, {obj1!r} {k!r} {j!r} {obj2k!r}")
+        featurename = obj1[k][j].get('name', None)
+        if featurename is None:
+            raise ValueError(
+                "feature-config $preset requires ‘name: <fully qualified feature class name>’"
+            )
+        newconfig = dict(obj1[k][j].get('config', {}))
+        featurespecj0 = next(
+            (j0 for j0 in range(j)
+             if obj1[k][j0].get('name','') == featurename) ,
+            None
+        )
+        if featurespecj0 is None:
+            raise ValueError(
+                f"feature-config $preset -- could not find feature named ‘{featurename}’"
+            )
+        recursive_assign_defaults(newconfig, obj1[k][featurespecj0]['config'])
+        obj1[k][featurespecj0]['config'] = newconfig # overwrite the one we had
+        del obj1[k][j] # remove this instruction from our original list
+        return j
+
+_presets = {
+    'defaults': _PresetDefaults(),
+    'feature-config': _PresetFeatureConfig(),
+};
+
+def recursive_assign_defaults(obj1, obj2):
+    for k in obj2:
+        if k not in obj1:
+            logger.debug(f"Setting obj1's ‘{k}’ property to {obj2[k]!r}")
+            obj1[k] = copy(obj2[k])
+
+        if isinstance(obj2[k], dict):
+            # process any preset
+            if '$preset' in obj2[k]:
+                preset_name = obj2[k]['preset']
+                _presets[preset_name].process_property(obj2, k, obj1)
+
+        if isinstance(obj1[k], list):
+            j = 0
+            while j < len(obj1[k]):
+                if isinstance(obj1[k][j], dict) and '$preset' in obj1[k][j]:
+                    preset_name = obj1[k][j]['$preset']
+                    j = _presets[preset_name].process_list_item(obj1, k, j, obj2[k])
+                else:
+                    j += 1
+        
+        if isinstance(obj2[k], dict):
+            # recurse into sub-properties
+            recursive_assign_defaults(obj1[k], obj2[k])
+
+
 
 # #footnote_counter_formatter = lambda n: f"[{fmthelpers.alphacounter(n)}]"
 # #footnote_counter_formatter = 'fnsymbol'
@@ -48,150 +109,167 @@ endnote_render_options = dict(
 # footnote_counter_formatter = 'unicodesuperscript'
 # #footnote_counter_formatter = lambda n: f"⁽{fmthelpers.unicodesuperscriptcounter(n)}⁾"
 
-default_float_types = [
-    dict(
-        float_type='figure',
-        float_caption_name='Fig.',
-        counter_formatter='Roman',
-    ),
-    dict(
-        float_type='table',
-        float_caption_name='Tab.',
-        counter_formatter='Roman',
-    ),
-]
-
 
 default_config = dict(
+    _base=dict(
+        parsing=dict(
+            enable_comments=False,
+            dollar_inline_math_mode=False,
+            force_block_level=None,
+        ),
+        features=[
+            dict(
+                name='llm.feature.headings.FeatureHeadings',
+                config=dict(
+                    section_commands_by_level=None,
+                )
+            ),
+            dict(
+                name='llm.feature.enumeration.FeatureEnumeration',
+                config=dict(
+                    enumeration_environments=default_enumeration_environments,
+                )
+            ),
+            dict(
+                name='llm.feature.refs.FeatureRefs',
+                config=dict()
+            ),
+            dict(
+                name='llm.feature.endnotes.FeatureEndnotes',
+                config=dict(
+                    categories=[
+                        dict(
+                            category_name='footnote',
+                            counter_formatter='alph',
+                            heading_title='Footnotes',
+                            endnote_command='footnote',
+                        )
+                    ],
+                    render_options=dict(
+                        include_headings_at_level=1,
+                        set_headings_target_ids=True,
+                        endnotes_heading_title=None,
+                        endnotes_heading_level=1,
+                    )
+                )
+            ),
+            dict(
+                name='llm.feature.floats.FeatureFloatsIncludeGraphicsOnly',
+                config=dict(
+                    float_types=[
+                        dict(
+                            float_type='figure',
+                            float_caption_name='Fig.',
+                            counter_formatter='Roman',
+                        ),
+                        dict(
+                            float_type='table',
+                            float_caption_name='Tab.',
+                            counter_formatter='Roman',
+                        ),
+                    ]
+                )
+            ),
+            dict(
+                name='llm.feature.defterm.FeatureDefTerm',
+                config=dict(),
+            ),
+            dict(
+                name='llm.feature.graphics.FeatureSimplePathGraphicsResourceProvider',
+                config=dict(),
+            )
+        ]
+    ),
     html=dict(
-        parsing=parsing_defaults,
         fragment_renderer=dict(
             use_link_target_blank=False,
             html_blocks_joiner="",
             heading_tags_by_level=HtmlFragmentRenderer.heading_tags_by_level,
             inline_heading_add_space=True
         ),
-        features=dict(
-            headings=dict(
-                heading_section_commands_by_level=None,
-            ),
-            enumeration=dict(
-                enumeration_environments=default_enumeration_environments,
-            ),
-            endnotes=dict(
-                endnote_categories=[
-                    dict(
-                        category_name='footnote',
-                        counter_formatter='alph',
-                        heading_title='Footnotes',
-                        endnote_command='footnote',
-                    )
-                ],
-                render_options=endnote_render_options,
-            ),
-            floats=dict(
-                float_types=default_float_types,
-            ),
-            defterm=dict(),
-        ),
     ),
     text=dict(
-        parsing=parsing_defaults,
         fragment_renderer=dict(
             display_href_urls=True,
         ),
-        features=dict(
-            # set any of these keys to None to disable feature
-            headings=dict(
-                heading_section_commands_by_level=None
-            ),
-            enumeration=dict(
-                enumeration_environments=default_enumeration_environments,
-            ),
-            endnotes=dict(
-                endnote_categories=[
-                    dict(
-                        category_name='footnote',
-                        counter_formatter='unicodesuperscript',
-                        heading_title='Footnotes',
-                        endnote_command='footnote',
-                    )
-                ],
-                render_options=endnote_render_options,
-            ),
-            floats=dict(
-                float_types=default_float_types,
-            ),
-            defterm=dict(),
-        ),
+        features=[
+            {
+                '$preset': 'defaults'
+            },
+            {
+                '$preset': 'feature-config',
+                'name': 'llm.feature.endnotes.FeatureEndnotes',
+                'config': dict(
+                    categories=[
+                        dict(
+                            category_name='footnote',
+                            counter_formatter='unicodesuperscript',
+                            heading_title='Footnotes',
+                            endnote_command='footnote',
+                        )
+                    ]
+                ),
+            },
+        ],
+    ),
+    latex=dict(
     ),
 )
+
+
+def importclass(fullname):
+    modname, classname = fullname.rsplit('.', maxsplit=1)
+    mod = importlib.import_module(modname)
+    return getattr(mod, classname)
+
+    
+_preset_fragment_renderer_classes = {
+    'html': HtmlFragmentRenderer,
+    'text': TextFragmentRenderer,
+    'latex': LatexFragmentRenderer,
+}
+
+
+def get_fragment_renderer(argformat, args):
+    r"""
+    Should return {'fragment_renderer': <instance>, 'doc_pre': ..., 'doc_post': ... }
+    """
+
+    if argformat in _preset_fragment_renderer_classes:
+        fragment_renderer = _preset_fragment_renderer_classes[argformat] ()
+    elif '.' in argformat:
+        FragmentRendererClass = importclass(argformat)
+        fragment_renderer = FragmentRendererClass()
+    else:
+        raise ValueError(f"Unknown format: ‘{argformat}’")
+
+    doc_pre, doc_post = ('','')
+
+    if argformat == 'html' and args.html_minimal_document:
+        doc_pre = _html_minimal_document_pre
+        doc_post = _html_minimal_document_post
+
+    get_doc_pre_post = getattr(fragment_renderer, 'get_doc_pre_post', None)
+    if get_doc_pre_post is not None:
+        doc_pre, doc_post = get_doc_pre_post(args)
+
+    return {
+        'fragment_renderer': fragment_renderer,
+        'doc_pre': doc_pre,
+        'doc_post': doc_post,
+    }
 
 
 def setup_features(features_config):
 
     features = []
 
-    if features_config.get('headings', {}) is not None:
-        features.append(
-            FeatureHeadings(
-                section_commands_by_level=
-                    features_config.get('headings',{})
-                    .get('heading_section_commands_by_level', None)
-            )
-        )
-
-    if features_config.get('refs', {}) is not None:
-        features.append(
-            FeatureRefs(
-                external_ref_resolvers=None,
-            )
-        )
-
-    if features_config.get('enumeration', {}) is not None:
-        features.append(
-            FeatureEnumeration(
-                enumeration_environments=
-                    features_config.get('enumeration', {})
-                    .get('enumeration_environments', None)
-            )
-        )
-
-    if features_config.get('endnotes', {}) is not None:
-        features.append(
-            FeatureEndnotes(
-                categories=
-                    features_config.get('endnotes',{}).get('endnote_categories', None)
-            )
-        )
-    
-    # feature_citations = FeatureExternalPrefixedCitations(
-    #         external_citations_provider=???????,
-    #         counter_formatter=citation_counter_formatter,
-    #         citation_delimiters=citation_delimiters,
-    #     )
-
-    if features_config.get('floats', {}) is not None:
-        features.append(
-            FeatureFloatsIncludeGraphicsOnly(
-                float_types=
-                    features_config.get('floats',{}).get('float_types', None)
-            )
-        )
+    for featurespec in features_config:
         
-    if features_config.get('defterm', {}) is not None:
-
-        features.append( FeatureDefTerm() )
-
-    if features_config.get('simple_path_graphics_resource_provider', {}) is not None:
-
-        features.append(
-            FeatureSimplePathGraphicsResourceProvider()
-        )
+        FeatureClass = importclass(featurespec['name'])
+        features.append( FeatureClass(**featurespec.get('config', {})) )
 
     return features
-
-    
 
 
 def runmain(args):
@@ -204,58 +282,76 @@ def runmain(args):
     if args.verbose != 2:
         logging.getLogger('pylatexenc').setLevel(level=logging.INFO)
 
-    # Set up the format & formatters
+    logger = logging.getLogger(__name__)
 
-    if args.format == 'text':
-
-        fragment_renderer = TextFragmentRenderer()
-        doc_pre = ''
-        doc_post = ''
-
-    elif args.format == 'html':
-
-        fragment_renderer = HtmlFragmentRenderer()
-        doc_pre = ''
-        doc_post = ''
-
-        if args.html_minimal_document:
-            doc_pre = _html_minimal_document_pre
-            doc_post = _html_minimal_document_post
-
-    else:
-        raise ValueError(f"Unknown format: ‘{args.format}’")
-
-
-    config = args.config
-    if config is None:
-        config = default_config[args.format]
-
-    for k, v in config.get('fragment_renderer',{}).items():
-        setattr(fragment_renderer, k, v)
-
-    # Set up the environment
-
-    std_parsing_state = llmstd.standard_parsing_state(**config.get('parsing',{}))
-    std_features = setup_features(config.get('features',{}))
-
-    environ = llmstd.LLMStandardEnvironment(
-        parsing_state=std_parsing_state,
-        features=std_features,
-    )
 
     # Get the LLM content
 
-    llm_content = ''
+    input_content = ''
     if args.llm_content:
         if args.files:
             raise ValueError(
                 "You cannot specify both FILEs and --llm-content options. "
                 "Type `llm --help` for more information."
             )
-        llm_content = args.llm_content
+        input_content = args.llm_content
     else:
-        for line in fileinput.input(files=args.files):
-            llm_content += line
+        if len(args.files) >= 2:
+            logger.warning("When multiple files are given, only the YAML front matter "
+                           "for the first specified file is inspected.")
+        for line in fileinput.input(files=args.files, encoding='utf-8'):
+            input_content += line
+
+    metadata, llm_content = frontmatter.parse(input_content)
+
+    # load config & defaults
+
+    orig_config = args.config
+    if isinstance(orig_config, str):
+        # parse a YAML file
+        with open(orig_config) as f:
+            orig_config = yaml.safe_load(f)
+    if not orig_config:
+        orig_config = {}
+
+    logger.debug(f"Input metadata is\n{json.dumps(metadata,indent=4)}")
+
+    config_chain = [
+        metadata.get('llm', {}),
+        orig_config,
+        default_config.get(args.format, {}),
+        default_config['_base'],
+    ]
+
+    config = {}
+    for configdefaults in config_chain:
+        recursive_assign_defaults(config, configdefaults)
+
+    logger.debug(f"Using config:\n{json.dumps(config,indent=4)}")
+
+
+    # Set up the format & formatters
+
+    x = get_fragment_renderer(args.format, args)
+    fragment_renderer = x['fragment_renderer']
+    doc_pre = x['doc_pre']
+    doc_post = x['doc_post']
+
+
+    # Set up any fragment_renderer properties from config
+
+    for k, v in config['fragment_renderer'].items():
+        setattr(fragment_renderer, k, v)
+
+    # Set up the environment
+
+    std_parsing_state = llmstd.standard_parsing_state(**config['parsing'])
+    std_features = setup_features(config['features'])
+
+    environ = llmstd.LLMStandardEnvironment(
+        parsing_state=std_parsing_state,
+        features=std_features,
+    )
 
     fragment = environ.make_fragment(
         llm_content,
@@ -264,6 +360,12 @@ def runmain(args):
     )
     
     doc = environ.make_document(fragment.render)
+    
+    # give access to metadata to render functions -- e.g., we might want to put
+    # keys like "title:", "date:", "author:", etc. in the YAML meta-data to be
+    # used in the LLM content.  Or a bibliography manager might want a bibfile
+    # where to look for references, etc.
+    doc.metadata = metadata
 
     #
     # Render the main document
@@ -275,9 +377,13 @@ def runmain(args):
     #
     endnotes_mgr = render_context.feature_render_manager('endnotes')
     if endnotes_mgr is not None:
-        endnotes_result = endnotes_mgr.render_endnotes(
-            **config.get('features',{}).get('endnotes',{}).get('render_options',{})
+        # find endnotes feature config
+        endnotes_feature_spec = next(
+            spec for spec in config['features']
+            if spec['name'] == 'llm.feature.endnotes.FeatureEndnotes'
         )
+        
+        endnotes_result = endnotes_mgr.render_endnotes()
         result = fragment_renderer.render_join_blocks([
             result,
             endnotes_result,
@@ -286,22 +392,38 @@ def runmain(args):
     #
     # Write to output
     #
-    fout = sys.stdout
+    def open_context_fout():
+        if not args.output or args.output == '-':
+            return _TrivialContextManager(sys.stdout)
+        else:
+            return open(args.output, 'w')
 
-    if doc_pre:
-        fout.write(doc_pre)
+    with open_context_fout() as fout:
 
-    fout.write(result)
+        if doc_pre:
+            fout.write(doc_pre)
 
-    if doc_post:
-        fout.write(doc_post)
+        fout.write(result)
 
-    if not args.suppress_final_newline:
-        fout.write("\n")
+        if doc_post:
+            fout.write(doc_post)
+
+        if not args.suppress_final_newline:
+            fout.write("\n")
 
     return
 
 
+class _TrivialContextManager:
+    def __init__(self, value):
+        super().__init__()
+        self.value = value
+
+    def __enter__(self):
+        return self.value
+
+    def __exit__(*args):
+        pass
 
 
 _html_minimal_document_pre = r"""
@@ -312,6 +434,7 @@ _html_minimal_document_pre = r"""
   <style type="text/css">
 /* ------------------ */
 html, body {
+  font-size: 16px;
   line-height: 1.3em;
 }
 
