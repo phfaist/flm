@@ -1,6 +1,8 @@
 import sys
 import fileinput
 import json
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 import logging
 logger = logging.getLogger(__name__)
@@ -44,8 +46,8 @@ LLMMainArguments = namedtuple('LLMMainArguments',
 
 class _PresetDefaults:
     def process_list_item(self, obj1, k, j, obj2k):
-        logger.debug("defaults!")
-        obj1[k][j:j+1] = obj2k
+        logger.debug(f"defaults! {obj1=} {k=} {j=} {obj2k=}")
+        obj1[k][j:j+1] = list(obj2k)
         return j+len(obj2k)
 
 class _PresetFeatureConfig:
@@ -71,22 +73,63 @@ class _PresetFeatureConfig:
         del obj1[k][j] # remove this instruction from our original list
         return j
 
+class _PresetImport:
+    def _fetch_import(self, remote):
+        u = urlparse(remote)
+        if not u.scheme or u.scheme == 'file':
+            with open(u.path) as f:
+                return yaml.safe_load(f)
+        with urlopen(remote) as response:
+            # also works for JSON, since YAML is a superset of JSON
+            return yaml.safe_load( response.read() )
+
+    def process_root(self, obj1, obj2=None):
+        import_target = obj1['$target']
+        target_data = self._fetch_import(import_target)
+        del obj1['$preset']
+        del obj1['$target']
+        obj1.update(target_data)
+        logger.debug(f"processed root $preset: import -> {obj1=} {obj2=}")
+
+    def process_property(self, obj1, k, obj2):
+        self.process_root(obj1[k])
+        logger.debug(f"processed property $preset: import -> {obj1=} {k=} {obj2=}")
+        
+    def process_list_item(self, obj1, k, j, obj2k):
+        import_target = obj1[k]['$target']
+        target_data = self._fetch_import(import_target)
+        if not isinstance(target_data, list):
+            target_data = [ target_data ]
+        obj1[k][j:j+1] = target_data
+        logger.debug(f"processed list item $preset: import -> {obj1=} {k=} {j=} {obj2k=}")
+        return j
+
 _presets = {
     'defaults': _PresetDefaults(),
     'feature-config': _PresetFeatureConfig(),
+    'import': _PresetImport(),
 };
 
 def recursive_assign_defaults(obj1, obj2):
+
+    logger.debug(f"recursive_assign_defaults({obj1=}, {obj2=})")
+
+    # process any root preset
+    if '$preset' in obj1:
+        preset_name = obj1['$preset']
+        _presets[preset_name].process_root(obj1, obj2)
+
     for k in obj2:
         if k not in obj1:
             logger.debug(f"Setting obj1's ‘{k}’ property to {obj2[k]!r}")
             obj1[k] = copy(obj2[k])
+            continue
 
-        if isinstance(obj2[k], dict):
+        if isinstance(obj1[k], dict):
             # process any preset
-            if '$preset' in obj2[k]:
-                preset_name = obj2[k]['preset']
-                _presets[preset_name].process_property(obj2, k, obj1)
+            if '$preset' in obj1[k]:
+                preset_name = obj1[k]['$preset']
+                _presets[preset_name].process_property(obj1, k, obj2)
 
         if isinstance(obj1[k], list):
             j = 0
@@ -94,6 +137,7 @@ def recursive_assign_defaults(obj1, obj2):
                 if isinstance(obj1[k][j], dict) and '$preset' in obj1[k][j]:
                     preset_name = obj1[k][j]['$preset']
                     j = _presets[preset_name].process_list_item(obj1, k, j, obj2[k])
+                    logger.debug(f"process_list_item, new objects are {obj1=} {k=} {j=} {obj2=}")
                 else:
                     j += 1
         
@@ -112,105 +156,111 @@ def recursive_assign_defaults(obj1, obj2):
 
 default_config = dict(
     _base=dict(
-        parsing=dict(
-            enable_comments=False,
-            dollar_inline_math_mode=False,
-            force_block_level=None,
-        ),
-        features=[
-            dict(
-                name='llm.feature.headings.FeatureHeadings',
-                config=dict(
-                    section_commands_by_level=None,
-                )
+        llm=dict(
+            parsing=dict(
+                enable_comments=False,
+                dollar_inline_math_mode=False,
+                force_block_level=None,
             ),
-            dict(
-                name='llm.feature.enumeration.FeatureEnumeration',
-                config=dict(
-                    enumeration_environments=default_enumeration_environments,
-                )
-            ),
-            dict(
-                name='llm.feature.refs.FeatureRefs',
-                config=dict()
-            ),
-            dict(
-                name='llm.feature.endnotes.FeatureEndnotes',
-                config=dict(
-                    categories=[
-                        dict(
-                            category_name='footnote',
-                            counter_formatter='alph',
-                            heading_title='Footnotes',
-                            endnote_command='footnote',
-                        )
-                    ],
-                    render_options=dict(
-                        include_headings_at_level=1,
-                        set_headings_target_ids=True,
-                        endnotes_heading_title=None,
-                        endnotes_heading_level=1,
+            features=[
+                dict(
+                    name='llm.feature.headings.FeatureHeadings',
+                    config=dict(
+                        section_commands_by_level=None,
                     )
+                ),
+                dict(
+                    name='llm.feature.enumeration.FeatureEnumeration',
+                    config=dict(
+                        enumeration_environments=default_enumeration_environments,
+                    )
+                ),
+                dict(
+                    name='llm.feature.refs.FeatureRefs',
+                    config=dict()
+                ),
+                dict(
+                    name='llm.feature.endnotes.FeatureEndnotes',
+                    config=dict(
+                        categories=[
+                            dict(
+                                category_name='footnote',
+                                counter_formatter='alph',
+                                heading_title='Footnotes',
+                                endnote_command='footnote',
+                            )
+                        ],
+                        render_options=dict(
+                            include_headings_at_level=1,
+                            set_headings_target_ids=True,
+                            endnotes_heading_title=None,
+                            endnotes_heading_level=1,
+                        )
+                    )
+                ),
+                dict(
+                    name='llm.feature.floats.FeatureFloatsIncludeGraphicsOnly',
+                    config=dict(
+                        float_types=[
+                            dict(
+                                float_type='figure',
+                                float_caption_name='Fig.',
+                                counter_formatter='Roman',
+                            ),
+                            dict(
+                                float_type='table',
+                                float_caption_name='Tab.',
+                                counter_formatter='Roman',
+                            ),
+                        ]
+                    )
+                ),
+                dict(
+                    name='llm.feature.defterm.FeatureDefTerm',
+                    config=dict(),
+                ),
+                dict(
+                    name='llm.feature.graphics.FeatureSimplePathGraphicsResourceProvider',
+                    config=dict(),
                 )
-            ),
-            dict(
-                name='llm.feature.floats.FeatureFloatsIncludeGraphicsOnly',
-                config=dict(
-                    float_types=[
-                        dict(
-                            float_type='figure',
-                            float_caption_name='Fig.',
-                            counter_formatter='Roman',
-                        ),
-                        dict(
-                            float_type='table',
-                            float_caption_name='Tab.',
-                            counter_formatter='Roman',
-                        ),
-                    ]
-                )
-            ),
-            dict(
-                name='llm.feature.defterm.FeatureDefTerm',
-                config=dict(),
-            ),
-            dict(
-                name='llm.feature.graphics.FeatureSimplePathGraphicsResourceProvider',
-                config=dict(),
-            )
-        ]
+            ]
+        )
     ),
     html=dict(
-        fragment_renderer=dict(
-            use_link_target_blank=False,
-            html_blocks_joiner="",
-            heading_tags_by_level=HtmlFragmentRenderer.heading_tags_by_level,
-            inline_heading_add_space=True
-        ),
+        llm=dict(
+            fragment_renderer=dict(
+                use_link_target_blank=False,
+                html_blocks_joiner="",
+                heading_tags_by_level=HtmlFragmentRenderer.heading_tags_by_level,
+                inline_heading_add_space=True
+            ),
+        )
     ),
     text=dict(
-        fragment_renderer=dict(
-            display_href_urls=True,
+        llm=dict(
+            fragment_renderer=dict(
+                display_href_urls=True,
+            ),
+            features=[
+                {
+                    '$preset': 'defaults'
+                },
+                {
+                    '$preset': 'feature-config',
+                    'name': 'llm.feature.endnotes.FeatureEndnotes',
+                    'config': dict(
+                        categories=[
+                            dict(
+                                category_name='footnote',
+                                counter_formatter='unicodesuperscript',
+                                heading_title='Footnotes',
+                                endnote_command='footnote',
+                            )
+                        ]
+                    ),
+                },
+            ],
         ),
-        features=[
-            {
-                '$preset': 'defaults'
-            },
-            {
-                '$preset': 'feature-config',
-                'name': 'llm.feature.endnotes.FeatureEndnotes',
-                'config': dict(
-                    categories=[
-                        dict(
-                            category_name='footnote',
-                            counter_formatter='unicodesuperscript',
-                            heading_title='Footnotes',
-                            endnote_command='footnote',
-                        )
-                    ]
-                ),
-            },
-        ],
     ),
     latex=dict(
     ),
@@ -267,7 +317,13 @@ def setup_features(features_config):
     for featurespec in features_config:
         
         FeatureClass = importclass(featurespec['name'])
-        features.append( FeatureClass(**featurespec.get('config', {})) )
+
+        featureconfig = featurespec.get('config', {})
+        if hasattr(FeatureClass, 'default_config'):
+            defaultconfig = FeatureClass.default_config
+            recursive_assign_defaults(featureconfig, defaultconfig)
+
+        features.append( FeatureClass(**featureconfig) )
 
     return features
 
@@ -317,7 +373,7 @@ def runmain(args):
     logger.debug(f"Input metadata is\n{json.dumps(metadata,indent=4)}")
 
     config_chain = [
-        metadata.get('llm', {}),
+        metadata,
         orig_config,
         default_config.get(args.format, {}),
         default_config['_base'],
@@ -340,13 +396,13 @@ def runmain(args):
 
     # Set up any fragment_renderer properties from config
 
-    for k, v in config['fragment_renderer'].items():
+    for k, v in config['llm']['fragment_renderer'].items():
         setattr(fragment_renderer, k, v)
 
     # Set up the environment
 
-    std_parsing_state = llmstd.standard_parsing_state(**config['parsing'])
-    std_features = setup_features(config['features'])
+    std_parsing_state = llmstd.standard_parsing_state(**config['llm']['parsing'])
+    std_features = setup_features(config['llm']['features'])
 
     environ = llmstd.LLMStandardEnvironment(
         parsing_state=std_parsing_state,
@@ -358,6 +414,10 @@ def runmain(args):
         is_block_level=args.force_block_level,
         silent=True, # we'll report errors ourselves
     )
+
+    for feature in std_features:
+        if hasattr(feature, 'llm_main_scan_fragment'):
+            feature.llm_main_scan_fragment(fragment)
     
     doc = environ.make_document(fragment.render)
     
@@ -365,7 +425,7 @@ def runmain(args):
     # keys like "title:", "date:", "author:", etc. in the YAML meta-data to be
     # used in the LLM content.  Or a bibliography manager might want a bibfile
     # where to look for references, etc.
-    doc.metadata = metadata
+    doc.doc_config = config
 
     #
     # Render the main document
@@ -379,7 +439,7 @@ def runmain(args):
     if endnotes_mgr is not None:
         # find endnotes feature config
         endnotes_feature_spec = next(
-            spec for spec in config['features']
+            spec for spec in config['llm']['features']
             if spec['name'] == 'llm.feature.endnotes.FeatureEndnotes'
         )
         
