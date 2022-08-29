@@ -27,6 +27,17 @@ Two line breaks start a new paragraph. You can use inline math like
 
 Refer to equations with~\\eqref{eq:stabilizers}, etc. ...
 
+We can also \\begin{verbatimtext}/insert\ #some *VERBATIM?\\\ntext Right here
+    , which
+might  span multiple
+ lines
+
+
+and paragraphs. Does it wrk?
+
+\\end{verbatimtext}
+
+
 Hello, world. \\emph{Here I am.} What would you like
 to    see?
 
