@@ -26,7 +26,7 @@ Install with pip:
 $ pip install git+https://github.com/phfaist/llm.git@main
 ```
 
-Example `document.llm`:
+Example `mydocument.llm`:
 ```latex
 \section{Kitaev's Surface Code}
 
@@ -48,6 +48,11 @@ the edges adjacent to a face, or plaquette, \(p\) of the lattice
 \end{figure}
 
 ...
+```
+
+To compile your document into an HTML page, use:
+```bash
+$ llm mydocument.llm -o mydocument.html --format=html --minimal-document
 ```
 
 # This is work in progress!
