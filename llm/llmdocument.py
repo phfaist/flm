@@ -51,12 +51,16 @@ class LLMDocument:
             environment,
             enable_features=None,
             feature_document_options=None,
+            metadata=None,
     ):
         super().__init__()
 
         # set up environment, callback function, fragment_renderer
         self.environment = environment
         self.render_callback = render_callback
+
+        # custom user-defined meta-data
+        self.metadata = metadata
 
         # set up features & feature document managers
         if enable_features is None:

@@ -1,3 +1,4 @@
+import os.path
 import sys
 import fileinput
 import json
@@ -88,7 +89,7 @@ class _PresetImport:
         target_data = self._fetch_import(import_target)
         del obj1['$preset']
         del obj1['$target']
-        obj1.update(target_data)
+        recursive_assign_defaults(obj1, target_data)
         logger.debug(f"processed root $preset: import -> {obj1=} {obj2=}")
 
     def process_property(self, obj1, k, obj2):
@@ -376,6 +377,7 @@ def runmain(args):
     # Get the LLM content
 
     input_content = ''
+    jobname = 'unknown-jobname'
     if args.llm_content:
         if args.files:
             raise ValueError(
@@ -384,9 +386,13 @@ def runmain(args):
             )
         input_content = args.llm_content
     else:
+        if len(args.files) >= 1 and args.files[0] != '-':
+            dirname, basename = os.path.split(args.files[0])
+            jobname, jobnameext = os.path.splitext(basename)
         if len(args.files) >= 2:
             logger.warning("When multiple files are given, only the YAML front matter "
-                           "for the first specified file is inspected.")
+                           "for the first specified file is inspected.  The jobname is "
+                           "set to the name of the first file.")
         for line in fileinput.input(files=args.files, encoding='utf-8'):
             input_content += line
 
@@ -447,17 +453,32 @@ def runmain(args):
         silent=True, # we'll report errors ourselves
     )
 
-    for feature in std_features:
-        if hasattr(feature, 'llm_main_scan_fragment'):
-            feature.llm_main_scan_fragment(fragment)
-    
-    doc = environ.make_document(fragment.render)
-    
     # give access to metadata to render functions -- e.g., we might want to put
     # keys like "title:", "date:", "author:", etc. in the YAML meta-data to be
     # used in the LLM content.  Or a bibliography manager might want a bibfile
     # where to look for references, etc.
-    doc.doc_config = config
+    metadata = {
+        'filepath': {
+            'dirname': dirname,
+            'basename': basename,
+            'jobnameext': jobnameext,
+        },
+        'jobname': jobname,
+        'config': config,
+    }
+    
+
+    doc = environ.make_document(fragment.render, metadata=metadata)
+    
+    #
+    # Allow features prime access to the document and the fragment, in case they
+    # want to scan stuff (e.g., for citations)
+    #
+
+    for feature_name, feature_document_manager in doc.feature_document_managers:
+        if hasattr(feature_document_manager, 'llm_main_scan_fragment'):
+            feature_document_manager.llm_main_scan_fragment(fragment)
+
 
     #
     # Render the main document
