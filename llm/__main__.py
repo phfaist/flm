@@ -5,13 +5,15 @@ import logging
 from pylatexenc.latexnodes import LatexWalkerParseError
 
 from .runmain import runmain, preset_fragment_renderer_classes
+from llm import __version__ as llm_version
 
 
 def main(cmdargs=None):
     
     args_parser = argparse.ArgumentParser(
         prog='llm',
-        epilog='Have a lot of llm fun!'
+        description='Latex-Like Markup parser and formatter - https://github.com/phfaist/llm',
+        epilog='Have a lot of llm fun!',
     )
 
     args_parser.add_argument('-c', '--llm-content', action='store',
@@ -60,6 +62,7 @@ def main(cmdargs=None):
                              help="Enable very long verbose debugging output "
                              "(include very elaborate pylatexenc debug messages)")
 
+    args_parser.add_argument('--version', action='version', version=llm_version)
 
     args_parser.add_argument('files', metavar="FILE", nargs='*',
                              help='Input files (if none specified, read from stdandard input)')
