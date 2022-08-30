@@ -65,7 +65,7 @@ Planned features:
 
 You can use `llm` in command-line mode to compile your documents:
 ```bash
-$ pip install llm
+$ pip install git+https://github.com/phfaist/llm.git
 $ llm mydocument.llm
 ```
 
