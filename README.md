@@ -21,6 +21,11 @@ that the code should *describe* document contents in an intuitive way, as a
 markup language, while disregarding as much as possible the details of how that
 contents will be typeset.
 
+Install with pip:
+```bash
+$ pip install git+https://github.com/phfaist/llm.git
+```
+
 Example `document.llm`:
 ```latex
 \section{Kitaev's Surface Code}
@@ -62,7 +67,6 @@ Planned features:
 
 You can use `llm` in command-line mode to compile your documents:
 ```bash
-$ pip install git+https://github.com/phfaist/llm.git
 $ llm mydocument.llm
 ```
 
