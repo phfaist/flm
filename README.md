@@ -23,7 +23,7 @@ contents will be typeset.
 
 Install with pip:
 ```bash
-$ pip install git+https://github.com/phfaist/llm.git
+$ pip install git+https://github.com/phfaist/llm.git@main
 ```
 
 Example `document.llm`:
