@@ -244,17 +244,21 @@ default_config = dict(
     html=dict(
         llm=dict(
             fragment_renderer=dict(
-                use_link_target_blank=False,
-                html_blocks_joiner="",
-                heading_tags_by_level=HtmlFragmentRenderer.heading_tags_by_level,
-                inline_heading_add_space=True
+                html=dict(
+                    use_link_target_blank=False,
+                    html_blocks_joiner="",
+                    heading_tags_by_level=HtmlFragmentRenderer.heading_tags_by_level,
+                    inline_heading_add_space=True
+                )
             ),
         )
     ),
     text=dict(
         llm=dict(
             fragment_renderer=dict(
-                display_href_urls=True,
+                text=dict(
+                    display_href_urls=True,
+                )
             ),
             features=[
                 {
@@ -280,14 +284,16 @@ default_config = dict(
     latex=dict(
         llm=dict(
             fragment_renderer=dict(
-                heading_commands_by_level = {
-                    1: "section",
-                    2: "subsection",
-                    3: "subsubsection",
-                    4: "paragraph",
-                    5: "subparagraph",
-                    6: None,
-                }
+                latex=dict(
+                    heading_commands_by_level = {
+                        1: "section",
+                        2: "subsection",
+                        3: "subsubsection",
+                        4: "paragraph",
+                        5: "subparagraph",
+                        6: None,
+                    }
+                ),
             ),
             features=[
                 {
@@ -455,7 +461,7 @@ def runmain(args):
 
     # Set up any fragment_renderer properties from config
 
-    for k, v in config['llm']['fragment_renderer'].items():
+    for k, v in config['llm']['fragment_renderer'].get(args.format, {}).items():
         setattr(fragment_renderer, k, v)
 
     # Set up the environment

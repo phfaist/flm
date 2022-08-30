@@ -142,17 +142,18 @@ Here's a basic renderer configuration that you can adapt **for HTML output**
 ```yaml
 llm:
   fragment_renderer:
-    use_link_target_blank: false
-    html_blocks_joiner: ''
-    # use ‘headings_tags_by_level: null’ for defaults
-    heading_tags_by_level:
-      1: h1
-      2: h2
-      3: h3
-      4: span
-      5: span
-      6: span
-    inline_heading_add_space: true
+    html:
+      use_link_target_blank: false
+      html_blocks_joiner: ''
+      # use ‘headings_tags_by_level: null’ for defaults
+      heading_tags_by_level:
+        1: h1
+        2: h2
+        3: h3
+        4: span
+        5: span
+        6: span
+      inline_heading_add_space: true
 ```
 
 Here's a basic renderer configuration that you can adapt **for text output**
@@ -160,7 +161,8 @@ Here's a basic renderer configuration that you can adapt **for text output**
 ```yaml
 llm:
   fragment_renderer:
-    display_href_urls: true
+    text:
+      display_href_urls: true
 ```
 
 Here's a basic renderer configuration that you can adapt **for LaTeX output**
@@ -168,13 +170,14 @@ Here's a basic renderer configuration that you can adapt **for LaTeX output**
 ```yaml
 llm:
   fragment_renderer:
-    heading_commands_by_level:
-      1: "section"
-      2: "subsection"
-      3: "subsubsection"
-      4: "paragraph"
-      5: "subparagraph"
-      6: null
+    latex:
+      heading_commands_by_level:
+        1: "section"
+        2: "subsection"
+        3: "subsubsection"
+        4: "paragraph"
+        5: "subparagraph"
+        6: null
 ```
 
 ### Features and their configuration
