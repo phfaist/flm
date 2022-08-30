@@ -90,9 +90,9 @@ title: 'My LLM document'
 llm:
    features:
      - $preset: defaults
-     - $preset: feature-config
-       name: llm.feature.endnotes.FeatureEndnotes
-       config:
+     - $preset: merge-config
+       $name: llm.feature.endnotes.FeatureEndnotes
+       $config:
          categories:
            - category_name: footnote
              counter_formatter: unicodesuperscript
@@ -107,7 +107,7 @@ Hello, \emph{world}. ...
 
 As you can see, there are a few options you can set and a few special instructions
 in the config that are led by the `$preset:` key.  The `$preset: defaults` item in
-a list imports all the existing defaults for that list. The `$preset: feature-config`
+a list imports all the existing defaults for that list. The `$preset: merge-config`
 is used to alter the configuration of an already-declared feature.  Additionally
 you can use the `$preset: import` to import a configuration from an external file or
 URL:

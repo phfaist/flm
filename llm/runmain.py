@@ -51,15 +51,15 @@ class _PresetDefaults:
         obj1[k][j:j+1] = list(obj2k)
         return j+len(obj2k)
 
-class _PresetFeatureConfig:
+class _PresetMergeConfig:
     def process_list_item(self, obj1, k, j, obj2k):
-        logger.debug("feature-config, process_list_item, {obj1!r} {k!r} {j!r} {obj2k!r}")
-        featurename = obj1[k][j].get('name', None)
+        logger.debug("merge-config, process_list_item, {obj1!r} {k!r} {j!r} {obj2k!r}")
+        featurename = obj1[k][j].get('$name', None)
         if featurename is None:
             raise ValueError(
-                "feature-config $preset requires ‘name: <fully qualified feature class name>’"
+                "merge-config $preset requires ‘$name: <fully qualified feature class name>’"
             )
-        newconfig = dict(obj1[k][j].get('config', {}))
+        newconfig = dict(obj1[k][j].get('$config', {}))
         featurespecj0 = next(
             (j0 for j0 in range(j)
              if obj1[k][j0].get('name','') == featurename) ,
@@ -67,7 +67,7 @@ class _PresetFeatureConfig:
         )
         if featurespecj0 is None:
             raise ValueError(
-                f"feature-config $preset -- could not find feature named ‘{featurename}’"
+                f"merge-config $preset -- could not find feature named ‘{featurename}’"
             )
         recursive_assign_defaults(newconfig, obj1[k][featurespecj0]['config'])
         obj1[k][featurespecj0]['config'] = newconfig # overwrite the one we had
@@ -85,11 +85,14 @@ class _PresetImport:
             return yaml.safe_load( response.read() )
 
     def process_root(self, obj1, obj2=None):
-        import_target = obj1['$target']
-        target_data = self._fetch_import(import_target)
+        import_targets = obj1['$target']
         del obj1['$preset']
         del obj1['$target']
-        recursive_assign_defaults(obj1, target_data)
+        if isinstance(import_targets, str):
+            import_targets = [ import_targets ]
+        for import_target in import_targets:
+            target_data = self._fetch_import(import_target)
+            recursive_assign_defaults(obj1, target_data)
         logger.debug(f"processed root $preset: import -> {obj1=} {obj2=}")
 
     def process_property(self, obj1, k, obj2):
@@ -97,17 +100,26 @@ class _PresetImport:
         logger.debug(f"processed property $preset: import -> {obj1=} {k=} {obj2=}")
         
     def process_list_item(self, obj1, k, j, obj2k):
-        import_target = obj1[k]['$target']
-        target_data = self._fetch_import(import_target)
-        if not isinstance(target_data, list):
-            target_data = [ target_data ]
-        obj1[k][j:j+1] = target_data
+        import_targets = obj1[k][j]['$target']
+        if isinstance(import_targets, str):
+            import_targets = [ import_targets ]
+
+        del obj1[k][j]
+
+        jins = j
+        for import_target in import_targets:
+            target_data = self._fetch_import(import_target)
+            if not isinstance(target_data, list):
+                target_data = [ target_data ]
+            obj1[k][jins:jins] = target_data
+            jins += len(target_data)
+
         logger.debug(f"processed list item $preset: import -> {obj1=} {k=} {j=} {obj2k=}")
-        return j
+        return j # continue processing newly imported items
 
 _presets = {
     'defaults': _PresetDefaults(),
-    'feature-config': _PresetFeatureConfig(),
+    'merge-config': _PresetMergeConfig(),
     'import': _PresetImport(),
 };
 
@@ -249,9 +261,9 @@ default_config = dict(
                     '$preset': 'defaults'
                 },
                 {
-                    '$preset': 'feature-config',
-                    'name': 'llm.feature.endnotes.FeatureEndnotes',
-                    'config': dict(
+                    '$preset': 'merge-config',
+                    '$name': 'llm.feature.endnotes.FeatureEndnotes',
+                    '$config': dict(
                         categories=[
                             dict(
                                 category_name='footnote',
@@ -282,9 +294,9 @@ default_config = dict(
                     '$preset': 'defaults'
                 },
                 {
-                    '$preset': 'feature-config',
-                    'name': 'llm.feature.endnotes.FeatureEndnotes',
-                    'config': dict(
+                    '$preset': 'merge-config',
+                    '$name': 'llm.feature.endnotes.FeatureEndnotes',
+                    '$config': dict(
                         categories=[
                             dict(
                                 category_name='footnote',
@@ -307,7 +319,7 @@ def importclass(fullname):
     return getattr(mod, classname)
 
     
-_preset_fragment_renderer_classes = {
+preset_fragment_renderer_classes = {
     'html': HtmlFragmentRenderer,
     'text': TextFragmentRenderer,
     'latex': LatexFragmentRenderer,
@@ -319,8 +331,8 @@ def get_fragment_renderer(argformat, args):
     Should return {'fragment_renderer': <instance>, 'doc_pre': ..., 'doc_post': ... }
     """
 
-    if argformat in _preset_fragment_renderer_classes:
-        fragment_renderer = _preset_fragment_renderer_classes[argformat] ()
+    if argformat in preset_fragment_renderer_classes:
+        fragment_renderer = preset_fragment_renderer_classes[argformat] ()
     elif '.' in argformat:
         FragmentRendererClass = importclass(argformat)
         fragment_renderer = FragmentRendererClass()
@@ -400,13 +412,22 @@ def runmain(args):
 
     # load config & defaults
 
-    orig_config = args.config
-    if isinstance(orig_config, str):
+    config_file = args.config
+    orig_config = {}
+    if isinstance(config_file, str) and config_file:
         # parse a YAML file
-        with open(orig_config) as f:
+        with open(config_file) as f:
             orig_config = yaml.safe_load(f)
-    if not orig_config:
-        orig_config = {}
+    else:
+        # see if there's a llmconfig.(yaml|yml) in the current directory, and
+        # load that one if applicable.
+        if os.path.exists('llmconfig.yaml'):
+            with open('llmconfig.yaml') as f:
+                orig_config = yaml.safe_load(f)
+        elif os.path.exists('llmconfig.yml'):
+            with open('llmconfig.yml') as f:
+                orig_config = yaml.safe_load(f)
+        
 
     logger.debug(f"Input metadata is\n{json.dumps(metadata,indent=4)}")
 
