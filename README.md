@@ -84,6 +84,64 @@ llm:
    ... # can still specify configuration to merge with here ...
 ```
 
+### Features and their configuration
+
+Many LLM features are organized explicitly into feature classes which can be enabled
+or disabled at wish.  Features include:
+
+- enumeration (`\begin{enumerate}...\end{enumerate}`) and itemization
+  (`\begin{itemize}...\end{itemize}`) lists
+  
+- floats and figures (`\begin{figure}...\end{figure}`)
+
+- headings (`\section{...}` etc.)
+
+- etc.
+
+Features can be selected and configured directly in the LLM config metadata.  For instance
+the following configuration is extracted from the default feature configuration when you run
+LLM:
+```
+llm:
+  features:
+    # list features that should be available here.
+    - name: llm.feature.enumeration.FeatureEnumeration
+      config:
+        enumeration_environments:
+          enumerate:
+            # here null means to use defaults
+            counter_formatter: null
+          itemize:
+            counter_formatter:
+              - "\u2022"
+              - '-'
+              - "\u25B8"
+    - name: llm.feature.refs.FeatureRefs
+    - name: llm.feature.endnotes.FeatureEndnotes
+      config:
+        categories:
+          - category_name: footnote
+            counter_formatter: alph
+            endnote_command: footnote
+            heading_title: Footnotes
+        render_options:
+          include_headings_at_level: 1
+          set_headings_target_ids: true
+          endnotes_heading_title: null
+          endnotes_heading_level: 1
+    - name: llm.feature.floats.FeatureFloatsIncludeGraphicsOnly
+      config:
+        float_types:
+          - counter_formatter: Roman
+            float_caption_name: Fig.
+            float_type: figure
+          - counter_formatter: Roman
+            float_caption_name: Tab.
+            float_type: table
+    - name: llm.feature.defterm.FeatureDefTerm
+    - name: llm.feature.graphics.FeatureSimplePathGraphicsResourceProvider
+```
+
 ## Additional Features such as *Citations*
 
 Additional features can be imported in the llm config.  They can reside in other python packages.
@@ -94,10 +152,8 @@ To include for instance the citations feature provided by the
 [llm-citations](https://github.com/phfaist/llm-citations) package, install that package and
 use the config:
 ```
-llm:
-  features:
-    - $preset: defaults
-    - name: 'llm_citations.feature_cite.FeatureCiteAuto'
+$preset: import
+$target: https://raw.githubusercontent.com/phfaist/llm-citations/main/llmconfig.yaml
 bibliography:
   - bibpreset.yaml
   - anotherbibtest.json
