@@ -137,6 +137,5 @@ dmypy.json
 
 
 # my funny test file
-funnytest.llm
-funnytest.html
+funnytest.*
 mydraft*.llm
