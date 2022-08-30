@@ -162,6 +162,8 @@ default_config = dict(
                 dollar_inline_math_mode=False,
                 force_block_level=None,
             ),
+            fragment_renderer=dict(
+            ),
             features=[
                 dict(
                     name='llm.feature.headings.FeatureHeadings',
@@ -263,6 +265,37 @@ default_config = dict(
         ),
     ),
     latex=dict(
+        llm=dict(
+            fragment_renderer=dict(
+                heading_commands_by_level = {
+                    1: "section",
+                    2: "subsection",
+                    3: "subsubsection",
+                    4: "paragraph",
+                    5: "subparagraph",
+                    6: None,
+                }
+            ),
+            features=[
+                {
+                    '$preset': 'defaults'
+                },
+                {
+                    '$preset': 'feature-config',
+                    'name': 'llm.feature.endnotes.FeatureEndnotes',
+                    'config': dict(
+                        categories=[
+                            dict(
+                                category_name='footnote',
+                                counter_formatter={'template': "\\({}^{${arabic}}\\)"},
+                                heading_title='Footnotes',
+                                endnote_command='footnote',
+                            )
+                        ]
+                    ),
+                },
+            ],
+        ),
     ),
 )
 
@@ -295,9 +328,8 @@ def get_fragment_renderer(argformat, args):
 
     doc_pre, doc_post = ('','')
 
-    if argformat == 'html' and args.html_minimal_document:
-        doc_pre = _html_minimal_document_pre
-        doc_post = _html_minimal_document_post
+    if args.minimal_document:
+        doc_pre, doc_post = _minimal_document_doc_pre_post[argformat]
 
     get_doc_pre_post = getattr(fragment_renderer, 'get_doc_pre_post', None)
     if get_doc_pre_post is not None:
@@ -485,6 +517,8 @@ class _TrivialContextManager:
     def __exit__(*args):
         pass
 
+
+# ------------------------------------------------------------------------------
 
 _html_minimal_document_pre = r"""
 <!doctype html>
@@ -707,3 +741,27 @@ _html_minimal_document_post = r"""
 </body>
 </html>
 """.strip()
+
+# ------------------------------------------------------------------------------
+
+_latex_minimal_document_pre = r"""\documentclass[11pt]{article}
+\usepackage{phfnote}
+\newenvironment{defterm}{%
+  \par\begingroup\itshape
+}{%
+  \endgroup\par
+}
+\newcommand{\displayterm}[1]{\textbf{#1}}
+\begin{document}
+"""
+
+_latex_minimal_document_post = r"""%
+\end{document}
+"""
+
+# ------------------------------------------------------------------------------
+
+_minimal_document_doc_pre_post = {
+    'html': (_html_minimal_document_pre, _html_minimal_document_post),
+    'latex': (_latex_minimal_document_pre, _latex_minimal_document_post),
+}

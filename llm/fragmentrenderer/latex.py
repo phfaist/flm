@@ -10,6 +10,15 @@ from ._base import FragmentRenderer
 
 class LatexFragmentRenderer(FragmentRenderer):
 
+    r"""
+    .............
+
+    AN IMPORTANT ASSUMPTION MADE BY THIS RENDERER: (No stray comments
+    assumption.) At no point in rendered content is there a comment without a
+    corresponding newline following it.
+    """
+
+
     supports_delayed_render_markers = True
     """
     We use the marker ``\LLMDLYD{delayed_key}`` for delayed content, which
@@ -26,6 +35,16 @@ class LatexFragmentRenderer(FragmentRenderer):
         6: "subparagraph",
     }
 
+    text_format_cmds = {
+        'textit': 'textit',
+        'textbf': 'textbf',
+        'defterm-term': 'displayterm'
+    }
+
+    latex_semantic_block_environments = {
+        'defterm': 'defterm'
+    }
+
     # ------------------
 
     def __init__(self, **kwargs):
@@ -37,11 +56,6 @@ class LatexFragmentRenderer(FragmentRenderer):
     def latexescape(self, value):
         return self.latex_encoder.unicode_to_latex(value)
 
-
-    text_format_cmds = {
-        'textit': 'textit',
-        'textbf': 'textbf',
-    }
 
     def wrap_in_text_format_macro(self, value, text_formats, render_context):
         
@@ -59,8 +73,8 @@ class LatexFragmentRenderer(FragmentRenderer):
     def wrap_in_latex_enumeration_environment(self, annotations, items_content, render_context):
         return (
             r'\begin{itemize}'
-            + '% ' + ",".join([a.replace('\n',' ') for a in annotations]) + "\n\\relax{}"
-            + items_content
+            + '% ' + ",".join([a.replace('\n',' ') for a in annotations]) + "\n" #"\\relax{}"
+            + items_content.strip()
             + '%\n'
             + r'\end{itemize}'
         )
@@ -96,7 +110,27 @@ class LatexFragmentRenderer(FragmentRenderer):
         rendered.  Usually you'd want to simply join the strings together with
         no joiner, which is what the default implementation does.
         """
-        return "%\n\\relax{}".join([str(s) for s in content_list]) + "%\n\\relax{}"
+        #return "%\n\\relax{}".join([str(s) for s in content_list]) + "%\n\\relax{}"
+
+        # '\n' in case one of the items ends with a comment
+        #return "\n".join([ str(s).strip() for s in content_list ])
+        result = ''
+        for s in content_list:
+            result = self._latex_join(result, str(s))
+        return result
+
+    def _latex_join(self, a, b):
+        if '\n' in a:
+            _, last_line = a.rsplit('\n', 1)
+        else:
+            last_line = a
+        if '%' in last_line:
+            print(f"LAST LINE COMMENT -> {a=}, {last_line=}, {b=}")
+            return a + '\n' + b
+        if re.search(r'\\[a-zA-Z]+$', a) is not None:
+            # ends with named macro, need space
+            return a + ' ' + b
+        return a + b
 
     def render_join_blocks(self, content_list):
         r"""
@@ -106,7 +140,7 @@ class LatexFragmentRenderer(FragmentRenderer):
         to simply join the strings together with no joiner, which is what the
         default implementation does.
         """
-        return "\n\n".join(content_list)
+        return "\n\n".join([ c.strip() for c in content_list]) + '\n'
 
 
     # ------------------
@@ -115,14 +149,16 @@ class LatexFragmentRenderer(FragmentRenderer):
         return self.latexescape(value)
 
     def render_empty_error_placeholder(self, debug_str):
-        return r"\relax % " + debug_str.replace('\n', ' ') + '\n\\relax{}'
+        #return r"\relax % " + debug_str.replace('\n', ' ') + '\n\\relax{}'
+        return "% " + debug_str.replace('\n', ' ') + "\n"
 
     def render_nothing(self, annotations=None):
         if not annotations:
             annotations = []
         else:
             annotations = [a.replace('\n', ' ') for a in annotations]
-        return r"\relax % " + " ".join(annotations) + '\n\\relax{}'
+        #return r"\relax % " + " ".join(annotations) + '\n\\relax{}'
+        return f"% {' '.join(annotations)}\n"
 
     latex_wrap_verbatim_macro = None
 
@@ -156,11 +192,6 @@ class LatexFragmentRenderer(FragmentRenderer):
 
         return self.wrap_in_text_format_macro(content, text_formats, render_context)
 
-    latex_semantic_block_environments = {
-        # terrible hack (it works)! but I don't want to assume specialized environments....
-        'defterm': 'itshape'
-    }
-
     def render_semantic_block(self, content, role, *, annotations=None, target_id=None):
 
         if not annotations:
@@ -176,7 +207,7 @@ class LatexFragmentRenderer(FragmentRenderer):
         if role and role in self.latex_semantic_block_environments:
             envname = self.latex_semantic_block_environments[role]
             begincmd = r'\begin{' + envname + '}'
-            endcmd = r'\end{' + envname + '}' + '\n'
+            endcmd = r'\end{' + envname + '}' + '%\n'
 
         lblcmd = ''
         if target_id:
@@ -185,9 +216,8 @@ class LatexFragmentRenderer(FragmentRenderer):
         return (
             begincmd
             + lblcmd
-            + content + '%\n\\relax{}'
-            + endcmd
-            
+            + self._latex_join(content,
+                               endcmd)
         )
  
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
@@ -240,7 +270,7 @@ class LatexFragmentRenderer(FragmentRenderer):
                                                 insert_phantom_section=True)
 
             s_items.append(
-                r'\item[{' + tag_content + '}]' + '%\n\\relax{}'
+                "%\n" + r'\item[{' + tag_content + '}]' #+ '%\n\\relax{}'
                 + itemlabel
                 + item_content
             )
@@ -276,10 +306,10 @@ class LatexFragmentRenderer(FragmentRenderer):
 
         labelcmd = ''
         if target_id:
-            labelcmd = r'\label{'+self.latex_label_prefix+target_id+'}' + '%\n\\relax{}'
+            labelcmd = r'\label{'+self.latex_label_prefix+target_id+'}%\n' #+ '%\n\\relax{}'
 
         return (
-            '\\' + heading_command + '{' + title_content + '}' + '%\n\\relax{}'
+            '\\' + heading_command + '{' + title_content + '}' + '%\n' #\\relax{}'
             + labelcmd
         )
 
@@ -318,7 +348,7 @@ class LatexFragmentRenderer(FragmentRenderer):
         return r"\LLMDLYD{" + str(delayed_key) + "}"
 
     def render_delayed_dummy_placeholder(self, node, delayed_key, render_context):
-        return f'% delayed:{delayed_key}\n' + r'\relax{}'
+        return f'% delayed:{delayed_key}\n' #+ r'\relax{}'
 
     def replace_delayed_markers_with_final_values(self, content, delayed_values):
         return _rx_delayed_markers.sub(

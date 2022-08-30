@@ -43,10 +43,11 @@ def main(cmdargs=None):
                              help="YAML Configuration file for LLM parse settings and "
                              "features (but input front matter takes precedence)")
 
-    args_parser.add_argument('--html-minimal-document', action='store_true',
+    args_parser.add_argument('--minimal-document', action='store_true',
                              default=None,
-                             help="Produce a minimal HTML document markup to be "
-                             "successfully displayed in a browser.  Only for --format=html")
+                             help="Produce a minimal document preamble/postambule to form "
+                             "a self-contained document.  Only for --format=html and "
+                             "--format=latex")
 
     args_parser.add_argument('files', metavar="FILE", nargs='*',
                              help='Input files (if none specified, read from stdandard input)')
