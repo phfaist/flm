@@ -11,7 +11,7 @@ The framework is meant to be very easily extendible and customizable.  The
 parser is based on [*pylatexenc 3*](https://github.com/phfaist/pylatexenc)
 (which is currently still in development).
 
-LLM is used to write the contents of the [Error Correction
+As an example use case, LLM is used to write the contents of the [Error Correction
 Zoo](https://errorcorrectionzoo.org/) in a way that is intuitive for scientists,
 flexible, and robust.  It is easily extensible, does not require new types of
 syntax and avoids the necessity of blending in HTML (as is often required for
