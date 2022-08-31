@@ -57,7 +57,7 @@ class _PresetMergeConfig:
         featurename = obj1[k][j].get('$name', None)
         if featurename is None:
             raise ValueError(
-                "merge-config $preset requires ‘$name: <fully qualified feature class name>’"
+                "merge-config $preset requires ‘$name: <name>’"
             )
         newconfig = dict(obj1[k][j].get('$config', {}))
         featurespecj0 = next(
@@ -67,12 +67,39 @@ class _PresetMergeConfig:
         )
         if featurespecj0 is None:
             raise ValueError(
-                f"merge-config $preset -- could not find feature named ‘{featurename}’"
+                f"merge-config $preset -- could not find item named ‘{featurename}’"
             )
         recursive_assign_defaults(newconfig, obj1[k][featurespecj0]['config'])
         obj1[k][featurespecj0]['config'] = newconfig # overwrite the one we had
         del obj1[k][j] # remove this instruction from our original list
         return j
+
+class _PresetRemoveItem:
+    def process_list_item(self, obj1, k, j, obj2k):
+        logger.debug("preset remove-item, process_list_item, {obj1!r} {k!r} {j!r} {obj2k!r}")
+        featurename = obj1[k][j].get('$name', None)
+        if featurename is None:
+            raise ValueError(
+                "rmeove-item $preset requires ‘$name: <name>’"
+            )
+        featurespecj0 = next(
+            (j0 for j0 in range(j)
+             if obj1[k][j0].get('name','') == featurename) ,
+            None
+        )
+        if featurespecj0 is None:
+            raise ValueError(
+                f"remove-item $preset -- could not find item named ‘{featurename}’"
+            )
+        if j > featurespecj0:
+            del obj1[k][j] # remove this instruction from our original list first
+            del obj1[k][featurespecj0]
+            return j-1
+        # we have j<featurespecj0
+        del obj1[k][featurespecj0]
+        del obj1[k][j] # remove this instruction from our original list first
+        return j
+
 
 class _PresetImport:
     def _fetch_import(self, remote):
@@ -120,6 +147,7 @@ class _PresetImport:
 _presets = {
     'defaults': _PresetDefaults(),
     'merge-config': _PresetMergeConfig(),
+    'remove-item': _PresetRemoveItem(),
     'import': _PresetImport(),
 };
 

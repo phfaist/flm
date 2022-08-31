@@ -291,3 +291,5 @@ class RefMacro(LLMMacroSpecBase):
             annotations=[f'ref-{ref_type}',], # TODO: add annotation for external links etc. ??
         )
 
+
+
