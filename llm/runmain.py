@@ -497,6 +497,8 @@ def runmain(args):
     std_parsing_state = llmstd.standard_parsing_state(**config['llm']['parsing'])
     std_features = setup_features(config['llm']['features'])
 
+    logger.debug(f"{std_parsing_state=}")
+
     environ = llmstd.LLMStandardEnvironment(
         parsing_state=std_parsing_state,
         features=std_features,

@@ -294,10 +294,11 @@ class LLMEnvironment:
     r"""
     ....
 
-    - `parsing_state` : you should keep the `latex_context` field of the
-      `parsing_state` object to `None`.  Only then will we add the relevant
-      features' definitions etc.  You can still specify a base latex context with
-      the `latex_context=` argument.
+    - `parsing_state`: please provide a `LLMParsingState` object instance to
+      serve as the default parsing state.  You should keep the `latex_context`
+      field of the `parsing_state` object to `None`.  Only then will we add the
+      relevant features' definitions etc.  You can still specify a base latex
+      context with the `latex_context=` argument.
 
     - `parsing_mode_deltas` — a dictionary of parsing_mode names (strings) to
       :py:class:`ParsingStateDelta` instances.  When a nontrivial
