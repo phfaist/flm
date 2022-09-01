@@ -298,13 +298,25 @@ class LLMEnvironment:
       `parsing_state` object to `None`.  Only then will we add the relevant
       features' definitions etc.  You can still specify a base latex context with
       the `latex_context=` argument.
+
+    - `parsing_mode_deltas` — a dictionary of parsing_mode names (strings) to
+      :py:class:`ParsingStateDelta` instances.  When a nontrivial
+      `parsing_mode=` argument is specified to `make_latex_walker`, this delta
+      is applied onto the default parsing state.  Note that the parsing state
+      delta objects must not need the `latex_context` object in their updates.
+      For instance, you cannot use
+      :py:class:`pylatexenc.latexnodes.ParsingStateDeltaWalkerEvent` or
+      subclasses like :py:class:`ParsingStateDeltaEnterMathMode`.
     """
-    def __init__(self,
-                 *,
-                 latex_context,
-                 parsing_state,
-                 features,
-                 tolerant_parsing=False):
+    def __init__(
+            self,
+            *,
+            latex_context,
+            parsing_state,
+            features,
+            parsing_mode_deltas=None,
+            tolerant_parsing=False,
+    ):
         super().__init__()
 
         logger.debug("LLMEnvironment constructor")
@@ -313,6 +325,8 @@ class LLMEnvironment:
 
         self.latex_context = latex_context
         self.parsing_state = parsing_state
+
+        self.parsing_mode_deltas = dict(parsing_mode_deltas) if parsing_mode_deltas else {}
 
         self.features = list(features) # maybe list() for Transcrypt ?
 
@@ -372,6 +386,7 @@ class LLMEnvironment:
                           is_block_level,
                           parsing_mode=None,
                           resource_info=None,
+                          tolerant_parsing=None,
                           what=None):
 
         # logger.debug("Parsing state walker event handler = %r",
@@ -382,10 +397,13 @@ class LLMEnvironment:
             parsing_mode=parsing_mode,
         )
 
+        if tolerant_parsing is None:
+            tolerant_parsing = self.tolerant_parsing
+
         latex_walker = LLMLatexWalker(
             llm_text=llm_text,
             default_parsing_state=default_parsing_state,
-            tolerant_parsing=self.tolerant_parsing,
+            tolerant_parsing=tolerant_parsing,
             # custom additions -- 
             llm_environment=self,
             standalone_mode=standalone_mode,
@@ -399,20 +417,34 @@ class LLMEnvironment:
     def make_parsing_state(self, is_block_level, parsing_mode=None):
         # subclasses might do something interesting with parsing_mode, we ignore
         # it here
+
+        default_parsing_state = self.parsing_state
+
         if parsing_mode is not None:
-            logger.warning("LLMEnvironment base class ignores parsing_mode, "
-                           "please provide support in a subclass.")
-        return self.parsing_state.sub_context(is_block_level=is_block_level)
+            try:
+                parsing_state_delta = self.parsing_mode_deltas[parsing_mode]
+            except KeyError as e:
+                raise ValueError(f"Invalid parsing_mode ‘{parsing_mode!r}’")
+
+            if parsing_state_delta is not None:
+                default_parsing_state = parsing_state_delta.get_updated_parsing_state(
+                    default_parsing_state,
+                    latex_walker=None
+                )
+
+        return default_parsing_state.sub_context(is_block_level=is_block_level)
 
 
     def make_fragment(self, llm_text, **kwargs):
         try:
             fragment = LLMFragment(llm_text, environment=self, **kwargs)
             return fragment
-        except: # Exception as e: --- catch anything in JS
+        except: # Exception as e: --- catch anything in JS (for Transcrypt)
             if not kwargs.get('silent', False):
-                logger.error("Error compiling fragment for {}\nContent was:\n{}\n"
-                             .format( kwargs.get('what','(unknown)'), llm_text, exc_info=True) )
+                logger.error(
+                    "Error compiling fragment for {}\nContent was:\n‘{}’\n"
+                    .format( kwargs.get('what','(unknown)'), llm_text, exc_info=True)
+                )
             raise
 
     def node_list_finalizer(self):

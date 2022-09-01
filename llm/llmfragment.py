@@ -37,6 +37,7 @@ class LLMFragment:
             is_block_level=None,
             resource_info=None,
             standalone_mode=False,
+            tolerant_parsing=False,
             what='(unknown)',
             silent=False,
             parsing_mode=None, # see LLMEnvironment.get_parsing_state(parsing_mode=)
@@ -48,6 +49,7 @@ class LLMFragment:
         self.is_block_level = is_block_level
         self.resource_info = resource_info
         self.standalone_mode = standalone_mode
+        self.tolerant_parsing = tolerant_parsing
         self.what = what
         self.silent = silent
         self.parsing_mode = parsing_mode
@@ -66,6 +68,7 @@ class LLMFragment:
                     self.llm_text,
                     self.environment,
                     standalone_mode=self.standalone_mode,
+                    tolerant_parsing=self.tolerant_parsing,
                     is_block_level=self.is_block_level,
                     what=self.what,
                     resource_info=self.resource_info,
@@ -117,8 +120,10 @@ class LLMFragment:
 
     @classmethod
     def parse(cls, llm_text, environment, *,
-              standalone_mode=False, resource_info=None, is_block_level=None, what=None,
-              parsing_mode=None):
+              standalone_mode=False, tolerant_parsing=None,
+              is_block_level=None, parsing_mode=None,
+              resource_info=None, what=None,
+              ):
 
         logger.debug("Parsing LLM content %r", llm_text)
 
@@ -128,6 +133,7 @@ class LLMFragment:
             parsing_mode=parsing_mode,
             resource_info=resource_info,
             standalone_mode=standalone_mode,
+            tolerant_parsing=tolerant_parsing,
             what=what,
         )
 
