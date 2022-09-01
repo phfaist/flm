@@ -247,25 +247,20 @@ class LLMLatexWalker(latexwalker.LatexWalker):
     def __init__(self,
                  *,
                  llm_text,
-                 parsing_state,
+                 default_parsing_state,
                  llm_environment,
                  parsing_state_event_handler=None,
                  standalone_mode=False,
                  resource_info=None,
+                 parsing_mode=None,
                  what=None,
                  **kwargs):
 
         super().__init__(
             s=llm_text,
-            # the latex_context will be overwritten anyway; don't specify `None`
-            # here because that will cause pylatexenc to load its big default
-            # database:
-            latex_context=parsing_state.latex_context,
+            default_parsing_state=default_parsing_state,
             **kwargs
         )
-
-        # set the latex walker's default parsing state here:
-        self.default_parsing_state = parsing_state
 
         self.llm_environment = llm_environment
 
@@ -276,6 +271,9 @@ class LLMLatexWalker(latexwalker.LatexWalker):
         self.resource_info = resource_info
         
         self.what = what
+
+        # stored just for information / for user messages ...
+        self.parsing_mode = parsing_mode
 
         self._parsing_state_event_handler = parsing_state_event_handler
 
@@ -293,6 +291,14 @@ class LLMLatexWalker(latexwalker.LatexWalker):
 
 
 class LLMEnvironment:
+    r"""
+    ....
+
+    - `parsing_state` : you should keep the `latex_context` field of the
+      `parsing_state` object to `None`.  Only then will we add the relevant
+      features' definitions etc.  You can still specify a base latex context with
+      the `latex_context=` argument.
+    """
     def __init__(self,
                  *,
                  latex_context,
@@ -307,8 +313,22 @@ class LLMEnvironment:
 
         self.latex_context = latex_context
         self.parsing_state = parsing_state
+
         self.features = list(features) # maybe list() for Transcrypt ?
-        self.features_by_name = {f.feature_name: f for f in self.features}
+
+        # build dict manually to ensure features are unique & for better error
+        # messages
+        #self.features_by_name = {f.feature_name: f for f in self.features}
+        self.features_by_name = {}
+        for feature in self.features:
+            if feature.feature_name in self.features_by_name:
+                raise ValueError(
+                    f"Duplicate feature detected: feature {feature} has same name/role "
+                    f"as the as already-included feature "
+                    f"{self.features_by_name[feature.feature_name]}"
+                )
+            self.features_by_name[feature.feature_name] = feature
+
         self.tolerant_parsing = tolerant_parsing
 
         self._node_list_finalizer = NodeListFinalizer()
@@ -347,14 +367,24 @@ class LLMEnvironment:
 
     parsing_state_event_handler = None
 
-    def make_latex_walker(self, llm_text, *, standalone_mode, resource_info, what=None):
+    def make_latex_walker(self, llm_text, *,
+                          standalone_mode,
+                          is_block_level,
+                          parsing_mode=None,
+                          resource_info=None,
+                          what=None):
 
         # logger.debug("Parsing state walker event handler = %r",
         #              self.parsing_state_event_handler,)
+        
+        default_parsing_state = self.make_parsing_state(
+            is_block_level=is_block_level,
+            parsing_mode=parsing_mode,
+        )
 
         latex_walker = LLMLatexWalker(
             llm_text=llm_text,
-            parsing_state=self.parsing_state,
+            default_parsing_state=default_parsing_state,
             tolerant_parsing=self.tolerant_parsing,
             # custom additions -- 
             llm_environment=self,
@@ -365,6 +395,15 @@ class LLMEnvironment:
         )
 
         return latex_walker
+
+    def make_parsing_state(self, is_block_level, parsing_mode=None):
+        # subclasses might do something interesting with parsing_mode, we ignore
+        # it here
+        if parsing_mode is not None:
+            logger.warning("LLMEnvironment base class ignores parsing_mode, "
+                           "please provide support in a subclass.")
+        return self.parsing_state.sub_context(is_block_level=is_block_level)
+
 
     def make_fragment(self, llm_text, **kwargs):
         try:

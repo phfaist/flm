@@ -39,6 +39,7 @@ class LLMFragment:
             standalone_mode=False,
             what='(unknown)',
             silent=False,
+            parsing_mode=None, # see LLMEnvironment.get_parsing_state(parsing_mode=)
     ):
 
         self.llm_text = llm_text
@@ -49,6 +50,7 @@ class LLMFragment:
         self.standalone_mode = standalone_mode
         self.what = what
         self.silent = silent
+        self.parsing_mode = parsing_mode
 
         if isinstance(llm_text, latexnodes_nodes.LatexNodeList):
             # We want to initialize a fragment with already-parsed node lists.
@@ -67,6 +69,7 @@ class LLMFragment:
                     is_block_level=self.is_block_level,
                     what=self.what,
                     resource_info=self.resource_info,
+                    parsing_mode=self.parsing_mode,
                 )
         except latexnodes.LatexWalkerParseError as e:
             if not self.silent:
@@ -90,6 +93,7 @@ class LLMFragment:
             standalone_mode=self.standalone_mode,
             silent=self.silent,
             what=self.what,
+            parsing_mode=self.parsing_mode,
         )
         d.update(kwargs)
         return d
@@ -113,22 +117,22 @@ class LLMFragment:
 
     @classmethod
     def parse(cls, llm_text, environment, *,
-              standalone_mode=False, resource_info=None, is_block_level=None, what=None):
+              standalone_mode=False, resource_info=None, is_block_level=None, what=None,
+              parsing_mode=None):
 
         logger.debug("Parsing LLM content %r", llm_text)
 
         latex_walker = environment.make_latex_walker(
             llm_text,
+            is_block_level=is_block_level,
+            parsing_mode=parsing_mode,
             resource_info=resource_info,
             standalone_mode=standalone_mode,
             what=what,
         )
 
-        parsing_state = latex_walker.make_parsing_state(is_block_level=is_block_level)
-
         nodes, _ = latex_walker.parse_content(
             latexnodes_parsers.LatexGeneralNodesParser(),
-            parsing_state=parsing_state,
         )
 
         return latex_walker, nodes
