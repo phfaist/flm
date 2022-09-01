@@ -290,7 +290,8 @@ class CiteMacro(LLMMacroSpecBase):
                         parsing_state=node.parsing_state,
                     )
                 )
-            cite_content_list_of_nodes += list( show_inline_content_llm.nodes )
+            # list() needed for transcrypt ... :/ -->
+            cite_content_list_of_nodes.extend( list(show_inline_content_llm.nodes) )
             if optional_cite_extra_nodelist is not None:
                 cite_content_list_of_nodes.append(
                     node.latex_walker.make_node(
@@ -301,9 +302,8 @@ class CiteMacro(LLMMacroSpecBase):
                         parsing_state=node.parsing_state,
                     )
                 )
-                cite_content_list_of_nodes += list(
-                    optional_cite_extra_nodelist
-                )
+                # list() needed for transcrypt ... :/ -->
+                cite_content_list_of_nodes.extend( list(optional_cite_extra_nodelist) )
             if citation_delimiters[1] is not None:
                 cite_content_list_of_nodes.append(
                     node.latex_walker.make_node(
