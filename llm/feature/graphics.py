@@ -25,7 +25,8 @@ class GraphicsResource:
         self.dpi = dpi
         self.pixel_dimensions = pixel_dimensions
         self.physical_dimensions = physical_dimensions
-        self._fields = ('src_url', 'dpi', 'pixel_dimensions', 'physical_dimensions',)
+        self._fields = ('src_url', 'graphics_type', 'dpi',
+                        'pixel_dimensions', 'physical_dimensions',)
 
     def asdict(self):
         return {k: getattr(self, k) for k in self._fields}
