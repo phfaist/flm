@@ -48,7 +48,7 @@ def _parse_counter_formatter(counter_formatter):
             tmpl = counter_formatter['template']
             # simple template parsing ${arabic}
             pat = "|".join(re.escape(k) for k in fmthelpers.standard_counter_formatters.keys())
-            _rx_counter = re.compile(r'\$\{(' + pat + ')\}')
+            _rx_counter = re.compile(r'\$\{(' + pat + r')\}')
             return lambda n: (
                 _rx_counter.sub(
                     lambda m:  fmthelpers.standard_counter_formatters[m.group(1)] (n),
@@ -114,6 +114,9 @@ class EndnoteInstance:
         self.ref_label = ref_label
         self._fields = ('category_name', 'number', 'formatted_counter_value_llm',
                         'content_nodelist', 'ref_label_prefix', 'ref_label',)
+
+    def asdict(self):
+        return {k: getattr(self, k) for k in self._fields}
 
     def __repr__(self):
         return "{}({})".format(

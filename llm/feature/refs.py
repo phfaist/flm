@@ -34,6 +34,8 @@ class ReferenceableInfo:
         lbl_ref_type, lbl_ref_label = self.labels[0]
         return get_safe_target_id(lbl_ref_type, lbl_ref_label)
 
+    def asdict(self):
+        return {k: getattr(self, k) for k in self._fields}
 
     def __repr__(self):
         return (
@@ -53,6 +55,9 @@ class RefInstance:
         self.target_href = target_href
 
         self._fields = ('ref_type', 'ref_label', 'formatted_ref_llm_text', 'target_href',)
+
+    def asdict(self):
+        return {k: getattr(self, k) for k in self._fields}
 
     def __repr__(self):
         return (

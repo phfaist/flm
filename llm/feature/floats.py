@@ -237,6 +237,9 @@ class FloatInstance:
                         'ref_label_prefix', 'ref_label', 'target_id',
                         'caption_nodelist', 'content_nodelist',)
 
+    def asdict(self):
+        return {k: getattr(self, k) for k in self._fields}
+
     def __repr__(self):
         return "{}({})".format(
             self.__class__.__name__,
@@ -265,6 +268,9 @@ class FloatType:
         self.counter_formatter = counter_formatter
 
         self._fields = ('float_type', 'float_caption_name', 'counter_formatter',)
+
+    def asdict(self):
+        return {k: getattr(self, k) for k in self._fields}
 
     def __repr__(self):
         return "{}({})".format(

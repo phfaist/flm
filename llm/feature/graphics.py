@@ -27,6 +27,9 @@ class GraphicsResource:
         self.physical_dimensions = physical_dimensions
         self._fields = ('src_url', 'dpi', 'pixel_dimensions', 'physical_dimensions',)
 
+    def asdict(self):
+        return {k: getattr(self, k) for k in self._fields}
+
     def __repr__(self):
         return "{}({})".format(
             self.__class__.__name__,
