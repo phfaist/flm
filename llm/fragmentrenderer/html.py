@@ -105,6 +105,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
         return s
 
     def wrap_in_link(self, display_html, target_href, *, class_names=None):
+        if not target_href: # e.g., None
+            target_href = '#'
         attrs = {
             'href': self.htmlescape(target_href)
         }
