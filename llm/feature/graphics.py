@@ -84,6 +84,12 @@ class SimpleIncludeGraphicsMacro(LLMMacroSpecBase):
         node.llmarg_graphics_path = \
             node_args['graphics_path'].get_content_as_chars()
 
+        node.llm_resources = [
+            { 'resource_type': 'graphics_path',
+              'resource_source_type': 'file',
+              'resource_source': node.llmarg_graphics_path },
+        ]
+
         return node
 
     def render(self, node, render_context):
