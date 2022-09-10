@@ -88,7 +88,7 @@ def run_main():
 
     # Simple interface for e.g. kwargs in transcrypt's runtime
     logger.info(f"Installing shortcuts to python runtime tricks ...")
-    with open( os.path.join(args.llm_js_output_dir, 'py.js'), 'a' ) as fw:
+    with open( os.path.join(args.llm_js_output_dir, 'py.js'), 'w' ) as fw:
         fw.write(r"""
 import {__kwargtrans__, repr} from "./org.transcrypt.__runtime__.js";
 const $$kw = __kwargtrans__;
@@ -96,6 +96,7 @@ export { $$kw, repr };
 """)
 
     # apply JS patches immediately when any llm-related package is loaded -->
+    # (append to Transcrypt's runtime js definitions source file)
     logger.info(f"Installing JS patches ...")
     with open( os.path.join(args.llm_js_output_dir,
                             'org.transcrypt.__runtime__.js'), 'a' ) as fw:
