@@ -83,7 +83,7 @@ def run_main():
             "version": "0.0.1",
             "description": "Automatically translated javascript version of the LLM sources",
             "type": "module",
-            "private": True
+            #"private": True,
         }, fw)
 
     # Simple interface for e.g. kwargs in transcrypt's runtime
