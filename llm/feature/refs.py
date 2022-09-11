@@ -153,6 +153,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
                 ref_type,
                 ref_label,
                 resource_info,
+                self.render_context,
             )
             if ref is not None:
                 return ref

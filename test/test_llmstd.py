@@ -336,7 +336,7 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
     def test_simple_ref_external(self):
 
         class MyRefResolver:
-            def get_ref(self, ref_type, ref_label, resource_info):
+            def get_ref(self, ref_type, ref_label, resource_info, render_context):
                 if ref_type == 'code':
                     if ref_label == 'surface':
                         return feature_refs.RefInstance(
