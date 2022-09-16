@@ -43,7 +43,7 @@ class TestBlocksBuilder(unittest.TestCase):
         n2 = LatexMacroNode(macroname='somemacro')
         n2.llm_is_block_level = False
 
-        bb = llmenvironment.BlocksBuilder([ n1, n2 ])
+        bb = llmenvironment.BlocksBuilder(LatexNodeList([ n1, n2 ]))
 
         blocks = bb.build_blocks()
 
@@ -66,7 +66,7 @@ class TestBlocksBuilder(unittest.TestCase):
         n4.llm_is_paragraph_break_marker = True
         n5 = LatexCharsNode(chars='More  text content.  ')
 
-        bb = llmenvironment.BlocksBuilder([ n1, n2, n3, n4, n5 ])
+        bb = llmenvironment.BlocksBuilder(LatexNodeList([ n1, n2, n3, n4, n5 ]))
 
         blocks = bb.build_blocks()
 
@@ -89,7 +89,7 @@ class TestBlocksBuilder(unittest.TestCase):
         n4.llm_is_block_level = True
         n5 = LatexCharsNode(chars='More  text content.  ')
 
-        bb = llmenvironment.BlocksBuilder([ n1, n2, n3, n4, n5 ])
+        bb = llmenvironment.BlocksBuilder(LatexNodeList([ n1, n2, n3, n4, n5 ]))
 
         blocks = bb.build_blocks()
 
@@ -114,7 +114,7 @@ class TestBlocksBuilder(unittest.TestCase):
         n4.llm_is_block_level = True
         n5 = LatexCharsNode(chars='\r\tMore  text content.  ')
 
-        bb = llmenvironment.BlocksBuilder([ n1, n2, n3, n4, n5 ])
+        bb = llmenvironment.BlocksBuilder(LatexNodeList([ n1, n2, n3, n4, n5 ]))
 
         blocks = bb.build_blocks()
 

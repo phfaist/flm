@@ -14,6 +14,7 @@ class GraphicsResource:
             self,
             src_url, # a string, e.g., path or full URL to image location
             *,
+            srcset=None, # possible alternative images for <img srcset=...>
             graphics_type=None, # 'raster' or 'vector'
             dpi=None,
             pixel_dimensions=None, # (width_px, height_px) # in pixels
@@ -21,11 +22,12 @@ class GraphicsResource:
     ):
         super().__init__()
         self.src_url = src_url
+        self.srcset = srcset
         self.graphics_type = graphics_type
         self.dpi = dpi
         self.pixel_dimensions = pixel_dimensions
         self.physical_dimensions = physical_dimensions
-        self._fields = ('src_url', 'graphics_type', 'dpi',
+        self._fields = ('src_url', 'srcset', 'graphics_type', 'dpi',
                         'pixel_dimensions', 'physical_dimensions',)
 
     def asdict(self):

@@ -7,6 +7,10 @@ logger = logging.getLogger(__name__)
 from ._base import FragmentRenderer
 
 
+
+_rx_html_entity = re.compile(r'\&(?P<rest>([a-zA-Z]+|#[0-9]+|#x[0-9a-fA-F]+);)')
+
+
 class HtmlFragmentRenderer(FragmentRenderer):
 
     supports_delayed_render_markers = True
@@ -76,6 +80,19 @@ class HtmlFragmentRenderer(FragmentRenderer):
     def htmlescape(self, value):
         return html.escape(value)
 
+    def htmlescape_double_quoted_attribute(self, value):
+        # try to be as gentle as possible on escaping values; we'd like to avoid
+        # expanding '&' characters in query strings for instance in case
+        # imperfect parsers or scanners find URLs and don't properly un-escape
+        # all characters.  (E.g., I had some issues with parceljs.org with
+        # the likes of "image.png?width=100&amp;height=100" etc.)
+
+        # escape the '&' in patterns that happen to look like HTML entities.
+        value = _rx_html_entity.sub(lambda m: '&amp;'+m.group('rest'), value)
+        # also escape double quote characters !
+        value = value.replace('"', '&quot;')
+        return value
+
     def generate_open_tag(self, tagname, *, attrs=None, class_names=None, self_close_tag=False):
         s = f'<{tagname}'
         if not attrs:
@@ -90,7 +107,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
             attrs['class'] = ' '.join(class_names)
         if attrs:
             for aname, aval in attrs.items():
-                s += f''' {aname}="{self.htmlescape(aval)}"'''
+                s += f''' {aname}="{self.htmlescape_double_quoted_attribute(aval)}"'''
         if self_close_tag:
             s += '/>'
         else:
@@ -506,7 +523,11 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if styparts:
             imgattrs['style'] = ";".join(styparts)
         
-        imgattrs['src'] = graphics_resource.src_url
+        src_url = graphics_resource.src_url
+        imgattrs['src'] = src_url
+
+        if graphics_resource.srcset:
+            imgattrs['srcset'] = graphics_resource.srcset
 
         # HTML does not require any closing tag
         return self.generate_open_tag('img', attrs=imgattrs)
