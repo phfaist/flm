@@ -8,7 +8,7 @@ from ._base import FragmentRenderer
 
 
 
-_rx_html_entity = re.compile(r'\&(?P<rest>([a-zA-Z]+|#[0-9]+|#x[0-9a-fA-F]+);)')
+_rx_html_entity = re.compile(r'[&]([a-zA-Z]+|[#][0-9]+|[#]x[0-9a-fA-F]+);')
 
 
 class HtmlFragmentRenderer(FragmentRenderer):
@@ -88,7 +88,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         # the likes of "image.png?width=100&amp;height=100" etc.)
 
         # escape the '&' in patterns that happen to look like HTML entities.
-        value = _rx_html_entity.sub(lambda m: '&amp;'+m.group('rest'), value)
+        value = _rx_html_entity.sub(lambda m: '&amp;'+m.group(1)+';', value)
         # also escape double quote characters !
         value = value.replace('"', '&quot;')
         return value
