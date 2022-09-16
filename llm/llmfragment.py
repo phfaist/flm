@@ -9,6 +9,19 @@ import pylatexenc.latexnodes.nodes as latexnodes_nodes
 from .llmrendercontext import LLMStandaloneModeRenderContext
 
 
+
+# needs to be outside of class definition for Transcrypt so that we can use this
+# tuple to initialize both _attribute_fields as well as _fields
+_llmfragment_attribute_fields = (
+    'is_block_level',
+    'resource_info',
+    'standalone_mode',
+    'silent',
+    'what',
+    'parsing_mode',
+)
+
+
 class LLMFragment:
     r"""
     A fragment of LLM-formatted code.
@@ -93,16 +106,9 @@ class LLMFragment:
             raise
 
 
-    _attribute_fields = (
-        'is_block_level',
-        'resource_info',
-        'standalone_mode',
-        'silent',
-        'what',
-        'parsing_mode',
-    )
+    _attribute_fields = _llmfragment_attribute_fields
 
-    _fields = tuple(['nodes'] + list(_attribute_fields))
+    _fields = tuple(['nodes'] + list(_llmfragment_attribute_fields))
 
 
 

@@ -11,6 +11,7 @@ module_list:
   - 'llm.fragmentrenderer'
   - 'llm.fragmentrenderer.html'
   - 'llm.fragmentrenderer.text'
+  - 'llm.llmdump'
 
 
 skip_relative_import_prefixes:
