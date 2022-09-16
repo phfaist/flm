@@ -41,6 +41,7 @@ class LLMFragment:
             what='(unknown)',
             silent=False,
             parsing_mode=None, # see LLMEnvironment.get_parsing_state(parsing_mode=)
+            _llm_text_if_loading_nodes=None
     ):
 
         self.llm_text = llm_text
@@ -59,7 +60,10 @@ class LLMFragment:
             # This is for internal use only!
             self.nodes = self.llm_text
             self.latex_walker = self.nodes.latex_walker
-            self.llm_text = self.nodes.latex_verbatim()
+            if _llm_text_if_loading_nodes:
+                self.llm_text = _llm_text_if_loading_nodes
+            else:
+                self.llm_text = self.nodes.latex_verbatim()
             return
 
         try:
@@ -89,15 +93,32 @@ class LLMFragment:
             raise
 
 
+    _attribute_fields = (
+        'is_block_level',
+        'resource_info',
+        'standalone_mode',
+        'silent',
+        'what',
+        'parsing_mode',
+    )
+
+    _fields = tuple(['nodes'] + list(_attribute_fields))
+
+
+
     def _attributes(self, **kwargs):
-        d = dict(
-            is_block_level=self.is_block_level,
-            resource_info=self.resource_info,
-            standalone_mode=self.standalone_mode,
-            silent=self.silent,
-            what=self.what,
-            parsing_mode=self.parsing_mode,
-        )
+        d = {
+            k: getattr(self, k)
+            for k in self._attribute_fields
+        }
+        # dict(
+        #     is_block_level=self.is_block_level,
+        #     resource_info=self.resource_info,
+        #     standalone_mode=self.standalone_mode,
+        #     silent=self.silent,
+        #     what=self.what,
+        #     parsing_mode=self.parsing_mode,
+        # )
         d.update(kwargs)
         return d
 

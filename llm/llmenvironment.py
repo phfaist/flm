@@ -68,7 +68,11 @@ class BlocksBuilder:
         paragraph_nodes = self.finalize_paragraph(paragraph_nodes)
         #logger.debug("Flushing paragraph: %r", paragraph_nodes)
         self.blocks.append(
-            latexnodes_nodes.LatexNodeList(paragraph_nodes)
+            latexnodes_nodes.LatexNodeList(
+                paragraph_nodes,
+                parsing_state=self.latexnodelist.parsing_state,
+                latex_walker=self.latexnodelist.latex_walker
+            )
         )
         self.pending_paragraph_nodes = []
 
