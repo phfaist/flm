@@ -71,6 +71,24 @@ class HtmlFragmentRenderer(FragmentRenderer):
     makes it much easier to control the space using CSS.
     """
 
+    aggressively_escape_html_attributes = False
+    r"""
+    If True, then values of HTML attributes, e.g., the URL in ``<a
+    href="....">``, are escaped as normal HTML with HTML entities like '&amp;'.
+    The default setting, `aggressively_escape_html_attributes=False`, only
+    escapes '"' characters, and will escape an '&' character only if it looks
+    like part of an entity.  I.e., '/page?a=1&b=2' is not modified but
+    '/page?a=1&b;3' will become '/page?a=1&amp;b;3'.
+
+    Applying the general HTML escape mechanism to attribute values (setting
+    `aggressively_escape_html_attributes=True`) can make them appear more
+    obscure (e.g., the link to ``/page?a=1&b=2`` becomes ``/page?a=1&amp;b=2``).
+    While this is correct HTML and works fine in probably all browsers of
+    course, there might be some HTML parsers/skimmers that can choke on that
+    syntax.  So the default setting is
+    `aggressively_escape_html_attributes=False`.
+    """
+
     # ------------------
 
     
@@ -80,12 +98,17 @@ class HtmlFragmentRenderer(FragmentRenderer):
     def htmlescape(self, value):
         return html.escape(value)
 
-    def htmlescape_double_quoted_attribute(self, value):
+    def htmlescape_double_quoted_attribute_value(self, value):
+
+        if self.aggressively_escape_html_attributes:
+            return self.htmlescape(value)
+
         # try to be as gentle as possible on escaping values; we'd like to avoid
         # expanding '&' characters in query strings for instance in case
         # imperfect parsers or scanners find URLs and don't properly un-escape
-        # all characters.  (E.g., I had some issues with parceljs.org with
-        # the likes of "image.png?width=100&amp;height=100" etc.)
+        # all characters.  (E.g., I had some issues with parceljs.org when
+        # generating links of the form "image.png?width=100&amp;height=100"
+        # etc.)
 
         # escape the '&' in patterns that happen to look like HTML entities.
         value = _rx_html_entity.sub(lambda m: '&amp;'+m.group(1)+';', value)
@@ -107,7 +130,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
             attrs['class'] = ' '.join(class_names)
         if attrs:
             for aname, aval in attrs.items():
-                s += f''' {aname}="{self.htmlescape_double_quoted_attribute(aval)}"'''
+                s += f''' {aname}="{self.htmlescape_double_quoted_attribute_value(aval)}"'''
         if self_close_tag:
             s += '/>'
         else:
