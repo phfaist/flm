@@ -1,7 +1,7 @@
 # output directory -- will create a llm/ subfolder
-target_dir: $PREPROCESSED_TEMP_DIR
+target_dir: $PREPROCESS_LIB_OUTPUT_DIR
 
-source_dir: ..
+source_dir: $LLM_SRC_DIR
 
 # which modules to preprocess
 module_list:
