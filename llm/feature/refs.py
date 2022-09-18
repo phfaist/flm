@@ -70,9 +70,21 @@ class RefInstance:
 
 
 
+# Apparently, Transcrypt does not support hexadecimal formatting, neither
+# through a string format like '{:x}'.format(...), nor f'{...:x}', neither via
+# hex(...) ... so we provide our own JS implementation.
+
+# Feed some raw JS to transcrypt directly
+#__pragma__('ecom')
+"""?
+__pragma__('js', 'var hex = (v) => (+v).toString(16);');
+?"""
+
+
+
 _rx_unsafe_char = re.compile(r'[^a-zA-Z0-9-]')
 def _rx_match_safechar(m):
-    return f'_{ord(m.group()):x}X'
+    return f'_{hex(ord(m.group()))}X'
 
 def get_safe_target_id(ref_type, ref_label):
     ref_type_safe = _rx_unsafe_char.sub(_rx_match_safechar, ref_type)

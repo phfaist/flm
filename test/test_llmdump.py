@@ -1,4 +1,7 @@
+### BEGIN_TEST_LLM_SKIP
+# no filesystem support in Transcrypt apparently
 import os.path
+### END_TEST_LLM_SKIP
 import unittest
 import json
 
@@ -104,6 +107,8 @@ class TestLLMDataDumper(unittest.TestCase):
         )
 
 
+### BEGIN_TEST_LLM_SKIP
+# no fs support in Transcrypt
     def test_dump_fragment(self):
 
         environment = LLMStandardEnvironment()
@@ -163,6 +168,7 @@ class TestLLMDataDumper(unittest.TestCase):
                          loaded_data['resources']['LLMLatexWalker'][loaded_reskey_lw])
         
 
+### END_TEST_LLM_SKIP
 
     def test_load_after_dump_fragment(self):
 

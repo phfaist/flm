@@ -263,7 +263,7 @@ class _NodeListTruncator:
             if newnode is not None:
                 newnodes = nodes[:j]
                 if newnode is not True: # True == "stop here but don't include this node"
-                    newnodes += [newnode]
+                    newnodes.extend([newnode])
                 return nodes.latex_walker.make_nodelist(
                     newnodes,
                     parsing_state=nodes.parsing_state,

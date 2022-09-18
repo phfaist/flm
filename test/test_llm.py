@@ -1,5 +1,7 @@
 import unittest
 
+### BEGIN_TEST_LLM_SKIP
+
 import toml
 from pathlib import Path
 
@@ -23,6 +25,7 @@ class TestHardcodedPackageVersion(unittest.TestCase):
         self.assertEqual(package_init_version, pyproject_version)
 
 
-
 if __name__ == '__main__':
     unittest.main()
+
+### END_TEST_LLM_SKIP

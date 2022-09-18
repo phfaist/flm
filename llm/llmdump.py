@@ -21,6 +21,12 @@ from .llmfragment import (
 )
 
 
+
+### BEGINPATCH_UNIQUE_OBJECT_ID
+fn_unique_object_id = id
+### ENDPATCH_UNIQUE_OBJECT_ID
+
+
 # ---------------------------------------------------------------------------------------
 
 
@@ -135,7 +141,7 @@ class LLMDataDumper:
         if restype not in self.data['resources']:
             self.data['resources'][restype] = {}
 
-        reskey = str(id(y))
+        reskey = str(fn_unique_object_id(y))
         if reskey not in self.data['resources'][restype]:
             ydata_dump = self._make_object_dump(
                 ydata, dumping_state=dumping_state, type_name=restype

@@ -2,7 +2,7 @@
 source_dir: $PYLATEXENC_SRC_DIR
 
 # output directory -- will create a pylatexenc/ subfolder
-target_dir: .
+target_dir: $PREPROCESSED_TEMP_DIR
 
 # which modules to preprocess
 module_list:
