@@ -18,7 +18,8 @@ Generate the relevant JavaScript LLM Sources by running the build script:
 
 Internals:
 
-The generator script actually runs the following commands:
+The generator script actually runs the following commands (this was some time ago,
+now the script was updated to something slightly fancier and more streamlined):
 
     export PYLATEXENC_SRC_DIR=../PATH/TO/pylatexenc
     #ln -s $PYLATEXENC_SRC_DIR/js-transcrypt/pylatexenc . ### NO LONGER NEEDED
