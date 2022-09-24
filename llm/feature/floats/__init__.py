@@ -10,13 +10,14 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from ..llmenvironment import LLMArgumentSpec
-from ..llmspecinfo import LLMEnvironmentSpecBase
-from .. import fmthelpers
+from ...llmenvironment import LLMArgumentSpec
+from ...llmspecinfo import LLMEnvironmentSpecBase
+from ... import fmthelpers
 
-from ._base import Feature
-from .graphics import SimpleIncludeGraphicsMacro
+from .._base import Feature
+from ..graphics import SimpleIncludeGraphicsMacro
 
+from ._tabular import TabularEnvironment
 
 
 # ------------------------------------------------------------------------------
@@ -278,7 +279,9 @@ class FloatType:
             ", ".join([ f"{k}={getattr(self,k)!r}" for k in self._fields ])
         )
 
-# -----
+
+# ------------------------------------------------------------------------------
+
 
 class FeatureFloats(Feature):
 
@@ -417,7 +420,8 @@ class FeatureFloats(Feature):
 
 
 
-# ------------------------------------------------
+# ------------------------------------------------------------------------------
+
 
 
 class FloatEnvironmentIncludeGraphicsOnly(FloatEnvironment):
@@ -456,6 +460,65 @@ class FloatEnvironmentIncludeGraphicsOnly(FloatEnvironment):
             f"\\includegraphics, \\caption and \\label commands",
             pos=content_node.pos
         )
+
+
+
+# ------------------------------------------------------------------------------
+
+
+
+class FloatEnvironmentWithTabularDataOrIncludeGraphics(FloatEnvironment):
+
+    def float_content_set_extra_definitions(self, extend_latex_context):
+        extend_latex_context['macros'].append( 
+            SimpleIncludeGraphicsMacro(macroname='includegraphics'),
+            TabularEnvironment(environmentname='tabular')
+        )
+
+
+    def _check_single_main_content_node(self, float_node, content_node):
+        if hasattr(float_node, 'llm_main_content_node') and \
+           float_node.llm_main_content_node is not None:
+            raise LatexWalkerParseError(
+                f"{self.float_type} should contain exactly one "
+                f"\\includegraphics command OR "
+                f"\\begin{'{'}tabular{'}'}..\\end{'{'}tabular{'}'} environment "
+                f"apart from possible "
+                f"\\caption and \\label commands",
+                pos=content_node.pos
+            )
+
+    def finalize_handle_content_node(self, float_node, content_node):
+        if content_node.isNodeType(latexnodes_nodes.LatexMacroNode) \
+           and content_node.macroname == 'includegraphics':
+            # \includegraphics command -- okay!
+            self._check_single_main_content_node(float_node, content_node)
+            float_node.llm_main_content_node = content_node
+            return True
+
+        if content_node.isNodeType(latexnodes_nodes.LatexEnvironmentNode) \
+           and content_node.environmentname == 'tabular':
+            # main table content -- okay!
+            self._check_single_main_content_node(float_node, content_node)
+            float_node.llm_main_content_node = content_node
+            return True
+
+        if content_node.isNodeType(latexnodes_nodes.LatexCharsNode) \
+           and len(content_node.chars.strip()) == 0:
+            # skip whitespace without errors
+            return False
+
+        if content_node.isNodeType(latexnodes_nodes.LatexCommentNode):
+            # skip comments without errors
+            return False
+
+        raise LatexWalkerParseError(
+            f"{self.float_type} cannot contain content other than "
+            f"\\includegraphics, \\caption and \\label commands",
+            pos=content_node.pos
+        )
+
+
 
 
 
