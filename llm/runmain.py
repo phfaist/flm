@@ -545,8 +545,8 @@ def runmain(args):
     #
     # Render endnotes
     #
-    endnotes_mgr = render_context.feature_render_manager('endnotes')
-    if endnotes_mgr is not None:
+    if render_context.supports_feature('endnotes'):
+        endnotes_mgr = render_context.feature_render_manager('endnotes')
         # find endnotes feature config
         endnotes_feature_spec = next(
             spec for spec in config['llm']['features']

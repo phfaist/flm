@@ -107,7 +107,26 @@ class LLMSpecInfo:
             )
 
         node.llm_specinfo = self
-        self.postprocess_parsed_node(node)
+        try:
+            self.postprocess_parsed_node(node)
+
+        except LatexWalkerParseError as e:
+            if not hasattr(e, 'pos') or e.pos is None:
+                e.pos = node.pos
+            raise e
+
+        except ValueError as e:
+            raise LatexWalkerParseError(str(e), pos=node.pos)
+
+        except Exception as e:
+            logger.error(
+                f"Internal Parse Error! {e}", exc_info=True)
+            logger.error(
+                f"Happened @{repr(node.latex_walker.pos_to_lineno_colno(node.pos))}, "
+                f" node: ‘{node.latex_verbatim()}’"
+            )
+            raise 
+
         node.llm_is_block_level = self.is_block_level
         node.llm_is_block_heading = self.is_block_heading
         node.llm_is_paragraph_break_marker = self.is_paragraph_break_marker
