@@ -77,14 +77,18 @@ class RefInstance:
 # Feed some raw JS to transcrypt directly
 #__pragma__('ecom')
 """?
-__pragma__('js', 'var hex = (v) => (+v).toString(16);');
+__pragma__('js', 'var hexstr = (v) => (+v).toString(16);');
 ?"""
 
+#__pragma__('skip')
+def hexstr(value):
+    return f'{value:x}'
+#__pragma__('noskip')
 
 
 _rx_unsafe_char = re.compile(r'[^a-zA-Z0-9-]')
 def _rx_match_safechar(m):
-    return f'_{hex(ord(m.group()))}X'
+    return f'_{hexstr(ord(m.group()))}X'
 
 def get_safe_target_id(ref_type, ref_label):
     ref_type_safe = _rx_unsafe_char.sub(_rx_match_safechar, ref_type)
