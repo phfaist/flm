@@ -262,8 +262,10 @@ class CellsModel:
 
         if cell_node_args['styles'].was_provided():
             styles = cell_node_args['styles'].get_content_as_chars().split(',')
-        else:
+        elif default_styles:
             styles = default_styles
+        else:
+            styles = []
 
         if cell_node_args['placement'].was_provided():
             placement_spec = cell_node_args['placement'].get_content_nodelist()
@@ -591,29 +593,33 @@ class CellsModel:
 
         if isinstance(placement_spec, CellPlacementModel):
             return placement_spec
-        
-        placement_spec_split = placement_spec.split_at_chars(';', keep_empty=True)
 
-        if len(placement_spec_split) == 2:
+        row_spec_nl, col_spec_nl = [], []
 
-            row_spec_nl, col_spec_nl = placement_spec_split
+        if placement_spec is not None:
 
-        elif len(placement_spec_split) == 1:
+            placement_spec_split = placement_spec.split_at_chars(';', keep_empty=True)
 
-            row_spec_nl = []
-            (col_spec_nl,) = placement_spec_split
+            if len(placement_spec_split) == 2:
 
-        elif len(placement_spec_split) == 0:
+                row_spec_nl, col_spec_nl = placement_spec_split
 
-            row_spec_nl, col_spec_nl = [], []
+            elif len(placement_spec_split) == 1:
 
-        else:
+                (col_spec_nl,) = placement_spec_split
 
-            raise LatexWalkerParseError(
-                f"Bad cell placement specification, expected ‘ROW;COL’ or "
-                f"‘COL’, got ‘{placement_spec.latex_verbatim()}’",
-                pos=placement_spec.pos
-            )
+            elif len(placement_spec_split) == 0:
+
+                # all ok, keep defaults
+                pass
+
+            else:
+
+                raise LatexWalkerParseError(
+                    f"Bad cell placement specification, expected ‘ROW;COL’ or "
+                    f"‘COL’, got ‘{placement_spec.latex_verbatim()}’",
+                    pos=placement_spec.pos
+                )
 
         row_range = self.parse_placement_index_spec(row_spec_nl, is_row=True)
         col_range = self.parse_placement_index_spec(col_spec_nl, is_col=True)
