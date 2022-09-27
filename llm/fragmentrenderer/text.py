@@ -196,3 +196,73 @@ class TextFragmentRenderer(FragmentRenderer):
     def render_graphics_block(self, graphics_resource):
 
         return f"{'['+graphics_resource.src_url+']':^80}"
+
+
+    cells_column_sep = '   '
+
+    def render_cells(self, cells_model, render_context):
+
+        # render columns
+        rendered_cells = []
+        for cell in cells_model.cells_data:
+
+            rendered_cell_contents = self.render_nodelist(
+                cell.content_nodes,
+                render_context=render_context,
+            )
+
+            rendered_cell_contents_lines = rendered_cell_contents.split('\n')
+
+            is_header = False
+            if 'H' in cell.styles:
+                is_header = True
+
+            rendered_cells.append( {
+                'cell': cell,
+                'rendered_contents_lines': rendered_cell_contents_lines,
+                'width': max([
+                    len(line) for line in rendered_cell_contents_lines
+                ]),
+                'is_header': is_header,
+            } )
+
+        # # compute column widths
+        # col_widths = [ 0 for _ in range(len(cells_model.cells_size[1])) ]
+        # for rcell in rendered_cells
+        #     # requirement is that sum(col_widths(...cell...)) >= (content-width cell....)
+        #     cell = rcell['cell']
+        #     existing_total_column_widths = sum([
+        #         col_widths[col_idx]
+        #         for col_idx in range(cell.placement.col_range.start,
+        #                              cell.placement.col_range.end)
+        #     ])
+        #     missing = rcell['width'] - existing_total_column_widths
+        #     if missing < 0:
+        #         # all good
+        #         continue
+        #     # otherwise, we need to increase the width (say of the last column
+        #     # in the span).
+        #     col_widths[cell.placement.col_range.end-1] += missing
+
+        # # we can now render the table by preparing a text data model
+        # text_data_model = [
+        #     [
+        #         # the lines in this cell
+        #         []
+        #         for _ in range(cells_model.cells_size[1])
+        #     ]
+        #     for _ in range(cells_model.cells_size[0])
+        # ]
+        # for rcell in rendered_cells:
+        #     row, col = cell.placement.row_range.start, cell.placement.col_range.start
+        #     text_data_model[row][col] += rcell['rendered_contents_lines']
+
+        s_items = []
+
+        # Very rudimentary text tables support, sorry ...
+        for rcell in rendered_cells:
+            s_items.append(
+                '\n'.join([ f'    {line}' for line in rcell['rendered_contents_lines'] ])
+            )
+
+        return '\n'.join(s_items)
