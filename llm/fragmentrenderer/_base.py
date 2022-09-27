@@ -349,7 +349,7 @@ class FragmentRenderer:
     def render_graphics_block(self, graphics_resource):
         raise RuntimeError("Feature is not implemented by subclass")
 
-    def render_cells(self, cells_model, render_context):
+    def render_cells(self, cells_model, render_context, target_id=None):
         raise RuntimeError("Feature is not implemented by subclass")
 
 

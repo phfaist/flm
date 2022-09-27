@@ -200,7 +200,7 @@ class TextFragmentRenderer(FragmentRenderer):
 
     cells_column_sep = '   '
 
-    def render_cells(self, cells_model, render_context):
+    def render_cells(self, cells_model, render_context, target_id=None):
 
         # render columns
         rendered_cells = []

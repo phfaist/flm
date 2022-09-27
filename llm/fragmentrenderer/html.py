@@ -556,7 +556,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         return self.generate_open_tag('img', attrs=imgattrs)
 
 
-    def render_cells(self, cells_model, render_context):
+    def render_cells(self, cells_model, render_context, target_id=None):
 
         data_items = []
         row_j = 0
@@ -616,13 +616,18 @@ class HtmlFragmentRenderer(FragmentRenderer):
             data_items.append( row_items )
             row_j += 1
 
-        s = (
-            "<table>"
-            + ''.join([
+        table_attrs = {}
+        if target_id is not None:
+            table_attrs['id'] = target_id
+
+        s = self.wrap_in_tag(
+            'table',
+            ''.join([
                 '<tr>' + ''.join(row_items) + '</tr>'
                 for row_items in data_items
-            ])
-            + "</table>"
+            ]),
+            attrs=table_attrs,
+            class_names=['cells'],
         )
         return s
 
