@@ -17,13 +17,14 @@ class TestLLMStandardEnvironment(unittest.TestCase):
 
         environ = LLMStandardEnvironment()
 
+        self.assertTrue(environ.parsing_state.enable_comments)
+        self.assertEqual(environ.parsing_state.comment_start, '%%')
+        self.assertEqual(environ.parsing_state.forbidden_characters, '$%')
+
         with self.assertRaises(LatexWalkerParseError):
             frag1 = environ.make_fragment(
                 r"\textbf{Hello} \textit{world}. % Comments are forbidden."
             )
-
-        #fr = HtmlFragmentRenderer()
-        #result = fr.render_fragment(frag1, doc=None)
 
 
 

@@ -292,6 +292,25 @@ class LLMLatexWalker(latexwalker.LatexWalker):
         nl = self.llm_environment.node_list_finalizer().finalize_nodelist(nl)
         return nl
 
+    # ---
+
+    def filter_whitespace_comments_nodes(self, nodelist):
+        r"""
+        Utility to filter out nodes from nodelist that are pure whitespace,
+        comments, `None`, or paragraph break markers (`'\n\n'`).
+        """
+        return nodelist.filter(
+            node_predicate_fn=self._filter_whitespace_comments_nodes_predicate,
+            skip_none=True,
+            skip_comments=True,
+            skip_whitespace_char_nodes=True,
+        )
+
+    def _filter_whitespace_comments_nodes_predicate(self, node):
+        if getattr(node, 'llm_is_paragraph_break_marker', False):
+            return False
+        return True
+    
 
 
 class LLMEnvironment:

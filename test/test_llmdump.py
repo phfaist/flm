@@ -80,8 +80,8 @@ class TestLLMDataDumper(unittest.TestCase):
                 'LLMParsingState': {
                     ps_reskey: {
                         '$type': 'LLMParsingState',
-                        'comment_char': '%',
-                        'enable_comments': None,
+                        'comment_start': '%%',
+                        'enable_comments': True,
                         'enable_double_newline_paragraphs': True,
                         'enable_environments': True,
                         'enable_groups': True,

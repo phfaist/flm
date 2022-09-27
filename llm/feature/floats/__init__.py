@@ -16,11 +16,109 @@ from ... import fmthelpers
 
 from .._base import Feature
 from ..graphics import SimpleIncludeGraphicsMacro
+from ..cells import CellsEnvironment
 
 
 
 # ------------------------------------------------------------------------------
 
+class FloatContentHandlerBase:
+
+    def float_content_set_extra_definitions(self, extend_latex_context):
+        pass
+
+    def float_handle_content_nodes(self, float_node, content_nodes):
+        # subclasses can choose to verify the float's content nodes to ensure
+        # that it only contains prescribed content nodes (e.g., only a single
+        # \includegraphics node)
+        #
+        # Return a (possibly post-processed) node list to use in place of
+        # content_nodes if the nodes were accepted; raise a
+        # LatexWalkerParseError if the nodes were not accepted (unacceptable
+        # macros, etc.)
+        raise RuntimeError(
+            f"This method needs to be reimplemented in subclasses!"
+        )
+
+
+class FloatContentAnyContent(FloatContentHandlerBase):
+
+    def float_handle_content_nodes(self, float_node, content_nodes):
+        # allow all content --
+        return content_nodes
+
+
+class FloatContentIncludeGraphics(FloatContentHandlerBase):
+
+    def float_content_set_extra_definitions(self, extend_latex_context):
+        extend_latex_context['macros'].append( 
+            SimpleIncludeGraphicsMacro(macroname='includegraphics')
+        )
+
+    def float_handle_content_nodes(self, float_node, content_nodes):
+
+        content_nodes = content_nodes.latex_walker.filter_whitespace_comments_nodes(
+            content_nodes
+        )
+
+        if len(content_nodes) == 1:
+            node = content_nodes[0]
+            if node.isNodeType(latexnodes_nodes.LatexMacroNode) \
+               and node.macroname == 'includegraphics':
+                # all good!
+                return content_nodes
+
+        raise LatexWalkerParseError(
+            f"expected exactly one \\includegraphics command",
+            pos=content_nodes.pos
+        )
+
+
+class FloatContentCells(FloatContentHandlerBase):
+
+    def float_content_set_extra_definitions(self, extend_latex_context):
+        extend_latex_context['environments'].append( 
+            CellsEnvironment()
+        )
+
+    def float_handle_content_nodes(self, float_node, content_nodes):
+
+        content_nodes = content_nodes.latex_walker.filter_whitespace_comments_nodes(
+            content_nodes
+        )
+
+        if len(content_nodes) == 1:
+            node = content_nodes[0]
+            if node.isNodeType(latexnodes_nodes.LatexEnvironmentNode) \
+               and node.environmentname == 'cells':
+                # all good!
+                return content_nodes
+
+        raise LatexWalkerParseError(
+            f"expected exactly one "
+            f"\\begin{'{'}cells{'}'}...\\end{'{'}cells{'}'} environment",
+            pos=content_nodes.pos
+        )
+
+
+available_content_handlers = {
+    'any': FloatContentAnyContent,
+    'includegraphics': FloatContentIncludeGraphics,
+    'cells': FloatContentCells,
+}
+
+
+
+def _make_content_handler(c):
+    if isinstance(c, FloatContentHandlerBase):
+        return c
+    if isinstance(c, str):
+        c = { 'name': c }
+    if c['name'] in available_content_handlers:
+        return available_content_handlers[c['name']](**c.get('config', {}))
+    raise ValueError(f"Invalid float handler specification: {repr(c)}")
+
+# ------------------------------------------------------------------------------
 
 class FloatEnvironment(LLMEnvironmentSpecBase):
 
@@ -38,15 +136,19 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
 
     allowed_in_standalone_mode = False
 
-    def __init__(self, float_type):
+    def __init__(self, float_type, content_handlers=None):
         super().__init__(
             environmentname=float_type,
             arguments_spec_list=[],
         )
+        if content_handlers is None:
+            content_handlers = ['includegraphics', 'cells']
+        content_handlers = [
+            _make_content_handler(c)
+            for c in content_handlers
+        ]
         self.float_type = float_type
-
-    def float_content_set_extra_definitions(self, extend_latex_context):
-        pass
+        self.content_handlers = content_handlers
 
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
         extend_latex_context = dict(
@@ -69,7 +171,10 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
             environments=[],
             specials=[]
         )
-        self.float_content_set_extra_definitions(extend_latex_context)
+
+        for content_handler in self.content_handlers:
+            content_handler.float_content_set_extra_definitions(extend_latex_context)
+
         return LatexEnvironmentBodyContentsParser(
             environmentname=token.arg,
             contents_parsing_state_delta=ParsingStateDeltaExtendLatexContextDb(
@@ -77,16 +182,6 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
                 set_attributes=dict(is_block_level=self.float_content_is_block_level),
             )
         )
-
-    def finalize_handle_content_node(self, float_node, content_node):
-        # subclasses can choose to verify the float's content to ensure that it
-        # only contains prescribed content nodes (e.g., only a single
-        # \includegraphics node)
-        #
-        # Return True if the node should be added to the main float contents;
-        # False if the node is to be ignored, or raise a LatexWalkerParseError
-        # if the node shouldn't appear here.
-        return True
 
     def postprocess_parsed_node(self, node):
         # parse the node structure right away when finializing the node to try
@@ -96,7 +191,9 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
         # find and register child nodes
         node.llm_float_label = dict(ref_label_prefix=None, ref_label=None, label_node=None)
         node.llm_float_caption = dict(caption_nodelist=None, caption_node=None)
-        float_content_items = []
+
+        float_content_nodes = []
+
         for n in node.nodelist:
             if n.isNodeType(latexnodes_nodes.LatexMacroNode):
 
@@ -143,17 +240,38 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
                         ref_caption_node_args['captiontext'].get_content_nodelist()
                     node.llm_float_caption['caption_nodelist'] = ref_caption_nodelist
                     continue
-                
-            # handle this node
-            include_in_content = self.finalize_handle_content_node(node, n)
-            if include_in_content:
-                float_content_items.append(n)
 
-        node.llm_float_content_nodelist = \
-            node.latex_walker.make_nodelist(
-                float_content_items,
-                parsing_state=node.nodelist.parsing_state,
+            # keep this node as part of the float's content
+            float_content_nodes.append(n)
+
+        float_content_nodes = node.latex_walker.make_nodelist(
+            float_content_nodes,
+            parsing_state=node.nodelist.parsing_state,
+        )
+
+        # call handlers for the float's content
+        errors = []
+        final_content_nodes = None
+        for content_handler in self.content_handlers:
+            try:
+                final_content_nodes = content_handler.float_handle_content_nodes(
+                    node, float_content_nodes
+                )
+            except LatexWalkerParseError as e:
+                errors.append(f"*** {content_handler.__class__.__name__} error: {str(e)}")
+                pass # ignore error
+
+        if final_content_nodes is None:
+            # no content handler accepted this float's content node list
+            raise LatexWalkerParseError(
+                f"Invalid {self.float_type} contents! The following content handler(s) "
+                f"were unable to parse the float's content [other than possible "
+                f"\\caption and \\label commands]:\n"
+                + "\n".join(errors),
+                pos=node.pos
             )
+
+        node.llm_float_content_nodelist = final_content_nodes
 
         #logger.debug("llm_float_content_nodelist = %r", node.llm_float_content_nodelist)
 
@@ -251,7 +369,8 @@ class FloatInstance:
 
 
 class FloatType:
-    def __init__(self, float_type, float_caption_name, counter_formatter,):
+    def __init__(self, float_type, float_caption_name=None, counter_formatter=None,
+                 content_handlers=None):
         r"""
 
 
@@ -261,13 +380,22 @@ class FloatType:
         super().__init__()
 
         self.float_type = float_type
+
+        if float_caption_name is None:
+            float_caption_name = float_type
+
         self.float_caption_name = float_caption_name
 
+        if counter_formatter is None:
+            counter_formatter = 'arabic'
         if not callable(counter_formatter):
             counter_formatter = fmthelpers.standard_counter_formatters[counter_formatter]
         self.counter_formatter = counter_formatter
 
-        self._fields = ('float_type', 'float_caption_name', 'counter_formatter',)
+        self.content_handlers = content_handlers
+
+        self._fields = ('float_type', 'float_caption_name',
+                        'counter_formatter', 'content_handlers')
 
     def asdict(self):
         return {k: getattr(self, k) for k in self._fields}
@@ -290,8 +418,8 @@ class FeatureFloats(Feature):
         super().__init__()
         if float_types is None:
             float_types = [
-                FloatType('figure', 'Figure', 'arabic'),
-                FloatType('table', 'Table', 'arabic'),
+                FloatType('figure', 'Figure', 'arabic', ['includegraphics']),
+                FloatType('table', 'Table', 'arabic',  ['cells', 'includegraphics']),
             ]
         def _mkfloattypeobj(x):
             if isinstance(x, FloatType):
@@ -303,7 +431,11 @@ class FeatureFloats(Feature):
             for ft in self.float_types_list
         }
 
-    make_float_environment_spec = FloatEnvironment
+    def make_float_environment_spec(self, float_type):
+        return FloatEnvironment(
+            float_type,
+            content_handlers=self.float_types[float_type].content_handlers
+        )
 
     def add_latex_context_definitions(self):
         environments = []
@@ -419,47 +551,6 @@ class FeatureFloats(Feature):
 
 
 
-# ------------------------------------------------------------------------------
-
-
-
-class FloatEnvironmentIncludeGraphicsOnly(FloatEnvironment):
-
-    def float_content_set_extra_definitions(self, extend_latex_context):
-        extend_latex_context['macros'].append( 
-            SimpleIncludeGraphicsMacro(macroname='includegraphics')
-        )
-
-    def finalize_handle_content_node(self, float_node, content_node):
-        if content_node.isNodeType(latexnodes_nodes.LatexMacroNode) \
-           and content_node.macroname == 'includegraphics':
-            # \includegraphics command
-            if hasattr(float_node, 'llm_includegraphics_node') and \
-               float_node.llm_includegraphics_node is not None:
-                raise LatexWalkerParseError(
-                    f"{self.float_type} should contain exactly one "
-                    f"\\includegraphics command apart from possible "
-                    f"\\caption and \\label commands",
-                    pos=content_node.pos
-                )
-            float_node.llm_includegraphics_node = content_node
-            return True
-
-        if content_node.isNodeType(latexnodes_nodes.LatexCharsNode) \
-           and len(content_node.chars.strip()) == 0:
-            # skip whitespace without errors
-            return False
-
-        if content_node.isNodeType(latexnodes_nodes.LatexCommentNode):
-            # skip comments without errors
-            return False
-
-        raise LatexWalkerParseError(
-            f"{self.float_type} cannot contain content other than "
-            f"\\includegraphics, \\caption and \\label commands",
-            pos=content_node.pos
-        )
-
 
 
 # ------------------------------------------------------------------------------
@@ -524,6 +615,6 @@ class FloatEnvironmentIncludeGraphicsOnly(FloatEnvironment):
 
 # ------------------
 
-class FeatureFloatsIncludeGraphicsOnly(FeatureFloats):
+# class FeatureFloatsIncludeGraphicsOnly(FeatureFloats):
 
-    make_float_environment_spec = FloatEnvironmentIncludeGraphicsOnly
+#     make_float_environment_spec = FloatEnvironmentIncludeGraphicsOnly

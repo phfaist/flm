@@ -311,7 +311,9 @@ class LLMSpecInfoError(LLMSpecInfo):
         if self.error_msg:
             msg = self.error_msg
         else:
-            msg = f"The node ‘{node}’ cannot be placed here."
+            msg = f"The node ‘{node.latex_verbatim().strip()}’ cannot be placed here."
+            
+        logger.error(f"Misplaced node: {repr(node)}")
 
         raise LatexWalkerParseError(msg, pos=node.pos)
 

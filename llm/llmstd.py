@@ -24,7 +24,7 @@ from .feature.enumeration import FeatureEnumeration
 from .feature.cite import FeatureExternalPrefixedCitations
 from .feature.refs import FeatureRefs
 from .feature.headings import FeatureHeadings
-from .feature.floats import FeatureFloatsIncludeGraphicsOnly #, FeatureFloats
+from .feature.floats import FeatureFloats
 from .feature.graphics import FeatureSimplePathGraphicsResourceProvider
 from .feature.defterm import FeatureDefTerm
 
@@ -168,7 +168,8 @@ def standard_latex_context_db():
 
 def standard_parsing_state(*,
                            force_block_level=None,
-                           enable_comments=False,
+                           enable_comments=True,
+                           comment_start='%%',
                            extra_forbidden_characters='',
                            dollar_inline_math_mode=False):
     r"""
@@ -186,7 +187,8 @@ def standard_parsing_state(*,
     forbidden_characters = str(extra_forbidden_characters)
     if not dollar_inline_math_mode and '$' not in forbidden_characters:
         forbidden_characters += '$'
-    if not enable_comments and '%' not in forbidden_characters:
+    if (not enable_comments or comment_start != '%') and '%' not in forbidden_characters:
+        # if comments are disabled entirely, we forbid the '%' sign completely.
         forbidden_characters += '%'
 
     latex_inline_math_delimiters = [ (r'\(', r'\)'), ]
@@ -198,6 +200,7 @@ def standard_parsing_state(*,
         is_block_level=force_block_level,
         latex_context=None,
         enable_comments=enable_comments,
+        comment_start=comment_start,
         latex_inline_math_delimiters=latex_inline_math_delimiters,
         latex_display_math_delimiters=[ (r'\[', r'\]') ],
         forbidden_characters=forbidden_characters,
@@ -275,7 +278,7 @@ def standard_features(
 
     if floats:
         features.append(
-            FeatureFloatsIncludeGraphicsOnly(float_types=float_types)
+            FeatureFloats(float_types=float_types)
         )
     if defterm:
         features.append(
@@ -293,26 +296,31 @@ class LLMStandardEnvironment(LLMEnvironment):
                  latex_context=None,
                  parsing_state=None,
                  features=None,
-                 *,
-                 enable_comments=None,
-                 external_citations_provider=None,
-                 external_ref_resolvers=None,
-                 footnote_counter_formatter=None,
-                 citation_counter_formatter=None,
+                 # *,
+                 # enable_comments=True,
+                 # comment_start=None,
+                 # external_citations_provider=None,
+                 # external_ref_resolvers=None,
+                 # footnote_counter_formatter=None,
+                 # citation_counter_formatter=None,
                  **kwargs):
 
         if latex_context is None:
             latex_context = standard_latex_context_db()
         if parsing_state is None:
             parsing_state = standard_parsing_state(
-                enable_comments=enable_comments,
+                **{ k: kwargs.pop(k)
+                    for k in ('enable_comments', 'comment_start',)
+                    if k in kwargs }
             )
         if features is None:
             features = standard_features(
-                external_citations_provider=external_citations_provider,
-                external_ref_resolvers=external_ref_resolvers,
-                footnote_counter_formatter=footnote_counter_formatter,
-                citation_counter_formatter=citation_counter_formatter,
+                **{ k: kwargs.pop(k)
+                    for k in ('external_citations_provider',
+                              'external_ref_resolvers',
+                              'footnote_counter_formatter',
+                              'citation_counter_formatter')
+                    if k in kwargs }
             )
 
         super().__init__(

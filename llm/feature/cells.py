@@ -22,6 +22,7 @@ from ..llmenvironment import (
 )
 from ..llmspecinfo import (
     LLMEnvironmentSpecBase,
+    LLMMacroSpecError
 )
 
 from ._base import Feature
@@ -56,6 +57,14 @@ _macro_args = {
             optional=True,
         ),
         argname='styles'
+    ),
+    'styles_mapping': LatexArgumentSpec(
+        latexnodes_parsers.LatexCharsGroupParser(
+            delimiters=('<', '>'),
+            enable_groups=False,
+            optional=True,
+        ),
+        argname='styles_mapping'
     ),
     'cellcontents': LLMArgumentSpec(
         '{',
@@ -96,9 +105,9 @@ _macro_args['placement_mapping'] = LatexArgumentSpec(
     ),
 )
 
-class CellMacroSpec(macrospec.MacroSpec):
+class CellMacro(LLMMacroSpecError):
     def __init__(self, macroname='cell',):
-        super().__init__(macroname, arguments_spec_list=[
+        super().__init__(macroname=macroname, arguments_spec_list=[
             _macro_args['styles'],
             _macro_args['placement'],
             _macro_args['cellcontents'],
@@ -109,7 +118,7 @@ _macro_args['celldata_contents'] = LatexArgumentSpec(
     argname='celldata_contents',
     parsing_state_delta=macrospec.ParsingStateDeltaExtendLatexContextDb(
         extend_latex_context=dict(
-            macros=[ CellMacroSpec(), LatexTabularRowSeparatorSpec() ],
+            macros=[ CellMacro(), LatexTabularRowSeparatorSpec() ],
             specials=[ LatexTabularColumnSeparatorSpec() ],
         )
     ),
@@ -118,7 +127,7 @@ _macro_args['celldata_contents'] = LatexArgumentSpec(
 class CelldataMacroSpec(macrospec.MacroSpec):
     def __init__(self, macroname='celldata',):
         super().__init__(macroname, arguments_spec_list=[
-            _macro_args['styles'],
+            _macro_args['styles_mapping'],
             _macro_args['placement_mapping'],
             _macro_args['celldata_contents'],
         ])
@@ -126,7 +135,7 @@ class CelldataMacroSpec(macrospec.MacroSpec):
 # class CelldatacsvMacroSpec(macrospec.MacroSpec):
 #     def __init__(self, macroname='celldatacsv',):
 #         super().__init__(macroname, arguments_spec_list=[
-#             _macro_args['styles'],
+#             _macro_args['styles_mapping'],
 #             _macro_args['placement_mapping'],
 #             _macro_args['celldata_contents'],
 #         ])
@@ -176,9 +185,12 @@ class CellModel:
     def __repr__(self):
         return (
             f"<Cell @{repr(self.placement)} <{' '.join(self.styles)}> "
-            f"(‘{self.content_nodes.latex_verbatim()}’)>"
+            f"(‘{_splfysidews(self.content_nodes.latex_verbatim())}’)>"
         )
 
+def _splfysidews(s):
+    # simplify white space on the sides
+    return re.sub('(^\s+|\s+$)', ' ', s)
 
 # ------------------
 
@@ -198,19 +210,27 @@ class CellPlacementsMappingModel:
             + f"\n)"
         )
 
+    def _get_index_range(self, placements, j, current):
+
+        if len(placements) == 0:
+            return CellIndexRangeModel(current, current+1)
+
+        # don't include last placement range, we might need to deal with an open
+        # range
+        if j < (len(placements)-1):
+            return placements[j]
+
+        placement = placements[-1]
+        if placement.end is None:
+            idx = placement.start + (j - len(placements) + 1)
+            return CellIndexRangeModel(idx, idx+1)
+        return placement
+
     def get_row_index_range(self, row_j, current_row=None):
-        if len(self.row_placements) == 0:
-            return CellIndexRangeModel(current_row, current_row+1)
-        if len(self.row_placements) == 1:
-            return self.row_placements[0]
-        return self.row_placements[row_j]
+        return self._get_index_range(self.row_placements, row_j, current_row)
 
     def get_col_index_range(self, col_j, current_col=None):
-        if len(self.col_placements) == 0:
-            return CellIndexRangeModel(current_col, current_col+1)
-        if len(self.col_placements) == 1:
-            return self.col_placements[0]
-        return self.col_placements[col_j]
+        return self._get_index_range(self.col_placements, col_j, current_col)
 
     def start_row_col(self, current_row=None, current_col=None):
         return (self.get_row_index_range(0, current_row).start,
@@ -260,12 +280,16 @@ class CellsModel:
             ('styles', 'placement', 'cellcontents',),
         )
 
+        if default_styles is None:
+            default_styles = []
+
         if cell_node_args['styles'].was_provided():
-            styles = cell_node_args['styles'].get_content_as_chars().split(',')
-        elif default_styles:
-            styles = default_styles
+            styles = (
+                cell_node_args['styles'].get_content_as_chars().split(' ')
+                + default_styles
+            )
         else:
-            styles = []
+            styles = default_styles
 
         if cell_node_args['placement'].was_provided():
             placement_spec = cell_node_args['placement'].get_content_nodelist()
@@ -312,17 +336,22 @@ class CellsModel:
             for _ in range(self.cells_size[0])
         ]
         for cell in self.cells_data:
+            is_topleft = True
             for rowidx in range(cell.placement.row_range.start,
                                 cell.placement.row_range.end):
                 for colidx in range(cell.placement.col_range.start,
                                     cell.placement.col_range.end):
                     if self.grid_data[rowidx][colidx] is not None:
-                        existing_cell = self.grid_data[rowidx][colidx]
+                        existing_cell = self.grid_data[rowidx][colidx]['cell']
                         raise ValueError(
                             f"‘{repr(cell)}’ overlaps with ‘{repr(existing_cell)}’"
                         )
                     # mark this grid location as being occupied by this cell
-                    self.grid_data[rowidx][colidx] = cell
+                    self.grid_data[rowidx][colidx] = {
+                        'cell': cell,
+                        'is_topleft': is_topleft
+                    }
+                    is_topleft = False
         # done.
 
     # ------------------------------------------------------
@@ -330,10 +359,14 @@ class CellsModel:
     def add_celldata_node(self, celldata_node):
         # parse the cell_node's arguments
         celldata_node_args = ParsedArgumentsInfo(node=celldata_node).get_all_arguments_info(
-            ('styles', 'placement_mapping', 'celldata_contents',),
+            ('styles_mapping', 'placement_mapping', 'celldata_contents',),
         )
 
-        styles = celldata_node_args['styles'].get_content_as_chars().split(',')
+        styles_mapping = [
+            styles_spec.split()
+            for styles_spec in
+                celldata_node_args['styles_mapping'].get_content_as_chars().split(',')
+        ]
 
         placement_mapping_spec = celldata_node_args['placement_mapping'].get_content_nodelist()
 
@@ -362,23 +395,16 @@ class CellsModel:
 
         logger.debug('data_content_nodes = %r', data_content_nodes)
 
-        self.add_celldata(placement_mapping_spec, styles, data_content_nodes)
+        self.add_celldata(placement_mapping_spec, styles_mapping, data_content_nodes)
 
 
-    def add_celldata(self, placement_mapping_spec, styles, data_content_nodes):
-
-        data_size = (
-            len(data_content_nodes),
-            max([len(data_row) for data_row in data_content_nodes])
-        )
+    def add_celldata(self, placement_mapping_spec, styles_mapping, data_content_nodes):
 
         placement_mapping = self.parse_placement_mapping_spec(
             placement_mapping_spec,
-            data_size=data_size,
         )
 
-        logger.debug("add_celldata, data_size=%r, placement_mapping = %r",
-                     data_size, placement_mapping)
+        logger.debug("add_celldata, placement_mapping = %r", placement_mapping)
 
         self.current_row, self.current_col = placement_mapping.start_row_col(
             current_row=self.current_row, current_col=self.current_col
@@ -401,12 +427,18 @@ class CellsModel:
                     col_range=col_range
                 )
 
-                cell_content_nl = cell_content.filter(
-                    skip_none=True, skip_comments=True, skip_whitespace_char_nodes=True,
-                )
+                if data_col_j < len(styles_mapping):
+                    styles = styles_mapping[data_col_j]
+                else:
+                    styles = styles_mapping[-1]
+
+                cell_content_nl = \
+                    cell_content.latex_walker.filter_whitespace_comments_nodes(
+                        cell_content
+                    )
 
                 logger.debug(
-                    f"placing cell ‘{cell_content_nl.latex_verbatim()}’ at "
+                    f"placing cell ‘{_splfysidews(cell_content_nl.latex_verbatim())}’ at "
                     f"default placement {placement}; {data_row_j=}, {data_col_j=}"
                 )
 
@@ -474,7 +506,9 @@ class CellsModel:
             f"Invalid cell index: ‘{index_spec_s}’, expected number or valid alias name"
         )
 
-    def parse_cell_index_range_spec(self, range_spec_s, is_row=False, is_col=False):
+    def parse_cell_index_range_spec(self, range_spec_s, is_row=False, is_col=False,
+                                    default=_NotSpecified,
+                                    default_start=None, default_end=None):
 
         if ',' in range_spec_s:
             # split into individual range specifications
@@ -483,8 +517,10 @@ class CellsModel:
             overall_start = None
             overall_end = None
             for part in parts:
-                start, end = \
-                    self.parse_cell_index_range_spec(part, is_row=is_row, is_col=is_col)
+                start, end = self.parse_cell_index_range_spec(
+                    part, is_row=is_row, is_col=is_col,
+                    default=default
+                )
                 for idx in range(start, end):
                     if idx >= len(include_array):
                         include_array += [ False for _ in range(end-len(include_array)+1) ]
@@ -505,14 +541,13 @@ class CellsModel:
             # range specified as "idx1-idx2"
             start_spec, end_spec = range_spec_s.split('-', 1)
             start = self.parse_cell_index_spec(
-                start_spec, is_row=is_row, is_col=is_col,
-                default=None
+                start_spec, is_row=is_row, is_col=is_col, default=default_start
             )
             end_incl = self.parse_cell_index_spec(
                 end_spec, is_row=is_row, is_col=is_col, default=None
             )
             if end_incl is None:
-                end = None
+                end = default_end
             else:
                 end = end_incl + 1
             return start, end
@@ -520,7 +555,9 @@ class CellsModel:
         if '+' in range_spec_s:
             # range specified as "idx1+N"
             start_spec, len_spec = range_spec_s.split('+', 1)
-            start = self.parse_cell_index_spec(start_spec, is_row=is_row, is_col=is_col)
+            start = self.parse_cell_index_spec(
+                start_spec, is_row=is_row, is_col=is_col, default=default,
+            )
             if not self._rx_int.match(len_spec):
                 raise ValueError(
                     f"Invalid number in ‘START+N’ cell index range specification: ‘{len_spec}’"
@@ -531,11 +568,15 @@ class CellsModel:
             end = start + range_len
             return start, end
 
-        idx = self.parse_cell_index_spec(range_spec_s, is_row=is_row, is_col=is_col)
+        idx = self.parse_cell_index_spec(
+            range_spec_s, is_row=is_row, is_col=is_col, default=default
+        )
         return idx, idx+1
 
 
-    def parse_placement_index_spec(self, placement_index_spec, is_row=False, is_col=False):
+    def parse_placement_index_spec(self, placement_index_spec, is_row=False, is_col=False,
+                                   default=_NotSpecified,
+                                   default_start=0, default_end=_NotSpecified):
         # a single column/row index or a \merge macro
 
         if len(placement_index_spec) == 0:
@@ -546,8 +587,8 @@ class CellsModel:
             else:
                 raise RuntimeError("Internal error, neither is_row nor is_col was set here.")
 
-        nl = placement_index_spec.filter(
-            skip_none=True, skip_comments=True, skip_whitespace_char_nodes=True
+        nl = placement_index_spec.latex_walker.filter_whitespace_comments_nodes(
+            placement_index_spec
         )
 
         if len(nl) != 1:
@@ -576,15 +617,24 @@ class CellsModel:
 
             range_spec_s = merge_node_args['mergespec'].get_content_as_chars()
 
+            default_end_computed = default_end
+            if default_end_computed is _NotSpecified:
+                if is_row:
+                    default_end_computed = self.cells_size[0]
+                if is_col:
+                    default_end_computed = self.cells_size[1]
+
             start, end = self.parse_cell_index_range_spec(
-                range_spec_s, is_row=is_row, is_col=is_col
+                range_spec_s, is_row=is_row, is_col=is_col,
+                default_start=default_start, default_end=default_end_computed,
             )
 
             return CellIndexRangeModel(start=start, end=end)
 
         # it has to be a simple cell index
         idx = self.parse_cell_index_spec(
-            nl.get_content_as_chars(), is_row=is_row, is_col=is_col
+            nl.get_content_as_chars(), is_row=is_row, is_col=is_col,
+            default=default,
         )
         return CellIndexRangeModel(start=idx, end=idx+1)
 
@@ -617,7 +667,7 @@ class CellsModel:
 
                 raise LatexWalkerParseError(
                     f"Bad cell placement specification, expected ‘ROW;COL’ or "
-                    f"‘COL’, got ‘{placement_spec.latex_verbatim()}’",
+                    f"‘COL’, got ‘{_splfysidews(placement_spec.latex_verbatim())}’",
                     pos=placement_spec.pos
                 )
 
@@ -638,14 +688,17 @@ class CellsModel:
 
         parts = placement_mapping_index_spec.split_at_chars(',', keep_empty=True)
 
+        # keep track of "current row/col" in the specification mapping.
+        current_idx = 0
+
         index_placements = []
         for placement_part_spec in parts:
             # placement_part_spec is a LatexNodeList which should contain only a
             # single node (index specification, range specification, or a single
             # \merge{...}  specification)
             
-            nl = placement_part_spec.filter(
-                skip_none=True, skip_comments=True, skip_whitespace_char_nodes=True
+            nl = placement_part_spec.latex_walker.filter_whitespace_comments_nodes(
+                placement_part_spec
             )
 
             if len(nl) != 1:
@@ -676,29 +729,39 @@ class CellsModel:
                 range_spec_s = merge_node_args['mergespec'].get_content_as_chars()
 
                 start, end = self.parse_cell_index_range_spec(
-                    range_spec_s, is_row=is_row, is_col=is_col
+                    range_spec_s, is_row=is_row, is_col=is_col,
+                    default=current_idx,
+                    default_start=current_idx, default_end=None
                 )
 
                 index_placements.append( CellIndexRangeModel(start=start, end=end) )
+                current_idx = end
                 continue
 
             # not a merge macro, parse range
             iter_start, iter_end = self.parse_cell_index_range_spec(
-                nl.get_content_as_chars(), is_row=is_row, is_col=is_col
+                nl.get_content_as_chars(), is_row=is_row, is_col=is_col,
+                default=current_idx, default_start=current_idx, default_end=None
             )
-            if iter_start is None:
-                iter_start = 0
-            if iter_end is None:
-                iter_end = index_end
-            # simply append each item in the range to our placement mapping
-            for j in range(iter_start, iter_end):
-                index_placements.append( CellIndexRangeModel(start=j, end=j+1) )
+            # if iter_start is None:
+            #     iter_start = 0
+            # if iter_end is None:
+            #     iter_end = index_end
 
+            if iter_end is None:
+                index_placements.append( CellIndexRangeModel(start=iter_start, end=None) )
+                current_idx = None
+            else:
+                # simply append each item in the range to our placement mapping
+                for j in range(iter_start, iter_end):
+                    index_placements.append( CellIndexRangeModel(start=j, end=j+1) )
+                    current_idx = j+1
+            
             continue
 
         return index_placements
 
-    def parse_placement_mapping_spec(self, placement_mapping_spec, data_size):
+    def parse_placement_mapping_spec(self, placement_mapping_spec):
         
         placement_mapping_spec_split = \
             placement_mapping_spec.split_at_chars(';', keep_empty=True)
@@ -720,22 +783,21 @@ class CellsModel:
 
             raise LatexWalkerParseError(
                 f"Expected ‘ROWS;COLS’ or ‘COLS’ or ‘’ for placement argument, "
-                f"got ‘{placement_mapping_spec.latex_verbatim()}’",
+                f"got ‘{_splfysidews(placement_mapping_spec.latex_verbatim())}’",
                 pos=placement_mapping_spec.pos
             )
 
         row_placements = self.parse_placement_mapping_index_spec(
-            row_mapping_spec, index_end=data_size[0], is_row=True
+            row_mapping_spec, index_end=None, is_row=True
         )
         col_placements = self.parse_placement_mapping_index_spec(
-            col_mapping_spec, index_end=data_size[1], is_col=True
+            col_mapping_spec, index_end=None, is_col=True
         )
 
         return CellPlacementsMappingModel(
             row_placements=row_placements,
             col_placements=col_placements,
         )
-
 
 
 
@@ -762,7 +824,7 @@ class CellsEnvironment(LLMEnvironmentSpecBase):
             contents_parsing_state_delta=macrospec.ParsingStateDeltaExtendLatexContextDb(
                 extend_latex_context=dict(
                     macros=[
-                        CellMacroSpec(),
+                        CellMacro(),
                         CelldataMacroSpec(),
                         LatexTabularRowSeparatorSpec(),
                     ]
@@ -802,7 +864,7 @@ class CellsEnvironment(LLMEnvironmentSpecBase):
                 continue
 
             raise LatexWalkerParseError(
-                f"You cannot place ‘{n.latex_verbatim().strip()}’ here.  Expected: "
+                f"You cannot place ‘{_splfysidews(n.latex_verbatim())}’ here.  Expected: "
                 f"\\cell, \\celldata, \\\\."
             )
 
@@ -817,10 +879,9 @@ class CellsEnvironment(LLMEnvironmentSpecBase):
         `render_context`.
         """
         
-        # DEBUG rendering: 
-        return render_context.fragment_renderer.render_verbatim(
-            repr(node.llm_cells_model),
-            annotations=['cells'],
+        return render_context.fragment_renderer.render_cells(
+            cells_model=node.llm_cells_model,
+            render_context=render_context,
         )
     
     

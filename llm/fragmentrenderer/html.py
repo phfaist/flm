@@ -556,6 +556,77 @@ class HtmlFragmentRenderer(FragmentRenderer):
         return self.generate_open_tag('img', attrs=imgattrs)
 
 
+    def render_cells(self, cells_model, render_context):
+
+        data_items = []
+        row_j = 0
+        while row_j < len(cells_model.grid_data):
+            row_items = []
+            col_j = 0
+            while col_j < len(cells_model.grid_data[row_j]):
+
+                grid_cell_data = cells_model.grid_data[row_j][col_j]
+
+                if grid_cell_data is None or grid_cell_data['cell'] is None:
+                    # no contents here, still need to render an empty cell for
+                    # the HTML layout
+                    row_items.append(self.wrap_in_tag(
+                        'td',
+                        '',
+                        class_names=['cell-empty']
+                    ))
+                    col_j += 1
+                    continue
+
+                if grid_cell_data['is_topleft']:
+
+                    cell = grid_cell_data['cell']
+                    rendered_cell_contents = self.render_nodelist(
+                        cell.content_nodes,
+                        render_context=render_context,
+                    )
+                    clsnames = ['cell'] + [ f"cellstyle-{sty}" for sty in cell.styles ]
+                    tagname = 'td'
+                    if 'H' in cell.styles:
+                        tagname = 'th'
+                    attrs = {}
+                    cplc = cell.placement
+                    if cplc.col_range.end != cplc.col_range.start + 1:
+                        # nontrivial column span
+                        attrs['colspan'] = \
+                            str(cplc.col_range.end - cplc.col_range.start)
+                    if cplc.row_range.end != cplc.row_range.start + 1:
+                        # nontrivial row span
+                        attrs['rowspan'] = str(cplc.row_range.end - cplc.row_range.start)
+                    row_items.append(
+                        self.wrap_in_tag(
+                            tagname,
+                            rendered_cell_contents,
+                            attrs=attrs,
+                            class_names=clsnames,
+                        )
+                    )
+                    col_j = cplc.col_range.end
+                    continue
+
+                # no need to render a <td> item because the spot is occupied by
+                # a cell with a nontrivial rowspan or colspan.
+                col_j += 1
+
+            data_items.append( row_items )
+            row_j += 1
+
+        s = (
+            "<table>"
+            + ''.join([
+                '<tr>' + ''.join(row_items) + '</tr>'
+                for row_items in data_items
+            ])
+            + "</table>"
+        )
+        return s
+
+
 # ------------------
 
 

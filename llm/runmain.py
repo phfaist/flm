@@ -242,18 +242,20 @@ default_config = dict(
                     )
                 ),
                 dict(
-                    name='llm.feature.floats.FeatureFloatsIncludeGraphicsOnly',
+                    name='llm.feature.floats.FeatureFloats',
                     config=dict(
                         float_types=[
                             dict(
                                 float_type='figure',
                                 float_caption_name='Fig.',
                                 counter_formatter='Roman',
+                                content_handlers=['includegraphics'],
                             ),
                             dict(
                                 float_type='table',
                                 float_caption_name='Tab.',
                                 counter_formatter='Roman',
+                                content_handlers=['cells', 'includegraphics'],
                             ),
                         ]
                     )
@@ -741,6 +743,44 @@ figure.float figcaption > span {
   text-align: left;
 }
 
+table {
+  margin: 1em 0px 1em 0px;
+  border-collapse: collapse;
+  border-top: solid 1pt;
+  border-bottom: solid 1pt;
+}
+td {
+  padding: 0.3em 0.5em;
+}
+th {
+  padding: 0.4em 0.6em;
+  border-bottom: solid .5pt;
+}
+.cellstyle-l {
+  text-align: left;
+}
+.cellstyle-c {
+  text-align: center;
+}
+.cellstyle-r {
+  text-align: right;
+}
+.cellstyle-green {
+  background-color: rgb(200,255,200);
+}
+.cellstyle-yellow {
+  background-color: rgb(255,255,200);
+}
+.cellstyle-red {
+  background-color: rgb(255,200,200);
+}
+.cellstyle-lvert {
+  border-left: solid .5pt;
+}
+.cellstyle-rvert {
+  border-right: solid .5pt;
+}
+
 .defterm {
   font-style: italic;
 }
@@ -807,8 +847,6 @@ function typesetPageMathPromise()
     return MathJax.typesetPromise(elements);
 }
   </script>
-  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
 <article>
@@ -816,6 +854,8 @@ function typesetPageMathPromise()
 
 _html_minimal_document_post = r"""
 </article>
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </body>
 </html>
 """.strip()
