@@ -587,7 +587,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
                     )
                     clsnames = ['cell'] + [ f"cellstyle-{sty}" for sty in cell.styles ]
                     tagname = 'td'
-                    if 'H' in cell.styles:
+                    if 'H' in cell.styles or 'rH' in cell.styles:
                         tagname = 'th'
                     attrs = {}
                     cplc = cell.placement
