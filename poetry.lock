@@ -285,7 +285,7 @@ buildjslib = ["Transcrypt (>=3.9.0,<4.0.0)", "PyYAML (>=6.0,<7.0)"]
 type = "git"
 url = "https://github.com/phfaist/pylatexenc.git"
 reference = "devel"
-resolved_reference = "6733b3a4f8253d28f0c5113180b42f6c0b53e3c7"
+resolved_reference = "c76aa245bffc768dff0b0b5df6e9f78f4444cddc"
 
 [[package]]
 name = "pyparsing"
