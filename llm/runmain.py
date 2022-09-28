@@ -724,7 +724,7 @@ figure.float .float-contents {
 
 figure.float .float-contents img {
   display: block;
-  margin: 0pt;
+  margin: 0pt auto;
   padding: 0pt;
   border: 0pt;
   margin: 0px auto;
@@ -749,12 +749,19 @@ table {
   border-top: solid 1pt;
   border-bottom: solid 1pt;
 }
+figure.float .float-contents table {
+  margin: 0px auto;
+}
 td {
   padding: 0.3em 0.5em;
 }
 th {
-  padding: 0.4em 0.6em;
+  padding: 0.3em 0.5em;
+}
+th.cellstyle-H {
   border-bottom: solid .5pt;
+}
+th.cellstyle-rH {
 }
 .cellstyle-l {
   text-align: left;
