@@ -130,8 +130,13 @@ Here's a basic parser configuration that you can adapt:
 ```yaml
 llm:
   parsing:
-    # Enable/Disable comments as in LaTeX, led by ‘%’
-    enable_comments: false
+    # Enable/Disable comments as in LaTeX, led by ‘%%’
+    enable_comments: true
+    # This string initiates a comment up to the end of
+    # the line, if comments are enabled.  By default we
+    # require TWO '%' signs to avoid accidental comments
+    # (e.g., "... is up 10% from ...")
+    comment_start: '%%'
     # Enable/Disable math mode with $ signs as in LaTeX
     # in addition to \( ...\)
     dollar_inline_math_mode: false
