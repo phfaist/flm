@@ -54,7 +54,7 @@ class LLMFragment:
             what='(unknown)',
             silent=False,
             parsing_mode=None, # see LLMEnvironment.get_parsing_state(parsing_mode=)
-            _llm_text_if_loading_nodes=None
+            _llm_text_if_loading_nodes=None,
     ):
 
         self.llm_text = llm_text

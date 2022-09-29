@@ -549,7 +549,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         src_url = graphics_resource.src_url
         imgattrs['src'] = src_url
 
-        if graphics_resource.srcset:
+        if graphics_resource.srcset is not None and len(graphics_resource.srcset):
             imgattrs['srcset'] = graphics_resource.srcset
 
         # HTML does not require any closing tag
