@@ -175,8 +175,11 @@ class LLMFragment:
         node_visitor.start(self.nodes)
 
 
+    def is_empty(self):
+        return len(self.llm_text.strip()) == 0
+
     def __bool__(self):
-        return len(self.llm_text) > 0
+        return not self.is_empty()
 
     def __repr__(self):
         thellmtext = self.llm_text
