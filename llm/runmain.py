@@ -775,6 +775,9 @@ th.cellstyle-rH {
 .cellstyle-green {
   background-color: rgb(200,255,200);
 }
+.cellstyle-blue {
+  background-color: rgb(200,220,255);
+}
 .cellstyle-yellow {
   background-color: rgb(255,255,200);
 }
