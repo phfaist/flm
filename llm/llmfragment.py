@@ -54,6 +54,7 @@ class LLMFragment:
             what='(unknown)',
             silent=False,
             parsing_mode=None, # see LLMEnvironment.get_parsing_state(parsing_mode=)
+            input_lineno_colno_offsets=None,
             _llm_text_if_loading_nodes=None,
     ):
 
@@ -90,6 +91,7 @@ class LLMFragment:
                     what=self.what,
                     resource_info=self.resource_info,
                     parsing_mode=self.parsing_mode,
+                    input_lineno_colno_offsets=input_lineno_colno_offsets,
                 )
         except latexnodes.LatexWalkerParseError as e:
             if not self.silent:
@@ -150,6 +152,7 @@ class LLMFragment:
               standalone_mode=False, tolerant_parsing=None,
               is_block_level=None, parsing_mode=None,
               resource_info=None, what=None,
+              input_lineno_colno_offsets=None,
               ):
 
         logger.debug("Parsing LLM content %r", llm_text)
@@ -162,6 +165,7 @@ class LLMFragment:
             standalone_mode=standalone_mode,
             tolerant_parsing=tolerant_parsing,
             what=what,
+            input_lineno_colno_offsets=input_lineno_colno_offsets,
         )
 
         nodes, _ = latex_walker.parse_content(

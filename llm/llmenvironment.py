@@ -411,7 +411,9 @@ class LLMEnvironment:
                           parsing_mode=None,
                           resource_info=None,
                           tolerant_parsing=None,
-                          what=None):
+                          what=None,
+                          input_lineno_colno_offsets=None,
+                          ):
 
         # logger.debug("Parsing state walker event handler = %r",
         #              self.parsing_state_event_handler,)
@@ -424,6 +426,9 @@ class LLMEnvironment:
         if tolerant_parsing is None:
             tolerant_parsing = self.tolerant_parsing
 
+        if input_lineno_colno_offsets is None:
+            input_lineno_colno_offsets = {}
+
         latex_walker = LLMLatexWalker(
             llm_text=llm_text,
             default_parsing_state=default_parsing_state,
@@ -434,6 +439,11 @@ class LLMEnvironment:
             resource_info=resource_info,
             what=what,
             parsing_state_event_handler=self.parsing_state_event_handler,
+            #
+            line_number_offset=input_lineno_colno_offsets.get('line_number_offset', None),
+            first_line_column_offset=
+                input_lineno_colno_offsets.get('first_line_column_offset', None),
+            column_offset=input_lineno_colno_offsets.get('column_offset', None),
         )
 
         return latex_walker

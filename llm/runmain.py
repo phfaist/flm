@@ -1,5 +1,6 @@
 import os.path
 import sys
+import re
 import fileinput
 import json
 from urllib.parse import urlparse
@@ -446,6 +447,15 @@ def runmain(args):
 
     metadata, llm_content = frontmatter.parse(input_content)
 
+    # compute line number offset (it doesn't look like I can grab this from the
+    # `frontmatter` module's result :/
+    rx_frontmatter = re.compile(r"^-{3,}\s*$\s*", re.MULTILINE) # \s also matches newline
+    m = rx_frontmatter.search(input_content) # top separator
+    if m is not None:
+        m = rx_frontmatter.search(input_content, m.end()) # below the front matter
+    if m is not None:
+        line_number_offset = input_content[:m.end()].count('\n') + 1
+
     # load config & defaults
 
     config_file = args.config
@@ -510,6 +520,9 @@ def runmain(args):
         llm_content,
         is_block_level=args.force_block_level,
         silent=True, # we'll report errors ourselves
+        input_lineno_colno_offsets={
+            'line_number_offset': line_number_offset,
+        }
     )
 
     # give access to metadata to render functions -- e.g., we might want to put

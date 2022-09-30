@@ -177,6 +177,44 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         raise ValueError(f"Ref target not found: ‘{ref_type}:{ref_label}’")
 
 
+    def render_ref(self, ref_type, ref_label, display_content_llm,
+                   resource_info, render_context):
+
+        fragment_renderer = render_context.fragment_renderer
+
+        try:
+            ref_instance = self.get_ref(ref_type, ref_label, resource_info)
+        except Exception as e:
+            raise ValueError(
+                f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
+                f"[in {repr(resource_info)}"
+            )
+
+        if display_content_llm is None:
+                display_content_llm = ref_instance.formatted_ref_llm_text
+
+        if not isinstance(display_content_llm, LLMFragment):
+            display_content_llm = render_context.doc.environment.make_fragment(
+                display_content_llm,
+                standalone_mode=True
+            )
+
+        display_content_nodelist = display_content_llm.nodes
+
+
+        return fragment_renderer.render_link(
+            'ref',
+            ref_instance.target_href,
+            display_content_nodelist,
+            render_context=render_context,
+            annotations=[f'ref-{ref_type}',], # TODO: add annotation for external links etc. ??
+        )
+
+
+
+
+
+
 
 class FeatureRefs(Feature):
     r"""
@@ -277,8 +315,6 @@ class RefMacro(LLMMacroSpecBase):
 
     def render(self, node, render_context):
 
-        fragment_renderer = render_context.fragment_renderer
-
         ref_type, ref_label = node.llm_ref_info['ref_type_and_target']
         display_content_nodelist = node.llm_ref_info['display_content_nodelist']
 
@@ -287,31 +323,14 @@ class RefMacro(LLMMacroSpecBase):
         resource_info = node.latex_walker.resource_info
 
         try:
-            ref_instance = mgr.get_ref(ref_type, ref_label, resource_info)
+            return mgr.render_ref(ref_type, ref_label,
+                                  display_content_nodelist,
+                                  resource_info, render_context)
         except Exception as e:
+            logger.error(f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
+                         f"in ‘{node.latex_verbatim()}’ @ {node.format_pos()}")
             raise LatexWalkerParseError(
                 f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e}",
                 pos=node.pos,
             )
-
-        if display_content_nodelist is None:
-            if isinstance(ref_instance.formatted_ref_llm_text, LLMFragment):
-                display_content_llm = ref_instance.formatted_ref_llm_text
-            else:
-                display_content_llm = render_context.doc.environment.make_fragment(
-                    ref_instance.formatted_ref_llm_text,
-                    standalone_mode=True
-                )
-            display_content_nodelist = display_content_llm.nodes
-
-
-        return fragment_renderer.render_link(
-            'ref',
-            ref_instance.target_href,
-            display_content_nodelist,
-            render_context=render_context,
-            annotations=[f'ref-{ref_type}',], # TODO: add annotation for external links etc. ??
-        )
-
-
 
