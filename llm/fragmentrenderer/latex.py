@@ -49,7 +49,7 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.latex_encoder = UnicodeToLatexEncoder()
+        self.latex_encoder = UnicodeToLatexEncoder(unknown_char_policy='unihex')
 
     # ------------------
 
