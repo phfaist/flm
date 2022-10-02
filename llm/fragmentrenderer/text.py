@@ -6,6 +6,10 @@ class TextFragmentRenderer(FragmentRenderer):
 
     display_href_urls = True
 
+    float_separator_top = '·'*80
+    float_separator_bottom = '·'*80
+
+
     #supports_delayed_render_markers = False # -- inherited already
 
     def render_value(self, value):
@@ -186,10 +190,10 @@ class TextFragmentRenderer(FragmentRenderer):
         else:
             float_content_with_caption = float_content_block
 
-        fig_sep = '·'*80
-
         return (
-            fig_sep + '\n' + float_content_with_caption + '\n' + fig_sep
+            self.float_separator_top
+            + '\n' + float_content_with_caption + '\n'
+            + self.float_separator_bottom
         )
 
 
