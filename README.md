@@ -75,9 +75,11 @@ You can use `llm` in command-line mode to compile your documents:
 $ llm mydocument.llm
 ```
 
-Run `llm --help` to get a list of options. They should be self-explanatory:
+Run `llm --help` to get a list of options. They should be fairly
+standard and/or self-explanatory:
 ```bash
-$ # output to file mydocument.html, format HTML, including skeleton HTML with basic CSS
+# output to file mydocument.html, format HTML, including skeleton
+# HTML structure with minimal CSS.
 $ llm mydocument.llm -o mydocument.html --format=html --minimal-document
 ```
 
