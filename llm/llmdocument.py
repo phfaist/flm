@@ -75,7 +75,7 @@ class LLMDocument:
 
         if feature_document_options is None:
             feature_document_options = {}
-        self.feature_document_options = feature_document_options
+        self.feature_document_options = dict(feature_document_options)
 
         self.feature_document_managers = [
             ( (f.feature_name, f.DocumentManager(f, self))
