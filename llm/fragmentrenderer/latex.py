@@ -125,7 +125,7 @@ class LatexFragmentRenderer(FragmentRenderer):
         else:
             last_line = a
         if '%' in last_line:
-            print(f"LAST LINE COMMENT -> {a=}, {last_line=}, {b=}")
+            #print(f"(potential) LAST LINE COMMENT -> {a=}, {last_line=}, {b=}")
             return a + '\n' + b
         if re.search(r'\\[a-zA-Z]+$', a) is not None:
             # ends with named macro, need space
@@ -471,6 +471,27 @@ class LatexFragmentRenderer(FragmentRenderer):
 
         return r'\includegraphics' + whopt + '{' + graphics_resource.src_url + '}'
 
+
+
+    def render_cells(self, cells_model, render_context, target_id=None):
+
+        # no support for styles yet ...
+        logger.warning("LaTeX output only has very rudimentary support for tables !")
+
+        s = r'\begin{tabular}{' + 'c'*cells_model.cells_size[1] + r'}' + '\n'
+
+        for row in cells_model.grid_data:
+            s_rowitems = []
+            for cellinfo in row:
+                s_rowitems.append( self.render_nodelist(
+                    cellinfo['cell'].content_nodes,
+                    render_context=render_context,
+                ) )
+            s += '&'.join(s_rowitems) + '\\\\' + '\n'
+
+        s += r'\end{tabular}'
+
+        return s
 
 # ------------------
 

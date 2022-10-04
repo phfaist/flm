@@ -263,6 +263,9 @@ class CellsModel:
         self.cells_size = [None, None] # rows, columns.  None = TBD
         self.cells_data = [] # list of cells instruction.
 
+        self.grid_data = None
+
+
     _fields = ('cells_size', 'cells_data',)
 
     def __repr__(self):
