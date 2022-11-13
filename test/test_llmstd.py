@@ -114,6 +114,36 @@ Here is the equation:
 
 
 
+
+    def test_standalone_fragment_with_math(self):
+
+        environ = LLMStandardEnvironment()
+
+        frag1 = environ.make_fragment(
+            r"""Variable \(x\)""",
+            standalone_mode=True
+        )
+
+        def render_fn(render_context):
+            return frag1.render(render_context)
+
+        doc = environ.make_document(render_fn)
+
+        fr = HtmlFragmentRenderer()
+        fr.html_blocks_joiner = ''
+
+        result, _ = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result,
+            r"""Variable <span class="inline-math">\(x\)</span>"""
+        )
+
+
+
+
+
+
     def test_provides_href(self):
 
         environ = LLMStandardEnvironment()
