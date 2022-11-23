@@ -380,7 +380,7 @@ class _NodeListTruncator:
             self.count += my_length
             return None
 
-        return True # True == stop here, don't include any node
+        return True # True == stop here, don't include this node
 
     def collect_nodes_simplenode(self, node):
 
@@ -423,6 +423,8 @@ class _NodeListTruncator:
             # include this node and stop here
             return node
             
+        # stop here and don't include this node
+        return True
 
 
     def estimate_simple_node_char_count(self, node):
@@ -440,3 +442,4 @@ class _NodeListTruncator:
         if node.isNodeType(latexnodes_nodes.LatexCommentNode):
             return 0
 
+        return 0

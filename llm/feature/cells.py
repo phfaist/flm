@@ -190,7 +190,7 @@ class CellModel:
 
 def _splfysidews(s):
     # simplify white space on the sides
-    return re.sub('(^\s+|\s+$)', ' ', s)
+    return re.sub(r'(^\s+|\s+$)', ' ', s)
 
 # ------------------
 

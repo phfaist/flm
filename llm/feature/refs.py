@@ -283,7 +283,7 @@ class RefMacro(LLMMacroSpecBase):
         self.command_arguments = [ c.replace('[]','') for c in command_arguments ]
         
     @classmethod
-    def _get_arguments_spec_list(self, command_arguments):
+    def _get_arguments_spec_list(cls, command_arguments):
         return [ _ref_arg_specs[argname]
                  for argname in command_arguments ]
 
