@@ -71,7 +71,7 @@ class _MyTestFragmentRenderer(FragmentRenderer):
         _register_call(self.store, 'render_verbatim', (value, annotations, target_id,))
         return value
 
-    def render_link(self, ref_type, href, display_content_nodelist):
+    def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
         _register_call(self.store, 'render_link', (ref_type, href,))
         return display_content + ' <' + href + '>'
 

@@ -477,7 +477,8 @@ class LLMEnvironment:
             if not kwargs.get('silent', False):
                 logger.error(
                     "Error compiling fragment for {}\nContent was:\n‘{}’\n"
-                    .format( kwargs.get('what','(unknown)'), llm_text, exc_info=True)
+                    .format( kwargs.get('what','(unknown)'), llm_text ),
+                    exc_info=True
                 )
             raise
 

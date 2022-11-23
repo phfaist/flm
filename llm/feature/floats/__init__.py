@@ -259,7 +259,7 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
                 )
             except LatexWalkerParseError as e:
                 errors.append(f"*** {content_handler.__class__.__name__} error: {str(e)}")
-                pass # ignore error
+                #pass # ignore error
 
         if final_content_nodes is None:
             # no content handler accepted this float's content node list
