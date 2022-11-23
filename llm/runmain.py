@@ -426,7 +426,10 @@ def runmain(args):
     # Get the LLM content
 
     input_content = ''
+    dirname = None
+    basename = None
     jobname = 'unknown-jobname'
+    jobnameext = None
     if args.llm_content:
         if args.files:
             raise ValueError(
@@ -453,6 +456,7 @@ def runmain(args):
     m = rx_frontmatter.search(input_content) # top separator
     if m is not None:
         m = rx_frontmatter.search(input_content, m.end()) # below the front matter
+    line_number_offset = 0
     if m is not None:
         line_number_offset = input_content[:m.end()].count('\n') + 1
 
