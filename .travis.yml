@@ -13,6 +13,7 @@ python:
   - "3.11"
 
 before_install:
+  - pip install --upgrade pip setuptools wheel
   - pip install poetry
 install:
   - poetry install

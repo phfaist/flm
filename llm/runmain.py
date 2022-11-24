@@ -43,27 +43,28 @@ from .feature.enumeration import default_enumeration_environments
 
 # --------------------------------------
 
+from typing import Union, Optional
 
 @dataclass
 class LLMMainArguments:
 
-    llm_content : str|None
+    llm_content : Optional[str]
 
-    force_block_level : bool|None = None
+    force_block_level : Optional[bool] = None
 
-    config : str|dict|None = None
+    config : Union[str,dict,None] = None
 
-    output : str|io.TextIOBase|None = None
+    output : Union[str,io.TextIOBase,None] = None
 
-    format : str|None = None
+    format : Optional[str] = None
 
     minimal_document : bool = False
 
     suppress_final_newline : bool = False
 
-    verbose : bool|int = False
+    verbose : Union[bool,int] = False
 
-    files : list|None = None
+    files : Optional[list] = None
 
 
 # --------------------------------------
