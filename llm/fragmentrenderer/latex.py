@@ -315,11 +315,6 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
 
-        # if not annotations:
-        #     annotations = []
-        # else:
-        #     annotations = [a.replace('\n', ' ') for a in annotations]
-
         display_content = self.render_nodelist(
             display_nodelist,
             render_context=render_context,

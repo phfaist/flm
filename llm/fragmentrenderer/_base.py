@@ -226,10 +226,13 @@ class FragmentRenderer:
         rendered_blocks = []
 
         for block in node_blocks:
+
             if isinstance(block, nodes.LatexNodeList):
-                rendered_blocks.append( self.render_build_paragraph(block, render_context) )
+                para = self.render_build_paragraph(block, render_context)
             else:
-                rendered_blocks.append( self.render_node(block, render_context) )
+                para = self.render_node(block, render_context)
+
+            rendered_blocks.append( para )
 
         return self.render_join_blocks( rendered_blocks )
 
@@ -260,7 +263,7 @@ class FragmentRenderer:
         to simply join the strings together with no joiner, which is what the
         default implementation does.
         """
-        return "\n\n".join(content_list)
+        return "\n\n".join([c for c in content_list if c is not None and len(c)])
 
 
     # ---

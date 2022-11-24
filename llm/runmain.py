@@ -6,6 +6,10 @@ import json
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
+import io
+
+from dataclasses import dataclass
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -37,12 +41,33 @@ from .feature.enumeration import default_enumeration_environments
 
 
 
-LLMMainArguments = namedtuple('LLMMainArguments',
-                              ['llm_content', 'files', 'config', 'format', 'output',
-                               'suppress_final_newline', 'verbose'],
-                              defaults=[None, None, None, None, None,
-                                        False, False],
-                              )
+# --------------------------------------
+
+
+@dataclass
+class LLMMainArguments:
+
+    llm_content : str|None
+
+    force_block_level : bool|None = None
+
+    config : str|dict|None = None
+
+    output : str|io.TextIOBase|None = None
+
+    format : str|None = None
+
+    minimal_document : bool = False
+
+    suppress_final_newline : bool = False
+
+    verbose : bool|int = False
+
+    files : list|None = None
+
+
+# --------------------------------------
+
 
 
 
@@ -279,7 +304,8 @@ default_config = dict(
                     use_link_target_blank=False,
                     html_blocks_joiner="",
                     heading_tags_by_level=HtmlFragmentRenderer.heading_tags_by_level,
-                    inline_heading_add_space=True
+                    inline_heading_add_space=True,
+                    render_nothing_as_comment_with_annotations=False,
                 )
             ),
         )
@@ -423,6 +449,11 @@ def runmain(args):
     logger = logging.getLogger(__name__)
 
 
+    if args.format is None:
+        raise ValueError(
+            "No output format specified!"
+        )
+
     # Get the LLM content
 
     input_content = ''
@@ -430,13 +461,20 @@ def runmain(args):
     basename = None
     jobname = 'unknown-jobname'
     jobnameext = None
-    if args.llm_content:
-        if args.files:
+    if args.llm_content is not None:
+        if args.files is not None and len(args.files):
             raise ValueError(
                 "You cannot specify both FILEs and --llm-content options. "
                 "Type `llm --help` for more information."
             )
         input_content = args.llm_content
+    elif args.files is None:
+        # doesn't happen on the command line because args.files is always a
+        # list, possibly an empty one.  This trap is only useful for
+        # programmatic invocation of runmain()
+        raise ValueError(
+            r"No input specified. Please use llm_content or specify input files."
+        )
     else:
         if len(args.files) >= 1 and args.files[0] != '-':
             dirname, basename = os.path.split(args.files[0])
@@ -468,6 +506,8 @@ def runmain(args):
         # parse a YAML file
         with open(config_file) as f:
             orig_config = yaml.safe_load(f)
+    elif isinstance(config_file, dict):
+        orig_config = config_file
     else:
         # see if there's a llmconfig.(yaml|yml) in the current directory, and
         # load that one if applicable.
@@ -584,6 +624,9 @@ def runmain(args):
     def open_context_fout():
         if not args.output or args.output == '-':
             return _TrivialContextManager(sys.stdout)
+        elif hasattr(args.output, 'write'):
+            # it's a file-like object, use it directly
+            return _TrivialContextManager(args.output)
         else:
             return open(args.output, 'w')
 

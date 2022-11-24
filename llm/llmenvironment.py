@@ -89,22 +89,41 @@ class BlocksBuilder:
             return paragraph_nodes
 
         # simplify white space correctly.
-        lastj = len(paragraph_nodes) - 1
+
+        is_head = True
+        tail_char_node_info = None
+        first_node = None
+        char_nodes = []
         for j, node in enumerate(paragraph_nodes):
 
-            is_head = (j == 0)
-            if j == 1 and getattr(paragraph_nodes[0], 'llm_is_block_heading', False):
+            if len(char_nodes) == 0 and first_node is not None \
+               and getattr(first_node, 'llm_is_block_heading', False):
                 # second item, but the first one was actually the paragraph
                 # run-in header -- this still counts as head
                 is_head = True
 
             if node.isNodeType(latexnodes_nodes.LatexCharsNode):
-                node.llm_chars_value = self.simplify_whitespace_chars(
-                    node.chars,
-                    is_head=is_head,
-                    is_tail=(j==lastj)
-                )
-                logger.debug(f"simplifying whitespace for chars node, {is_head=} {j=} {node=} --> {node.llm_chars_value=}")
+                info = {'is_head': is_head, 'is_tail': False}
+                char_nodes.append( (node, info ) )
+                is_head = False
+                tail_char_node_info = info
+            elif not node.isNodeType(latexnodes_nodes.LatexCommentNode):
+                if first_node is None:
+                    first_node = node
+                is_head = False
+                tail_char_node_info = None
+
+        # find last char_node and mark it is_tail:
+        if tail_char_node_info is not None:
+            tail_char_node_info['is_tail'] = True
+
+        for (char_node, info) in char_nodes:
+            char_node.llm_chars_value = self.simplify_whitespace_chars(
+                char_node.chars,
+                is_head=info['is_head'],
+                is_tail=info['is_tail'],
+            )
+            logger.debug(f"simplifying whitespace for chars node, {info['is_head']=} {char_node=} --> {char_node.llm_chars_value=}")
 
         return paragraph_nodes
 
@@ -466,7 +485,11 @@ class LLMEnvironment:
                     latex_walker=None
                 )
 
-        return default_parsing_state.sub_context(is_block_level=is_block_level)
+        kwargs = {}
+        if is_block_level is not None:
+            kwargs['is_block_level'] = is_block_level
+
+        return default_parsing_state.sub_context(**kwargs)
 
 
     def make_fragment(self, llm_text, **kwargs):

@@ -65,7 +65,7 @@ class LLMLatexWalkerParsingStateEventHandler(
 
 
 
-_parsing_state_event_handler = LLMLatexWalkerParsingStateEventHandler()
+# _parsing_state_event_handler = LLMLatexWalkerParsingStateEventHandler()
 
 
 # ------------------------------------------------------------------------------

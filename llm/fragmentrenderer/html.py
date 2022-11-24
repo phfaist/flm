@@ -89,6 +89,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
     `aggressively_escape_html_attributes=False`.
     """
 
+    render_nothing_as_comment_with_annotations = True
+
     # ------------------
 
     
@@ -192,7 +194,9 @@ class HtmlFragmentRenderer(FragmentRenderer):
         to simply join the strings together with no joiner, which is what the
         default implementation does.
         """
-        return self.html_blocks_joiner.join(content_list)
+        return self.html_blocks_joiner.join(
+            [c for c in content_list if c is not None and len(c)]
+        )
 
 
     # ------------------
@@ -205,6 +209,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
         return f"<span class=\"empty-error-placeholder\"><!-- {debug_str_safe} -->(?)</span>"
 
     def render_nothing(self, annotations=None):
+        if not self.render_nothing_as_comment_with_annotations:
+            return ''
         if not annotations:
             annotations = []
         annotations = [a.replace('--', '- - ') for a in annotations]
