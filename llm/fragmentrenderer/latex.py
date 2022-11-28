@@ -20,7 +20,7 @@ class LatexFragmentRenderer(FragmentRenderer):
 
 
     supports_delayed_render_markers = True
-    """
+    r"""
     We use the marker ``\LLMDLYD{delayed_key}`` for delayed content, which
     cannot be confused with the rest of the LaTeX code that can be generated
     from this code generator.
@@ -337,7 +337,7 @@ class LatexFragmentRenderer(FragmentRenderer):
         )
 
     def render_latex_link_href(self, display_content, href):
-        return r'\href{' + href.replace('%','\%') + '}{' + display_content + '}'
+        return r'\href{' + href.replace(r'%',r'\%') + r'}{' + display_content + r'}'
     
     def render_delayed_marker(self, node, delayed_key, render_context):
         return r"\LLMDLYD{" + str(delayed_key) + "}"
