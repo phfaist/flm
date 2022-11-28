@@ -1,0 +1,43 @@
+
+name: tests-ci
+
+on:
+  push:
+    branches:
+      - '$default-branch'
+  pull_request:
+    branches:
+      - '$default-branch'
+
+jobs:
+  tests-ci:
+
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version:
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
+        poetry-version:
+          - "1.2"
+        os:
+          - 'ubuntu-18.04'
+
+    runs-on: '${{ matrix.os }}'
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '${{ matrix.python-version }}'
+      - name: 'Set up poetry - Run image'
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: '${{ matrix.poetry-version }}'
+      - name: 'Poetry Install'
+        run: poetry install
+
+      - name: 'Run tests'
+        run: poetry run pytest
