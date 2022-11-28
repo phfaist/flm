@@ -1,13 +1,14 @@
 
-name: tests-ci
+name: 'tests-ci'
+
 
 on:
   push:
-    branches:
-      - '$default-branch'
+    branches: [ "main" ]
   pull_request:
-    branches:
-      - '$default-branch'
+    branches: [ "main" ]
+  schedule:
+    - cron: "13 20 * * 3"
 
 jobs:
   tests-ci:
