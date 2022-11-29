@@ -116,15 +116,24 @@ As you can see, there are a few options you can set and a few special instructio
 in the config that are led by the `$preset:` key.  The `$preset: defaults` item in
 a list imports all the existing defaults for that list. The `$preset: merge-config`
 is used to alter the configuration of an already-declared feature.  Additionally
-you can use the `$preset: import` to import a configuration from an external file or
+you can use the `$import:` directive to import a configuration from an external file or
 URL:
 ```yaml
 # merge my-llm-config.yaml into this config
-$preset: import
-$target: my-llm-config.yaml # also URLs like https://mysite.com/my-llm-config.yaml
+$import: my-llm-config.yaml # also URLs like https://mysite.com/my-llm-config.yaml
 llm:
    ... # can still specify configuration to merge with here ...
 ```
+
+The import target can be a list.  Each list item can be a relative or absolute
+file path, a URL, or a fully qualified python package name introduced with
+``pkg:package_name``.  If a package name is specified, the package is loaded and
+the default LLM configuration is extracted from it and included (the
+`llm_default_import_config` attribute of the module is read; it is assumed to be
+a dictionary).  You can optionally follow the package name by a path to specify
+submodules/attributes to read instead of `llm_default_import_config`; e.g.,
+``pkg:mypackage/foo/bar`` will import the module `mypackage` and import the
+configuration dictionary stored in ``mypackage.foo.bar``.
 
 ### Parser configuration
 
@@ -237,15 +246,17 @@ llm:
           set_headings_target_ids: true
           endnotes_heading_title: null
           endnotes_heading_level: 1
-    - name: llm.feature.floats.FeatureFloatsIncludeGraphicsOnly
+    - name: llm.feature.floats.FeatureFloats
       config:
         float_types:
           - counter_formatter: Roman
             float_caption_name: Fig.
             float_type: figure
+            content_handlers: ['any', 'includegraphics', 'cells']
           - counter_formatter: Roman
             float_caption_name: Tab.
             float_type: table
+            content_handlers: ['cells']
     - name: llm.feature.defterm.FeatureDefTerm
     - name: llm.feature.graphics.FeatureSimplePathGraphicsResourceProvider
 ```

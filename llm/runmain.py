@@ -134,6 +134,19 @@ class _PresetImport:
         if not u.scheme or u.scheme == 'file':
             with open(u.path) as f:
                 return yaml.safe_load(f)
+        if u.scheme == 'pkg':
+            modname, *modargs = u.path.split('/')
+            mod = importlib.import_module(modname)
+            if len(modargs) == 0:
+                modargs = [ 'llm_default_import_config' ]
+            try:
+                obj = mod
+                for part in modargs:
+                    obj = getattr(obj, part)
+                return obj
+            except AttributeError:
+                raise ValueError("Invalid preset $import target: ‘{}’".format(remote))
+            return 
         with urlopen(remote) as response:
             # also works for JSON, since YAML is a superset of JSON
             return yaml.safe_load( response.read() )
@@ -176,11 +189,30 @@ _presets = {
     'merge-config': _PresetMergeConfig(),
     'remove-item': _PresetRemoveItem(),
     'import': _PresetImport(),
-};
+}
+
+def _preset_object_shorthand_import(obj, value):
+    obj['$preset'] = 'import'
+    obj['$target'] = value
+
+_preset_object_shorthands = {
+    '$import': _preset_object_shorthand_import,
+}
+
+#
+# FIXME: CHANGE ALL THIS $preset NONSENSE AND MAP ALL KEYS TO $-keys like
+# "$import: ['a', 'b', 'c']", "- $defaults", '- $remove-item: blabla', etc.
+#
 
 def recursive_assign_defaults(obj1, obj2):
 
     logger.debug(f"recursive_assign_defaults({obj1=}, {obj2=})")
+
+    # check for shorthands
+    for sh in _preset_object_shorthands:
+        if sh in obj1:
+            _preset_object_shorthands[sh](obj1, obj1[sh])
+            del obj1[sh]
 
     # process any root preset
     if '$preset' in obj1:
@@ -226,7 +258,8 @@ default_config = dict(
     _base=dict(
         llm=dict(
             parsing=dict(
-                enable_comments=False,
+                enable_comments=True,
+                comment_start='%%',
                 dollar_inline_math_mode=False,
                 force_block_level=None,
             ),
@@ -532,6 +565,7 @@ def runmain(args):
     config = {}
     for configdefaults in config_chain:
         recursive_assign_defaults(config, configdefaults)
+    
 
     logger.debug(f"Using config:\n{json.dumps(config,indent=4)}")
 
