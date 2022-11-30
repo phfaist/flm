@@ -42,7 +42,7 @@ def main(cmdargs=None):
                              f"{', '.join(preset_fragment_renderer_classes.keys())} or a "
                              "fully specified class name for a FragmentRenderer class.")
 
-    args_parser.add_argument('--minimal-document', action='store_true',
+    args_parser.add_argument('-D', '--minimal-document', action='store_true',
                              default=None,
                              help="Produce a minimal document preamble/postambule to form "
                              "a self-contained document.  Only applicable to specific "
