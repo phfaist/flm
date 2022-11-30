@@ -682,6 +682,9 @@ p:first-child, ul:first-child, ol:first-child {
 p:last-child, ul:last-child, ol:last-child {
   margin-bottom: 0px;
 }
+dd > p, dd > p:first-child, dd > p:last-child {
+  margin: 0.33em 0px;
+}
 
 a, a:link, a:hover, a:active, a:visited {
   color: #3232c8;
@@ -749,19 +752,26 @@ h3 {
 }
 
 dl.enumeration {
-  display: grid;
-  grid-template-columns: 0fr 1fr;
-  gap: 0.5em;
+  display: block;
+  margin-left: 2.5em;
 }
 dl.enumeration > dt {
-  grid-column-start: 1;
-  grid-column-end: 2;
+  float: left;
+  clear: left;
+  display: inline-block;
+  /*margin: 0px; */
+  margin-left: -2.5em;
+  width: 2.0em;
+  min-width: 2.0em;
+  max-width: 2.0em;
+  margin-right: 0.5em;
   text-align: right;
-  margin: 0px;
 }
 dl.enumeration > dd {
-  grid-column-start: 2;
-  grid-column-end: 3;
+  /*display: inline-block;
+  width: 100%;*/
+  border: 0px;
+  padding: 0px;
   margin: 0px;
 }
 
