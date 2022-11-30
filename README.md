@@ -95,45 +95,57 @@ as a title.
 ---
 title: 'My LLM document'
 llm:
+   parsing:
+     enable_dollar_math_mode: True
    features:
-     - $preset: defaults
-     - $preset: merge-config
-       $name: llm.feature.endnotes.FeatureEndnotes
-       $config:
-         categories:
-           - category_name: footnote
-             counter_formatter: unicodesuperscript
-             heading_title: 'Footnotes'
-             endnote_command: 'footnote'
+     - $defaults: # use the default list of features
+     - $merge-config: # change one feature's configuration
+         name: llm.feature.endnotes.FeatureEndnotes
+         config:
+           categories:
+             - category_name: footnote
+               counter_formatter: unicodesuperscript
+               heading_title: 'Footnotes'
+               endnote_command: 'footnote'
 ---
 
 \section{Greeting}
-Hello, \emph{world}. ...
+Hello, \emph{world}. Inline math can now also be typeset
+as $a$ and $b$.  ...
 
 ```
 
 As you can see, there are a few options you can set and a few special instructions
-in the config that are led by the `$preset:` key.  The `$preset: defaults` item in
-a list imports all the existing defaults for that list. The `$preset: merge-config`
-is used to alter the configuration of an already-declared feature.  Additionally
+in the config that are led by property keys beginning with a dollar sign (`$`).
+The `$defaults:` key imports all the existing defaults for that list.  The `$merge-config:`
+key is used to alter the configuration of an already-declared feature.  Additionally
 you can use the `$import:` directive to import a configuration from an external file or
 URL:
 ```yaml
-# merge my-llm-config.yaml into this config
-$import: my-llm-config.yaml # also URLs like https://mysite.com/my-llm-config.yaml
+$import: my-llm-config.yaml # merge my-llm-config.yaml into this config.
+
+# you can still specify configuration to merge with here ...
+...
 llm:
-   ... # can still specify configuration to merge with here ...
+   ...
 ```
 
-The import target can be a list.  Each list item can be a relative or absolute
-file path, a URL, or a fully qualified python package name introduced with
-``pkg:package_name``.  If a package name is specified, the package is loaded and
-the default LLM configuration is extracted from it and included (the
-`llm_default_import_config` attribute of the module is read; it is assumed to be
-a dictionary).  You can optionally follow the package name by a path to specify
-submodules/attributes to read instead of `llm_default_import_config`; e.g.,
-``pkg:mypackage/foo/bar`` will import the module `mypackage` and import the
-configuration dictionary stored in ``mypackage.foo.bar``.
+The `$import:` target can also be a list to specify multiple configurations to
+import.  Each list item can be a absolute or relative file path (`$import:
+'my-llm-config.yaml'` or `$import: /path/to/my/llm-config.yaml`), a URL
+(`$import: https://example.com/my/llm-config.yaml`), or a fully qualified python
+package name introduced with ``pkg:package_name`` (`$import:
+pkg:llm_citations`).  If a package name is specified to the `$import` directive,
+the package is loaded and the default LLM configuration is extracted from it and
+included (the `llm_default_import_config` attribute of the module is read; it is
+assumed to be a dictionary).  You can optionally follow the package name by a
+path to specify submodules/attributes to read instead of
+`llm_default_import_config`; e.g., ``pkg:mypackage/foo/bar`` will import the
+module `mypackage` and import the configuration dictionary stored in
+``mypackage.foo.bar``.  LLM extention plugin/package authors can use this
+feature to offer preset customization configurations that can easily be included
+with ``pkg:some_llm_extension_package/some/preset/name``.
+
 
 ### Parser configuration
 
@@ -272,8 +284,7 @@ To include for instance the citations feature provided by the
 [llm-citations](https://github.com/phfaist/llm-citations) package, install that package and
 use the config:
 ```yaml
-$preset: import
-$target: https://raw.githubusercontent.com/phfaist/llm-citations/main/llmconfig.yaml
+$import: pkg:llm_citations
 bibliography:
   - bibpreset.yaml
   - anotherbibtest.json
