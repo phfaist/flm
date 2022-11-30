@@ -3,6 +3,7 @@ import sys
 import re
 import fileinput
 import json
+import string
 
 import io
 
@@ -246,33 +247,93 @@ preset_fragment_renderer_classes = {
 }
 
 
-def get_fragment_renderer(argformat, args):
+class RenderWorkflow:
+    binary_output = False
+    def __init__(self, args, fragment_renderer_class=None):
+        self.args = args
+        self._fragment_renderer_class = fragment_renderer_class
+
+    def get_fragment_renderer_class(self):
+        return self._fragment_renderer_class
+
+    def render_document(self, document, fragment_renderer):
+        rendered_content, render_context = \
+            self.render_document_fragments(document, fragment_renderer)
+        final_content = self.postprocess_rendered_document(
+            rendered_content, document, render_context
+        )
+        return final_content
+
+    def render_document_fragments(self, document, fragment_renderer):
+        # Render the main document
+        rendered_result, render_context = document.render(fragment_renderer)
+
+        # Render endnotes
+        if render_context.supports_feature('endnotes'):
+            endnotes_mgr = render_context.feature_render_manager('endnotes')
+            # # find endnotes feature config
+            # endnotes_feature_spec = next(
+            #     spec for spec in config['llm']['features']
+            #     if spec['name'] == 'llm.feature.endnotes.FeatureEndnotes'
+            # )
+
+            endnotes_result = endnotes_mgr.render_endnotes()
+            rendered_result = fragment_renderer.render_join_blocks([
+                rendered_result,
+                endnotes_result,
+            ])
+
+        return rendered_result, render_context
+
+    def postprocess_rendered_document(self, rendered_content, document, render_context):
+        return rendered_content
+
+
+class MinimalDocumentPostprocessor:
+    doc_pre_post = None
+
+    def __init__(self, document, render_context):
+        super().__init__()
+        self.document = document
+        self.render_context = render_context
+
+    def postprocess(self, rendered_content, doc_pre_post=None):
+        if doc_pre_post is None:
+            doc_pre_post = self.doc_pre_post
+        doc_pre, doc_post = doc_pre_post
+        return ''.join([doc_pre, rendered_content, doc_post])
+
+
+class StandardTextBasedRenderWorkflow(RenderWorkflow):
+
+    def get_minimal_document_postprocessor(self, document, render_context):
+        ppcls = _minimal_document_postprocessors[self.format]
+        return ppcls(document, render_context)
+
+    def __init__(self, args, format):
+        super().__init__(args, preset_fragment_renderer_classes[format])
+        self.format = format
+
+    def postprocess_rendered_document(self, rendered_content, document, render_context):
+        if not self.args.minimal_document:
+            return rendered_content
+        pp = self.get_minimal_document_postprocessor(document, render_context)
+        return pp.postprocess(rendered_content)
+
+
+def get_render_workflow(argformat, args):
     r"""
     Should return {'fragment_renderer': <instance>, 'doc_pre': ..., 'doc_post': ... }
     """
 
     if argformat in preset_fragment_renderer_classes:
-        fragment_renderer = preset_fragment_renderer_classes[argformat] ()
+        return StandardTextBasedRenderWorkflow(args, argformat)
     elif '.' in argformat:
-        FragmentRendererClass = importclass(argformat)
-        fragment_renderer = FragmentRendererClass()
+        WorkflowClass = importclass(argformat)
+        return WorkflowClass(args)
     else:
         raise ValueError(f"Unknown format: ‘{argformat}’")
 
-    doc_pre, doc_post = ('','')
-
-    if args.minimal_document:
-        doc_pre, doc_post = _minimal_document_doc_pre_post[argformat]
-
-    get_doc_pre_post = getattr(fragment_renderer, 'get_doc_pre_post', None)
-    if get_doc_pre_post is not None:
-        doc_pre, doc_post = get_doc_pre_post(args)
-
-    return {
-        'fragment_renderer': fragment_renderer,
-        'doc_pre': doc_pre,
-        'doc_post': doc_post,
-    }
 
 
 def setup_features(features_config):
@@ -394,16 +455,14 @@ def runmain(args):
 
     # Set up the format & formatters
 
-    x = get_fragment_renderer(args.format, args)
-    fragment_renderer = x['fragment_renderer']
-    doc_pre = x['doc_pre']
-    doc_post = x['doc_post']
+    workflow = get_render_workflow(args.format, args)
 
+    # fragment_renderer properties from config
+    fragment_renderer_config = config['llm']['fragment_renderer'].get(args.format, {})
 
-    # Set up any fragment_renderer properties from config
+    FragmentRendererClass = workflow.get_fragment_renderer_class()
+    fragment_renderer = FragmentRendererClass(config=fragment_renderer_config)
 
-    for k, v in config['llm']['fragment_renderer'].get(args.format, {}).items():
-        setattr(fragment_renderer, k, v)
 
     # Set up the environment
 
@@ -454,50 +513,32 @@ def runmain(args):
 
 
     #
-    # Render the main document
+    # Render the document according to the workflow
     #
-    result, render_context = doc.render(fragment_renderer)
 
-    #
-    # Render endnotes
-    #
-    if render_context.supports_feature('endnotes'):
-        endnotes_mgr = render_context.feature_render_manager('endnotes')
-        # # find endnotes feature config
-        # endnotes_feature_spec = next(
-        #     spec for spec in config['llm']['features']
-        #     if spec['name'] == 'llm.feature.endnotes.FeatureEndnotes'
-        # )
-        
-        endnotes_result = endnotes_mgr.render_endnotes()
-        result = fragment_renderer.render_join_blocks([
-            result,
-            endnotes_result,
-        ])
+    result = workflow.render_document(doc, fragment_renderer)
+
 
     #
     # Write to output
     #
     def open_context_fout():
         if not args.output or args.output == '-':
-            return _TrivialContextManager(sys.stdout)
+            stream = sys.stdout
+            if workflow.binary_output:
+                stream = sys.stdout.buffer
+            return _TrivialContextManager(stream)
         elif hasattr(args.output, 'write'):
             # it's a file-like object, use it directly
             return _TrivialContextManager(args.output)
         else:
-            return open(args.output, 'w')
+            return open(args.output, 'w' + ('b' if workflow.binary_output else ''))
 
     with open_context_fout() as fout:
 
-        if doc_pre:
-            fout.write(doc_pre)
-
         fout.write(result)
 
-        if doc_post:
-            fout.write(doc_post)
-
-        if not args.suppress_final_newline:
+        if not workflow.binary_output and not args.suppress_final_newline:
             fout.write("\n")
 
     return
@@ -517,275 +558,112 @@ class _TrivialContextManager:
 
 # ------------------------------------------------------------------------------
 
-_html_minimal_document_pre = r"""
+def _flatten_dict(d, joiner='.'):
+    r = {}
+    _flatten_dict_impl(r, d, [], joiner)
+    return r
+
+def _flatten_dict_impl(r, d, prefix, joiner):
+    for k, v in d.items():
+        p = prefix + [str(k)]
+        if isinstance(v, dict):
+            _flatten_dict_impl(r, v, p, joiner)
+        else:
+            r[ joiner.join(p) ] = v
+            
+
+class _Template(string.Template):
+    braceidpattern = r'(?a:[_.a-z0-9-]+)'
+
+
+class HtmlMinimalDocumentPostprocessor(MinimalDocumentPostprocessor):
+    def postprocess(self, rendered_content, config=None):
+        if config is None:
+            config = {}
+        doc_pre, doc_post = self.get_pre_post(config)
+        return super().postprocess(rendered_content, doc_pre_post=(doc_pre, doc_post))
+
+    def get_pre_post(self, config):
+
+        metadata = self.document.metadata
+        if metadata is None:
+            metadata = {}
+
+        full_config = ConfigMerger().recursive_assign_defaults([
+            config,
+            {
+                'metadata': metadata,
+            },
+            {
+                'metadata': { 'title': "LLM Document" },
+                'html': { 'extra_css': '', 'extra_js': '' },
+            },
+        ])
+
+        css = (
+            '/* ======== */\n'
+            + HtmlFragmentRenderer.get_html_css_global()
+            + HtmlFragmentRenderer.get_html_css_content()
+            + '/* ======== */\n'
+        )
+        if full_config['html']['extra_css']:
+            css += full_config['html']['extra_css'] + '\n/* ======== */\n'
+
+        js = HtmlFragmentRenderer.get_html_js()
+        if full_config['html']['extra_js']:
+            js += '\n/* ======== */\n' + full_config['html']['extra_js'] + '\n/* ======== */\n'
+
+        full_config_w_htmltemplate = ConfigMerger().recursive_assign_defaults([
+            full_config,
+            {
+                'html_template': {
+                    'css': css,
+                    'js': js,
+                    'body_end_content': HtmlFragmentRenderer.get_html_body_end_js_scripts(),
+                },
+            },
+        ])
+
+        flat_config = _flatten_dict(full_config_w_htmltemplate)
+
+        html_pre = _Template(_html_minimal_document_pre_template).substitute(
+            flat_config
+        )
+
+        html_post = _Template(_html_minimal_document_post_template).substitute(
+            flat_config
+        )
+
+        return html_pre, html_post
+
+
+_html_minimal_document_pre_template = r"""
 <!doctype html>
 <html>
 <head>
-  <title>LLM Document</title>
-  <style type="text/css">
+<meta charset="utf-8">
+<title>${metadata.title}</title>
+<style type="text/css">
 /* ------------------ */
-html, body {
-  font-size: 16px;
-  line-height: 1.3em;
-}
-
-article {
-  max-width: 640px;
-  margin: 0px auto;
-}
-
-p, ul, ol {
-  margin: 1em 0px;
-}
-p:first-child, ul:first-child, ol:first-child {
-  margin-top: 0px;
-}
-p:last-child, ul:last-child, ol:last-child {
-  margin-bottom: 0px;
-}
-
-a, a:link, a:hover, a:active, a:visited {
-  color: #3232c8;
-  text-decoration: none;
-}
-a:hover {
-  color: #22228a;
-}
-
-.emph, .textit {
-  font-style: italic;
-}
-.textbf {
-  font-weight: bold;
-}
-
-h1 {
-  font-size: 1.6rem;
-  font-weight: bold;
-  margin: 1em 0px;
-}
-h2 {
-  font-size: 1.3rem;
-  font-weight: bold;
-  margin: 1em 0px;
-}
-h3 {
-  font-size: 1rem;
-  font-weight: bold;
-  margin: 1em 0px;
-}
-
-.heading-level-4 {
-  font-style: italic;
-  display: inline;
-}
-.heading-level-4::after {
-  display: inline-block;
-  margin: 0px .12em;
-  content: '—';
-}
-
-.heading-level-5 {
-  font-style: italic;
-  font-size: .9em;
-  display: inline;
-}
-.heading-level-5::after {
-  display: inline-block;
-  margin-right: .12em;
-  content: '';
-}
-
-.heading-level-6 {
-  font-style: italic;
-  font-size: .8em;
-  display: inline;
-}
-.heading-level-6::after {
-  display: inline-block;
-  margin-right: .06em;
-  content: '';
-}
-
-dl.enumeration {
-  display: grid;
-  grid-template-columns: 0fr 1fr;
-  gap: 0.5em;
-}
-dl.enumeration > dt {
-  grid-column-start: 1;
-  grid-column-end: 2;
-  text-align: right;
-  margin: 0px;
-}
-dl.enumeration > dd {
-  grid-column-start: 2;
-  grid-column-end: 3;
-  margin: 0px;
-}
-
-figure.float {
-  width: 100%;
-  border-width: 1px 0px 1px 0px;
-  border-style: solid none solid none;
-  border-color: rgba(120, 120, 140, 0.15);
-  margin: 0.5rem 0px;
-  padding: 0.5rem 0px;
-}
-
-figure.float .float-contents {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-figure.float .float-contents img {
-  display: block;
-  margin: 0pt auto;
-  padding: 0pt;
-  border: 0pt;
-  margin: 0px auto;
-}
-
-figure.float figcaption {
-  display: block;
-  margin-top: 0.5em;
-  margin: 0.75em 2em 0px;
-  text-align: center;
-}
-
-figure.float figcaption > span {
-  display: inline-block;
-  font-style: italic;
-  text-align: left;
-}
-
-table {
-  margin: 1em 0px 1em 0px;
-  border-collapse: collapse;
-  border-top: solid 1pt;
-  border-bottom: solid 1pt;
-}
-figure.float .float-contents table {
-  margin: 0px auto;
-}
-td {
-  padding: 0.3em 0.5em;
-}
-th {
-  padding: 0.3em 0.5em;
-}
-th.cellstyle-H {
-  border-bottom: solid .5pt;
-}
-th.cellstyle-rH {
-}
-.cellstyle-l {
-  text-align: left;
-}
-.cellstyle-c {
-  text-align: center;
-}
-.cellstyle-r {
-  text-align: right;
-}
-.cellstyle-green {
-  background-color: rgb(200,255,200);
-}
-.cellstyle-blue {
-  background-color: rgb(200,220,255);
-}
-.cellstyle-yellow {
-  background-color: rgb(255,255,200);
-}
-.cellstyle-red {
-  background-color: rgb(255,200,200);
-}
-.cellstyle-lvert {
-  border-left: solid .5pt;
-}
-.cellstyle-rvert {
-  border-right: solid .5pt;
-}
-
-.defterm {
-  font-style: italic;
-}
-
-.defterm .defterm-term {
-  font-style: italic;
-  font-weight: bold;
-}
-
-.display-math {
-  width: 100%;
-  max-width: 100%;
-  display: block;
-  overflow-x: auto;
-}
-
-.citation {
-  font-size: 0.8em;
-  display: inline-block;
-  vertical-align: 0.3em;
-  margin-top: -0.3em;
-}
-.footnote {
-  font-size: 0.8em;
-  display: inline-block;
-  vertical-align: 0.3em;
-  margin-top: -0.3em;
-}
-dl.citation-list > dt, dl.footnote-list > dt {
-  font-size: 0.8em;
-  display: inline-block;
-  vertical-align: 0.3em;
-  margin-top: -0.3em;
-}
+${html_template.css}
 /* ------------------ */
-  </style>
-  <script>
-MathJax = {
-    tex: {
-        inlineMath: [['\\(', '\\)']],
-        displayMath: [['\\[', '\\]']],
-        processEnvironments: true,
-        processRefs: true,
-
-        // equation numbering on
-        tags: 'ams'
-    },
-    options: {
-        // all MathJax content is marked with CSS classes
-        // skipHtmlTags: 'body',
-        // processHtmlClass: 'display-math|inline-math',
-    },
-    startup: {
-        pageReady: function() {
-            // override the default "typeset everything on the page" behavior to
-            // only typeset whatever we have explicitly marked as math
-            return typesetPageMathPromise();
-        }
-    }
-};
-function typesetPageMathPromise()
-{
-    var elements = document.querySelectorAll('.display-math, .inline-math');
-    return MathJax.typesetPromise(elements);
-}
-  </script>
+</style>
+<script type="text/javascript">
+${html_template.js}
+</script>
 </head>
 <body>
-<article>
+  <article>
 """.strip()
 
-_html_minimal_document_post = r"""
-</article>
-  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+_html_minimal_document_post_template = r"""
+  </article>
+${html_template.body_end_content}
 </body>
 </html>
 """.strip()
+
+
 
 # ------------------------------------------------------------------------------
 
@@ -804,9 +682,13 @@ _latex_minimal_document_post = r"""%
 \end{document}
 """
 
+class LatexMinimalDocumentPostprocessor(MinimalDocumentPostprocessor):
+    doc_pre_post = (_latex_minimal_document_pre, _latex_minimal_document_post)
+
+
 # ------------------------------------------------------------------------------
 
-_minimal_document_doc_pre_post = {
-    'html': (_html_minimal_document_pre, _html_minimal_document_post),
-    'latex': (_latex_minimal_document_pre, _latex_minimal_document_post),
+_minimal_document_postprocessors = {
+    'html': HtmlMinimalDocumentPostprocessor,
+    'latex': LatexMinimalDocumentPostprocessor,
 }

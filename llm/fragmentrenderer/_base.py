@@ -19,6 +19,13 @@ class FragmentRenderer:
     etc.). If False, then the whole content must be rendered in two passes.
     """
 
+    def __init__(self, config=None):
+        super().__init__()
+        # use kwargs to set properties on the class object.
+        if config is not None:
+            for k,v in config.items():
+                setattr(self, k, v)
+
 
     def render_fragment(self, llm_fragment, render_context, is_block_level=None):
         try:

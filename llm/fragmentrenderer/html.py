@@ -638,7 +638,286 @@ class HtmlFragmentRenderer(FragmentRenderer):
         return s
 
 
+    @classmethod
+    def get_html_css_global(cls):
+        return _html_css_global
+    @classmethod
+    def get_html_css_content(cls):
+        return _html_css_content
+    @classmethod
+    def get_html_js(cls):
+        return _html_js
+    @classmethod
+    def get_html_body_end_js_scripts(cls):
+        return _html_body_end_js_scripts
+
+
 # ------------------
 
 
 _rx_delayed_markers = re.compile(r'<LLM:DLYD:(?P<key>\d+)\s*/>')
+
+
+
+
+# ------------------------------------------------------------------------------
+
+_html_css_global = r"""
+html, body {
+  font-size: 16px;
+  line-height: 1.3em;
+}
+
+article {
+  max-width: 640px;
+  margin: 0px auto;
+}
+
+p, ul, ol {
+  margin: 1em 0px;
+}
+p:first-child, ul:first-child, ol:first-child {
+  margin-top: 0px;
+}
+p:last-child, ul:last-child, ol:last-child {
+  margin-bottom: 0px;
+}
+
+a, a:link, a:hover, a:active, a:visited {
+  color: #3232c8;
+  text-decoration: none;
+}
+a:hover {
+  color: #22228a;
+}
+"""
+
+_html_css_content = r"""
+.emph, .textit {
+  font-style: italic;
+}
+.textbf {
+  font-weight: bold;
+}
+
+h1 {
+  font-size: 1.6rem;
+  font-weight: bold;
+  margin: 1em 0px;
+}
+h2 {
+  font-size: 1.3rem;
+  font-weight: bold;
+  margin: 1em 0px;
+}
+h3 {
+  font-size: 1rem;
+  font-weight: bold;
+  margin: 1em 0px;
+}
+
+.heading-level-4 {
+  font-style: italic;
+  display: inline;
+}
+.heading-level-4::after {
+  display: inline-block;
+  margin: 0px .12em;
+  content: '—';
+}
+
+.heading-level-5 {
+  font-style: italic;
+  font-size: .9em;
+  display: inline;
+}
+.heading-level-5::after {
+  display: inline-block;
+  margin-right: .12em;
+  content: '';
+}
+
+.heading-level-6 {
+  font-style: italic;
+  font-size: .8em;
+  display: inline;
+}
+.heading-level-6::after {
+  display: inline-block;
+  margin-right: .06em;
+  content: '';
+}
+
+dl.enumeration {
+  display: grid;
+  grid-template-columns: 0fr 1fr;
+  gap: 0.5em;
+}
+dl.enumeration > dt {
+  grid-column-start: 1;
+  grid-column-end: 2;
+  text-align: right;
+  margin: 0px;
+}
+dl.enumeration > dd {
+  grid-column-start: 2;
+  grid-column-end: 3;
+  margin: 0px;
+}
+
+figure.float {
+  width: 100%;
+  border-width: 1px 0px 1px 0px;
+  border-style: solid none solid none;
+  border-color: rgba(120, 120, 140, 0.15);
+  margin: 0.5rem 0px;
+  padding: 0.5rem 0px;
+}
+
+figure.float .float-contents {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+figure.float .float-contents img {
+  display: block;
+  margin: 0pt auto;
+  padding: 0pt;
+  border: 0pt;
+  margin: 0px auto;
+}
+
+figure.float figcaption {
+  display: block;
+  margin-top: 0.5em;
+  margin: 0.75em 2em 0px;
+  text-align: center;
+}
+
+figure.float figcaption > span {
+  display: inline-block;
+  font-style: italic;
+  text-align: left;
+}
+
+table {
+  margin: 1em 0px 1em 0px;
+  border-collapse: collapse;
+  border-top: solid 1pt;
+  border-bottom: solid 1pt;
+}
+figure.float .float-contents table {
+  margin: 0px auto;
+}
+td {
+  padding: 0.3em 0.5em;
+}
+th {
+  padding: 0.3em 0.5em;
+}
+th.cellstyle-H {
+  border-bottom: solid .5pt;
+}
+th.cellstyle-rH {
+}
+.cellstyle-l {
+  text-align: left;
+}
+.cellstyle-c {
+  text-align: center;
+}
+.cellstyle-r {
+  text-align: right;
+}
+.cellstyle-green {
+  background-color: rgb(200,255,200);
+}
+.cellstyle-blue {
+  background-color: rgb(200,220,255);
+}
+.cellstyle-yellow {
+  background-color: rgb(255,255,200);
+}
+.cellstyle-red {
+  background-color: rgb(255,200,200);
+}
+.cellstyle-lvert {
+  border-left: solid .5pt;
+}
+.cellstyle-rvert {
+  border-right: solid .5pt;
+}
+
+.defterm {
+  font-style: italic;
+}
+
+.defterm .defterm-term {
+  font-style: italic;
+  font-weight: bold;
+}
+
+.display-math {
+  width: 100%;
+  max-width: 100%;
+  display: block;
+  overflow-x: auto;
+}
+
+.citation {
+  font-size: 0.8em;
+  display: inline-block;
+  vertical-align: 0.3em;
+  margin-top: -0.3em;
+}
+.footnote {
+  font-size: 0.8em;
+  display: inline-block;
+  vertical-align: 0.3em;
+  margin-top: -0.3em;
+}
+dl.citation-list > dt, dl.footnote-list > dt {
+  font-size: 0.8em;
+  display: inline-block;
+  vertical-align: 0.3em;
+  margin-top: -0.3em;
+}
+"""
+
+
+_html_js = r"""
+MathJax = {
+    tex: {
+        inlineMath: [['\\(', '\\)']],
+        displayMath: [['\\[', '\\]']],
+        processEnvironments: true,
+        processRefs: true,
+
+        // equation numbering on
+        tags: 'ams'
+    },
+    options: {
+        // all MathJax content is marked with CSS classes
+        // skipHtmlTags: 'body',
+        // processHtmlClass: 'display-math|inline-math',
+    },
+    startup: {
+        pageReady: function() {
+            // override the default "typeset everything on the page" behavior to
+            // only typeset whatever we have explicitly marked as math
+            return typesetPageMathPromise();
+        }
+    }
+};
+function typesetPageMathPromise()
+{
+    var elements = document.querySelectorAll('.display-math, .inline-math');
+    return MathJax.typesetPromise(elements);
+}
+"""
+
+_html_body_end_js_scripts = r"""
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+"""
