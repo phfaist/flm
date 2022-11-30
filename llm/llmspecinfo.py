@@ -185,8 +185,6 @@ class ConstantValueSpecials(LLMSpecInfoConstantValue, macrospec.SpecialsSpec):
         _dobaseconstructors2argslast(ConstantValueSpecials, self, args, kwargs, ('value',))
 
 
-_parsing_state_delta_inline_mode = LLMParsingStateDeltaSetBlockLevel(is_block_level=False)
-
 text_arg = LLMArgumentSpec(
     parser='{',
     argname='text',

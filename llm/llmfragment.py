@@ -297,7 +297,7 @@ class _NodeListTruncator:
         groupnodelist = self.collect_nodes(node.nodelist)
         if groupnodelist is None:
             # everything collected ok, with room to spare
-            return
+            return None
         # we had to stop at some point --> need new group node here.
         groupnode = node.latex_walker.make_node(
             latexnodes_nodes.LatexGroupNode,
@@ -357,7 +357,7 @@ class _NodeListTruncator:
         nodelist = self.collect_nodes(node.nodelist)
         if nodelist is None:
             # everything collected ok, with room to spare
-            return
+            return None
         # we had to stop at some point --> need new group node here.
         newnode = node.latex_walker.make_node(
             latexnodes_nodes.LatexEnvironmentNode,
