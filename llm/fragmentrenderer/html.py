@@ -91,6 +91,9 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     render_nothing_as_comment_with_annotations = True
 
+
+    use_mathjax = True
+
     # ------------------
 
     
@@ -234,6 +237,14 @@ class HtmlFragmentRenderer(FragmentRenderer):
                             displaytype,
                             environmentname=None,
                             target_id=None):
+
+        if not self.use_mathjax:
+            logger.warning(
+                "called HtmlFragmentRenderer.render_math_content() but "
+                "self.use_mathjax is not set. Your math "
+                "will probably not render correctly."
+            )
+
         class_names = [ f"{displaytype}-math" ]
         if environmentname is not None:
             class_names.append(f"env-{environmentname.replace('*','-star')}")
@@ -638,18 +649,21 @@ class HtmlFragmentRenderer(FragmentRenderer):
         return s
 
 
-    @classmethod
-    def get_html_css_global(cls):
+    def get_html_css_global(self):
         return _html_css_global
-    @classmethod
-    def get_html_css_content(cls):
+
+    def get_html_css_content(self):
         return _html_css_content
-    @classmethod
-    def get_html_js(cls):
-        return _html_js
-    @classmethod
-    def get_html_body_end_js_scripts(cls):
-        return _html_body_end_js_scripts
+
+    def get_html_js(self):
+        if self.use_mathjax:
+            return _html_js_mathjax
+        return ''
+
+    def get_html_body_end_js_scripts(self):
+        if self.use_mathjax:
+            return _html_body_end_js_scripts_mathjax
+        return ''
 
 
 # ------------------
@@ -896,7 +910,7 @@ dl.citation-list > dt, dl.footnote-list > dt {
 """
 
 
-_html_js = r"""
+_html_js_mathjax = r"""
 MathJax = {
     tex: {
         inlineMath: [['\\(', '\\)']],
@@ -927,7 +941,7 @@ function typesetPageMathPromise()
 }
 """
 
-_html_body_end_js_scripts = r"""
+_html_body_end_js_scripts_mathjax = r"""
 <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 """

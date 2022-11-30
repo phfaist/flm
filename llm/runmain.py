@@ -600,16 +600,18 @@ class HtmlMinimalDocumentPostprocessor(MinimalDocumentPostprocessor):
             },
         ])
 
+        html_fragment_renderer = self.render_context.fragment_renderer
+
         css = (
             '/* ======== */\n'
-            + HtmlFragmentRenderer.get_html_css_global()
-            + HtmlFragmentRenderer.get_html_css_content()
+            + html_fragment_renderer.get_html_css_global()
+            + html_fragment_renderer.get_html_css_content()
             + '/* ======== */\n'
         )
         if full_config['html']['extra_css']:
             css += full_config['html']['extra_css'] + '\n/* ======== */\n'
 
-        js = HtmlFragmentRenderer.get_html_js()
+        js = html_fragment_renderer.get_html_js()
         if full_config['html']['extra_js']:
             js += '\n/* ======== */\n' + full_config['html']['extra_js'] + '\n/* ======== */\n'
 
@@ -619,7 +621,7 @@ class HtmlMinimalDocumentPostprocessor(MinimalDocumentPostprocessor):
                 'html_template': {
                     'css': css,
                     'js': js,
-                    'body_end_content': HtmlFragmentRenderer.get_html_body_end_js_scripts(),
+                    'body_end_content': html_fragment_renderer.get_html_body_end_js_scripts(),
                 },
             },
         ])
