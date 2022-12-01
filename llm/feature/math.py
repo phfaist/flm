@@ -1,5 +1,4 @@
 import re
-
 import logging
 logger = logging.getLogger(__name__)
 
@@ -16,15 +15,60 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from .llmspecinfo import LLMMacroSpecBase, LLMEnvironmentSpecBase
-from .llmenvironment import LLMArgumentSpec
+from ..llmspecinfo import LLMMacroSpecBase, LLMEnvironmentSpecBase
+from ..llmenvironment import LLMArgumentSpec
+
+from ._base import Feature
+from .refs import (
+    ReferenceableInfo,
+)
+
+from .. import fmthelpers
 
 
 
-def sanitize_for_id(x):
-    return re.sub(r'[^a-zA-Z0-9_-]', '-', x)
+
+# replaced by referenceable
+# def sanitize_for_id(x):
+#     return re.sub(r'[^a-zA-Z0-9_-]', '-', x)
 
 
+
+
+class FeatureMath(Feature):
+
+    feature_name = 'math'
+
+    def __init__(self):
+        super().__init__()
+
+    class DocumentManager(Feature.DocumentManager):
+        def initialize(self):
+            pass
+            
+    class RenderManager(Feature.RenderManager):
+        def initialize(self):
+            self.equation_counter = 0
+
+        def add_numbered_display_math(self):
+
+            referenceable_info = ReferenceableInfo(
+                self........
+            )
+
+            if self.render_context.supports_feature('refs') \
+               and self.render_context.is_first_pass:
+                refs_mgr = render_context.feature_render_manager('refs')
+                refs_mgr.register_reference_referenceable(
+                    node=node,
+                    referenceable_info=node.llm_referenceable_info,
+                )
+
+
+                pass
+
+
+# ---
 
 class MathEnvironment(LLMEnvironmentSpecBase):
 
@@ -50,8 +94,9 @@ class MathEnvironment(LLMEnvironmentSpecBase):
                                 ),
                                 argname='label',
                             ),
-                        ])
-                    ]
+                        ]),
+                        MacroSpec('\\', arguments_spec_list=[]),
+                    ],
                 )
             )
         )
@@ -61,25 +106,25 @@ class MathEnvironment(LLMEnvironmentSpecBase):
         # to find any \label{} instruction.
         #logger.debug("finalizing math environment node: node = %r", node)
 
-        # find and register \label node
-        node.llm_equation_label_node = None
+        # find and register and \label nodes
+        node.llm_equation_lines_labels_infos = []
+
+        last_equation_line_labels_info = []
+        def _flush_last_equation_line_labels_infos(newline_node=None):
+            node.llm_equation_lines_labels_infos.append({
+                'labels': list(last_equation_line_labels_info),
+                'newline_node': newline_node,
+            })
+            last_equation_line_labels_info[:] = []
+
+        last_node_is_newline = False
         for n in node.nodelist:
             if n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == 'label':
-                # this is the equation's \label command -- register it
-                if node.llm_equation_label_node is not None:
-                    raise LatexWalkerParseError(
-                        "You cannot use multiple \\label's in an equation",
-                        pos=n.pos
-                    )
+                # this is a \label command -- register it for this equation line
 
-                #logger.debug("Found label node: %r", n)
-                node.llm_equation_label_node = n
-                
                 # extract ref_label_prefix, ref_label and store these values
-
                 ref_label_node_args = \
-                    ParsedArgumentsInfo(node=node.llm_equation_label_node) \
-                    .get_all_arguments_info(
+                    ParsedArgumentsInfo(node=n).get_all_arguments_info(
                         ('label',),
                     )
                 ref_label_full = ref_label_node_args['label'].get_content_as_chars()
@@ -89,17 +134,36 @@ class MathEnvironment(LLMEnvironmentSpecBase):
                 else:
                     ref_label_prefix, ref_label = None, ref_label_full
 
-                node.llm_equation_ref_label_prefix = ref_label_prefix
-                node.llm_equation_ref_label = ref_label
+                info = {
+                    'node': n,
+                    'label': (ref_label_prefix, ref_label),
+                }
 
+                last_equation_line_labels_info.append(info)
                 break
 
+            if n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == '\\':
+                _flush_last_equation_line_labels_infos(n)
+                last_node_is_newline = True
+                continue
+            
+            if (not n.isNodeType(latexnodes_nodes.LatexCommentNode)
+                and not (n.isNodeType(latexnodes_nodes.LatexCharsNode) and not n.chars.strip())
+                ):
+                last_node_is_newline = False
+                
+        if not last_node_is_bb:
+            _flush_last_equation_line_labels_infos()
+
         return node
+
 
     def render(self, node, render_context):
         r"""
         """
         environmentname = node.environmentname
+
+        
 
         # transcrypt doesn't like getattr with default argument
         ref_label_prefix = None
