@@ -1,11 +1,5 @@
 
 
-
-### BEGINPATCH_UNIQUE_OBJECT_ID
-fn_unique_object_id = id
-### ENDPATCH_UNIQUE_OBJECT_ID
-
-
 class Feature:
 
     feature_name = None
@@ -71,4 +65,4 @@ class Feature:
             # In this case, the tuple directly provides a unique identifying
             # data; return it as is
             return node
-        return fn_unique_object_id(node)
+        return node.node_id

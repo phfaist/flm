@@ -1,3 +1,4 @@
+import re
 
 #_alpha = 'abcdefghijklmnopqrstuvwxyz'
 
@@ -107,6 +108,56 @@ standard_counter_formatters = {
     'unicodesubscript': unicodesubscriptcounter,
 }
 
+_standard_tag_template_initials_formatters = {
+    'a': alphacounter,
+    'A': Alphacounter,
+    'i': romancounter,
+    'I': Romancounter,
+    '1': str,
+}
 
+def parse_counter_formatter(
+        counter_formatter,
+        named_counter_formatters=standard_counter_formatters,
+        str_use_tag_template=False,
+        tag_template_initials_counters=_standard_tag_template_initials_formatters,
+):
+    if callable(counter_formatter):
+        return counter_formatter
+    if isinstance(counter_formatter, str):
+        if counter_formatter in named_counter_formatters:
+            return named_counter_formatters[counter_formatter]
+        if str_use_tag_template:
+            return _parse_counter_formatter_from_tag_template(
+                counter_formatter,
+                tag_template_initials_counters
+            )
+    if isinstance(counter_formatter, dict):
+        if 'template' in counter_formatter:
+            tmpl = counter_formatter['template']
+            # simple template parsing ${arabic}
+            pat = "|".join(re.escape(k) for k in named_counter_formatters.keys())
+            _rx_counter = re.compile(r'\$\{(' + pat + r')\}')
+            return lambda n: (
+                _rx_counter.sub(
+                    lambda m:  named_counter_formatters[m.group(1)] (n),
+                    tmpl,
+                )
+            )
+    raise ValueError(f"Invalid counter_formatter: ‘{repr(counter_formatter)}’")
+            
+def _parse_counter_formatter_from_tag_template(
+        tag_template,
+        tag_template_initials_counters=_standard_tag_template_initials_formatters,
+):
+    rx = re.compile(r'['+''.join(tag_template_initials_counters.keys())+r']')
+    m = rx.search(tag_template)
+    if m is not None:
+        # substitute a counter
+        left = tag_template[:m.start()]
+        right = tag_template[m.end():]
+        counter_formatter = tag_template_initials_counters[m.group()]
+        return lambda n: (left + counter_formatter(n) + right)
 
-
+    # no counter. E.g., a bullet symbol
+    return lambda n: tag_template

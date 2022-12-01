@@ -25,32 +25,12 @@ from ._base import Feature
 
 
 
-_count_initials_formatters = {
-    'a': fmthelpers.alphacounter,
-    'A': fmthelpers.Alphacounter,
-    'i': fmthelpers.romancounter,
-    'I': fmthelpers.Romancounter,
-    '1': str,
-}
-_rx_count_initial = re.compile(r'[aA1iI]')
-def _get_counter_formatter_from_tag_template(tag_template):
-    m = _rx_count_initial.search(tag_template)
-    if m is not None:
-        # substitute a counter
-        left = tag_template[:m.start()]
-        right = tag_template[m.end():]
-        counter_formatter = _count_initials_formatters[m.group()]
-        return lambda n: (left + counter_formatter(n) + right)
-
-    # no counter. E.g., a bullet symbol
-    return tag_template
-
 
 # "1.", "2.", ...
 _default_enumeration_counter_formatter = [
-    lambda n: f"{n}.",
-    lambda n: f"({fmthelpers.romancounter(n)})",
-    lambda n: f"{fmthelpers.alphacounter(n)}-",
+    "${arabic}.",
+    "(${roman})",
+    "${alpha}-",
 ]
 
 
@@ -173,17 +153,21 @@ class Enumeration(LLMEnvironmentSpecBase):
         nested_depth = state.get('nested_depth', 0)
 
         # determine the base counter formatter to use depending on nested depth
-        counter_formatter = self.counter_formatter
-        if not isinstance(counter_formatter, str) and not callable(counter_formatter):
-            if nested_depth >= len(counter_formatter):
-                counter_formatter = counter_formatter[len(counter_formatter)-1]
+        counter_formatter_spec = self.counter_formatter
+        if isinstance(counter_formatter_spec, (list,tuple)):
+            if nested_depth >= len(counter_formatter_spec):
+                counter_formatter_spec = counter_formatter_spec[len(counter_formatter_spec)-1]
             else:
-                counter_formatter = counter_formatter[nested_depth]
+                counter_formatter_spec = counter_formatter_spec[nested_depth]
 
         if 'tag_template' in node_args and node_args['tag_template'].was_provided():
             tag_template_chars = node_args['tag_template'].get_content_as_chars()
+            counter_formatter_spec = tag_template_chars
 
-            counter_formatter = _get_counter_formatter_from_tag_template(tag_template_chars)
+        counter_formatter = fmthelpers.parse_counter_formatter(
+            counter_formatter_spec,
+            str_use_tag_template=True,
+        )
 
         items_custom_tags = {}
         items_nodelists = []
@@ -201,9 +185,7 @@ class Enumeration(LLMEnvironmentSpecBase):
         def the_counter_formatter(n):
             if n in items_custom_tags:
                 return items_custom_tags[n]
-            if callable(counter_formatter):
-                return counter_formatter(n)
-            return counter_formatter
+            return counter_formatter(n)
 
         with render_context.push_logical_state('enumeration', 'nested_depth', nested_depth+1):
             # for transcrypt -- don't return from within a with statement or the

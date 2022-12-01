@@ -18,6 +18,8 @@ class LLMRenderContext:
         self.is_first_pass = True
         self._logical_state = {}
 
+        self._nodes_determined_as_delayed = {}
+
     def supports_feature(self, feature_name):
         return False
 
@@ -29,6 +31,17 @@ class LLMRenderContext:
 
     def get_delayed_render_content(self, node):
         raise RuntimeError("This render context does not support delayed rendering")
+
+    def get_is_delayed_render(self, node):
+        if node.node_id in self._nodes_determined_as_delayed:
+            return self._nodes_determined_as_delayed[node.node_id]
+
+        yn = node.llm_specinfo.delayed_render
+        if callable(yn):
+            yn = is_delayed_render(node, render_context)
+
+        self._nodes_determined_as_delayed[node.node_id] = yn
+        return yn
 
     def set_render_pass(self, pass_name):
         self.pass_name = pass_name

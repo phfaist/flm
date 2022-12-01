@@ -388,9 +388,7 @@ class FloatType:
 
         if counter_formatter is None:
             counter_formatter = 'arabic'
-        if not callable(counter_formatter):
-            counter_formatter = fmthelpers.standard_counter_formatters[counter_formatter]
-        self.counter_formatter = counter_formatter
+        self.counter_formatter = fmthelpers.parse_counter_formatter(counter_formatter)
 
         self.content_handlers = content_handlers
 

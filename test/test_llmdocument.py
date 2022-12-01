@@ -14,6 +14,10 @@ from llm.llmspecinfo import LLMMacroSpecBase
 from llm.feature import Feature
 
 
+class _EmptyDefaultDict:
+    def __getitem__(self, k):
+        return ''
+
 
 class _MyFeatureRenderManager(Feature.RenderManager):
 
@@ -24,7 +28,13 @@ class _MyFeatureRenderManager(Feature.RenderManager):
 
     def process(self, first_pass_value):
         print("Document after first pass:\n********\n"+first_pass_value+"\n********")
-        self.document_size = len(first_pass_value)
+        # compute length w/o the delayed render markers.
+        first_pass_value_nodelayedmarkers = \
+            self.render_context.fragment_renderer.replace_delayed_markers_with_final_values(
+                first_pass_value,
+                _EmptyDefaultDict()
+            )
+        self.document_size = len(first_pass_value_nodelayedmarkers)
 
     def postprocess(self, final_value):
         self.final_document_size = len(final_value)
@@ -287,8 +297,8 @@ we can also have an equation, like this: \begin{align}
 
         predict_docsize = len(r"""
 <main>
-<div><p><LLM:DLYD:1/><span class="textbf">Hello</span> <span class="textit">world</span>. Here is a <LLM:DLYD:2/>.</p></div>
-<div><p><LLM:DLYD:3/>We meet <span class="textbf">again</span>. Here is a <LLM:DLYD:4/>. Total document size is (approx.) = <LLM:DLYD:5/>.</p></div>
+<div><p><span class="textbf">Hello</span> <span class="textit">world</span>. Here is a .</p></div>
+<div><p>We meet <span class="textbf">again</span>. Here is a . Total document size is (approx.) = .</p></div>
 </main>
 """.strip())
 

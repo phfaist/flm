@@ -10,6 +10,14 @@ from pylatexenc import latexwalker
 from .llmfragment import LLMFragment
 from .llmdocument import LLMDocument
 
+
+
+
+### BEGINPATCH_UNIQUE_OBJECT_ID
+fn_unique_object_id = id
+### ENDPATCH_UNIQUE_OBJECT_ID
+
+
 # ------------------------------------------------------------------------------
 
 
@@ -310,6 +318,12 @@ class LLMLatexWalker(latexwalker.LatexWalker):
         # check & see if the block level is consistent
         nl = self.llm_environment.node_list_finalizer().finalize_nodelist(nl)
         return nl
+
+    def make_node(self, node_class, **kwargs):
+        node = super().make_node(node_class, **kwargs)
+        # attach a node ID, given by the object ID of the node
+        node.node_id = fn_unique_object_id(node)
+        return node
 
     # ---
 

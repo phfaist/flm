@@ -166,7 +166,8 @@ class FragmentRenderer:
         if llm_specinfo is None:
             raise ValueError(f"Cannot render {node=!r} because specinfo is None!")
 
-        if llm_specinfo.delayed_render:
+        is_delayed_render = render_context.get_is_delayed_render(node)
+        if is_delayed_render:
             # requested a delayed rendering -- 
 
             is_first_pass = render_context.is_first_pass

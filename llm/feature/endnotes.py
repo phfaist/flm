@@ -32,32 +32,12 @@ class EndnoteCategory:
                  endnote_command=None):
         super().__init__()
         self.category_name = category_name
-        counter_formatter = _parse_counter_formatter(counter_formatter)
+        counter_formatter = fmthelpers.parse_counter_formatter(counter_formatter)
         self.counter_formatter = counter_formatter
         self.heading_title = heading_title
         self.endnote_command = endnote_command
 
 
-def _parse_counter_formatter(counter_formatter):
-    if callable(counter_formatter):
-        return counter_formatter
-    if isinstance(counter_formatter, str):
-        return fmthelpers.standard_counter_formatters[counter_formatter]
-    if isinstance(counter_formatter, dict):
-        if 'template' in counter_formatter:
-            tmpl = counter_formatter['template']
-            # simple template parsing ${arabic}
-            pat = "|".join(re.escape(k) for k in fmthelpers.standard_counter_formatters.keys())
-            _rx_counter = re.compile(r'\$\{(' + pat + r')\}')
-            return lambda n: (
-                _rx_counter.sub(
-                    lambda m:  fmthelpers.standard_counter_formatters[m.group(1)] (n),
-                    tmpl,
-                )
-            )
-    raise ValueError(f"Invalid counter_formatter: ‘{counter_formatter!r}’")
-            
-            
 
 class EndnoteMacro(LLMMacroSpecBase):
 
