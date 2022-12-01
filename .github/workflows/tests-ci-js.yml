@@ -34,7 +34,7 @@ jobs:
       # Install NodeJS
       - uses: actions/setup-node@v3
         with:
-          node-version: '${{ matrix.python-version }}'
+          node-version: '${{ matrix.node-version }}'
 
       # Poetry & Python are needed to transpile Python library
       - uses: actions/setup-python@v4
