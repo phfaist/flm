@@ -45,14 +45,14 @@ jobs:
         uses: abatilo/actions-poetry@v2
 
       - name: 'Poetry Install (with buildjslib)'
-        run: poetry install --with-buildjslib
+        run: 'poetry install --with buildjslib'
 
       - name: 'Check out pylatexenc v3 sources'
-        run: 'git checkout https://github.com/phfaist/pylatexenc.git -b devel --depth=0'
+        run: 'git clone https://github.com/phfaist/pylatexenc.git pylatexenc-src -b devel --depth=0'
 
       - name: 'Generate LLM JS library'
         working-directory: 'llm-js'
-        run: 'poetry run python ./generate_llm_js.py --pylatexenc-src-dir=./pylatexenc --compile-tests'
+        run: 'poetry run python ./generate_llm_js.py --pylatexenc-src-dir=./pylatexenc-src/ --compile-tests'
 
       - name: 'Run JS tests'
         working-directory: 'llm-js'
