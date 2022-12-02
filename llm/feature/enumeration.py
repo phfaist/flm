@@ -30,7 +30,7 @@ from ._base import Feature
 _default_enumeration_counter_formatter = [
     {'template': "${arabic}."},
     {'template': "(${roman})"},
-    {'template': "${alpha}-"},
+    {'template': "${alph}-"},
 ]
 
 

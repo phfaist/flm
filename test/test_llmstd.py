@@ -1,4 +1,5 @@
 import unittest
+import re
 
 from pylatexenc.latexnodes import LatexWalkerParseError
 
@@ -93,6 +94,65 @@ Here is the equation:
   \label{eq:my-equation}
   \int f(x)\, dx = -1\ .
 \tag*{(1)}\end{align}</span></p>
+""".strip()
+        )
+
+
+
+    def test_multi_equation_and_eqref(self):
+
+        environ = LLMStandardEnvironment()
+
+        frag1 = environ.make_fragment(
+            r"""
+\textbf{Hello}, see \eqref{eq:my-equation}, \eqref{eq:2}, and \eqref{eq:3}.
+
+Here is the equation:
+\begin{align}
+  \label{eq:my-equation}
+  \int f(x)\, dx = -1\ .
+            \\
+\label{eq:2}
+  A + B = C
+    \tag{A}
+  \\
+  D + E = F
+  \tag*{-B-}
+\label{eq:3}
+\\
+  \cdots
+\end{align}
+""".strip()
+        )
+
+        def render_fn(render_context):
+            return frag1.render(render_context)
+
+        doc = environ.make_document(render_fn)
+
+        fr = HtmlFragmentRenderer()
+        fr.html_blocks_joiner = ''
+
+        result, _ = doc.render(fr)
+        print(result)
+        result_fix = re.sub(r'(#equation-)\d{2,}', r'\1???', result)
+        self.assertEqual(
+            result_fix,
+            r"""
+<p><span class="textbf">Hello</span>, see <a href="#equation-1" class="href-ref ref-eq">(1)</a>, <a href="#equation-1" class="href-ref ref-eq">(A)</a>, and <a href="#equation-1" class="href-ref ref-eq">-B-</a>.</p><p>Here is the equation: <span id="equation-1" class="display-math env-align">\begin{align}
+  \label{eq:my-equation}
+  \int f(x)\, dx = -1\ .
+            \tag*{(1)}\\
+\label{eq:2}
+  A + B = C
+    \tag{A}
+  \\
+  D + E = F
+  \tag*{-B-}
+\label{eq:3}
+\\
+  \cdots
+\tag*{(2)}\end{align}</span></p>
 """.strip()
         )
 

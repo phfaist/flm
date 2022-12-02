@@ -185,9 +185,11 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         try:
             ref_instance = self.get_ref(ref_type, ref_label, resource_info)
         except Exception as e:
+            logger.debug(f"render_ref({ref_type}, {ref_label}): self.get_ref() failed",
+                         exc_info=True)
             raise ValueError(
                 f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
-                f"[in {repr(resource_info)}"
+                f"[in {repr(resource_info)}]"
             )
 
         if display_content_llm is None:
@@ -227,7 +229,10 @@ class FeatureRefs(Feature):
     def __init__(self, external_ref_resolvers=None):
         super().__init__()
         # e.g., resolve a reference to a different code page in the EC zoo!
-        self.external_ref_resolvers = external_ref_resolvers
+        if external_ref_resolvers:
+            self.external_ref_resolvers = external_ref_resolvers
+        else:
+            self.external_ref_resolvers = []
 
     def set_external_ref_resolvers(self, external_ref_resolvers):
         if self.external_ref_resolvers is not None:

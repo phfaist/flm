@@ -129,7 +129,8 @@ class _ProxyNodeWithLatexVerbatim:
 
 class MathEnvironment(LLMEnvironmentSpecBase):
 
-    allowed_in_standalone_mode = True
+    # Nope! This environment adds reference labels in general
+    #allowed_in_standalone_mode = True
 
     def __init__(self, environmentname, is_numbered=None):
         super().__init__(environmentname=environmentname)
@@ -137,6 +138,10 @@ class MathEnvironment(LLMEnvironmentSpecBase):
             self.is_numbered = is_numbered
         else:
             self.is_numbered = (environmentname[-1:] != '*') # align*, gather*, etc. 
+        
+        if not self.is_numbered:
+            # Okay, equation is not numbered; it can appear in standalone mode.
+            self.allowed_in_standalone_mode = True
 
     def make_body_parsing_state_delta(self, token, nodeargd, arg_parsing_state_delta,
                                       latex_walker, **kwargs):
@@ -223,9 +228,8 @@ class MathEnvironment(LLMEnvironmentSpecBase):
                 }
 
                 last_line_info['labels_info'].append(info)
-                break
 
-            if n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == 'tag':
+            elif n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == 'tag':
                 # custom tag for this line
                 tag_node_args = \
                     ParsedArgumentsInfo(node=n).get_all_arguments_info(
@@ -239,12 +243,11 @@ class MathEnvironment(LLMEnvironmentSpecBase):
 
                 last_line_info['custom_tag_llm_text'] = custom_tag_llm_text
 
-            if n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == '\\':
+            elif n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == '\\':
                 _flush_last_equation_line_labels_infos(n)
                 last_node_is_newline = True
-                continue
             
-            if (not n.isNodeType(latexnodes_nodes.LatexCommentNode)
+            elif (not n.isNodeType(latexnodes_nodes.LatexCommentNode)
                 and not (n.isNodeType(latexnodes_nodes.LatexCharsNode) and not n.chars.strip())
                 ):
                 last_node_is_newline = False
@@ -287,18 +290,24 @@ class MathEnvironment(LLMEnvironmentSpecBase):
                 # target_id refers to the first equation in an equation list
                 target_id = this_target_id
 
-            # insert the tag at appropriate location in nodelist
-            newline_node = line_infos['newline_node']
-            if newline_node is not None:
-                i = nodelist.index(newline_node)
-            else:
-                i = len(nodelist)
-            nodelist.insert(
-                i,
-                _ProxyNodeWithLatexVerbatim(
-                    r'\tag*{' + formatted_ref_llm_text + r'}'
+            if not custom_tag_llm_text:
+                # insert the automatically generated tag at appropriate location
+                # in nodelist
+                newline_node = line_infos['newline_node']
+                if newline_node is not None:
+                    i = nodelist.index(newline_node)
+                else:
+                    i = len(nodelist)
+                nodelist.insert(
+                    i,
+                    _ProxyNodeWithLatexVerbatim(
+                        r'\tag*{' + formatted_ref_llm_text + r'}'
+                    )
                 )
-            )
+
+            # USE THE FIRST TARGET_ID ONLY.  THIS IS BECAUSE WE DON'T PIN DOWN
+            # THE TARGET_IDs OF INTERMEDIATE EQUATION LINES IN THE HTML OUTPUT.
+            this_target_id = target_id
 
             # register the reference
             if refs_mgr is not None and render_context.is_first_pass:
@@ -386,7 +395,7 @@ class MathEqrefMacro(LLMMacroSpecBase):
             logger.error(f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
                          f"in ‘{node.latex_verbatim()}’ @ {node.format_pos()}")
             raise LatexWalkerParseError(
-                f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e}",
+                f"Unable to resolve reference to ‘{ref_type}:{ref_label}’. {e}",
                 pos=node.pos,
             )
 
