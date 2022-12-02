@@ -83,51 +83,31 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
             self.allowed_ref_label_prefixes
         )
 
-        node.llm_referenceable_info = refs.ReferenceableInfo(
-            formatted_ref_llm_text=node.llmarg_term_llm_ref_label_verbatim,
-            labels=(
-                [(self.defterm_ref_type, node.llmarg_term_llm_ref_label_verbatim)]
-                + list(node.llmarg_labels)
-            ),
-        )
+        node.llm_referenceable_infos = [
+            refs.ReferenceableInfo(
+                formatted_ref_llm_text=node.llmarg_term_llm_ref_label_verbatim,
+                labels=(
+                    [(self.defterm_ref_type, node.llmarg_term_llm_ref_label_verbatim)]
+                    + list(node.llmarg_labels)
+                ),
+            )
+        ]
 
         return node
 
     def render(self, node, render_context):
 
-        # term_ref_label_verbatim = node.llmarg_term_llm_ref_label_verbatim
-        # ref_type = 'defterm'
-        # ref_label = term_ref_label_verbatim
         formatted_ref_llm_text = node.llmarg_term_llm_ref_label_verbatim
-
-        #term_safe_target_id = node.llmarg_term_safe_target_id
-        #target_href = f'#defterm-{term_safe_target_id}'
-
-        # target_href = refs.get_safe_target_id(ref_type, ref_label)
 
         # register the term
         if render_context.supports_feature('refs'):
             refs_mgr = render_context.feature_render_manager('refs')
-            refs_mgr.register_reference_referenceable(
-                node=node,
-                referenceable_info=node.llm_referenceable_info,
-                #target_href=target_href,
-            )
-            # refs_mgr.register_reference(
-            #     ref_type,
-            #     ref_label,
-            #     formatted_ref_llm_text=formatted_ref_llm_text,
-            #     node=node,
-            #     target_href=target_href,
-            # )
-            # # also add all the custom labels
-            # for ref_type, ref_label in node.llmarg_labels:
-            #     refs_mgr.register_reference(
-            #         ref_type, ref_label,
-            #         formatted_ref_llm_text=formatted_ref_llm_text,
-            #         node=node,
-            #         target_href=target_href,
-            #     )
+            for referenceable_info in node.llm_referenceable_infos:
+                refs_mgr.register_reference_referenceable(
+                    node=node,
+                    referenceable_info=referenceable_info,
+                    #target_href=target_href,
+                )
 
         thenodelist = node.nodelist
 
@@ -168,7 +148,7 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
                 is_block_level=True,
             ),
             role='defterm',
-            target_id=node.llm_referenceable_info.get_target_id(),
+            target_id=node.llm_referenceable_infos[0].get_target_id(),
         )
 
 

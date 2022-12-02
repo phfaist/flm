@@ -198,7 +198,6 @@ class FragmentRenderer:
         value = llm_specinfo.render(node, render_context)
         return value
 
-
     def render_node_math(self, node, render_context):
         return self.render_math_content(
             node.delimiters,
@@ -208,9 +207,9 @@ class FragmentRenderer:
             target_id=None
         )
 
-
     def render_math_content(self, delimiters, nodelist, render_context, displaytype, *,
                             environmentname=None, target_id=None):
+
         # Use verbatim to render math in the base implementation. It will work
         # for our HTML implementation as well since we'll rely on MathJax.
         # Other implementations that don't want to render math in this type of
@@ -220,8 +219,6 @@ class FragmentRenderer:
             annotations=[f'{displaytype}-math'],
             target_id=target_id,
         )
-        if displaytype == 'display':
-            return rendered
         return rendered
     
 

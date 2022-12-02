@@ -10,7 +10,7 @@ from llm import llmenvironment
 from llm.llmspecinfo import (
     ConstantValueMacro, TextFormatMacro, ParagraphBreakSpecials,
 )
-from llm.math import MathEnvironment
+from llm.feature.math import MathEnvironment
 from llm.feature.enumeration import Enumeration
 
 

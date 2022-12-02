@@ -89,6 +89,10 @@ default_config = dict(
             ),
             features=[
                 dict(
+                    name='llm.feature.math.FeatureMath',
+                    config=dict()
+                ),
+                dict(
                     name='llm.feature.headings.FeatureHeadings',
                     config=dict(
                         section_commands_by_level=None,

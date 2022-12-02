@@ -1,4 +1,5 @@
 import unittest
+import re
 
 from pylatexenc.latexnodes import LatexWalkerParseError
 
@@ -89,10 +90,69 @@ Here is the equation:
         self.assertEqual(
             result,
             r"""
-<p><span class="textbf">Hello</span>, see <span class="inline-math">\(\eqref{eq:my-equation}\)</span>.</p><p>Here is the equation: <span id="equation--eq-my-equation" class="display-math env-align">\begin{align}
+<p><span class="textbf">Hello</span>, see <a href="#equation-1" class="href-ref ref-eq">(1)</a>.</p><p>Here is the equation: <span id="equation-1" class="display-math env-align">\begin{align}
   \label{eq:my-equation}
   \int f(x)\, dx = -1\ .
-\end{align}</span></p>
+\tag*{(1)}\end{align}</span></p>
+""".strip()
+        )
+
+
+
+    def test_multi_equation_and_eqref(self):
+
+        environ = LLMStandardEnvironment()
+
+        frag1 = environ.make_fragment(
+            r"""
+\textbf{Hello}, see \eqref{eq:my-equation}, \eqref{eq:2}, and \eqref{eq:3}.
+
+Here is the equation:
+\begin{align}
+  \label{eq:my-equation}
+  \int f(x)\, dx = -1\ .
+            \\
+\label{eq:2}
+  A + B = C
+    \tag{A}
+  \\
+  D + E = F
+  \tag*{-B-}
+\label{eq:3}
+\\
+  \cdots
+\end{align}
+""".strip()
+        )
+
+        def render_fn(render_context):
+            return frag1.render(render_context)
+
+        doc = environ.make_document(render_fn)
+
+        fr = HtmlFragmentRenderer()
+        fr.html_blocks_joiner = ''
+
+        result, _ = doc.render(fr)
+        print(result)
+        result_fix = re.sub(r'(#equation-)\d{2,}', r'\1???', result)
+        self.assertEqual(
+            result_fix,
+            r"""
+<p><span class="textbf">Hello</span>, see <a href="#equation-1" class="href-ref ref-eq">(1)</a>, <a href="#equation-1" class="href-ref ref-eq">(A)</a>, and <a href="#equation-1" class="href-ref ref-eq">-B-</a>.</p><p>Here is the equation: <span id="equation-1" class="display-math env-align">\begin{align}
+  \label{eq:my-equation}
+  \int f(x)\, dx = -1\ .
+            \tag*{(1)}\\
+\label{eq:2}
+  A + B = C
+    \tag{A}
+  \\
+  D + E = F
+  \tag*{-B-}
+\label{eq:3}
+\\
+  \cdots
+\tag*{(2)}\end{align}</span></p>
 """.strip()
         )
 
@@ -436,10 +496,10 @@ Here is a display equation:
         self.assertEqual(
             result,
             r"""
-<p>Here is a display equation: <span class="display-math env-align">\begin{align}
-  S_1 &amp;= I\,Z\,X\,X\,Z\ ;  \nonumber\\
+<p>Here is a display equation: <span id="equation-1" class="display-math env-align">\begin{align}
+  S_1 &amp;= I\,Z\,X\,X\,Z\ ;  \nonumber\tag*{(1)}\\
   S_2, \ldots, S_4 &amp;= \text{cyclical permutations of \(S_1\)}\ .
-\end{align}</span></p>
+\tag*{(2)}\end{align}</span></p>
 """.strip()
         )
 
@@ -557,18 +617,18 @@ See also the topic \ref{topic:qudit}.
 <dl class="enumeration itemize"><dt>•</dt><dd><p>cool things?</p></dd><dt>•</dt><dd><p>more stuff?</p></dd><dt>!!!</dt><dd><p>Fun stuff??</p></dd></dl>
 <h1 id="sec--First-section" class="heading-level-1">First section</h1>
 <p>From there to here, funny things are everywhere.</p>
-<div id="defterm-Pauli_20Xmatrices" class="defterm"><p><span class="defterm-term">Pauli matrices: </span>The <span class="textit">Pauli matrices</span> are defined as <span class="display-math env-align">\begin{align}
+<div id="defterm-Pauli_20Xmatrices" class="defterm"><p><span class="defterm-term">Pauli matrices: </span>The <span class="textit">Pauli matrices</span> are defined as <span id="equation-1" class="display-math env-align">\begin{align}
     \sigma_X = \begin{pmatrix} 0 &amp; 1\\1 &amp; 0\end{pmatrix}\ ;
     \sigma_Y = \begin{pmatrix} 0 &amp; -i\\i &amp; 0\end{pmatrix}\ ;
     \sigma_Z = \begin{pmatrix} 1 &amp; 0\\0 &amp; -1\end{pmatrix}\ .
-  \end{align}</span></p></div>
+  \tag*{(1)}\end{align}</span></p></div>
 <div id="defterm-qu_5cX_28Xd_5cX_29Xit" class="defterm"><p><span class="defterm-term">qu<span class="inline-math">\(d\)</span>it: </span>A <span class="textit">qu<span class="inline-math">\(d\)</span>it</span> is a <span class="inline-math">\(d\)</span>-dimensional quantum system.</p></div>
-<p>Here&#x27;s a display equation: <span id="equation--eq-my-equation" class="display-math env-align">\begin{align}
+<p>Here&#x27;s a display equation: <span id="equation-2" class="display-math env-align">\begin{align}
   a + b = c\ .
   \label{eq:my-equation}
-\end{align}</span></p>
+\tag*{(2)}\end{align}</span></p>
 <h2 id="sec--An-enumeration-list" class="heading-level-2">An enumeration list</h2>
-<dl class="enumeration enumerate"><dt>(a.)</dt><dd><p>First thing to see could be something nice. This line might also be pretty long, with lots of unnecessary text that I could have imagined cutting off at some point.</p></dd><dt>(b.)</dt><dd><p>Second nice thing! Check also <span class="inline-math">\(\eqref{eq:my-equation}\)</span> and <a href="#figure-1" class="href-ref ref-figure">Figure 1</a>.</p></dd></dl>
+<dl class="enumeration enumerate"><dt>(a.)</dt><dd><p>First thing to see could be something nice. This line might also be pretty long, with lots of unnecessary text that I could have imagined cutting off at some point.</p></dd><dt>(b.)</dt><dd><p>Second nice thing! Check also <a href="#equation-2" class="href-ref ref-eq">(2)</a> and <a href="#figure-1" class="href-ref ref-figure">Figure 1</a>.</p></dd></dl>
 <p><span id="sec--A-paragraph-level-sectionin" class="heading-level-4 heading-inline">A paragraph-level sectioning command</span> Paragraph content goes here. How does this work? I can add a figure, too; let&#x27;s see how it works.</p>
 <figure id="figure-1" class="float float-figure"><div class="float-contents"><img src="https://media.giphy.com/media/8Iv5lqKwKsZ2g/giphy.gif"></div>
 <figcaption class="float-caption-content"><span><span class="float-number">Figure&nbsp;1</span>: This figure has a caption.</span></figcaption></figure>
