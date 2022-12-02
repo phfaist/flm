@@ -73,18 +73,23 @@ class FeatureMath(Feature):
             self.equation_counter = 1
             self.equation_info_by_node = {}
 
-        def new_numbered_display_math(self, node, lineno):
+        def new_numbered_display_math(self, node, lineno, custom_tag_llm_text=None):
 
             key = (self.get_node_id(node), lineno)
             if key in self.equation_info_by_node:
                 return self.equation_info_by_node[key]
 
-            eq_no = self.equation_counter
-            formatted_ref_llm_text = self.feature.eq_counter_formatter(eq_no)
+            if custom_tag_llm_text is not None:
+                formatted_ref_llm_text = custom_tag_llm_text
+                eq_id = f"_{key[0]}"
+                if lineno:
+                    eq_id += f"-{lineno}"
+            else:
+                eq_id = self.equation_counter
+                formatted_ref_llm_text = self.feature.eq_counter_formatter(eq_id)
+                self.equation_counter += 1
 
-            self.equation_counter += 1
-
-            info = (eq_no, formatted_ref_llm_text)
+            info = (eq_id, formatted_ref_llm_text)
             self.equation_info_by_node[key] = info
             return info
 
@@ -151,6 +156,18 @@ class MathEnvironment(LLMEnvironmentSpecBase):
                                 argname='label',
                             ),
                         ]),
+                        MacroSpec('tag', arguments_spec_list=[
+                            LLMArgumentSpec(
+                                parser='*',
+                                argname='tag_star',
+                            ),
+                            LLMArgumentSpec(
+                                parser=latexnodes_parsers.LatexCharsGroupParser(
+                                    delimiters=('{','}'),
+                                ),
+                                argname='text',
+                            ),
+                        ]),
                         MacroSpec('\\', arguments_spec_list=[]),
                     ],
                 )
@@ -168,13 +185,20 @@ class MathEnvironment(LLMEnvironmentSpecBase):
         if not self.is_numbered:
             return node
 
-        last_equation_line_labels_info = []
+        last_line_info = {
+            'labels_info': [],
+            'custom_tag_llm_text': None,
+        }
         def _flush_last_equation_line_labels_infos(newline_node=None):
             node.llm_equation_lines_labels_infos.append({
-                'labels': list(last_equation_line_labels_info),
+                'labels': list(last_line_info['labels_info']),
+                'custom_tag_llm_text': last_line_info['custom_tag_llm_text'],
                 'newline_node': newline_node,
             })
-            last_equation_line_labels_info[:] = []
+            last_line_info.update({
+                'labels_info': [],
+                'custom_tag_llm_text': None,
+            })
 
         last_node_is_newline = False
         for n in node.nodelist:
@@ -198,8 +222,22 @@ class MathEnvironment(LLMEnvironmentSpecBase):
                     'label': (ref_type, ref_label),
                 }
 
-                last_equation_line_labels_info.append(info)
+                last_line_info['labels_info'].append(info)
                 break
+
+            if n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == 'tag':
+                # custom tag for this line
+                tag_node_args = \
+                    ParsedArgumentsInfo(node=n).get_all_arguments_info(
+                        ('tag_star', 'text'),
+                    )
+
+                custom_tag_llm_text = \
+                    tag_node_args['text'].get_content_nodelist().latex_verbatim()
+                if not tag_node_args['tag_star'].was_provided():
+                    custom_tag_llm_text = f'({custom_tag_llm_text})'
+
+                last_line_info['custom_tag_llm_text'] = custom_tag_llm_text
 
             if n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == '\\':
                 _flush_last_equation_line_labels_infos(n)
@@ -238,10 +276,13 @@ class MathEnvironment(LLMEnvironmentSpecBase):
 
         for lineno, line_infos in enumerate(node.llm_equation_lines_labels_infos):
 
-            # add equation instance
-            eq_no, formatted_ref_llm_text = math_mgr.new_numbered_display_math(node, lineno)
+            custom_tag_llm_text = line_infos['custom_tag_llm_text']
 
-            this_target_id = f'equation-{eq_no}'
+            # add equation instance
+            eq_id, formatted_ref_llm_text = \
+                math_mgr.new_numbered_display_math(node, lineno, custom_tag_llm_text)
+
+            this_target_id = f'equation-{eq_id}'
             if target_id is None:
                 # target_id refers to the first equation in an equation list
                 target_id = this_target_id
