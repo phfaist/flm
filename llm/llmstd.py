@@ -17,8 +17,7 @@ from .llmspecinfo import (
     VerbatimEnvironment,
 )
 
-from .math import MathEnvironment, MathEqrefViaMathContent
-
+from .feature.math import FeatureMath
 from .feature.endnotes import FeatureEndnotes, EndnoteCategory
 from .feature.enumeration import FeatureEnumeration
 from .feature.cite import FeatureExternalPrefixedCitations
@@ -117,32 +116,6 @@ def standard_latex_context_db():
         ]
     )
     lw_context.add_context_category(
-        'math-environments',
-        environments=[
-            MathEnvironment(
-                math_environment_name,
-            )
-            for math_environment_name in (
-                    'equation',
-                    'equation*',
-                    'align',
-                    'align*',
-                    'gather',
-                    'gather*',
-                    'split',
-                    'split*',
-            )
-        ],
-    )
-    lw_context.add_context_category(
-        'math-eqref-via-math-content', # e.g., for use with MathJax
-        macros=[
-            MathEqrefViaMathContent(
-                macroname='eqref',
-            ),
-        ],
-    )
-    lw_context.add_context_category(
         'href',
         macros=[
             HrefHyperlinkMacro(
@@ -212,6 +185,7 @@ def standard_parsing_state(*,
 
 def standard_features(
         *,
+        math=True,
         headings=True,
         heading_section_commands_by_level=None,
         refs=True,
@@ -221,6 +195,7 @@ def standard_features(
         endnotes=True,
         citations=True,
         external_citations_provider=None,
+        eq_counter_formatter=None,
         footnote_counter_formatter=None,
         citation_counter_formatter=None,
         use_simple_path_graphics_resource_provider=True,
@@ -235,24 +210,35 @@ def standard_features(
         citation_counter_formatter = 'arabic'
 
     features = []
+
+    if math:
+        features.append(
+            FeatureMath(
+                eq_counter_formatter=eq_counter_formatter,
+            )
+        )
+
     if enumeration_environments:
         features.append(
             FeatureEnumeration(
                 enumeration_environments=enumeration_environments_dict,
             )
         )
+
     if headings:
         features.append(
             FeatureHeadings(
                 section_commands_by_level=heading_section_commands_by_level,
             )
         )
+
     if refs:
         features.append(
             FeatureRefs(
                 external_ref_resolvers=external_ref_resolvers,
             )
         )
+
     if endnotes:
         endnote_categories = [
             EndnoteCategory(category_name='footnote',
@@ -263,6 +249,7 @@ def standard_features(
         features.append(
             FeatureEndnotes(categories=endnote_categories)
         )
+
     if citations and external_citations_provider is not None:
         features.append(
             FeatureExternalPrefixedCitations(
@@ -271,19 +258,23 @@ def standard_features(
                 citation_delimiters=('[', ']'),
             )
         )
+
     if use_simple_path_graphics_resource_provider:
         features.append(
             FeatureSimplePathGraphicsResourceProvider()
         )
 
+
     if floats:
         features.append(
             FeatureFloats(float_types=float_types)
         )
+
     if defterm:
         features.append(
             FeatureDefTerm()
         )
+
     return features
 
 

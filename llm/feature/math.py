@@ -19,28 +19,50 @@ from ..llmspecinfo import LLMMacroSpecBase, LLMEnvironmentSpecBase
 from ..llmenvironment import LLMArgumentSpec
 
 from ._base import Feature
-from .refs import (
-    ReferenceableInfo,
-)
 
 from .. import fmthelpers
 
 
 
-
-# replaced by referenceable
-# def sanitize_for_id(x):
-#     return re.sub(r'[^a-zA-Z0-9_-]', '-', x)
+def sanitize_for_id(x):
+    return re.sub(r'[^a-zA-Z0-9_-]', '-', x)
 
 
+
+_default_math_environment_names = (
+    'equation',
+    'equation*',
+    'align',
+    'align*',
+    'gather',
+    'gather*',
+)
 
 
 class FeatureMath(Feature):
 
     feature_name = 'math'
 
-    def __init__(self):
+    def __init__(
+            self,
+            eq_counter_formatter=None,
+            math_environment_names=None,
+            eqref_macro_name='eqref',
+            eqref_ref_type='eq',
+    ):
         super().__init__()
+
+        if eq_counter_formatter is None:
+            eq_counter_formatter = {'template': '(${arabic})'}
+        self.eq_counter_formatter = \
+            fmthelpers.parse_counter_formatter(eq_counter_formatter)
+
+        if math_environment_names is None:
+            math_environment_names = _default_math_environment_names
+        self.math_environment_names = math_environment_names
+
+        self.eqref_macro_name = eqref_macro_name
+        self.eqref_ref_type = eqref_ref_type
 
     class DocumentManager(Feature.DocumentManager):
         def initialize(self):
@@ -48,34 +70,68 @@ class FeatureMath(Feature):
             
     class RenderManager(Feature.RenderManager):
         def initialize(self):
-            self.equation_counter = 0
+            self.equation_counter = 1
+            self.equation_info_by_node = {}
 
-        def add_numbered_display_math(self):
+        def new_numbered_display_math(self, node, lineno):
 
-            referenceable_info = ReferenceableInfo(
-                self........
+            key = (self.get_node_id(node), lineno)
+            if key in self.equation_info_by_node:
+                return self.equation_info_by_node[key]
+
+            eq_no = self.equation_counter
+            formatted_ref_llm_text = self.feature.eq_counter_formatter(eq_no)
+
+            self.equation_counter += 1
+
+            info = (eq_no, formatted_ref_llm_text)
+            self.equation_info_by_node[key] = info
+            return info
+
+
+    def add_latex_context_definitions(self):
+        environments = [
+            MathEnvironment(
+                math_environment_name,
             )
+            for math_environment_name in self.math_environment_names
+        ]
+        if self.eqref_macro_name is not None:
+            macros = [
+                MathEqrefMacro(
+                    macroname=self.eqref_macro_name,
+                    ref_type=self.eqref_ref_type
+                ),
+            ]
 
-            if self.render_context.supports_feature('refs') \
-               and self.render_context.is_first_pass:
-                refs_mgr = render_context.feature_render_manager('refs')
-                refs_mgr.register_reference_referenceable(
-                    node=node,
-                    referenceable_info=node.llm_referenceable_info,
-                )
+        return dict(macros=macros, environments=environments)
 
-
-                pass
 
 
 # ---
+
+class _ProxyNodeWithLatexVerbatim:
+
+    pos = None
+    pos_end = None
+
+    def __init__(self, verbatim):
+        self._verbatim = verbatim
+
+    def latex_verbatim(self):
+        return self._verbatim
+
 
 class MathEnvironment(LLMEnvironmentSpecBase):
 
     allowed_in_standalone_mode = True
 
-    def __init__(self, environmentname):
+    def __init__(self, environmentname, is_numbered=None):
         super().__init__(environmentname=environmentname)
+        if is_numbered is not None:
+            self.is_numbered = is_numbered
+        else:
+            self.is_numbered = (environmentname[-1:] != '*') # align*, gather*, etc. 
 
     def make_body_parsing_state_delta(self, token, nodeargd, arg_parsing_state_delta,
                                       latex_walker, **kwargs):
@@ -109,6 +165,9 @@ class MathEnvironment(LLMEnvironmentSpecBase):
         # find and register and \label nodes
         node.llm_equation_lines_labels_infos = []
 
+        if not self.is_numbered:
+            return node
+
         last_equation_line_labels_info = []
         def _flush_last_equation_line_labels_infos(newline_node=None):
             node.llm_equation_lines_labels_infos.append({
@@ -122,7 +181,7 @@ class MathEnvironment(LLMEnvironmentSpecBase):
             if n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == 'label':
                 # this is a \label command -- register it for this equation line
 
-                # extract ref_label_prefix, ref_label and store these values
+                # extract ref_type, ref_label and store these values
                 ref_label_node_args = \
                     ParsedArgumentsInfo(node=n).get_all_arguments_info(
                         ('label',),
@@ -130,13 +189,13 @@ class MathEnvironment(LLMEnvironmentSpecBase):
                 ref_label_full = ref_label_node_args['label'].get_content_as_chars()
 
                 if ':' in ref_label_full:
-                    ref_label_prefix, ref_label = ref_label_full.split(':', 1)
+                    ref_type, ref_label = ref_label_full.split(':', 1)
                 else:
-                    ref_label_prefix, ref_label = None, ref_label_full
+                    ref_type, ref_label = None, ref_label_full
 
                 info = {
                     'node': n,
-                    'label': (ref_label_prefix, ref_label),
+                    'label': (ref_type, ref_label),
                 }
 
                 last_equation_line_labels_info.append(info)
@@ -152,7 +211,7 @@ class MathEnvironment(LLMEnvironmentSpecBase):
                 ):
                 last_node_is_newline = False
                 
-        if not last_node_is_bb:
+        if not last_node_is_newline:
             _flush_last_equation_line_labels_infos()
 
         return node
@@ -163,24 +222,56 @@ class MathEnvironment(LLMEnvironmentSpecBase):
         """
         environmentname = node.environmentname
 
-        
+        if not render_context.supports_feature('math'):
+            raise ValueError("Feature 'math' is not enabled, cannot render math environment")
 
-        # transcrypt doesn't like getattr with default argument
-        ref_label_prefix = None
-        ref_label = None
-        if hasattr(node, 'llm_equation_ref_label_prefix'):
-            ref_label_prefix = node.llm_equation_ref_label_prefix
-        if hasattr(node, 'llm_equation_ref_label'):
-            ref_label = node.llm_equation_ref_label
+        math_mgr = render_context.feature_render_manager('math')
 
-        if ref_label_prefix is not None and ref_label is not None:
-            target_id = f"equation--{sanitize_for_id(ref_label_prefix+':'+ref_label)}"
-        else:
-            target_id = None
+        refs_mgr = None
+        if render_context.supports_feature('refs'):
+            refs_mgr = render_context.feature_render_manager('refs')
+
+        # create an alternative node list
+        nodelist = list(node.nodelist)
+
+        target_id = None
+
+        for lineno, line_infos in enumerate(node.llm_equation_lines_labels_infos):
+
+            # add equation instance
+            eq_no, formatted_ref_llm_text = math_mgr.new_numbered_display_math(node, lineno)
+
+            this_target_id = f'equation-{eq_no}'
+            if target_id is None:
+                # target_id refers to the first equation in an equation list
+                target_id = this_target_id
+
+            # insert the tag at appropriate location in nodelist
+            newline_node = line_infos['newline_node']
+            if newline_node is not None:
+                i = nodelist.index(newline_node)
+            else:
+                i = len(nodelist)
+            nodelist.insert(
+                i,
+                _ProxyNodeWithLatexVerbatim(
+                    r'\tag*{' + formatted_ref_llm_text + r'}'
+                )
+            )
+
+            # register the reference
+            if refs_mgr is not None and render_context.is_first_pass:
+                for label_info in line_infos['labels']:
+                    (ref_type, ref_label) = label_info['label']
+                    refs_mgr.register_reference(
+                        ref_type, ref_label,
+                        node=node, formatted_ref_llm_text=formatted_ref_llm_text,
+                        target_href=f'#{this_target_id}'
+                    )
 
         return render_context.fragment_renderer.render_math_content(
             (f"\\begin{'{'}{environmentname}{'}'}", f"\\end{'{'}{environmentname}{'}'}",),
-            node.nodelist,
+            latexnodes_nodes.LatexNodeList(nodelist),
             render_context,
             'display',
             environmentname=environmentname,
@@ -190,14 +281,16 @@ class MathEnvironment(LLMEnvironmentSpecBase):
 
 
 
-class MathEqrefViaMathContent(LLMMacroSpecBase):
+class MathEqrefMacro(LLMMacroSpecBase):
+
+    delayed_render = True
 
     allowed_in_standalone_mode = False
     r"""
     Reference commands are definitly not allowed in standalone mode
     """
 
-    def __init__(self, macroname='eqref', **kwargs):
+    def __init__(self, macroname='eqref', ref_type='eq', **kwargs):
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[
@@ -207,6 +300,7 @@ class MathEqrefViaMathContent(LLMMacroSpecBase):
                 )
             ],
         )
+        self.ref_type = ref_type
 
     def postprocess_parsed_node(self, node):
 
@@ -219,24 +313,40 @@ class MathEqrefViaMathContent(LLMMacroSpecBase):
         if ':' in ref_label:
             ref_type, ref_label = ref_label.split(':', 1)
 
-        if ref_type != 'eq':
+        if ref_type != self.ref_type:
             raise LatexWalkerParseError(
-                f"Equation labels must begin with “eq:” (error in ‘\\{node.macroname}’)",
+                f"Equation labels must begin with “{self.ref_type}:” "
+                f"(error in ‘\\{node.macroname}’)",
                 pos=node.pos
             )
 
         node.llmarg_ref = (ref_type, ref_label)
 
 
+    def prepare_delayed_render(self, node, render_context):
+        pass
+
     def render(self, node, render_context):
 
-        # simply emit the \eqref{...} call as we got it directly, and let
-        # MathJax handle the referencing
+        ref_type, ref_label = node.llmarg_ref
 
-        return render_context.fragment_renderer.render_math_content(
-            (r"\(", r"\)"),
-            latexnodes_nodes.LatexNodeList([node]),
-            render_context,
-            'inline',
-        )
+        refs_mgr = render_context.feature_render_manager('refs')
+
+        resource_info = node.latex_walker.resource_info
+
+        try:
+            return refs_mgr.render_ref(
+                ref_type, ref_label,
+                None,
+                resource_info,
+                render_context
+            )
+        except Exception as e:
+            logger.error(f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
+                         f"in ‘{node.latex_verbatim()}’ @ {node.format_pos()}")
+            raise LatexWalkerParseError(
+                f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e}",
+                pos=node.pos,
+            )
+
 

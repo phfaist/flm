@@ -58,16 +58,18 @@ class HeadingMacro(llmspecinfo.LLMMacroSpecBase):
             self.allowed_ref_label_prefixes
         )
 
-        node.llm_referenceable_info = refs.ReferenceableInfo(
-            formatted_ref_llm_text=node.llmarg_heading_content_nodelist,
-            labels=node.llmarg_labels,
-        )
+        node.llm_referenceable_infos = [
+            refs.ReferenceableInfo(
+                formatted_ref_llm_text=node.llmarg_heading_content_nodelist,
+                labels=node.llmarg_labels,
+            )
+        ]
 
 
     def render(self, node, render_context):
 
         headings_mgr = render_context.feature_render_manager('headings')
-        target_id = node.llm_referenceable_info.get_target_id()
+        target_id = node.llm_referenceable_infos[0].get_target_id()
 
         if target_id is None:
             target_id = headings_mgr.get_default_target_id(
@@ -78,10 +80,11 @@ class HeadingMacro(llmspecinfo.LLMMacroSpecBase):
 
         if render_context.supports_feature('refs') and render_context.is_first_pass:
             refs_mgr = render_context.feature_render_manager('refs')
-            refs_mgr.register_reference_referenceable(
-                node=node,
-                referenceable_info=node.llm_referenceable_info,
-            )
+            for llm_referenceable_info in node.llm_referenceable_infos:
+                refs_mgr.register_reference_referenceable(
+                    node=node,
+                    referenceable_info=llm_referenceable_info,
+                )
 
         return render_context.fragment_renderer.render_heading(
             node.llmarg_heading_content_nodelist,

@@ -182,7 +182,7 @@ we can also have an equation, like this:
             )
 
         fr = HtmlFragmentRenderer()
-        doc = LLMDocument(render_fn, environ, [])
+        doc = LLMDocument(render_fn, environ, enable_features=['math'])
         doc.initialize()
 
         result, _ = doc.render(fr)
@@ -192,9 +192,9 @@ we can also have an equation, like this:
 <main>
 <div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.</p></div>
 <div><p>We can also split text across multiple paragraphs, like this block of text here.</p>
-<p>we can also have an equation, like this: <span class="display-math env-align">\begin{align}
+<p>we can also have an equation, like this: <span id="equation-1" class="display-math env-align">\begin{align}
     1 + 3 - 5 = -1
-\end{align}</span></p></div>
+\tag*{(1)}\end{align}</span></p></div>
 </main>
         """.strip())
     
@@ -237,7 +237,7 @@ We can also split text across multiple paragraphs, like this block of text here.
 
 we can also have an equation, like this: \begin{align}
     1 + 3 - 5 = -1
-\end{align}
+\tag*{(1)}\end{align}
 |||
         """.strip())
         
@@ -352,9 +352,9 @@ we can also have an equation, like this:
 <main>
 <div><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(\alpha+\beta=\gamma\)</span>.</div>
 <div><p>We can also split text across multiple paragraphs, like this block of text here.</p>
-<p>we can also have an equation, like this: <span class="display-math env-align">\begin{align}
+<p>we can also have an equation, like this: <span id="equation-1" class="display-math env-align">\begin{align}
     1 + 3 - 5 = -1
-\end{align}</span></p></div>
+\tag*{(1)}\end{align}</span></p></div>
 </main>
         """.strip())
 

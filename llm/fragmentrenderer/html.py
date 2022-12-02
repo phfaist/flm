@@ -258,8 +258,6 @@ class HtmlFragmentRenderer(FragmentRenderer):
             attrs['id'] = target_id
 
         if displaytype == 'display':
-            # BlockLevelContent( # -- don't use blockcontent as display
-            # equations might or might not be in their separate paragraph.
             return (
                 self.wrap_in_tag(
                     'span',

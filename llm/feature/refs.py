@@ -191,7 +191,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             )
 
         if display_content_llm is None:
-                display_content_llm = ref_instance.formatted_ref_llm_text
+            display_content_llm = ref_instance.formatted_ref_llm_text
 
         if not isinstance(display_content_llm, LLMFragment):
             display_content_llm = render_context.doc.environment.make_fragment(
@@ -200,7 +200,6 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             )
 
         display_content_nodelist = display_content_llm.nodes
-
 
         return fragment_renderer.render_link(
             'ref',
