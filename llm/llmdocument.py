@@ -19,7 +19,6 @@ class LLMDocumentRenderContext(LLMRenderContext):
         # flags and internal counters for delayed content
 
         self.is_first_pass = True
-        #self._delayed_id_counter = 1 # only used if we have delayed content markers
         self._delayed_render_nodes = {} # key => node
         self._delayed_render_content = {} # key => string-content
 
@@ -30,16 +29,14 @@ class LLMDocumentRenderContext(LLMRenderContext):
         return self.feature_render_managers_by_name[feature_name]
 
     def register_delayed_render(self, node, fragment_renderer):
-        # register the node for delayed render, generate a key for it, and
-        # return the key
-        key = node.node_id #self._delayed_id_counter
-        #self._delayed_id_counter += 1
+        # register the node for delayed render
+        key = node.node_id
         self._delayed_render_nodes[key] = node
-        #node.llm_delayed_render_key = key # DON'T SET RENDER-TIME INFORMATION ON NODE OBJECT
         return key
 
     def get_delayed_render_content(self, node):
-        return self._delayed_render_content[node.llm_delayed_render_key]
+        key = node.node_id
+        return self._delayed_render_content[key]
 
 
 

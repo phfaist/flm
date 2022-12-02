@@ -28,9 +28,9 @@ from ._base import Feature
 
 # "1.", "2.", ...
 _default_enumeration_counter_formatter = [
-    "${arabic}.",
-    "(${roman})",
-    "${alpha}-",
+    {'template': "${arabic}."},
+    {'template': "(${roman})"},
+    {'template': "${alpha}-"},
 ]
 
 
