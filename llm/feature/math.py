@@ -101,13 +101,14 @@ class FeatureMath(Feature):
             )
             for math_environment_name in self.math_environment_names
         ]
+        macros = []
         if self.eqref_macro_name is not None:
-            macros = [
+            macros.append(
                 MathEqrefMacro(
                     macroname=self.eqref_macro_name,
                     ref_type=self.eqref_ref_type
                 ),
-            ]
+            )
 
         return dict(macros=macros, environments=environments)
 
