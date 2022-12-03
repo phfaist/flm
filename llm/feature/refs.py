@@ -235,7 +235,7 @@ class FeatureRefs(Feature):
             self.external_ref_resolvers = []
 
     def set_external_ref_resolvers(self, external_ref_resolvers):
-        if self.external_ref_resolvers is not None:
+        if self.external_ref_resolvers is not None and len(self.external_ref_resolvers):
             logger.warning("FeatureRefs.set_external_ref_resolvers(): There were already "
                            "external refs resolvers set.  They will be replaced.")
         self.external_ref_resolvers = external_ref_resolvers
