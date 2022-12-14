@@ -367,18 +367,16 @@ class LLMEnvironment:
     """
     def __init__(
             self,
-            *,
-            latex_context,
-            parsing_state,
             features,
-            parsing_mode_deltas=None,
+            parsing_state,
+            latex_context,
+            *,
             tolerant_parsing=False,
+            parsing_mode_deltas=None,
     ):
         super().__init__()
 
         logger.debug("LLMEnvironment constructor")
-
-        logger.debug(f"{features=}")
 
         self.latex_context = latex_context
         self.parsing_state = parsing_state
@@ -386,6 +384,8 @@ class LLMEnvironment:
         self.parsing_mode_deltas = dict(parsing_mode_deltas) if parsing_mode_deltas else {}
 
         self.features = list(features) # maybe list() for Transcrypt ?
+
+        logger.debug("Creating environment; features = %r", self.features);
 
         # build dict manually to ensure features are unique & for better error
         # messages

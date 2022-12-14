@@ -162,19 +162,25 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             return self.ref_labels[(ref_type, ref_label)]
 
         logger.debug(f"Couldn't find {(ref_type, ref_label)} in current document "
-                     f"labels; will query external ref resolver.  {self.ref_labels=}")
+                     f"labels; will query external ref resolvers.  {self.ref_labels=}")
+
+        logger.debug(f"external ref resolvers are {repr(self.external_ref_resolvers)}")
 
         for resolver in self.external_ref_resolvers:
+            logger.debug(f"Trying external ref resolver ... {repr(resolver)}")
             ref = resolver.get_ref(
                 ref_type,
                 ref_label,
                 resource_info,
                 self.render_context,
             )
+            logger.debug(f"Tried external ref resolver, {ref=}")
             if ref is not None:
                 return ref
 
-        raise ValueError(f"Ref target not found: ‘{ref_type}:{ref_label}’")
+
+        raise ValueError(f"Ref target ‘{ref_type}:{ref_label}’ found neither within "
+                         f"database nor with any set external resolvers")
 
 
     def render_ref(self, ref_type, ref_label, display_content_llm,
@@ -185,7 +191,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         try:
             ref_instance = self.get_ref(ref_type, ref_label, resource_info)
         except Exception as e:
-            logger.debug(f"render_ref({ref_type}, {ref_label}): self.get_ref() failed",
+            logger.debug(f"render_ref({ref_type}, {ref_label}): self.get_ref() failed: {e}",
                          exc_info=True)
             raise ValueError(
                 f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
@@ -229,10 +235,12 @@ class FeatureRefs(Feature):
     def __init__(self, external_ref_resolvers=None):
         super().__init__()
         # e.g., resolve a reference to a different code page in the EC zoo!
-        if external_ref_resolvers:
-            self.external_ref_resolvers = external_ref_resolvers
+        if external_ref_resolvers is not None:
+            self.external_ref_resolvers = list(external_ref_resolvers)
         else:
             self.external_ref_resolvers = []
+        logger.debug(f"Created FeatureRefs with external_ref_resolvers = "
+                     f"{repr(external_ref_resolvers)}")
 
     def set_external_ref_resolvers(self, external_ref_resolvers):
         if self.external_ref_resolvers is not None and len(self.external_ref_resolvers):
@@ -252,6 +260,14 @@ class FeatureRefs(Feature):
                     command_arguments=('[]ref_label','display_text',)
                 ),
             ]
+        )
+
+
+    # mainly for debug messages
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"external_ref_resolvers={repr(self.external_ref_resolvers)})"
         )
 
 

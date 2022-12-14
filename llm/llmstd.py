@@ -284,16 +284,9 @@ def standard_features(
 
 class LLMStandardEnvironment(LLMEnvironment):
     def __init__(self,
-                 latex_context=None,
-                 parsing_state=None,
                  features=None,
-                 # *,
-                 # enable_comments=True,
-                 # comment_start=None,
-                 # external_citations_provider=None,
-                 # external_ref_resolvers=None,
-                 # footnote_counter_formatter=None,
-                 # citation_counter_formatter=None,
+                 parsing_state=None,
+                 latex_context=None,
                  **kwargs):
 
         if latex_context is None:
@@ -315,9 +308,9 @@ class LLMStandardEnvironment(LLMEnvironment):
             )
 
         super().__init__(
-            latex_context=latex_context,
-            parsing_state=parsing_state,
-            features=features,
+            features,
+            parsing_state,
+            latex_context,
             **kwargs
         )
 
