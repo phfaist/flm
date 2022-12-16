@@ -633,8 +633,6 @@ class HtmlMinimalDocumentPostprocessor(MinimalDocumentPostprocessor):
         html_fragment_renderer = self.render_context.fragment_renderer
 
         full_config_style = full_config.get('style', {})
-        if not full_config_style:
-            full_config_style = {}
 
         css_global_page = _Template(
             _html_minimal_document_css_global_page_template 
