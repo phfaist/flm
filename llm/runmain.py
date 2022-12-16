@@ -154,9 +154,9 @@ default_config = dict(
                     name='llm.feature.graphics.FeatureSimplePathGraphicsResourceProvider',
                     config=dict(),
                 )
-            ]
+            ],
+            workflow=dict(),
         ),
-        workflow=dict(),
     ),
     html=dict(
         llm=dict(
@@ -256,7 +256,7 @@ class RenderWorkflow:
     binary_output = False
     def __init__(self, args, config, fragment_renderer_class=None):
         self.args = args
-        self.config = config
+        self.config = config if config else {}
         self._fragment_renderer_class = fragment_renderer_class
 
         for k, v in self.config.items():
@@ -299,25 +299,17 @@ class RenderWorkflow:
 
 
 class MinimalDocumentPostprocessor:
-    doc_pre_post = None
-
-    def __init__(self, document, render_context):
+    def __init__(self, document, render_context, config):
         super().__init__()
         self.document = document
         self.render_context = render_context
+        self.config = config if config else {}
 
-    def postprocess(self, rendered_content, doc_pre_post=None):
-        if doc_pre_post is None:
-            doc_pre_post = self.doc_pre_post
-        doc_pre, doc_post = doc_pre_post
-        return ''.join([doc_pre, rendered_content, doc_post])
+    def postprocess(self, rendered_content, **kwargs):
+        raise RuntimeError("Reimplement me")
 
 
 class StandardTextBasedRenderWorkflow(RenderWorkflow):
-
-    def get_minimal_document_postprocessor(self, document, render_context):
-        ppcls = _minimal_document_postprocessors[self.format]
-        return ppcls(document, render_context)
 
     def __init__(self, args, format, config):
         super().__init__(args, config, preset_fragment_renderer_classes[format])
@@ -329,13 +321,17 @@ class StandardTextBasedRenderWorkflow(RenderWorkflow):
         pp = self.get_minimal_document_postprocessor(document, render_context)
         return pp.postprocess(rendered_content)
 
+    def get_minimal_document_postprocessor(self, document, render_context):
+        ppcls = _minimal_document_postprocessors[self.format]
+        return ppcls(document, render_context, self.config)
+
 
 def get_render_workflow(argformat, args, config):
     r"""
     Should return {'fragment_renderer': <instance>, 'doc_pre': ..., 'doc_post': ... }
     """
 
-    workflow_config = config['workflow'].get(argformat, {})
+    workflow_config = config['llm']['workflow'].get(argformat, {})
 
     logger.debug("Using workflow config = %r", workflow_config)
 
@@ -421,7 +417,7 @@ def runmain(args):
         for line in fileinput.input(files=args.files, encoding='utf-8'):
             input_content += line
 
-    metadata, llm_content = frontmatter.parse(input_content)
+    frontmatter_metadata, llm_content = frontmatter.parse(input_content)
 
     # compute line number offset (it doesn't look like I can grab this from the
     # `frontmatter` module's result :/
@@ -454,11 +450,11 @@ def runmain(args):
                 orig_config = yaml.safe_load(f)
         
 
-    logger.debug(f"Input metadata is\n{json.dumps(metadata,indent=4)}")
+    logger.debug(f"Input frontmatter_metadata is\n{json.dumps(frontmatter_metadata,indent=4)}")
 
 
     config = configmerger.recursive_assign_defaults([
-        metadata,
+        frontmatter_metadata,
         orig_config,
         default_config.get(args.format, {}),
         default_config['_base'],
@@ -504,18 +500,22 @@ def runmain(args):
     # keys like "title:", "date:", "author:", etc. in the YAML meta-data to be
     # used in the LLM content.  Or a bibliography manager might want a bibfile
     # where to look for references, etc.
-    metadata = {
+    doc_metadata = {
         'filepath': {
             'dirname': dirname,
             'basename': basename,
             'jobnameext': jobnameext,
         },
         'jobname': jobname,
-        'config': config,
     }
     
+    for k, v in config.items():
+        if k not in ('llm', ):
+            doc_metadata[k] = v
 
-    doc = environ.make_document(fragment.render, metadata=metadata)
+    doc_metadata['_config'] = config
+
+    doc = environ.make_document(fragment.render, metadata=doc_metadata)
     
     #
     # Allow features prime access to the document and the fragment, in case they
@@ -592,17 +592,24 @@ class _Template(string.Template):
 
 
 class HtmlMinimalDocumentPostprocessor(MinimalDocumentPostprocessor):
-    def postprocess(self, rendered_content, config=None):
-        if config is None:
-            config = {}
-        doc_pre, doc_post = self.get_pre_post(config)
-        return super().postprocess(rendered_content, doc_pre_post=(doc_pre, doc_post))
 
-    def get_pre_post(self, config):
+    def postprocess(self, rendered_content):
+        doc_pre, doc_post = self.get_pre_post()
+        return ''.join([doc_pre, rendered_content, doc_post])
+
+    def get_pre_post(self):
+
+        config = self.config
+
+        logger.debug("html minimal document post-processor, config is %r", config)
 
         metadata = self.document.metadata
         if metadata is None:
             metadata = {}
+        else:
+            metadata = {k: v for (k, v) in metadata.items() if k != "config"}
+
+        logger.debug("html minimal document post-processor, metadata is %r", metadata)
 
         full_config = ConfigMerger().recursive_assign_defaults([
             config,
@@ -610,15 +617,29 @@ class HtmlMinimalDocumentPostprocessor(MinimalDocumentPostprocessor):
                 'metadata': metadata,
             },
             {
-                'metadata': { 'title': "LLM Document" },
+                'render_header': True,
+                'metadata': { 'title': "", 'author': "", 'date': "" },
                 'html': { 'extra_css': '', 'extra_js': '' },
+                'style': {
+                    'font_family': "Source Serif Pro",
+                    'font_size': "16px",
+                    #'default_font_families': "'Times New Roman', serif",
+                    'default_font_families': "serif",
+                }
             },
         ])
 
+        logger.debug("html minimal document post-processor, full_config is %r", full_config)
+
         html_fragment_renderer = self.render_context.fragment_renderer
+
+        css_global_page = _Template(
+            _html_minimal_document_css_global_page_template 
+        ).substitute(full_config['style'])
 
         css = (
             '/* ======== */\n'
+            + css_global_page
             + html_fragment_renderer.get_html_css_global()
             + html_fragment_renderer.get_html_css_content()
             + '/* ======== */\n'
@@ -630,12 +651,37 @@ class HtmlMinimalDocumentPostprocessor(MinimalDocumentPostprocessor):
         if full_config['html']['extra_js']:
             js += '\n/* ======== */\n' + full_config['html']['extra_js'] + '\n/* ======== */\n'
 
+        body_start_content = ""
+        if full_config['render_header']:
+            body_start_content_items = []
+            if full_config['metadata']['title']:
+                body_start_content_items.append(
+                    f"<h1 class=\"header-title\">{full_config['metadata']['title']}</h1>"
+                )
+            if full_config['metadata']['author']:
+                body_start_content_items.append(
+                    f"<div role=\"doc-subtitle\" class=\"header-author\">"
+                    f"{full_config['metadata']['author']}"
+                    f"</div>"
+                )
+            if full_config['metadata']['date']:
+                body_start_content_items.append(
+                    f"<div role=\"doc-subtitle\" class=\"header-date\">"
+                    f"{full_config['metadata']['date']}"
+                    f"</div>"
+                )
+            if body_start_content_items:
+                body_start_content += (
+                    "<header>" + "".join(body_start_content_items) + "</header>"
+                )
+
         full_config_w_htmltemplate = ConfigMerger().recursive_assign_defaults([
             full_config,
             {
                 'html_template': {
                     'css': css,
                     'js': js,
+                    'body_start_content': body_start_content,
                     'body_end_content': html_fragment_renderer.get_html_body_end_js_scripts(),
                 },
             },
@@ -654,6 +700,30 @@ class HtmlMinimalDocumentPostprocessor(MinimalDocumentPostprocessor):
         return html_pre, html_post
 
 
+_html_minimal_document_css_global_page_template = r"""
+html, body {
+  font-family: '${font_family}', ${default_font_families};
+  font-size: ${font_size};
+  line-height: 1.3em;
+}
+
+header, article {
+  max-width: 640px;
+  margin: 0px auto;
+}
+header {
+  padding-bottom: 1em;
+  border-bottom: 1px solid black;
+  margin-bottom: 2em;
+}
+header div[role="doc-subtitle"] {
+  margin-left: 2em;
+  margin-top: 0.5em;
+  font-size: 1.1rem;
+  font-style: italic;
+}
+"""
+
 _html_minimal_document_pre_template = r"""
 <!doctype html>
 <html>
@@ -670,6 +740,7 @@ ${html_template.js}
 </script>
 </head>
 <body>
+${html_template.body_start_content}
   <article>
 """.strip()
 
@@ -700,7 +771,12 @@ _latex_minimal_document_post = r"""%
 """
 
 class LatexMinimalDocumentPostprocessor(MinimalDocumentPostprocessor):
+
     doc_pre_post = (_latex_minimal_document_pre, _latex_minimal_document_post)
+
+    def postprocess(self, rendered_content):
+        doc_pre, doc_post = self.doc_pre_post
+        return ''.join([doc_pre, rendered_content, doc_post])
 
 
 # ------------------------------------------------------------------------------

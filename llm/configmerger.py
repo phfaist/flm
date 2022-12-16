@@ -186,7 +186,7 @@ class ConfigMerger:
 
     def recursive_assign_defaults_dict(self, obj_list, property_path):
 
-        logger.debug(f"recursive_assign_defaults_dict({obj_list=}, {property_path=})")
+        #logger.debug(f"recursive_assign_defaults_dict({obj_list=}, {property_path=})")
 
         if len(obj_list) == 0:
             return {}
@@ -222,7 +222,7 @@ class ConfigMerger:
                         property_path + [k]
                     )
 
-                    logger.debug(f"Assigning default for property ‘{k}’ → {repr(sub_result)}")
+                    #logger.debug(f"Assigning default for property ‘{k}’ → {repr(sub_result)}")
                     result[k] = sub_result
 
                 elif isinstance(obj[k], list):
@@ -235,7 +235,7 @@ class ConfigMerger:
                         property_path + [k]
                     )
 
-                    logger.debug(f"Assigning default for property ‘{k}’ → {repr(list_result)}")
+                    #logger.debug(f"Assigning default for property ‘{k}’ → {repr(list_result)}")
                     result[k] = list_result
 
                 else:
@@ -270,8 +270,8 @@ class ConfigMerger:
                         self, presetarg, list_result, obj, j, remaining_obj_list,
                         property_path + [ ListProperty ]
                     )
-                    logger.debug(f"process_list_item, new list is "
-                                 f"{list_result=} ({j=} {obj=})")
+                    #logger.debug(f"process_list_item, new list is "
+                    #             f"{list_result=} ({j=} {obj=})")
                     j += 1
                     continue
 

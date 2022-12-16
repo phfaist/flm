@@ -675,16 +675,6 @@ _rx_delayed_markers = re.compile(r'<LLM:DLYD:(?P<key>\d+)\s*/>')
 # ------------------------------------------------------------------------------
 
 _html_css_global = r"""
-html, body {
-  font-size: 16px;
-  line-height: 1.3em;
-}
-
-article {
-  max-width: 640px;
-  margin: 0px auto;
-}
-
 p, ul, ol {
   margin: 1em 0px;
 }
@@ -717,11 +707,13 @@ _html_css_content = r"""
 
 h1 {
   font-size: 1.6rem;
+  line-height: 1.3em;
   font-weight: bold;
   margin: 1em 0px;
 }
 h2 {
   font-size: 1.3rem;
+  line-height: 1.3em;
   font-weight: bold;
   margin: 1em 0px;
 }
