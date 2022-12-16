@@ -155,7 +155,8 @@ default_config = dict(
                     config=dict(),
                 )
             ]
-        )
+        ),
+        workflow=dict(),
     ),
     html=dict(
         llm=dict(
@@ -253,9 +254,13 @@ preset_fragment_renderer_classes = {
 
 class RenderWorkflow:
     binary_output = False
-    def __init__(self, args, fragment_renderer_class=None):
+    def __init__(self, args, config, fragment_renderer_class=None):
         self.args = args
+        self.config = config
         self._fragment_renderer_class = fragment_renderer_class
+
+        for k, v in self.config.items():
+            setattr(self, k, v)
 
     def get_fragment_renderer_class(self):
         return self._fragment_renderer_class
@@ -314,8 +319,8 @@ class StandardTextBasedRenderWorkflow(RenderWorkflow):
         ppcls = _minimal_document_postprocessors[self.format]
         return ppcls(document, render_context)
 
-    def __init__(self, args, format):
-        super().__init__(args, preset_fragment_renderer_classes[format])
+    def __init__(self, args, format, config):
+        super().__init__(args, config, preset_fragment_renderer_classes[format])
         self.format = format
 
     def postprocess_rendered_document(self, rendered_content, document, render_context):
@@ -325,16 +330,20 @@ class StandardTextBasedRenderWorkflow(RenderWorkflow):
         return pp.postprocess(rendered_content)
 
 
-def get_render_workflow(argformat, args):
+def get_render_workflow(argformat, args, config):
     r"""
     Should return {'fragment_renderer': <instance>, 'doc_pre': ..., 'doc_post': ... }
     """
 
+    workflow_config = config['workflow'].get(argformat, {})
+
+    logger.debug("Using workflow config = %r", workflow_config)
+
     if argformat in preset_fragment_renderer_classes:
-        return StandardTextBasedRenderWorkflow(args, argformat)
+        return StandardTextBasedRenderWorkflow(args, argformat, workflow_config)
     elif '.' in argformat:
         WorkflowClass = importclass(argformat)
-        return WorkflowClass(args)
+        return WorkflowClass(args, workflow_config)
     else:
         raise ValueError(f"Unknown format: ‘{argformat}’")
 
@@ -377,6 +386,8 @@ def runmain(args):
         raise ValueError(
             "No output format specified!"
         )
+
+    logger.debug("Format is %r", args.format)
 
     # Get the LLM content
 
@@ -459,7 +470,7 @@ def runmain(args):
 
     # Set up the format & formatters
 
-    workflow = get_render_workflow(args.format, args)
+    workflow = get_render_workflow(args.format, args, config)
 
     # fragment_renderer properties from config
     fragment_renderer_config = config['llm']['fragment_renderer'].get(args.format, {})
