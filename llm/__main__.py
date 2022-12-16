@@ -43,10 +43,18 @@ def main(cmdargs=None):
                              "fully specified class name for a FragmentRenderer class.")
 
     args_parser.add_argument('-D', '--minimal-document', action='store_true',
-                             default=None,
+                             default=True,
                              help="Produce a minimal document preamble/postambule to form "
                              "a self-contained document.  Only applicable to specific "
-                             "formats such as --format=html and --format=latex")
+                             "formats such as --format=html and --format=latex.  "
+                             "On by default.")
+
+    args_parser.add_argument('-F', '--fragment', dest='minimal_document',
+                             action='store_false',
+                             help="The opposite of --minimal-document. Only applicable "
+                             "to specific formats such as --format=html and --format=latex. "
+                             "Use this option to generate fragments of (e.g. HTML) code "
+                             "that can be inserted in other documents.")
 
 
     args_parser.add_argument('-n', '--suppress-final-newline', action='store_true',

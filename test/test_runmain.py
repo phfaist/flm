@@ -25,7 +25,8 @@ class TestRunMain(unittest.TestCase):
         runmain(LLMMainArguments(
             output=sout,
             llm_content=r"Hello \emph{world}!  Looking great today.",
-            format='html'
+            format='html',
+            minimal_document=False,
         ))
         self.assertEqual(
             sout.getvalue(),
@@ -48,6 +49,7 @@ llm:
 Hello \emph{world}!  Let $x$ and $y$ be real numbers. ## comments configured like this!
 """,
             format='html',
+            minimal_document=False,
             suppress_final_newline=True,
         ))
         self.assertEqual(

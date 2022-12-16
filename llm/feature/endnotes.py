@@ -274,7 +274,7 @@ class FeatureEndnotes(Feature):
 
             if include_headings_at_level is None:
                 include_headings_at_level = \
-                    self.feature.default_render_options.get('include_heaings_at_level', None)
+                    self.feature.default_render_options.get('include_headings_at_level', None)
             if set_headings_target_ids is None:
                 set_headings_target_ids = \
                     self.feature.default_render_options.get('set_headings_target_ids', False)

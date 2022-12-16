@@ -52,7 +52,7 @@ class LLMMainArguments:
 
     format : Optional[str] = None
 
-    minimal_document : bool = False
+    minimal_document : bool = True
 
     suppress_final_newline : bool = False
 
@@ -280,12 +280,6 @@ class RenderWorkflow:
         # Render endnotes
         if render_context.supports_feature('endnotes'):
             endnotes_mgr = render_context.feature_render_manager('endnotes')
-            # # find endnotes feature config
-            # endnotes_feature_spec = next(
-            #     spec for spec in config['llm']['features']
-            #     if spec['name'] == 'llm.feature.endnotes.FeatureEndnotes'
-            # )
-
             endnotes_result = endnotes_mgr.render_endnotes()
             rendered_result = fragment_renderer.render_join_blocks([
                 rendered_result,
@@ -319,10 +313,15 @@ class StandardTextBasedRenderWorkflow(RenderWorkflow):
         if not self.args.minimal_document:
             return rendered_content
         pp = self.get_minimal_document_postprocessor(document, render_context)
+        if pp is None:
+            # e.g., 'text' format has no minimal-document mode
+            return rendered_content
         return pp.postprocess(rendered_content)
 
     def get_minimal_document_postprocessor(self, document, render_context):
-        ppcls = _minimal_document_postprocessors[self.format]
+        ppcls = _minimal_document_postprocessors.get(self.format, None)
+        if ppcls is None:
+            return None
         return ppcls(document, render_context, self.config)
 
 
