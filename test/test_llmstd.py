@@ -377,7 +377,7 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
                 raise ValueError(f"Invalid citation prefix: {cite_prefix!r}")
 
         environ = LLMStandardEnvironment(
-            external_citations_provider=MyCitationsProvider()
+            external_citations_providers=[ MyCitationsProvider() ]
         )
 
         frag1 = environ.make_fragment(

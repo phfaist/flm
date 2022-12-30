@@ -6,6 +6,7 @@ from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 
 from ..llmspecinfo import LLMMacroSpecBase
+from ..llmfragment import LLMFragment
 from ..llmenvironment import LLMArgumentSpec
 
 from .. import fmthelpers
@@ -65,23 +66,30 @@ class FeatureExternalPrefixedCitations(Feature):
         def initialize(self):
             self.citation_endnotes = {}
             self.use_endnotes = self.feature_document_manager.use_endnotes
-            self.external_citations_provider = self.feature.external_citations_provider
+            self.external_citations_providers = self.feature.external_citations_providers
 
         def get_citation_content_llm(self, cite_prefix, cite_key, resource_info):
 
             # retrieve citation from citations provider --
-            citation_llm_text = \
-                self.external_citations_provider.get_citation_full_text_llm(
-                    cite_prefix, cite_key,
-                    resource_info
-                )
+            citation_llm_text = None
+            for external_citations_provider in self.external_citations_providers:
+                citation_llm_text = \
+                    external_citations_provider.get_citation_full_text_llm(
+                        cite_prefix, cite_key,
+                        resource_info
+                    )
+                if citation_llm_text:
+                    break
 
-            citation_llm = self.render_context.doc.environment.make_fragment(
-                citation_llm_text,
-                is_block_level=False,
-                standalone_mode=True,
-                what=f"Citation text for {cite_prefix}:{cite_key}",
-            )
+            if isinstance(citation_llm_text, LLMFragment):
+                citation_llm = citation_llm_text
+            else:
+                citation_llm = self.render_context.doc.environment.make_fragment(
+                    citation_llm_text,
+                    is_block_level=False,
+                    standalone_mode=True,
+                    what=f"Citation text for {cite_prefix}:{cite_key}",
+                )
 
             #logger.debug("Got citation content LLM nodelist = %r", citation_llm.nodes)
 
@@ -127,24 +135,24 @@ class FeatureExternalPrefixedCitations(Feature):
 
 
     def __init__(self,
-                 external_citations_provider,
+                 external_citations_providers,
                  counter_formatter='arabic',
                  citation_delimiters=('[',']'),
                  citation_optional_text_separator="; ",
                  ):
         super().__init__()
-        self.external_citations_provider = external_citations_provider
+        self.external_citations_providers = external_citations_providers
         self.counter_formatter = counter_formatter
         self.citation_delimiters = citation_delimiters
         self.citation_optional_text_separator = citation_optional_text_separator
 
-    def set_external_citations_provider(self, external_citations_provider):
-        if self.external_citations_provider is not None:
+    def set_external_citations_providers(self, external_citations_providers):
+        if self.external_citations_providers is not None:
             logger.warning(
-                "FeatureExternalPrefixedCitations.set_external_citations_provider(): "
-                "There is already an external refs resolver set.  It will be replaced."
+                "FeatureExternalPrefixedCitations.set_external_citations_providers(): "
+                "There are already external refs resolvers set.  They will be replaced."
             )
-        self.external_citations_provider = external_citations_provider
+        self.external_citations_providers = external_citations_providers
 
     def add_latex_context_definitions(self):
         return {

@@ -197,7 +197,7 @@ def standard_features(
         enumeration_environments_dict=None,
         endnotes=True,
         citations=True,
-        external_citations_provider=None,
+        external_citations_providers=None,
         eq_counter_formatter=None,
         footnote_counter_formatter=None,
         citation_counter_formatter=None,
@@ -253,10 +253,10 @@ def standard_features(
             FeatureEndnotes(categories=endnote_categories)
         )
 
-    if citations and external_citations_provider is not None:
+    if citations and external_citations_providers is not None:
         features.append(
             FeatureExternalPrefixedCitations(
-                external_citations_provider=external_citations_provider,
+                external_citations_providers=external_citations_providers,
                 counter_formatter=citation_counter_formatter,
                 citation_delimiters=('[', ']'),
             )
@@ -303,7 +303,7 @@ class LLMStandardEnvironment(LLMEnvironment):
         if features is None:
             features = standard_features(
                 **{ k: kwargs.pop(k)
-                    for k in ('external_citations_provider',
+                    for k in ('external_citations_providers',
                               'external_ref_resolvers',
                               'footnote_counter_formatter',
                               'citation_counter_formatter')
