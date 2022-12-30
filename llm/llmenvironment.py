@@ -131,7 +131,11 @@ class BlocksBuilder:
                 is_head=info['is_head'],
                 is_tail=info['is_tail'],
             )
-            logger.debug(f"simplifying whitespace for chars node, {info['is_head']=} {char_node=} --> {char_node.llm_chars_value=}")
+            logger.debug(
+                "simplifying whitespace for chars node, info['is_head']=%r char_node=%r "
+                "--> char_node.llm_chars_value=%r",
+                info['is_head'], char_node, char_node.llm_chars_value
+            )
 
         return paragraph_nodes
 

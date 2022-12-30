@@ -402,8 +402,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
         )
         if inline_heading and self.inline_heading_add_space:
             content += ' '
-        logger.debug(f"Rendered heading: {content=!r}; {inline_heading=}; "
-                     f"add_space={self.inline_heading_add_space}")
+        logger.debug("Rendered heading: content=%r; inline_heading=%r; "
+                     "add_space=%r", content, inline_heading, self.inline_heading_add_space)
         return content
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):

@@ -449,7 +449,8 @@ def runmain(args):
                 orig_config = yaml.safe_load(f)
         
 
-    logger.debug(f"Input frontmatter_metadata is\n{json.dumps(frontmatter_metadata,indent=4)}")
+    logger.debug("Input frontmatter_metadata is\n%s",
+                 json.dumps(frontmatter_metadata,indent=4))
 
 
     config = configmerger.recursive_assign_defaults([
@@ -460,7 +461,7 @@ def runmain(args):
     ])
 
 
-    logger.debug(f"Using config:\n{json.dumps(config,indent=4)}")
+    logger.debug("Using config:\n%s", json.dumps(config,indent=4))
 
 
     # Set up the format & formatters
@@ -479,7 +480,7 @@ def runmain(args):
     std_parsing_state = llmstd.standard_parsing_state(**config['llm']['parsing'])
     std_features = setup_features(config['llm']['features'])
 
-    logger.debug(f"{std_parsing_state=}")
+    logger.debug("std_parsing_state = %r", std_parsing_state)
 
     environ = llmstd.LLMStandardEnvironment(
         parsing_state=std_parsing_state,

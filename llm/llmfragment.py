@@ -219,11 +219,11 @@ class LLMFragment:
         if not nodelists_paragraphs:
             return self
 
-        logger.debug(f"{nodelists_paragraphs[0]=}")
+        logger.debug("nodelists_paragraphs[0] = %r", nodelists_paragraphs[0])
 
         thenodes = nodelists_paragraphs[0]
 
-        logger.debug(f"First paragraph -> {thenodes=}")
+        logger.debug("First paragraph -> %r", thenodes)
         return self.environment.make_fragment(
             llm_text=thenodes,
             **self._attributes(what=f"{self.what}:first-paragraph")

@@ -34,6 +34,10 @@ def run_main():
                         help="Temporary folder in which to write intermediate, "
                         "preprocessed sources to be fed into Transcrypt")
 
+    parser.add_argument('--enable-debug', action='store_true', default=False,
+                        help="Generate logging debug() message calls instead of "
+                        " removing them")
+
     parser.add_argument('--compile-tests', action='store_true', default=False,
                         help="Also compile the LLM tests into a separate folder ./test-llm-js")
     parser.add_argument('--test-llm-js-output-dir', action='store',
@@ -79,9 +83,14 @@ def run_main():
         }
     )
 
+    override_enabled_features = None
+    if args.enable_debug:
+        override_enabled_features['keep_logger_debug'] = True
+
     # preprocess both pylatexenc & llm libraries to prepare them for Transcrypt -->
-    genutils.preprocess_pylatexenc_lib()
-    genutils.preprocess_lib('preprocesslib-llm.config.yaml')
+    genutils.preprocess_pylatexenc_lib(override_enabled_features=override_enabled_features)
+    genutils.preprocess_lib('preprocesslib-llm.config.yaml',
+                            override_enabled_features=override_enabled_features)
     if args.compile_tests:
         genutils.preprocess_lib('preprocesslib-tests.config.yaml')
 

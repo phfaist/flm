@@ -162,19 +162,20 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             return self.ref_labels[(ref_type, ref_label)]
 
         logger.debug(f"Couldn't find {(ref_type, ref_label)} in current document "
-                     f"labels; will query external ref resolvers.  {self.ref_labels=}")
+                     f"labels; will query external ref resolvers.  self.ref_labels=%r",
+                     self.ref_labels)
 
-        logger.debug(f"external ref resolvers are {repr(self.external_ref_resolvers)}")
+        logger.debug("external ref resolvers are %r", self.external_ref_resolvers)
 
         for resolver in self.external_ref_resolvers:
-            logger.debug(f"Trying external ref resolver ... {repr(resolver)}")
+            logger.debug("Trying external ref resolver ... %r", resolver)
             ref = resolver.get_ref(
                 ref_type,
                 ref_label,
                 resource_info,
                 self.render_context,
             )
-            logger.debug(f"Tried external ref resolver, {ref=}")
+            logger.debug("Tried external ref resolver, ref=%r", ref)
             if ref is not None:
                 return ref
 
