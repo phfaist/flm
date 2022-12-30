@@ -368,12 +368,21 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
 
     def test_provides_citations_by_default_if_given_external_citations_provider(self):
 
+        environ = None
+
         class MyCitationsProvider:
             def get_citation_full_text_llm(self, cite_prefix, cite_key, resource_info):
                 if cite_prefix == 'arxiv':
+                    # can return LLM text as a string
                     return r'\textit{arXiv} paper ' + f'arXiv:{cite_key}'
                 if cite_prefix == 'manual':
-                    return cite_key
+                    # can return a compiled fragment
+                    return environ.make_fragment(
+                        cite_key,
+                        is_block_level=False,
+                        standalone_mode=True,
+                        what=f"Custom manual citation text",
+                    )
                 raise ValueError(f"Invalid citation prefix: {cite_prefix!r}")
 
         environ = LLMStandardEnvironment(
