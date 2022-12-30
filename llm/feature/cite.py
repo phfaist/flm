@@ -70,6 +70,9 @@ class FeatureExternalPrefixedCitations(Feature):
 
         def get_citation_content_llm(self, cite_prefix, cite_key, resource_info):
 
+            if self.external_citations_providers is None:
+                raise ValueError("No external citations providers are set!")
+
             # retrieve citation from citations provider --
             citation_llm_text = None
             for external_citations_provider in self.external_citations_providers:
