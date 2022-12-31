@@ -163,9 +163,9 @@ class FeatureExternalPrefixedCitations(Feature):
                 "FeatureExternalPrefixedCitations.add_external_citations_provider(): "
                 "External citations provider list was not initialized, creating an empty list."
             )
-            self.external_citaitons_providers = []
+            self.external_citations_providers = []
 
-        self.external_citaitons_providers.append( external_citations_provider )
+        self.external_citations_providers.append( external_citations_provider )
 
     def add_latex_context_definitions(self):
         return {
