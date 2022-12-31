@@ -153,9 +153,19 @@ class FeatureExternalPrefixedCitations(Feature):
         if self.external_citations_providers is not None:
             logger.warning(
                 "FeatureExternalPrefixedCitations.set_external_citations_providers(): "
-                "There are already external refs resolvers set.  They will be replaced."
+                "There are already external citation providers set.  They will be replaced."
             )
         self.external_citations_providers = external_citations_providers
+
+    def add_external_citations_provider(self, external_citations_provider):
+        if self.external_citations_providers is None:
+            logger.warning(
+                "FeatureExternalPrefixedCitations.add_external_citations_provider(): "
+                "External citations provider list was not initialized, creating an empty list."
+            )
+            self.external_citaitons_providers = []
+
+        self.external_citaitons_providers.append( external_citations_provider )
 
     def add_latex_context_definitions(self):
         return {
