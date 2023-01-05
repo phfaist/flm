@@ -83,6 +83,9 @@ class FeatureExternalPrefixedCitations(Feature):
                     )
                 if citation_llm_text:
                     break
+            
+            if citation_llm_text is None:
+                raise ValueError(f"Citation not found: ‘{cite_prefix}:{cite_key}’")
 
             if isinstance(citation_llm_text, LLMFragment):
                 citation_llm = citation_llm_text

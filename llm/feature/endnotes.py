@@ -299,7 +299,8 @@ class FeatureEndnotes(Feature):
 
                 has_endnotes = True
 
-                if include_headings_at_level is not None:
+                if include_headings_at_level is not None \
+                   and include_headings_at_level is not False:
                     heading_nodelist = self.render_context.doc.environment.make_fragment(
                         encat.heading_title,
                         is_block_level=False,

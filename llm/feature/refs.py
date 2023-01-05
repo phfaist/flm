@@ -100,10 +100,13 @@ def get_safe_target_id(ref_type, ref_label):
 
 class FeatureRefsRenderManager(Feature.RenderManager):
 
-    def initialize(self):
+    def initialize(self, add_external_ref_resolvers=None):
         self.ref_labels = {}
         self.registered_references = {}
-        self.external_ref_resolvers = self.feature.external_ref_resolvers
+        self.external_ref_resolvers = (
+            [] + (add_external_ref_resolvers or [])
+            + self.feature.external_ref_resolvers
+        )
         
     def register_reference_referenceable(self, *, node, referenceable_info):
 
