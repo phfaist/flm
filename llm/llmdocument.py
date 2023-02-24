@@ -109,9 +109,13 @@ class LLMDocument:
         # and initialize our feature render managers
         if feature_render_options is None:
             feature_render_options = {}
+
+        # want full dict() object for Transcrypt
+        feature_render_options = dict(feature_render_options)
+
         for feature_name, feature_render_manager in render_context.feature_render_managers:
             if feature_render_manager is not None:
-                feature_options = feature_render_options.get(feature_name, {})
+                feature_options = feature_render_options.get(feature_name, dict())
                 feature_render_manager.initialize(**feature_options)
         return render_context
 

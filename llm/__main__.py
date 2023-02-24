@@ -47,7 +47,7 @@ def main(cmdargs=None):
                              help="Produce a minimal document preamble/postambule to form "
                              "a self-contained document.  Only applicable to specific "
                              "formats such as --format=html and --format=latex.  "
-                             "On by default.")
+                             "On by default.  Use the --fragment (-F) option to disable.")
 
     args_parser.add_argument('-F', '--fragment', dest='minimal_document',
                              action='store_false',

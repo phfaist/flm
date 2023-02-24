@@ -30,7 +30,7 @@ class FragmentRenderer:
     def render_fragment(self, llm_fragment, render_context, is_block_level=None):
         try:
             return self.render_nodelist(llm_fragment.nodes,
-                                        self._ensure_render_context(render_context),
+                                        self.ensure_render_context(render_context),
                                         is_block_level=is_block_level)
         except Exception as e:
             logger.debug(f"Exception while rendering fragment ‘{llm_fragment.what}’: {e}")
@@ -87,7 +87,7 @@ class FragmentRenderer:
 
 
     def render_node(self, node, render_context):
-        render_context = self._ensure_render_context(render_context)
+        render_context = self.ensure_render_context(render_context)
         if node.isNodeType(nodes.LatexCharsNode):
             return self.render_node_chars(node, render_context)
         if node.isNodeType(nodes.LatexCommentNode):
@@ -121,19 +121,19 @@ class FragmentRenderer:
 
     def render_node_group(self, node, render_context):
         return self.render_nodelist( node.nodelist,
-                                     self._ensure_render_context(render_context) )
+                                     self.ensure_render_context(render_context) )
 
     def render_node_macro(self, node, render_context):
         return self.render_invocable_node(node,
-                                          self._ensure_render_context(render_context))
+                                          self.ensure_render_context(render_context))
 
     def render_node_environment(self, node, render_context):
         return self.render_invocable_node(node,
-                                          self._ensure_render_context(render_context))
+                                          self.ensure_render_context(render_context))
 
     def render_node_specials(self, node, render_context):
         return self.render_invocable_node(node,
-                                          self._ensure_render_context(render_context))
+                                          self.ensure_render_context(render_context))
 
     def render_invocable_node(self, node, render_context):
         #
@@ -153,7 +153,7 @@ class FragmentRenderer:
         return self.render_invocable_node_call_render(
             node,
             node.llm_specinfo,
-            self._ensure_render_context(render_context)
+            self.ensure_render_context(render_context)
         )
 
 
@@ -202,7 +202,7 @@ class FragmentRenderer:
         return self.render_math_content(
             node.delimiters,
             node.nodelist,
-            self._ensure_render_context(render_context),
+            self.ensure_render_context(render_context),
             displaytype=node.displaytype,
             target_id=None
         )
@@ -365,7 +365,7 @@ class FragmentRenderer:
     
     # helpers
 
-    def _ensure_render_context(self, render_context):
+    def ensure_render_context(self, render_context):
         return render_context or LLMRenderContext(fragment_renderer=self)
 
 

@@ -153,7 +153,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if not target_href: # e.g., None
             target_href = '#'
         attrs = {
-            'href': self.htmlescape(target_href)
+            'href': target_href,
         }
         if callable(self.use_link_target_blank):
             if self.use_link_target_blank(target_href):
