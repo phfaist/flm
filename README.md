@@ -83,8 +83,8 @@ standard and/or self-explanatory:
 $ llm mydocument.llm -o mydocument.html --format=html --minimal-document
 ```
 
-Available formats are `html`, `text`, and `latex`.  Formats `text` and `latex` are very
-experimental!
+Available formats are `html`, `text`, `latex`, and `markdown`.  Formats `text`,
+`markdown`, and `latex` are very experimental!
 
 ## Document Front Matter
 
@@ -168,7 +168,7 @@ llm:
     force_block_level: null
 ```
 
-### Renderer configuration (`html`, `text`, `latex`)
+### Renderer configuration (`html`, `text`, `latex`, `markdown`)
 
 Here's a basic renderer configuration that you can adapt **for HTML output**
 (`--format=html`):
@@ -212,6 +212,16 @@ llm:
         5: "subparagraph"
         6: null
 ```
+
+Here's a basic renderer configuration that you can adapt **for Markdown output**
+(`--format=markdown`):
+```yaml
+llm:
+  fragment_renderer:
+    markdown:
+      use_target_ids: 'github' # or 'anchor' or 'pandoc' or null
+```
+
 
 ### Features and their configuration
 
