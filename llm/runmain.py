@@ -25,6 +25,7 @@ from . import fmthelpers
 from .fragmentrenderer.text import TextFragmentRenderer
 from .fragmentrenderer.html import HtmlFragmentRenderer
 from .fragmentrenderer.latex import LatexFragmentRenderer
+from .fragmentrenderer.markdown import MarkdownFragmentRenderer
 
 # from .feature.endnotes import FeatureEndnotes, EndnoteCategory
 from .feature.enumeration import default_enumeration_environments
@@ -236,6 +237,34 @@ default_config = dict(
             ],
         ),
     ),
+    markdown=dict(
+        llm=dict(
+            fragment_renderer=dict(
+                markdown=dict(
+                )
+            ),
+            features=[
+                {
+                    '$defaults': True # value is not used for $defaults
+                },
+                {
+                    '$merge-config': {
+                        'name': 'llm.feature.endnotes.FeatureEndnotes',
+                        'config': dict(
+                            categories=[
+                                dict(
+                                    category_name='footnote',
+                                    counter_formatter='unicodesuperscript',
+                                    heading_title='Footnotes',
+                                    endnote_command='footnote',
+                                )
+                            ]
+                        ),
+                    },
+                },
+            ],
+        ),
+    ),
 )
 
 
@@ -249,6 +278,7 @@ preset_fragment_renderer_classes = {
     'html': HtmlFragmentRenderer,
     'text': TextFragmentRenderer,
     'latex': LatexFragmentRenderer,
+    'markdown': MarkdownFragmentRenderer,
 }
 
 

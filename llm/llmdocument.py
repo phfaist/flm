@@ -136,7 +136,7 @@ class LLMDocument:
             logger.warning("The LLM document render callback function returned `None`! Did "
                            "you forget a ‘return ...’ instruction?")
 
-        #logger.debug("first pass -> value = %r", value)
+        logger.debug("llm document render first pass done, will render delayed values")
 
         # do any necessary processing required by the feature managers, in the
         # order they were specified
@@ -191,6 +191,8 @@ class LLMDocument:
         for feature_name, feature_render_manager in render_context.feature_render_managers:
             if feature_render_manager is not None:
                 feature_render_manager.postprocess(value)
+
+        logger.debug("llm document render done")
 
         return value, render_context
 
