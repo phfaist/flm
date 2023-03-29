@@ -44,6 +44,8 @@ class FeatureExternalPrefixedCitations(Feature):
 
     feature_name = 'citations'
 
+    feature_optional_dependencies = [ 'endnotes' ]
+
     use_endnotes = True
 
     class DocumentManager(Feature.DocumentManager):

@@ -159,3 +159,95 @@ work?
 
         
 
+
+
+class Feat1:
+    feature_name = 'feature 1'
+    feature_dependencies = None
+    feature_optional_dependencies = None
+
+class Feat2:
+    feature_name = 'feature 2'
+    feature_dependencies = ['feature 1']
+    feature_optional_dependencies = []
+
+class Feat3:
+    feature_name = 'feature 3'
+    feature_dependencies = []
+    feature_optional_dependencies = None
+
+class Feat4:
+    feature_name = 'feature 4'
+    feature_dependencies = ['feature 3']
+    feature_optional_dependencies = ['feature 1']
+
+class Feat5:
+    feature_name = 'feature 5'
+    feature_dependencies = ['feature 3', 'feature 2']
+    feature_optional_dependencies = ['feature 1', 'feature 4']
+    
+
+class Test_features_sorted_by_dependencies(unittest.TestCase):
+
+    def test_get_sorted(self):
+
+        sorted_features, features_by_name = llmenvironment.features_sorted_by_dependencies([
+            Feat3(),
+            Feat2(),
+            Feat5(),
+            Feat1(),
+            Feat4(),
+        ])
+
+        self.assertEqual(
+            [ f.feature_name for f in sorted_features ],
+            [ 'feature 1', 'feature 3', 'feature 2', 'feature 4', 'feature 5' ]
+        )
+
+    def test_get_sorted_2(self):
+
+        sorted_features, features_by_name = llmenvironment.features_sorted_by_dependencies([
+            Feat1(),
+            Feat2(),
+            Feat3(),
+            Feat4(),
+            Feat5(),
+        ])
+
+        self.assertEqual(
+            [ f.feature_name for f in sorted_features ],
+            [ 'feature 1', 'feature 3', 'feature 2', 'feature 4', 'feature 5' ]
+        )
+
+
+    def test_get_sorted_woptional(self):
+
+        sorted_features, features_by_name = llmenvironment.features_sorted_by_dependencies([
+            Feat3(),
+            Feat4(),
+        ])
+
+        self.assertEqual(
+            [ f.feature_name for f in sorted_features ],
+            [ 'feature 3', 'feature 4' ]
+        )
+
+
+    def test_get_sorted_woptional_2(self):
+
+        sorted_features, features_by_name = llmenvironment.features_sorted_by_dependencies([
+            Feat4(),
+            Feat3(),
+        ])
+
+        self.assertEqual(
+            [ f.feature_name for f in sorted_features ],
+            [ 'feature 3', 'feature 4' ]
+        )
+
+
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
+    unittest.main()
