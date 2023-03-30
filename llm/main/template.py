@@ -11,19 +11,6 @@ from .configmerger import ConfigMerger
 configmerger = ConfigMerger()
 
 
-# def _flatten_dict(d, joiner='.'):
-#     r = {}
-#     _flatten_dict_impl(r, d, [], joiner)
-#     return r
-
-# def _flatten_dict_impl(r, d, prefix, joiner):
-#     for k, v in d.items():
-#         p = prefix + [str(k)]
-#         if isinstance(v, dict):
-#             _flatten_dict_impl(r, v, p, joiner)
-#         else:
-#             r[ joiner.join(p) ] = v
-
 
 _emptydict = {}
 

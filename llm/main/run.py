@@ -58,7 +58,7 @@ class ResourceAccessorBase:
 #     'workflow': ......
 #     'force_block_level': None|true|false
 
-#     'input_source': ..... # file name (or URL) that is the source of the LLM content
+#     'cwd': ..... # input CWD
 #     'input_lineno_colno_offsets': ..... # passed on to llmfragment, adjust line/col numbers
 #     'metadata': ..... # to be merged into the document's metadata. Can
 #                       # include information about the LLM source, etc.
@@ -198,6 +198,8 @@ def run(llm_content,
         *merge_default_configs
     ])
 
+    llm_run_info['main_config'] = config
+
     #
     # Set up the fragment renderer
     #
@@ -225,7 +227,6 @@ def run(llm_content,
     ])
     workflow = WorkflowClass(
         workflow_config,
-        config,
         llm_run_info,
         fragment_renderer_information,
         fragment_renderer

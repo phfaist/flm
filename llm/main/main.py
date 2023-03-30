@@ -133,6 +133,16 @@ def main(**kwargs):
                  json.dumps(frontmatter_metadata,indent=4))
 
 
+    doc_metadata = {
+        'filepath': {
+            'dirname': dirname,
+            'basename': basename,
+            'jobnameext': jobnameext,
+        },
+        'jobname': jobname,
+    }
+
+
     run_config = frontmatter_metadata or {}
 
     llm_run_info = {
@@ -141,10 +151,12 @@ def main(**kwargs):
         'workflow': arg_workflow,
         'template': arg_template,
         'force_block_level': arg_force_block_level,
+        'cwd': dirname,
         'input_source': arg_files,
         'input_lineno_colno_offsets': {
             'line_number_offset': line_number_offset,
-        }
+        },
+        'metadata': doc_metadata,
     }
 
     #

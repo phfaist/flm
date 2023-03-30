@@ -13,14 +13,15 @@ class RenderWorkflow:
         return None
 
 
-    def __init__(self, workflow_config, main_config, llm_run_info,
+    def __init__(self, workflow_config, llm_run_info,
                  fragment_renderer_information, fragment_renderer):
 
         self.config = workflow_config
-        self.main_config = main_config
         self.llm_run_info = llm_run_info
         self.fragment_renderer_information = fragment_renderer_information
         self.fragment_renderer = fragment_renderer
+
+        self.main_config = self.llm_run_info['main_config']
 
         for k, v in self.config.items():
             setattr(self, k, v)
