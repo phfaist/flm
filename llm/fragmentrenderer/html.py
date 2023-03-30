@@ -951,7 +951,7 @@ class FragmentRendererInformation:
             'css_global': get_html_css_global(fragment_renderer),
             'css_content': get_html_css_content(fragment_renderer),
             'js': get_html_js(fragment_renderer),
-            'body_end_js_scripts': get_body_end_js_scripts(fragment_renderer),
+            'body_end_js_scripts': get_html_body_end_js_scripts(fragment_renderer),
         }
 
     format_name = 'html'

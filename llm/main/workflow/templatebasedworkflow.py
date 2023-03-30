@@ -1,8 +1,12 @@
 import os.path
 
-from ._base import RenderWorkflow
-from ..configmerger import ConfigMerger
+import logging
+logger = logging.getLogger(__name__)
 
+from ..configmerger import ConfigMerger
+from ..template import DocumentTemplate
+
+from ._base import RenderWorkflow
 
 # ------------------------------------------------------------------------------
 
@@ -34,8 +38,8 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         if not template_info:
             return rendered_content
 
-        template_name = template_info['name']
-        template_config = template_info['config']
+        template_name = template_info.get('name', None)
+        template_config = template_info.get('config', {})
 
         if not template_name:
             return rendered_content
@@ -50,20 +54,34 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         if template_prefix is None and hasattr(frinfo, 'format_name'):
             template_prefix = frinfo.format_name
         
-
         template_config_wdefaults = ConfigMerger().recursive_assign_defaults([
             template_config,
             {
-                'template_prefix': template_prefix,
                 'style': fr_style_information,
             }
         ])
 
+        logger.debug(f"About to load template ‘%s’, config is = %r",
+                     template_name, template_config_wdefaults)
+
         template = DocumentTemplate(template_name,
+                                    template_prefix,
                                     template_config_wdefaults,
                                     self.llm_run_info)
 
-        rendered_template = template.render_template(document, {'content': rendered_content})
+
+        metadata = document.metadata
+        if metadata is None:
+            metadata = {}
+        else:
+            metadata = {k: v for (k, v) in metadata.items() if k != "_config_llm"}
+
+        rendered_template = template.render_template([
+            {
+                'content': rendered_content,
+                'metadata': metadata,
+            },
+        ])
 
         return rendered_template
 

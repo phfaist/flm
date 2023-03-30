@@ -12,3 +12,8 @@ default_config:
   documentclass:
     papersize: ''
     fontsize: '11pt'
+
+  render_title: true
+
+  enable_phfnote: true
+  enable_hyperref: true

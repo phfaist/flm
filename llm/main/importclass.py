@@ -29,6 +29,7 @@ def import_class(fullname, *, default_classnames=None, default_prefix=None):
         try:
             mod = importlib.import_module(modname)
             classobj = getattr(mod, classname)
+            logger.debug(f"Found ‘{classname}’ in module ‘{modname}’")
             return mod, classobj
         except AttributeError as e:
             logger.debug(f"No class ‘{classname}’ in module ‘{modname}’")

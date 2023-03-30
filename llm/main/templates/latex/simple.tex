@@ -1,12 +1,18 @@
 \documentclass[${documentclass.fontsize},${documentclass.papersize}]{article}%$$
 
-${if:usephfnote}%$$
+${if:enable_phfnote}%$$
 \usepackage{phfnote}
 ${endif}%$$
 
 ${preamble}%$$
 
-${style.suggested_preamble_defs}%$$
+${style.preamble_suggested_defs}%$$
+
+${if:enable_hyperref}%$$
+\usepackage{hyperref}
+${else}%$$
+else
+${endif}%$$
 
 \begin{document}
 ${if:render_title}%$$

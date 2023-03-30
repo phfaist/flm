@@ -35,7 +35,7 @@ _base:
         render_options:
           include_headings_at_level: 1
           set_headings_target_ids: True
-          endnotes_heading_title: None
+          endnotes_heading_title: null
           endnotes_heading_level: 1
 
       floats:
@@ -106,9 +106,10 @@ _byformat:
               6: null
         features:
           endnotes:
-            - category_name: 'footnote'
-              counter_formatter:
-                template: '\({}^{${arabic}}\)'
+            categories:
+              - category_name: 'footnote'
+                counter_formatter:
+                  template: '\({}^{${arabic}}\)'
                 heading_title: 'Footnotes'
                 endnote_command: 'footnote'
 

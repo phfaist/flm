@@ -501,13 +501,18 @@ _rx_delayed_markers = re.compile(r'\\LLMDLYD\{(?P<key>\d+)\}')
 #
 
 _latex_preamble_suggested_defs = r"""
-\providecommand{\defterm}{%
+\ifdefined\defterm\else
+\newenvironment{defterm}{%
   \par\begingroup\itshape
-}
-\providecommand{\enddefterm}{%
+}{%
   \endgroup\par
 }
-\providecommand{\displayterm}[1]{\textbf{#1}}
+\fi
+
+\providecommand\displayterm[1]{\textbf{#1}}
+\providecommand\phantomsection{}
+
+\usepackage{amsmath}
 """
 
 
@@ -516,7 +521,7 @@ _latex_preamble_suggested_defs = r"""
 class FragmentRendererInformation:
     FragmentRendererClass = LatexFragmentRenderer
 
-    @classmethod
+    @staticmethod
     def get_style_information(fragment_renderer):
         return {
             'preamble_suggested_defs': _latex_preamble_suggested_defs

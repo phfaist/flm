@@ -1,1 +1,1 @@
-template_engine: 'llm.main.template.NoTemplate'
+template_engine: 'llm.main.template.OnlyContentTemplate'

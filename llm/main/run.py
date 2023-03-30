@@ -17,23 +17,23 @@ class ResourceAccessorBase:
     
     template_path = [ None ]
 
-    def get_template_info_file_name(self, template_name):
+    def get_template_info_file_name(self, template_prefix, template_name, llm_run_info):
 
-        cwd = self.llm_run_info.get('cwd', None)
-        template_path = self.template_path
+        cwd = llm_run_info.get('cwd', None)
 
-        for tpath in template_path:
+        for tpath in self.template_path:
 
             if tpath is None:
                 tpath = cwd # might still be `None`
 
-            for text in template_exts:
-                tfullname = f"{template_name}{text}"
+            for text in self.template_exts:
+                tfullname = os.path.join(template_prefix, f"{template_name}{text}")
                 if self.file_exists(tpath, tfullname, 'template_info'):
-                    return tfullpathname
+                    return tpath, tfullname
 
         raise ValueError(
-            f"Template not found: ‘{template_name}’.  Template path is = {repr(template_path)}"
+            f"Template not found: ‘{template_name}’.  "
+            f"Template path is = {repr(self.template_path)}"
         )
 
     def import_class(self, fullname, *, default_classnames=None, default_prefix=None):
@@ -92,9 +92,11 @@ def load_features(config, llm_run_info):
 
         if hasattr(FeatureClass, 'default_config'):
             defaultconfig = dict(FeatureClass.feature_default_config)
-            featureconfig = configmerger.recursive_assign_defaults(
-                [featureconfig, defaultconfig]
-            )
+            if defaultconfig:
+                featureconfig = configmerger.recursive_assign_defaults([
+                    featureconfig,
+                    defaultconfig
+                ])
 
         features.append( FeatureClass(**featureconfig) )
 

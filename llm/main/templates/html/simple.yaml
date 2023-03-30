@@ -7,6 +7,8 @@ default_config:
   metadata:
     title: 'LLM Document'
 
+  render_header: true
+
   font:
     family: 'Source Serif Pro'
     default_families: 'serif, sans-serif'
