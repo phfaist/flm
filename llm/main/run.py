@@ -1,7 +1,9 @@
+import copy
 import os.path
 import logging
 logger = logging.getLogger(__name__)
 
+import json
 import yaml
 
 from .configmerger import ConfigMerger
@@ -69,34 +71,43 @@ class ResourceAccessorBase:
 # ---
 
 
-def load_features(config, llm_run_info):
+def load_features(features_merge_configs, llm_run_info):
 
-    features_config = config['llm']['features']
+    main_config = llm_run_info['main_config']
+
+    features_onoff = main_config['llm']['features']
 
     resource_accessor = llm_run_info['resource_accessor']
 
     features = []
 
-    for featurename, featureconfig in features_config.items():
+    for featurename, featureconfig in features_onoff.items():
 
         if featureconfig is None or featureconfig is False:
             continue
         if featureconfig is True:
             featureconfig = {}
-        
+
         _, FeatureClass = resource_accessor.import_class(
             featurename,
             default_prefix='llm.feature',
             default_classnames=['FeatureClass'],
         )
 
-        if hasattr(FeatureClass, 'default_config'):
-            defaultconfig = dict(FeatureClass.feature_default_config)
-            if defaultconfig:
-                featureconfig = configmerger.recursive_assign_defaults([
-                    featureconfig,
-                    defaultconfig
-                ])
+        # re-merge the config fully from the initial merge configs, so that we
+        # make sure we honor $defaults etc. properly
+        
+        feature_merge_configs = [
+            c.get(featurename, {})
+            for c in features_merge_configs
+        ]
+
+        if hasattr(FeatureClass, 'feature_default_config'):
+            feature_merge_configs.append( FeatureClass.feature_default_config or {} )
+
+        featureconfig = configmerger.recursive_assign_defaults(feature_merge_configs)
+
+        logger.debug("Instantiating feature ‘%s’ with config %r", featurename, featureconfig)
 
         features.append( FeatureClass(**featureconfig) )
 
@@ -192,13 +203,41 @@ def run(llm_content,
         override_config['llm']['parsing']['force_block_level'] = \
             llm_run_info['force_block_level']
 
-    config = configmerger.recursive_assign_defaults([
+    merge_configs = [
         override_config,
         run_config,
         *merge_default_configs
-    ])
+    ]
+    # make a deep copy of everything so we can modify configs
+    merge_configs = [
+        copy.deepcopy(x)
+        for x in merge_configs
+    ]
+
+    # pull out feature-related config, don't merge these yet because we want to
+    # pull in the defaults first.  See load_features()
+    features_merge_configs = []
+    for c in merge_configs:
+        feature_merge_configs = {}
+        llmconfig = c.get('llm', {})
+        if llmconfig and llmconfig.get('features', None):
+            #logger.debug("Inspecting part features config -> %r", llmconfig['features'].items())
+            for featurename, featureconfig in llmconfig['features'].items():
+                feature_merge_configs[featurename] = featureconfig
+                if featureconfig is None or featureconfig is False:
+                    c['llm']['features'][featurename] = False
+                else:
+                    c['llm']['features'][featurename] = True
+
+        features_merge_configs.append(feature_merge_configs)
+
+    #logger.debug("About to merge configs: %s", "\n".join([json.dumps(x, indent=4) for x in merge_configs]))
+
+    config = configmerger.recursive_assign_defaults(merge_configs)
 
     llm_run_info['main_config'] = config
+
+    logger.debug("Merged config = %s", json.dumps(config, indent=4))
 
     #
     # Set up the fragment renderer
@@ -240,7 +279,7 @@ def run(llm_content,
     parsing_state = llmenvironment.standard_parsing_state(**config['llm']['parsing'])
     logger.debug("parsing_state = %r", parsing_state)
 
-    features = load_features(config, llm_run_info)
+    features = load_features(features_merge_configs, llm_run_info)
     logger.debug("features = %r", features)
 
     environment = llmenvironment.make_standard_environment(

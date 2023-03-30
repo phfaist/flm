@@ -61,8 +61,8 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
             }
         ])
 
-        logger.debug(f"About to load template ‘%s’, config is = %r",
-                     template_name, template_config_wdefaults)
+        logger.debug(f"About to load template ‘%s’ (prefix ‘%s’), config is = %r",
+                     template_name, template_prefix, template_config_wdefaults)
 
         template = DocumentTemplate(template_name,
                                     template_prefix,
