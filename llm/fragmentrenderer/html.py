@@ -647,23 +647,6 @@ class HtmlFragmentRenderer(FragmentRenderer):
         return s
 
 
-    def get_html_css_global(self):
-        return _html_css_global
-
-    def get_html_css_content(self):
-        return _html_css_content
-
-    def get_html_js(self):
-        if self.use_mathjax:
-            return _html_js_mathjax
-        return ''
-
-    def get_html_body_end_js_scripts(self):
-        if self.use_mathjax:
-            return _html_body_end_js_scripts_mathjax
-        return ''
-
-
 # ------------------
 
 
@@ -935,3 +918,40 @@ _html_body_end_js_scripts_mathjax = r"""
 <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 """
+
+
+# ------------------------------------------------------------------------------
+
+def get_html_css_global(html_fragment_renderer):
+    return _html_css_global
+
+def get_html_css_content(html_fragment_renderer):
+    return _html_css_content
+
+def get_html_js(html_fragment_renderer):
+    if html_fragment_renderer.use_mathjax:
+        return _html_js_mathjax
+    return ''
+
+def get_html_body_end_js_scripts(html_fragment_renderer):
+    if html_fragment_renderer.use_mathjax:
+        return _html_body_end_js_scripts_mathjax
+    return ''
+
+
+
+# ------------------------------------------------------------------------------
+
+class FragmentRendererInformation:
+    FragmentRendererClass = HtmlFragmentRenderer
+
+    @staticmethod
+    def get_style_information(fragment_renderer):
+        return {
+            'css_global': get_html_css_global(fragment_renderer),
+            'css_content': get_html_css_content(fragment_renderer),
+            'js': get_html_js(fragment_renderer),
+            'body_end_js_scripts': get_html_body_end_js_scripts(fragment_renderer),
+        }
+
+    format_name = 'html'

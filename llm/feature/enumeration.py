@@ -241,3 +241,7 @@ class FeatureEnumeration(Feature):
         )
 
 
+# ------------------------------------------------
+
+FeatureClass = FeatureEnumeration
+

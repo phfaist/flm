@@ -114,6 +114,8 @@ class PresetImport:
                 obj = mod
                 for part in modargs:
                     obj = getattr(obj, part)
+                if callable(obj):
+                    obj = obj()
                 return obj
             except AttributeError:
                 raise ValueError("Invalid preset $import target: ‘{}’".format(remote))

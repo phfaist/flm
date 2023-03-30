@@ -6,8 +6,11 @@ source_dir: $LLM_SRC_DIR
 # which modules to preprocess
 module_list:
   - 'llm'
-  - 'llm.llmstd'
   - 'llm.feature'
+  - 'llm.stdfeatures'
+  - 'llm.llmenvironment'
+  - 'llm.llmdocument'
+  - 'llm.llmfragment'
   - 'llm.fragmentrenderer'
   - 'llm.fragmentrenderer.html'
   - 'llm.fragmentrenderer.text'

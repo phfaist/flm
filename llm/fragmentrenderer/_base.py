@@ -27,6 +27,13 @@ class FragmentRenderer:
                 setattr(self, k, v)
 
 
+    def document_render_start(self, render_context):
+        pass
+
+    def document_render_finish(self, render_context):
+        pass
+
+
     def render_fragment(self, llm_fragment, render_context, is_block_level=None):
         try:
             return self.render_nodelist(llm_fragment.nodes,
@@ -191,7 +198,6 @@ class FragmentRenderer:
                 assert( not render_context.is_first_pass )
                 # can return content that has been rendered by now
                 return render_context.get_delayed_render_content(node)
-
 
         # simply call render() to get the rendered value
 

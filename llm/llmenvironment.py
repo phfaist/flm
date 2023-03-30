@@ -3,13 +3,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc import latexnodes
+from pylatexenc import macrospec
 from pylatexenc.latexnodes import LatexWalkerParseError, LatexWalkerParseErrorFormatter
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc import latexwalker
 
 from .llmfragment import LLMFragment
 from .llmdocument import LLMDocument
-
 
 
 
@@ -38,6 +38,9 @@ class LLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
         )
 
 
+# ------------------------------------------------------------------------------
+
+
 def LLMArgumentSpec(parser, argname, is_block_level=False):
     r"""
     ..........
@@ -56,6 +59,9 @@ def LLMArgumentSpec(parser, argname, is_block_level=False):
         parsing_state_delta=parsing_state_delta,
     )
 
+
+
+# ------------------------------------------------------------------------------
 
 
 class BlocksBuilder:
@@ -131,11 +137,11 @@ class BlocksBuilder:
                 is_head=info['is_head'],
                 is_tail=info['is_tail'],
             )
-            logger.debug(
-                "simplifying whitespace for chars node, info['is_head']=%r char_node=%r "
-                "--> char_node.llm_chars_value=%r",
-                info['is_head'], char_node, char_node.llm_chars_value
-            )
+            # logger.debug(
+            #     "simplifying whitespace for chars node, info['is_head']=%r char_node=%r "
+            #     "--> char_node.llm_chars_value=%r",
+            #     info['is_head'], char_node, char_node.llm_chars_value
+            # )
 
         return paragraph_nodes
 
@@ -192,6 +198,10 @@ class BlocksBuilder:
         self.flush_paragraph()
 
         return self.blocks
+
+
+
+# ----------------------------
 
 
 
@@ -263,6 +273,11 @@ class NodeListFinalizer:
     make_blocks_builder = BlocksBuilder
                     
     rx_inline_space = BlocksBuilder.rx_space
+
+
+
+
+# ----------------------------
 
 
 
@@ -350,6 +365,173 @@ class LLMLatexWalker(latexwalker.LatexWalker):
     
 
 
+
+# ------------------------------------------------------------------------------
+
+
+def features_ensure_dependencies_are_met(features):
+
+    feature_names = set([ f.feature_name for f in features ])
+
+    for feature in features:
+        if feature.feature_dependencies is None:
+            continue
+        for fdepname in feature.feature_dependencies:
+            if fdepname not in feature_names:
+                raise ValueError(
+                    f"Feature ‘{feature.feature_name}’ ({repr(feature)}) has unmet "
+                    f"dependency ‘{fdepname}’"
+                )
+
+
+
+def features_sorted_by_dependencies(features):
+    r"""
+    This function returns the given list of features, but sorted such that
+    features always appear after any of their dependencies.
+
+    The order is deterministic, and does not depend on the initial ordering.
+    Any independent features are sorted by their name (to ensure a deterministic
+    order, even if it is arbitrary).
+    
+    This function raises an error if:
+
+    - A feature was specified twice;
+
+    - The feature dependency graph has a cycle.
+    """
+
+    # list() both for Transcrypt as well as to avoid modifying any original iterable/list
+    features_to_sort = list(features)
+
+    # build the features-by-name dictionary manually, so that we detect
+    # and report duplicates.
+    features_by_name = {}
+    for feature in features_to_sort:
+        if feature.feature_name in features_by_name:
+            raise ValueError(
+                f"Duplicate feature detected: feature {repr(feature)} has the same name "
+                f"(‘{feature.feature_name}’) as the as already-included feature "
+                f"{features_by_name[feature.feature_name]}"
+            )
+        features_by_name[feature.feature_name] = feature
+
+    # Start by sorting all feature instances alphabetically by name.  This step
+    # ensures that the order we get at the end does not depend on the order of
+    # the features specified in the initial list.
+    features_to_sort.sort(key=lambda f: f.feature_name)
+
+    # check that all dependencies are met!
+    features_ensure_dependencies_are_met(features_to_sort)
+
+    def get_feature_dependencies(f):
+        deps = set()
+        if f.feature_dependencies is not None:
+            for fdepname in f.feature_dependencies:
+                deps.add(fdepname)
+        if f.feature_optional_dependencies is not None:
+            for foptdepname in f.feature_optional_dependencies:
+                if foptdepname in features_by_name:
+                    deps.add(foptdepname)
+        return sorted(list(deps))
+
+    # This is the collection of all our graph edges.  The edge direction is
+    # opposite to the relevant ordering in the sorting algorithm implemented
+    # below.  Alternatively, think of the edge direction for the algorithm's
+    # purposes stored as {(edge target): [list of edge sources]} in this dictionary.
+    #
+    # This object will be modified in the course of the algorithm below.
+    all_feature_dependencies = dict([
+        (fname, get_feature_dependencies(f))
+        for fname, f in features_by_name.items()
+    ])
+
+    def get_feature_dependents(fparentname, all_feature_dependencies):
+        dependents = set()
+        for fname, fdepnames in all_feature_dependencies.items():
+            for fdepname in fdepnames:
+                if fdepname == fparentname:
+                    dependents.add(fname)
+        return sorted(list(dependents))
+
+    #
+    # https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm
+    #
+
+    sorted_features = [] # --> L
+    root_features = [ # --> S
+        f
+        # reverse the list so that the list's pop() method gets the first element
+        for f in reversed(features_to_sort)
+        if len(all_feature_dependencies[f.feature_name]) == 0
+    ]
+
+    # start the main loop
+    while len(root_features) > 0:
+        n = root_features.pop()
+        sorted_features.append(n)
+
+        n_name = n.feature_name
+
+        iter_dependents = get_feature_dependents(n_name, all_feature_dependencies)
+        for fdependentname in iter_dependents:
+            # "m" has name fdependentname
+
+            all_feature_dependencies[fdependentname].remove(n_name)
+
+            # does 'm' have any other incoming edges?  I.e., does m have any
+            # other dependencies?
+            if len(all_feature_dependencies[fdependentname]) == 0:
+                # no other dependencies
+                root_features.insert(0, features_by_name[fdependentname])
+        
+                
+    problematic_features = []
+    for fsrcname, featuredeps in all_feature_dependencies.items():
+        if len(featuredeps) > 0:
+            problematic_features.append(
+                f"‘{fsrcname}’ → " + ", ".join([f"‘{fdepname}’" for fdepname in featuredeps])
+            )
+    if len(problematic_features) > 0:
+        raise ValueError(
+            f"The feature dependency graph has a cycle!  Problematic dependencies:"
+            + "; ".join(problematic_features)
+        )
+
+    if len(sorted_features) != len(features_to_sort):
+        raise RuntimeError(
+            "Internal error, we didn't get all the features right when ordering them!"
+        )
+
+    return sorted_features, features_by_name
+
+    # ### Remember, we need to reverse the graph edge directions because in our
+    # ### graph we point to "dependencies", so "parent" nodes that need to come
+    # ### before the node that has those dependencies
+    #
+    # L ← Empty list that will contain the sorted elements
+    # S ← Set of all nodes with no incoming edge
+    #
+    # while S is not empty do
+    #     remove a node n from S
+    #     add n to L
+    #     for each node m with an edge e from n to m do
+    #         remove edge e from the graph
+    #         if m has no other incoming edges then
+    #             insert m into S
+    #
+    # if graph has edges then
+    #     return error   (graph has at least one cycle)
+    # else 
+    #     return L   (a topologically sorted order)
+
+    
+
+            
+
+# ------------------------------------------------------------------------------
+
+
 class LLMEnvironment:
     r"""
     ....
@@ -387,22 +569,9 @@ class LLMEnvironment:
 
         self.parsing_mode_deltas = dict(parsing_mode_deltas) if parsing_mode_deltas else {}
 
-        self.features = list(features) # maybe list() for Transcrypt ?
+        self.features, self.features_by_name = features_sorted_by_dependencies(features)
 
-        logger.debug("Creating environment; features = %r", self.features);
-
-        # build dict manually to ensure features are unique & for better error
-        # messages
-        #self.features_by_name = {f.feature_name: f for f in self.features}
-        self.features_by_name = {}
-        for feature in self.features:
-            if feature.feature_name in self.features_by_name:
-                raise ValueError(
-                    f"Duplicate feature detected: feature {feature} has same name/role "
-                    f"as the as already-included feature "
-                    f"{self.features_by_name[feature.feature_name]}"
-                )
-            self.features_by_name[feature.feature_name] = feature
+        logger.debug("Creating environment; features: %r", self.features);
 
         self.tolerant_parsing = tolerant_parsing
 
@@ -413,14 +582,16 @@ class LLMEnvironment:
             # set the parsing_state's latex_context appropriately.
             for f in self.features:
                 moredefs = f.add_latex_context_definitions()
-                if moredefs:
-                    logger.debug(f"Adding definitions for “{f.feature_name}”")
-                    moredefs2 = dict(moredefs)
-                    moredefs2.update(prepend=True)
-                    self.latex_context.add_context_category(
-                        f'feature--{f.feature_name}',
-                        **moredefs2
-                    )
+                logger.debug(f"add_latex_context_definitions of “{f.feature_name}” -> {repr(moredefs)}")
+                if moredefs is not None:
+                    moredefs = dict(moredefs)
+                    if len(moredefs):
+                        logger.debug(f"Adding definitions for “{f.feature_name}”")
+                        moredefs.update(prepend=True)
+                        self.latex_context.add_context_category(
+                            f'feature--{f.feature_name}',
+                            **moredefs
+                        )
 
             # prevent further changes to latex context
             self.latex_context.freeze()
@@ -441,6 +612,11 @@ class LLMEnvironment:
 
 
     parsing_state_event_handler = None
+    r"""
+    There is no parsing state event handler by default.  If you want to
+    allow unknown macros etc. in math mode, set this property to a
+    LLMLatexWalkerParsingStateEventHandler() instance.
+    """
 
     def make_latex_walker(self, llm_text, *,
                           standalone_mode,
@@ -545,9 +721,183 @@ class LLMEnvironment:
         return doc
 
 
+    def get_features_selection(self, enable_features):
+
+        if enable_features is None:
+            # they are already sorted
+            return self.features
+
+        features = [
+            self.features_by_name[feature_name]
+            for feature_name in enable_features
+        ]
+        # they are already sorted by dependency ordering
+
+        features_ensure_dependencies_are_met(features)
+
+        return features
+
+
+
+
+    environment_get_parse_error_message = None
+
     def get_parse_error_message(self, exception_object):
+        if self.environment_get_parse_error_message is not None:
+            return self.environment_get_parse_error_message(exception_object)
         return LatexWalkerParseErrorFormatter(exception_object).to_display_string()
 
 
 
+
 # ------------------------------------------------------------------------------
+
+
+
+def standard_parsing_state(*,
+                           force_block_level=None,
+                           enable_comments=True,
+                           comment_start='%%',
+                           extra_forbidden_characters='',
+                           dollar_inline_math_mode=False):
+    r"""
+    Return a `ParsingState` configured in a standard way for parsing LLM
+    content.  E.g., we typically disable commands and $-math mode, unless you
+    specify keyword arguments to override this behavior.
+
+    The `latex_context` field of the returned object is `None`, and this value
+    will be accepted if you use this parsing state as an argument to
+    :py:func:`standard_features()`.
+    """
+
+    forbidden_characters = str(extra_forbidden_characters)
+    if not dollar_inline_math_mode and '$' not in forbidden_characters:
+        forbidden_characters += '$'
+    if (not enable_comments or comment_start != '%') and '%' not in forbidden_characters:
+        # if comments are disabled entirely, we forbid the '%' sign completely.
+        forbidden_characters += '%'
+
+    latex_inline_math_delimiters = [ (r'\(', r'\)'), ]
+
+    if dollar_inline_math_mode:
+        latex_inline_math_delimiters.append( ('$', '$') )
+
+    return LLMParsingState(
+        is_block_level=force_block_level,
+        latex_context=None,
+        enable_comments=enable_comments,
+        comment_start=comment_start,
+        latex_inline_math_delimiters=latex_inline_math_delimiters,
+        latex_display_math_delimiters=[ (r'\[', r'\]') ],
+        forbidden_characters=forbidden_characters,
+    )
+
+# ------------------------------------------------------------------------------
+
+class LLMLatexWalkerMathContextParsingStateEventHandler(
+        latexnodes.LatexWalkerParsingStateEventHandler
+):
+    math_mode_extend_context = {
+        'unknown_macro_spec': macrospec.MacroSpec(''),
+        'unknown_environment_spec': macrospec.EnvironmentSpec(''),
+        'unknown_specials_spec': macrospec.SpecialsSpec(''),
+    }
+
+    def enter_math_mode(self, math_mode_delimiter=None, trigger_token=None):
+        set_attributes = dict(
+            in_math_mode=True,
+            math_mode_delimiter=math_mode_delimiter,
+        )
+        logger.debug("LLMWalkerEventsParsingStateDeltasProvider.enter_math_mode ! "
+                     "math_mode_delimiter=%r, trigger_token=%r, set_attributes=%r",
+                     math_mode_delimiter, trigger_token, set_attributes)
+        return macrospec.ParsingStateDeltaExtendLatexContextDb(
+            set_attributes=set_attributes,
+            extend_latex_context=self.math_mode_extend_context
+        )
+
+    def leave_math_mode(self, trigger_token=None):
+        #logger.debug("LLMWalkerEventsParsingStateDeltasProvider.leave_math_mode !")
+        return macrospec.ParsingStateDeltaExtendLatexContextDb(
+            set_attributes=dict(
+                in_math_mode=False,
+                math_mode_delimiter=None
+            ),
+            extend_latex_context=dict(
+                unknown_macro_spec=None,
+                unknown_environment_spec=None,
+                unknown_specials_spec=None,
+            )
+        )
+
+
+# ------------------------------------------------------------------------------
+
+
+def standard_environment_get_parse_error_message(exception_object):
+    msg = None
+    error_type_info = exception_object.error_type_info
+    if error_type_info:
+        what = error_type_info['what']
+        if what == 'token_forbidden_character':
+            if error_type_info['forbidden_character'] == '%':
+                msg = (
+                    r"LaTeX comments are not allowed here. Use ‘\%’ to typeset a "
+                    r"literal percent sign."
+                )
+            elif error_type_info['forbidden_character'] == '$':
+                msg = (
+                    r"You can't use ‘$’ here. LaTeX math should be typeset using "
+                    r"\(...\) for inline math and \[...\] for unnumbered display "
+                    r"equations. Use ‘\$’ for a literal dollar sign."
+                )
+    if not msg:
+        msg = exception_object.msg
+
+    errfmt = latexnodes.LatexWalkerParseErrorFormatter(exception_object)
+
+    msg += errfmt.format_full_traceback()
+
+    return msg
+
+
+
+# ------------------------------------------------------------------------------
+
+
+def make_standard_environment(features, parsing_state=None, latex_context=None,
+                              llm_environment_options=None,
+                              parsing_state_options=None):
+
+    if latex_context is None:
+        latex_context = macrospec.LatexContextDb()
+
+    if parsing_state is None:
+        parsing_state_options_2 = {}
+        if parsing_state_options is not None:
+            parsing_state_options_2 = parsing_state_options
+
+        parsing_state = standard_parsing_state(**parsing_state_options_2)
+
+    parsing_state_event_handler = LLMLatexWalkerMathContextParsingStateEventHandler()
+
+    llm_environment_options_2 = {}
+    if llm_environment_options is not None:
+        llm_environment_options_2 = llm_environment_options
+
+    environment = LLMEnvironment(
+        features,
+        parsing_state,
+        latex_context,
+        **llm_environment_options_2
+    )
+
+    environment.parsing_state_event_handler = parsing_state_event_handler
+
+    environment.environment_get_parse_error_message = \
+        standard_environment_get_parse_error_message
+
+    return environment
+
+
+

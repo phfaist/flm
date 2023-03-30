@@ -43,6 +43,9 @@ class FeatureMath(Feature):
 
     feature_name = 'math'
 
+    feature_optional_dependencies = [ 'refs' ]
+
+
     def __init__(
             self,
             eq_counter_formatter=None,
@@ -401,3 +404,7 @@ class MathEqrefMacro(LLMMacroSpecBase):
             )
 
 
+
+# ------------------------------------------------
+
+FeatureClass = FeatureMath

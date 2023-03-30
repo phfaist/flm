@@ -358,3 +358,6 @@ class RefMacro(LLMMacroSpecBase):
                 pos=node.pos,
             )
 
+# ------------------------------------------------
+
+FeatureClass = FeatureRefs

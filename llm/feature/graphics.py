@@ -143,3 +143,7 @@ class FeatureSimplePathGraphicsResourceProvider(Feature):
             # return
             return GraphicsResource(src_url=graphics_path)
     
+
+# ------------------------------------------------
+
+FeatureClass = FeatureSimplePathGraphicsResourceProvider

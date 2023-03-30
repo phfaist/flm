@@ -4,7 +4,7 @@ import unittest
 
 import io
 
-from llm.runmain import runmain, LLMMainArguments
+from llm.main.main import main
 
 
 class TestRunMain(unittest.TestCase):
@@ -13,21 +13,21 @@ class TestRunMain(unittest.TestCase):
 
     def test_simple_text(self):
         sout = io.StringIO()
-        runmain(LLMMainArguments(
+        main(
             output=sout,
             llm_content=r"Hello \emph{world}!  Looking great today.",
             format='text'
-        ))
+        )
         self.assertEqual(sout.getvalue(), "Hello world! Looking great today.\n")
 
     def test_simple_html(self):
         sout = io.StringIO()
-        runmain(LLMMainArguments(
+        main(
             output=sout,
             llm_content=r"Hello \emph{world}!  Looking great today.",
             format='html',
             minimal_document=False,
-        ))
+        )
         self.assertEqual(
             sout.getvalue(),
             """Hello <span class="textit">world</span>! Looking great today.\n"""
@@ -36,7 +36,7 @@ class TestRunMain(unittest.TestCase):
 
     def test_simple_frontmatter(self):
         sout = io.StringIO()
-        runmain(LLMMainArguments(
+        main(
             output=sout,
             llm_content=r"""---
 llm:
@@ -51,7 +51,7 @@ Hello \emph{world}!  Let $x$ and $y$ be real numbers. ## comments configured lik
             format='html',
             minimal_document=False,
             suppress_final_newline=True,
-        ))
+        )
         self.assertEqual(
             sout.getvalue(),
             """<p>Hello <span class="textit">world</span>! Let <span class="inline-math">$x$</span> and <span class="inline-math">$y$</span> be real numbers.</p>"""

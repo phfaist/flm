@@ -492,3 +492,39 @@ class LatexFragmentRenderer(FragmentRenderer):
 
 
 _rx_delayed_markers = re.compile(r'\\LLMDLYD\{(?P<key>\d+)\}')
+
+
+
+# ------------------------------------------------------------------------------
+#
+# some style defaults
+#
+
+_latex_preamble_suggested_defs = r"""
+\ifdefined\defterm\else
+\newenvironment{defterm}{%
+  \par\begingroup\itshape
+}{%
+  \endgroup\par
+}
+\fi
+
+\providecommand\displayterm[1]{\textbf{#1}}
+\providecommand\phantomsection{}
+
+\usepackage{amsmath}
+"""
+
+
+# ------------------------------------------------------------------------------
+
+class FragmentRendererInformation:
+    FragmentRendererClass = LatexFragmentRenderer
+
+    @staticmethod
+    def get_style_information(fragment_renderer):
+        return {
+            'preamble_suggested_defs': _latex_preamble_suggested_defs
+        }
+
+    format_name = 'latex'

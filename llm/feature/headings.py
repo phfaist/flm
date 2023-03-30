@@ -107,6 +107,8 @@ class FeatureHeadings(Feature):
 
     feature_name = 'headings'
 
+    feature_optional_dependencies = [ 'refs' ]
+
     class RenderManager(Feature.RenderManager):
         # the render manager will take care of generating render-context-unique
         # target id's for headers
@@ -191,3 +193,6 @@ class FeatureHeadings(Feature):
 
 
 
+# ------------------------------------------------
+
+FeatureClass = FeatureHeadings

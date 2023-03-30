@@ -270,3 +270,10 @@ class TextFragmentRenderer(FragmentRenderer):
             )
 
         return '\n'.join(s_items)
+
+
+# ------------------------------------------------------------------------------
+
+class FragmentRendererInformation:
+    FragmentRendererClass = TextFragmentRenderer
+    format_name = 'text'

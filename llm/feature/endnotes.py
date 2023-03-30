@@ -353,3 +353,6 @@ class FeatureEndnotes(Feature):
 
 
 
+# ------------------------------------------------
+
+FeatureClass = FeatureEndnotes

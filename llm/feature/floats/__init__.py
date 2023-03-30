@@ -412,6 +412,8 @@ class FeatureFloats(Feature):
 
     feature_name = 'floats'
 
+    feature_optional_dependencies = [ 'refs' ]
+
     def __init__(self, float_types=None):
         super().__init__()
         if float_types is None:
@@ -544,3 +546,6 @@ class FeatureFloats(Feature):
             )
 
 
+# ------------------------------------------------
+
+FeatureClass = FeatureFloats

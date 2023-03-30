@@ -2,7 +2,42 @@
 
 class Feature:
 
+    # ---
+
     feature_name = None
+    r"""
+    A name that should uniquely identify this feature.
+    """
+
+    feature_dependencies = None
+    r"""
+    If non-`None`, then this is a list (or set) of feature names that must
+    also be used in a given :py:class:`~llm.llmenvironment.LLMEnvironment`
+    instance for the present feature to function as intended.  These dependency
+    features will be initialized prior to the present feature.
+    """
+
+    feature_optional_dependencies = None
+    r"""
+    If non-`None`, then this is a list (or set) of feature names that may
+    enhance the functionality of the present feature.  If these features are
+    activated, they will be initialized prior to the present feature.
+    """
+
+    feature_default_config = {}
+    r"""
+    The default configuration tree for this feature.  The
+    :py:mod:`~llm.run` module uses these defaults when no configuration is
+    specified for a given feature.  Recall that the configuration is a
+    dictionary of key/value pairs that will be specified by :py:mod:`~llm.run`
+    as keyword arguments to the constructor of the feature instance.  If you
+    create feature instances yourself, then you're responsible anyways for the
+    arguments you specify to the constructor, and you are responsible for
+    honoring or ignoring the values in `feature_default_config`.
+    """
+
+
+    # ---
 
     class DocumentManager:
         def __init__(self, feature, doc, **kwargs):
@@ -17,6 +52,8 @@ class Feature:
 
         def get_node_id(self, node):
             return self.feature.get_node_id(node)
+
+    # ---
 
     class RenderManager:
         def __init__(self, feature_document_manager, render_context, **kwargs):
@@ -41,7 +78,8 @@ class Feature:
 
     def add_latex_context_definitions(self):
         r"""
-        Reimplement to
+        Reimplement to add additional definitions to the latex context
+        database.
         """
         return {}
         
@@ -66,3 +104,23 @@ class Feature:
             # data; return it as is
             return node
         return node.node_id
+
+
+
+class SimpleLatexDefinitionsFeature(Feature):
+    
+    DocumentManager = None
+    RenderManager = None
+
+    latex_definitions = {}
+    r"""
+    Set to a dictionary with one or more of the keys ('macros',
+    'environments', 'specials'), whose corresponding values are lists of
+    LLMMacroSpec, LLMEnvironmentSpec, and LLMSpecialsSpec instances.
+    """
+
+    def add_latex_context_definitions(self):
+        return self.latex_definitions
+
+
+

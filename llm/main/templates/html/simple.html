@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${metadata.title}</title>
+<style type="text/css">
+/* ------------------ */
+html, body {
+  font-family: '${font.family}', ${font.default_families};
+  font-size: ${font.size};
+  line-height: ${font.line_height};
+}
+
+header, article {
+  max-width: ${layout.content_width};
+  margin: 0px auto;
+}
+header {
+  padding-bottom: 1em;
+  border-bottom: 1px solid black;
+  margin-bottom: 2em;
+}
+header div[role="doc-subtitle"] {
+  margin-left: 2em;
+  margin-top: 0.5em;
+  font-size: 1.1rem;
+  font-style: italic;
+}
+/* ------------------ */
+${style.css_global}
+${style.css_content}
+${style.extra_css}
+/* ------------------ */
+</style>
+<script type="text/javascript">
+${style.js_local}
+${style.extra_js}
+</script>
+</head>
+<body>
+${if:render_header}
+  <header>
+    <h1 class="header-title">${metadata.title}</h1>
+    ${if:metadata.author}
+    <div role="doc-subtitle" class="header-author">${metadata.author}</div>
+    ${endif}
+    ${if:metadata.date}
+    <div role="doc-subtitle" class="header-date">${metadata.date}</div>
+    ${endif}
+  </header>
+${endif}
+<article>
+${content}
+</article>
+<script type="text/javascript">
+${style.body_end_js_scripts}
+</script>
+</body>
+</html>
