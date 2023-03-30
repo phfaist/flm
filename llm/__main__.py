@@ -84,7 +84,7 @@ def run_main(cmdargs=None):
     if args.verbose != 2:
         logging.getLogger('pylatexenc').setLevel(level=logging.INFO)
 
-    logger = logging.getLogger(__name__)
+    #logger = logging.getLogger(__name__)
 
     #
     # Dispatch call to our main function
