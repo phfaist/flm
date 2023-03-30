@@ -1,8 +1,6 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from types import SimpleNamespace
-
 from .llmrendercontext import LLMRenderContext
 
 
@@ -31,7 +29,7 @@ class LLMDocumentRenderContext(LLMRenderContext):
         # renderer's document_render_start(render_context) and
         # document_render_finish(render_context) to give it the opportunity to
         # set and/or clean up stuff in here.
-        self.data = SimpleNamespace()
+        self.data = {}
 
 
     def supports_feature(self, feature_name):
