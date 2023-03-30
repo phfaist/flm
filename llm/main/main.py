@@ -132,7 +132,7 @@ def main(**kwargs):
                  json.dumps(frontmatter_metadata,indent=4))
 
 
-    run_config = frontmatter_metadata
+    run_config = frontmatter_metadata or {}
 
     llm_run_info = {
         'resource_accessor': ResourceAccessor(),

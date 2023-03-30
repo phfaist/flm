@@ -3,8 +3,9 @@ import unittest
 from llm.llmdocument import LLMDocument
 from llm.fragmentrenderer.text import TextFragmentRenderer
 from llm.fragmentrenderer.html import HtmlFragmentRenderer
-from llm.llmstd import LLMStandardEnvironment
-from llm import llmstd
+from llm.llmenvironment import make_standard_environment, standard_parsing_state
+from llm.feature.baseformatting import FeatureBaseFormatting
+from llm.stdfeatures import standard_features
 
 # ------------------
 
@@ -12,6 +13,13 @@ import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
 from llm.llmspecinfo import LLMMacroSpecBase
 from llm.feature import Feature
+
+
+
+def mk_llm_environ(**kwargs):
+    features = standard_features(**kwargs)
+    return make_standard_environment(features)
+
 
 
 class _EmptyDefaultDict:
@@ -158,7 +166,7 @@ class TestLLMDocument(unittest.TestCase):
 
     def test_simple_html(self):
     
-        environ = LLMStandardEnvironment()
+        environ = mk_llm_environ()
 
         frag1 = environ.make_fragment(r"\textbf{Hello} \textit{world}, we know that \(a+b=c\).")
         frag2 = environ.make_fragment(
@@ -201,7 +209,7 @@ we can also have an equation, like this:
 
     def test_simple_text(self):
     
-        environ = LLMStandardEnvironment()
+        environ = mk_llm_environ()
 
         frag1 = environ.make_fragment(r"\textbf{Hello} \textit{world}, we know that \(a+b=c\).")
         frag2 = environ.make_fragment(
@@ -247,19 +255,13 @@ we can also have an equation, like this: \begin{align}
 
         my_feature = _MyFeature()
 
-        # we need to add the definitions manually here because I'm not using
-        # latex_context = llmstd.standard_latex_context_db()
-        # latex_context.add_context_category(
-        #     'my-test-feature-macros',
-        #     **my_feature_manager.add_latex_context_definitions()
-        # )
-        # latex_context.freeze()
-        parsing_state = llmstd.standard_parsing_state()
+        parsing_state = standard_parsing_state()
 
-        environ = LLMStandardEnvironment(
-            latex_context=None, #llmstd.standard_latex_context_db(), #latex_context,
+        environ = make_standard_environment(
+            latex_context=None,
             parsing_state=parsing_state,
             features=[
+                FeatureBaseFormatting(),
                 my_feature
             ]
         )
@@ -315,7 +317,7 @@ we can also have an equation, like this: \begin{align}
 
     def test_more_basic_features_html(self):
     
-        environ = LLMStandardEnvironment()
+        environ = mk_llm_environ()
 
         # -- unknown macros in math --
         frag1 = environ.make_fragment(

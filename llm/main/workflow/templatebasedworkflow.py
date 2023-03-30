@@ -25,7 +25,11 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
     # ---
 
     def postprocess_rendered_document(self, rendered_content, document, render_context):
-        template_info = template_name.get(llm_run_info['fragment_renderer_name'], None)
+
+        template_info = (
+            self.main_config['llm'].get('template', {})
+            .get(self.llm_run_info['fragment_renderer_name'], None)
+        )
 
         if not template_info:
             return rendered_content

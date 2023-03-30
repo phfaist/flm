@@ -6,8 +6,8 @@ import unittest
 import json
 
 from llm import llmdump
-from llm.llmstd import LLMStandardEnvironment
-from llm import llmstd
+from llm.llmenvironment import make_standard_environment
+from llm.stdfeatures import standard_features
 
 # ------------------
 
@@ -15,6 +15,16 @@ import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
 from llm.llmspecinfo import LLMMacroSpecBase
 from llm.feature import Feature
+
+
+
+
+def mk_llm_environ(**kwargs):
+    features = standard_features(**kwargs)
+    return make_standard_environment(features)
+
+
+
 
 
 class _AlwaysEqual:
@@ -31,7 +41,7 @@ class TestLLMDataDumper(unittest.TestCase):
 
     def test_dump_node(self):
 
-        environment = LLMStandardEnvironment()
+        environment = mk_llm_environ()
         fragment = environment.make_fragment(r'\%')
 
         obj = fragment.nodes[0]
@@ -111,7 +121,7 @@ class TestLLMDataDumper(unittest.TestCase):
 # no fs support in Transcrypt
     def test_dump_fragment(self):
 
-        environment = LLMStandardEnvironment()
+        environment = mk_llm_environ()
         fragment = environment.make_fragment(r'''Hello, \emph{world}!
 
 \begin{enumerate}
@@ -172,7 +182,7 @@ class TestLLMDataDumper(unittest.TestCase):
 
     def test_load_after_dump_fragment(self):
 
-        environment = LLMStandardEnvironment()
+        environment = mk_llm_environ()
         fragment = environment.make_fragment(r'''Hello, \emph{world}!
 
 \begin{enumerate}

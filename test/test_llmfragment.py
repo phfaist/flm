@@ -1,17 +1,26 @@
 import unittest
 
 from llm.llmfragment import LLMFragment
-from llm.llmstd import LLMStandardEnvironment
+from llm.llmenvironment import make_standard_environment
+from llm.stdfeatures import standard_features
 
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 from pylatexenc.latexnodes import LatexWalkerParseError
+
+
+
+def mk_llm_environ(**kwargs):
+    features = standard_features(**kwargs)
+    return make_standard_environment(features)
+
+
 
 
 class TestLLMFragment(unittest.TestCase):
 
     def test_simple(self):
 
-        env = LLMStandardEnvironment()
+        env = mk_llm_environ()
 
         s = r'Hello, this is a LLM fragment of text with only simple characters.'
 
@@ -27,7 +36,7 @@ class TestLLMFragment(unittest.TestCase):
 
     def test_failure(self):
 
-        env = LLMStandardEnvironment()
+        env = mk_llm_environ()
 
         s = r'Hello, this is a LLM fragment of text with an \UnknownMacroThatRaisesAnError.'
 
@@ -40,7 +49,7 @@ class TestLLMFragment(unittest.TestCase):
 
     def test_get_first_paragraph(self):
 
-        env = LLMStandardEnvironment()
+        env = mk_llm_environ()
 
         s = r'''
 Hello, this is a \textbf{LLM} fragment
@@ -67,7 +76,7 @@ first with two newline characters.
 
     def test_whitespace_stripped(self):
 
-        env = LLMStandardEnvironment()
+        env = mk_llm_environ()
 
         s = r'''
   Hello, this has
@@ -91,7 +100,7 @@ whitespace
 
     def test_truncate_content(self):
 
-        env = LLMStandardEnvironment()
+        env = mk_llm_environ()
 
         s = r'''
 Here is \emph{an example of a \textbf{LLM} fragment}

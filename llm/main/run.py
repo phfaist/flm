@@ -150,7 +150,7 @@ def run(llm_content,
     #
     workflow_name = (
         llm_run_info['workflow']
-        or run_config['llm'].get('default_workflow', None)
+        or run_config.get('llm', {}).get('default_workflow', None)
         or 'templatebasedworkflow'
     )
     _, WorkflowClass = resource_accessor.import_class(
@@ -165,7 +165,7 @@ def run(llm_content,
     fragment_renderer_name = (
         llm_run_info['outputformat']
         or WorkflowClass.get_default_fragment_renderer(llm_run_info, run_config)
-        or run_config['llm']['default_format']
+        or run_config.get('llm', {}).get('default_format', {})
     )
     llm_run_info['fragment_renderer_name'] = fragment_renderer_name
 
@@ -238,7 +238,7 @@ def run(llm_content,
     logger.debug("parsing_state = %r", parsing_state)
 
     features = load_features(config, llm_run_info)
-    logger.debug("features = %r", parsing_state)
+    logger.debug("features = %r", features)
 
     environment = llmenvironment.make_standard_environment(
         parsing_state=parsing_state,
@@ -269,7 +269,7 @@ def run(llm_content,
     #
     # Build the document, with the rendering function from the workflow.
     #
-    doc = environ.make_document(
+    doc = environment.make_document(
         lambda render_context:
             workflow.render_document_fragment_callback(fragment, render_context),
         metadata=doc_metadata
@@ -289,7 +289,7 @@ def run(llm_content,
     # Render the document according to the workflow
     #
 
-    result = workflow.render_document(doc, fragment_renderer)
+    result = workflow.render_document(doc)
 
 
     #

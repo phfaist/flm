@@ -10,6 +10,12 @@ _base:
 
     features:
 
+      baseformatting: {}
+
+      href: {}
+
+      verbatim: {}
+
       math: {}
 
       headings:

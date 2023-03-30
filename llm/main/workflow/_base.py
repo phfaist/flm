@@ -45,7 +45,7 @@ class RenderWorkflow:
         return rendered_result, render_context
 
 
-    def render_document_fragment_callback(self, render_context, fragment):
+    def render_document_fragment_callback(self, fragment, render_context):
 
         rendered_result = fragment.render(render_context)
 
