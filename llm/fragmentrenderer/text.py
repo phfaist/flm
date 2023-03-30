@@ -270,3 +270,8 @@ class TextFragmentRenderer(FragmentRenderer):
             )
 
         return '\n'.join(s_items)
+
+
+# ------------------------------------------------------------------------------
+
+FragmentRendererClass = TextFragmentRenderer

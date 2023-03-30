@@ -17,7 +17,7 @@ class LLMRenderContext:
         self.pass_name = None
         self.is_first_pass = True
         self._logical_state = {}
-
+        
         self._nodes_determined_as_delayed = {}
 
     def supports_feature(self, feature_name):

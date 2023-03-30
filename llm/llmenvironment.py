@@ -368,6 +368,23 @@ class LLMLatexWalker(latexwalker.LatexWalker):
 
 # ------------------------------------------------------------------------------
 
+
+def features_ensure_dependencies_are_met(features):
+
+    feature_names = set([ f.feature_name for f in features ])
+
+    for feature in features:
+        if feature.feature_dependencies is None:
+            continue
+        for fdepname in feature.feature_dependencies:
+            if fdepname not in feature_names:
+                raise ValueError(
+                    f"Feature ‘{feature.feature_name}’ ({repr(feature)}) has unmet "
+                    f"dependency ‘{fdepname}’"
+                )
+
+
+
 def features_sorted_by_dependencies(features):
     r"""
     This function returns the given list of features, but sorted such that
@@ -405,15 +422,7 @@ def features_sorted_by_dependencies(features):
     features_to_sort.sort(key=lambda f: f.feature_name)
 
     # check that all dependencies are met!
-    for feature in features_to_sort:
-        if feature.feature_dependencies is None:
-            continue
-        for fdepname in feature.feature_dependencies:
-            if fdepname not in features_by_name:
-                raise ValueError(
-                    f"Feature ‘{feature.feature_name}’ ({repr(feature)}) has unmet "
-                    f"dependency ‘{fdepname}’"
-                )
+    features_ensure_dependencies_met(features_to_sort)
 
     def get_feature_dependencies(f):
         deps = set()
@@ -445,16 +454,9 @@ def features_sorted_by_dependencies(features):
                     dependents.add(fname)
         return sorted(list(dependents))
 
-    # # This representation of all the graph edges is reversed, so that we have
-    # # {(feature A): [list of feature names depending on feature A]}
-    # #
-    # # This object will be modified in the course of the algorithm below.
-    # all_feature_dependents = dict([
-    #     (fname, get_feature_dependents(fname, all_feature_dependencies))
-    #     for fname, f in features_by_name.items()
-    # ])
-
+    #
     # https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm
+    #
 
     sorted_features = [] # --> L
     root_features = [ # --> S
@@ -463,12 +465,6 @@ def features_sorted_by_dependencies(features):
         for f in reversed(features_to_sort)
         if len(all_feature_dependencies[f.feature_name]) == 0
     ]
-
-    # # --> the graph's edges
-    # dependency_pairs = []
-    # for feature_name, fdeplist in all_feature_dependencies.items():
-    #     for fdepname in fdeplist:
-    #         dependency_pairs.append( (feature_name, fdepname) )
 
     # start the main loop
     while len(root_features) > 0:
@@ -723,6 +719,24 @@ class LLMEnvironment:
         )
         doc.initialize()
         return doc
+
+
+    def get_features_selection(self, enable_features):
+
+        if enable_features is None:
+            # they are already sorted
+            return self.features
+
+        features = [
+            self.features_by_name[feature_name]
+            for feature_name in enable_features
+        ]
+        # they are already sorted by dependency ordering
+
+        features_ensure_dependencies_met(features)
+
+        return features
+
 
 
 

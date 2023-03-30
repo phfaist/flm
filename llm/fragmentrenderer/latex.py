@@ -492,3 +492,9 @@ class LatexFragmentRenderer(FragmentRenderer):
 
 
 _rx_delayed_markers = re.compile(r'\\LLMDLYD\{(?P<key>\d+)\}')
+
+
+
+# ------------------------------------------------------------------------------
+
+FragmentRendererClass = LatexFragmentRenderer

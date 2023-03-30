@@ -1,6 +1,8 @@
 import logging
 logger = logging.getLogger(__name__)
 
+from types import SimpleNamespace
+
 from .llmrendercontext import LLMRenderContext
 
 
@@ -22,6 +24,16 @@ class LLMDocumentRenderContext(LLMRenderContext):
         self._delayed_render_nodes = {} # key => node
         self._delayed_render_content = {} # key => string-content
 
+        # data can be set by fragment renderers if they need to store per-render
+        # event data, object instances, or else.  This should NOT be used to
+        # track a logical state in the render (e.g., do NOT use .data to store
+        # an indent level!)  The document renderer method will call the fragment
+        # renderer's document_render_start(render_context) and
+        # document_render_finish(render_context) to give it the opportunity to
+        # set and/or clean up stuff in here.
+        self.data = SimpleNamespace()
+
+
     def supports_feature(self, feature_name):
         return ( feature_name in self.feature_render_managers_by_name )
 
@@ -37,6 +49,12 @@ class LLMDocumentRenderContext(LLMRenderContext):
     def get_delayed_render_content(self, node):
         key = node.node_id
         return self._delayed_render_content[key]
+
+
+
+
+# ------------------------------------------------------------------------------
+
 
 
 
@@ -60,13 +78,7 @@ class LLMDocument:
         self.metadata = metadata
 
         # set up features & feature document managers
-        if enable_features is None:
-            self.features = list( environment.features )
-        else:
-            self.features = [
-                environment.feature(feature_name)
-                for feature_name in enable_features
-            ]
+        self.features = self.environment.get_features_selection(enable_features)
 
         #logger.debug("LLMDocument constructor, features = %r", self.features)
 
@@ -130,6 +142,8 @@ class LLMDocument:
             feature_render_options=feature_render_options
         )
 
+        fragment_renderer.document_render_start(render_context)
+
         # first pass render or render w/o any delayed content
         value = self.render_callback(render_context)
         if value is None:
@@ -191,6 +205,8 @@ class LLMDocument:
         for feature_name, feature_render_manager in render_context.feature_render_managers:
             if feature_render_manager is not None:
                 feature_render_manager.postprocess(value)
+
+        fragment_renderer.document_render_finish(render_context)
 
         logger.debug("llm document render done")
 

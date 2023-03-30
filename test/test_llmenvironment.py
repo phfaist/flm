@@ -187,6 +187,23 @@ class Feat5:
     feature_optional_dependencies = ['feature 1', 'feature 4']
     
 
+class FeatCycle1:
+    feature_name = 'feature c1'
+    feature_dependencies = ['feature 2', 'feature c2']
+    feature_optional_dependencies = None
+
+class FeatCycle2:
+    feature_name = 'feature c2'
+    feature_dependencies = ['feature 2', 'feature c3']
+    feature_optional_dependencies = None
+
+class FeatCycle3:
+    feature_name = 'feature c2'
+    feature_dependencies = ['feature c2', 'feature c1']
+    feature_optional_dependencies = None
+
+    
+
 class Test_features_sorted_by_dependencies(unittest.TestCase):
 
     def test_get_sorted(self):
@@ -244,6 +261,22 @@ class Test_features_sorted_by_dependencies(unittest.TestCase):
             [ f.feature_name for f in sorted_features ],
             [ 'feature 3', 'feature 4' ]
         )
+
+
+    def test_get_sorted_wcycles(self):
+
+        with self.assertRaises(ValueError):
+            sorted_features, features_by_name = llmenvironment.features_sorted_by_dependencies([
+                Feat1(),
+                Feat2(),
+                Feat3(),
+                Feat4(),
+                Feat5(),
+                FeatCycle1(),
+                FeatCycle2(),
+                FeatCycle3(),
+            ])
+
 
 
 
