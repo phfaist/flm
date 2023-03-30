@@ -143,31 +143,8 @@ def replace_ifmarks(content, ifmarks):
 # ------------------------------------------------------------------------------
 
 
-template_exts = ['', '.yaml', '.yml', '.json']
 
-
-def get_template_name(template_name, llm_run_info):
-
-    cwd = self.llm_run_info.get('cwd', None)
-    template_path = list( self.llm_run_info.get('template_path', None) )
-
-    template_path.insert(0, cwd)
-
-    for tpath in template_path:
-
-        if tpath is not None:
-            tpathname = os.path.join(tpath, template_name)
-        else:
-            tpathname = template_name
-
-        for text in template_exts:
-            tfullpathname = f"{tpathname}{text}"
-            if os.path.exists(tfullpathname):
-                return tfullpathname
-
-    raise ValueError(
-        f"Template not found: ‘{template_name}’.  Template path is = {repr(template_path)}"
-    )
+................
 
 
 class DocumentTemplate:
@@ -178,10 +155,9 @@ class DocumentTemplate:
         self.template_config = template_config
         self.llm_run_info = llm_run_info
 
-        self.template_info_file = get_template_name(self.template_name, self.llm_run_info)
-
-        with open(self.template_info_file, encoding='utf-8') as f:
-            template_info = yaml.safe_load(f)
+        self.template_info_file = \
+            llm_run_info.get_template_name(self.template_name, self.llm_run_info)
+        template_info = llm_run_info.load_file(self.template_info_file, 'template_info')
 
         self.template_info = template_info
         self.template_engine = template_info.get('template_engine',
@@ -197,7 +173,7 @@ class DocumentTemplate:
         )
         # default_config=, **self.engine_config)
         
-    def render_template(self, rendered_content, document, **kwargs):
+    def render_template(self, document, local_config, **kwargs):
 
         logger.debug("rendering template ‘%s’, config is %r", self.template_name, config)
 
@@ -210,6 +186,7 @@ class DocumentTemplate:
 
         merged_config = configmerger.recursive_assign_defaults(
             [
+                local_config,
                 self.template_config,
                 {
                     'metadata': metadata,

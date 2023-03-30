@@ -193,3 +193,6 @@ class FeatureHeadings(Feature):
 
 
 
+# ------------------------------------------------
+
+FeatureClass = FeatureHeadings

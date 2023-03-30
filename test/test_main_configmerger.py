@@ -2,7 +2,7 @@ import unittest
 
 ### BEGIN_TEST_LLM_SKIP
 
-from llm.configmerger import ConfigMerger
+from llm.main.configmerger import ConfigMerger
 
 class TestRecursiveAssignDefaults(unittest.TestCase):
 

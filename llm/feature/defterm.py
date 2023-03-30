@@ -244,3 +244,7 @@ class FeatureDefTerm(Feature):
                 )
             ]
         )
+
+# ------------------------------------------------
+
+FeatureClass = FeatureDefTerm

@@ -370,4 +370,6 @@ _rx_delayed_markers = re.compile(r'<LLM:DLYD:(?P<key>\d+)\s*/>')
 
 # ------------------------------------------------------------------------------
 
-FragmentRendererClass = MarkdownFragmentRenderer
+class FragmentRendererInformation:
+    FragmentRendererClass = MarkdownFragmentRenderer
+    format_name = 'markdown'

@@ -942,4 +942,16 @@ def get_html_body_end_js_scripts(html_fragment_renderer):
 
 # ------------------------------------------------------------------------------
 
-FragmentRendererClass = HtmlFragmentRenderer
+class FragmentRendererInformation:
+    FragmentRendererClass = HtmlFragmentRenderer
+
+    @staticmethod
+    def get_style_information(fragment_renderer):
+        return {
+            'css_global': get_html_css_global(fragment_renderer),
+            'css_content': get_html_css_content(fragment_renderer),
+            'js': get_html_js(fragment_renderer),
+            'body_end_js_scripts': get_body_end_js_scripts(fragment_renderer),
+        }
+
+    format_name = 'html'

@@ -4,11 +4,12 @@ import logging
 
 from pylatexenc.latexnodes import LatexWalkerParseError
 
-from .runmain import runmain, preset_fragment_renderer_classes
+from .main.main import main
 from llm import __version__ as llm_version
 
 
-def main(cmdargs=None):
+
+def run_main(cmdargs=None):
     
     args_parser = argparse.ArgumentParser(
         prog='llm',
@@ -39,22 +40,15 @@ def main(cmdargs=None):
     args_parser.add_argument('-f', '--format', action='store',
                              default='html',
                              help=f"LLM content to parse and convert.  One of "
-                             f"{', '.join(preset_fragment_renderer_classes.keys())} or a "
-                             "fully specified class name for a FragmentRenderer class.")
+                             f"html,text,markdown,latex or a "
+                             "fully specified module or class name defining a "
+                             "FragmentRenderer subclass.")
 
-    args_parser.add_argument('-D', '--minimal-document', action='store_true',
-                             default=True,
-                             help="Produce a minimal document preamble/postambule to form "
-                             "a self-contained document.  Only applicable to specific "
-                             "formats such as --format=html and --format=latex.  "
-                             "On by default.  Use the --fragment (-F) option to disable.")
-
-    args_parser.add_argument('-F', '--fragment', dest='minimal_document',
-                             action='store_false',
-                             help="The opposite of --minimal-document. Only applicable "
-                             "to specific formats such as --format=html and --format=latex. "
-                             "Use this option to generate fragments of (e.g. HTML) code "
-                             "that can be inserted in other documents.")
+    args_parser.add_argument('-T', '--template', action='store',
+                             default='none',
+                             help="Template to use to render the document.  Templates are "
+                             "specific to output formats.  See documentation (TODO) "
+                             "for more info.  (Try 'simple' or 'none'.)")
 
 
     args_parser.add_argument('-n', '--suppress-final-newline', action='store_true',
@@ -79,12 +73,31 @@ def main(cmdargs=None):
 
     args = args_parser.parse_args(args=cmdargs)
 
-    return runmain(args)
+
+    #
+    # set up logging
+    #
+    level = logging.INFO
+    if args.verbose:
+        level = logging.DEBUG
+    logging.basicConfig(level=level)
+    if args.verbose != 2:
+        logging.getLogger('pylatexenc').setLevel(level=logging.INFO)
+
+    logger = logging.getLogger(__name__)
+
+    #
+    # Dispatch call to our main function
+    #
+
+    d = args.__dict__
+
+    return main(**d)
 
 
 if __name__ == '__main__':
     try:
-        main()
+        run_main()
     except LatexWalkerParseError as e:
         logging.getLogger('llm').critical(
             f"Parse Error\n{e}"

@@ -404,3 +404,7 @@ class MathEqrefMacro(LLMMacroSpecBase):
             )
 
 
+
+# ------------------------------------------------
+
+FeatureClass = FeatureMath

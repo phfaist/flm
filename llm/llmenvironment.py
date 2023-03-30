@@ -422,7 +422,7 @@ def features_sorted_by_dependencies(features):
     features_to_sort.sort(key=lambda f: f.feature_name)
 
     # check that all dependencies are met!
-    features_ensure_dependencies_met(features_to_sort)
+    features_ensure_dependencies_are_met(features_to_sort)
 
     def get_feature_dependencies(f):
         deps = set()
@@ -733,7 +733,7 @@ class LLMEnvironment:
         ]
         # they are already sorted by dependency ordering
 
-        features_ensure_dependencies_met(features)
+        features_ensure_dependencies_are_met(features)
 
         return features
 

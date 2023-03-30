@@ -496,5 +496,30 @@ _rx_delayed_markers = re.compile(r'\\LLMDLYD\{(?P<key>\d+)\}')
 
 
 # ------------------------------------------------------------------------------
+#
+# some style defaults
+#
 
-FragmentRendererClass = LatexFragmentRenderer
+_latex_preamble_suggested_defs = r"""
+\providecommand{\defterm}{%
+  \par\begingroup\itshape
+}
+\providecommand{\enddefterm}{%
+  \endgroup\par
+}
+\providecommand{\displayterm}[1]{\textbf{#1}}
+"""
+
+
+# ------------------------------------------------------------------------------
+
+class FragmentRendererInformation:
+    FragmentRendererClass = LatexFragmentRenderer
+
+    @classmethod
+    def get_style_information(fragment_renderer):
+        return {
+            'preamble_suggested_defs': _latex_preamble_suggested_defs
+        }
+
+    format_name = 'latex'

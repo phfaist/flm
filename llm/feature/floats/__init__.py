@@ -546,3 +546,6 @@ class FeatureFloats(Feature):
             )
 
 
+# ------------------------------------------------
+
+FeatureClass = FeatureFloats

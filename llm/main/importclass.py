@@ -4,23 +4,25 @@ logger = logging.getLogger(__name__)
 import importlib
 
 
-def importclass(fullname, *, default_classname=None, default_prefix=None):
+def import_class(fullname, *, default_classnames=None, default_prefix=None):
 
     try_modname_classname_list = []
 
     if '.' not in fullname:
-        if default_classname is None:
+        if default_classnames is None or len(default_classnames) == 0:
             raise ValueError(f"Missing class name: ‘{fullname}’")
         usefullname = fullname
         if default_prefix is not None:
             usefullname = f"{default_prefix}.{fullname}"
-        try_modname_classname_list.append(
-            (usefullname, default_classname)
-        )
+        for default_classname in default_classnames:
+            try_modname_classname_list.append(
+                (usefullname, default_classname)
+            )
     else:
         modname, classname = fullname.rsplit('.', maxsplit=1)
-        if default_classname is not None:
-            try_modname_classname_list.append( (fullname, default_classname) )
+        if default_classnames is not None:
+            for default_classname in default_classnames:
+                try_modname_classname_list.append( (fullname, default_classname) )
         try_modname_classname_list.append( (modname, classname) )
 
     for modname, classname in try_modname_classname_list:
@@ -28,6 +30,9 @@ def importclass(fullname, *, default_classname=None, default_prefix=None):
             mod = importlib.import_module(modname)
             classobj = getattr(mod, classname)
             return mod, classobj
+        except AttributeError as e:
+            logger.debug(f"No class ‘{classname}’ in module ‘{modname}’")
+            continue
         except ModuleNotFoundError as e:
             logger.debug(f"Could not find module ‘{modname}’: {str(e)}")
             continue

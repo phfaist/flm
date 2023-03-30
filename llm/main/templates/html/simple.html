@@ -27,14 +27,14 @@ header div[role="doc-subtitle"] {
   font-style: italic;
 }
 /* ------------------ */
-${html.css_global}
-${html.css_content}
-${html.extra_css}
+${style.css_global}
+${style.css_content}
+${style.extra_css}
 /* ------------------ */
 </style>
 <script type="text/javascript">
-${html.js_local}
-${html.extra_js}
+${style.js_local}
+${style.extra_js}
 </script>
 </head>
 <body>
@@ -50,10 +50,10 @@ ${if:render_header}
   </header>
 ${endif}
 <article>
-${html_content}
+${content}
 </article>
 <script type="text/javascript">
-${html.body_end_js_scripts}
+${style.body_end_js_scripts}
 </script>
 </body>
 </html>

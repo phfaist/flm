@@ -274,4 +274,6 @@ class TextFragmentRenderer(FragmentRenderer):
 
 # ------------------------------------------------------------------------------
 
-FragmentRendererClass = TextFragmentRenderer
+class FragmentRendererInformation:
+    FragmentRendererClass = TextFragmentRenderer
+    format_name = 'html'
