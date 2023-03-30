@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 import yaml
-import json
+#import json
 
 from .configmerger import ConfigMerger
 configmerger = ConfigMerger()

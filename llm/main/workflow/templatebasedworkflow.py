@@ -1,4 +1,3 @@
-import os.path
 
 import logging
 logger = logging.getLogger(__name__)
