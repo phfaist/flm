@@ -52,7 +52,7 @@ the edges adjacent to a face, or plaquette, \(p\) of the lattice
 
 To compile your document into an HTML page, use:
 ```bash
-$ llm mydocument.llm -o mydocument.html --format=html --minimal-document
+$ llm mydocument.llm -o mydocument.html --format=html --template=simple
 ```
 
 # This is work in progress!
@@ -80,7 +80,7 @@ standard and/or self-explanatory:
 ```bash
 # output to file mydocument.html, format HTML, including skeleton
 # HTML structure with minimal CSS.
-$ llm mydocument.llm -o mydocument.html --format=html --minimal-document
+$ llm mydocument.llm -o mydocument.html --format=html --template=simple
 ```
 
 Available formats are `html`, `text`, `latex`, and `markdown`.  Formats `text`,
@@ -98,15 +98,12 @@ llm:
    parsing:
      enable_dollar_math_mode: True
    features:
-     - $defaults: # use the default list of features
-     - $merge-config: # change one feature's configuration
-         name: llm.feature.endnotes.FeatureEndnotes
-         config:
-           categories:
-             - category_name: footnote
-               counter_formatter: unicodesuperscript
-               heading_title: 'Footnotes'
-               endnote_command: 'footnote'
+     endnotes:
+       categories:
+         - category_name: footnote
+           counter_formatter: unicodesuperscript
+           heading_title: 'Footnotes'
+           endnote_command: 'footnote'
 ---
 
 \section{Greeting}
@@ -115,12 +112,8 @@ as $a$ and $b$.  ...
 
 ```
 
-As you can see, there are a few options you can set and a few special instructions
-in the config that are led by property keys beginning with a dollar sign (`$`).
-The `$defaults:` key imports all the existing defaults for that list.  The `$merge-config:`
-key is used to alter the configuration of an already-declared feature.  Additionally
-you can use the `$import:` directive to import a configuration from an external file or
-URL:
+As you can see, there are a few options you can set. You can also use the
+`$import:` directive to import a configuration from an external file or URL:
 ```yaml
 $import: my-llm-config.yaml # merge my-llm-config.yaml into this config.
 
@@ -174,7 +167,7 @@ Here's a basic renderer configuration that you can adapt **for HTML output**
 (`--format=html`):
 ```yaml
 llm:
-  fragment_renderer:
+  renderer:
     html:
       use_link_target_blank: false
       html_blocks_joiner: ''
@@ -193,7 +186,7 @@ Here's a basic renderer configuration that you can adapt **for text output**
 (`--format=text`):
 ```yaml
 llm:
-  fragment_renderer:
+  renderer:
     text:
       display_href_urls: true
 ```
@@ -202,7 +195,7 @@ Here's a basic renderer configuration that you can adapt **for LaTeX output**
 (`--format=latex`):
 ```yaml
 llm:
-  fragment_renderer:
+  renderer:
     latex:
       heading_commands_by_level:
         1: "section"
@@ -217,7 +210,7 @@ Here's a basic renderer configuration that you can adapt **for Markdown output**
 (`--format=markdown`):
 ```yaml
 llm:
-  fragment_renderer:
+  renderer:
     markdown:
       use_target_ids: 'github' # or 'anchor' or 'pandoc' or null
 ```
@@ -244,43 +237,40 @@ LLM:
 llm:
   features:
     # list features that should be available here.
-    - name: llm.feature.enumeration.FeatureEnumeration
-      config:
-        enumeration_environments:
-          enumerate:
-            # here null means to use defaults
-            counter_formatter: null
-          itemize:
-            counter_formatter:
-              - "\u2022"
-              - '-'
-              - "\u25B8"
-    - name: llm.feature.refs.FeatureRefs
-    - name: llm.feature.endnotes.FeatureEndnotes
-      config:
-        categories:
-          - category_name: footnote
-            counter_formatter: alph
-            endnote_command: footnote
-            heading_title: Footnotes
-        render_options:
-          include_headings_at_level: 1
-          set_headings_target_ids: true
-          endnotes_heading_title: null
-          endnotes_heading_level: 1
-    - name: llm.feature.floats.FeatureFloats
-      config:
-        float_types:
-          - counter_formatter: Roman
-            float_caption_name: Fig.
-            float_type: figure
-            content_handlers: ['any', 'includegraphics', 'cells']
-          - counter_formatter: Roman
-            float_caption_name: Tab.
-            float_type: table
-            content_handlers: ['cells']
-    - name: llm.feature.defterm.FeatureDefTerm
-    - name: llm.feature.graphics.FeatureSimplePathGraphicsResourceProvider
+    enumeration:
+      enumeration_environments:
+        enumerate:
+          # here null means to use defaults
+          counter_formatter: null
+        itemize:
+          counter_formatter:
+            - "\u2022"
+            - '-'
+            - "\u25B8"
+    refs: {}
+    endnotes:
+      categories:
+        - category_name: footnote
+          counter_formatter: alph
+          endnote_command: footnote
+          heading_title: Footnotes
+      render_options:
+        include_headings_at_level: 1
+        set_headings_target_ids: true
+        endnotes_heading_title: null
+        endnotes_heading_level: 1
+    floats:
+      float_types:
+        - counter_formatter: Roman
+          float_caption_name: Fig.
+          float_type: figure
+          content_handlers: ['any', 'includegraphics', 'cells']
+        - counter_formatter: Roman
+          float_caption_name: Tab.
+          float_type: table
+          content_handlers: ['cells']
+    defterm: {}
+    graphics: {}
 ```
 
 ## Additional Features such as *Citations*
@@ -294,7 +284,8 @@ To include for instance the citations feature provided by the
 [llm-citations](https://github.com/phfaist/llm-citations) package, install that package and
 use the config:
 ```yaml
-$import: pkg:llm_citations
+$import:
+  - pkg:llm_citations
 bibliography:
   - bibpreset.yaml
   - anotherbibtest.json
@@ -323,10 +314,11 @@ Note: Math is simply marked with `<span class=...>` tags for use with
 
 Example:
 ```py
-from llm import llmstd
+from llm.llmenvironment import make_standard_environment
+from llm.stdfeatures import standard_features
 from llm.fragmentrenderer.html import HtmlFragmentRenderer
 
-environ = llmstd.LLMStandardEnvironment()
+environ = make_standard_environment(features=standard_features())
 
 # suppose we have fragments of LLM text
 fragment_1 = environ.make_fragment(r'Hello, \emph{world}.')
