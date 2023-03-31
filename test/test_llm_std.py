@@ -595,6 +595,9 @@ verbatim.
 as \{is.\end{verbatim\ ha no, gotcha parser!
   \end{verbatimtext}
 
+\emph{Vertaim macros like \verb+}+ and \verb|{| should be
+  parsed correctly, even as macro arguments!}
+
 \section{Another section}
 \label{sec:test-label-another-sec}
 
@@ -655,6 +658,7 @@ See also the topic \ref{topic:qudit}.
 verbatim.
 as \{is.\end{verbatim\ ha no, gotcha parser!
   </span></p>
+<p><span class="textit">Vertaim macros like <span class="verbatimtext">}</span> and <span class="verbatimtext">{</span> should be parsed correctly, even as macro arguments!</span></p>
 <h1 id="sec-test-label-another-sec" class="heading-level-1">Another section</h1>
 <p>We can try to add some footnotes, too.<a href="#footnote-1" class="href-endnote endnote footnote">a</a> Does it work?</p>
 <p>See also the topic <a href="#defterm-qu_5cX_28Xd_5cX_29Xit" class="href-ref ref-topic">qu<span class="inline-math">\(d\)</span>it</a>.</p>

@@ -226,7 +226,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         return self.wrap_in_tag(
             'span',
             self.htmlescape(value),
-            class_names=(annotations if annotations else ['verbatim']),
+            class_names=(annotations if annotations else ['verbatimtext']),
             attrs=attrs,
         )
 
