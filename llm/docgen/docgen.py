@@ -347,9 +347,14 @@ class LLMEnvironmentDocumentationGenerator:
             'specials': []
         }
 
-        definitions.update(
-            feature.add_latex_context_definitions() or {}
-        )
+        feature_defs = feature.add_latex_context_definitions() or {}
+        if feature_defs:
+            for k, vlist in feature_defs.items():
+                definitions[k].extend( vlist )
+        if hasattr(feature, 'add_llm_doc_latex_context_definitions'):
+            defs = feature.add_llm_doc_latex_context_definitions() or {}
+            for k, vlist in defs.items():
+                definitions[k].extend( vlist )
 
         s = r"\section{" + feature.feature_title + "}\n"
 
@@ -487,7 +492,12 @@ class LLMEnvironmentDocumentationGenerator:
         elif isinstance(arg.parser, latexnodes_parsers.LatexDelimitedVerbatimParser):
             parser_name = r"⟨\term{verbatim delimited}⟩"
         elif isinstance(arg.parser, latexnodes_parsers.LatexTackOnInformationFieldMacrosParser):
-            parser_name = r"⟨\term{following macro}⟩"
+            parser_name = (
+                r"⟨\term[following macro]{"
+                + "|".join([
+                    (r"\verbcode+" + '\\' + mname + '+') for mname in arg.parser.macronames
+                ]) + r"}⟩"
+            )
 
         if parser_name is None:
             parser_name = self.argument_parser_names_by_classname.get(

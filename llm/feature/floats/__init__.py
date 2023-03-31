@@ -120,6 +120,23 @@ def _make_content_handler(c):
 
 # ------------------------------------------------------------------------------
 
+float_label_arg = MacroSpec('label', arguments_spec_list=[
+    LLMArgumentSpec(
+        parser=latexnodes_parsers.LatexCharsGroupParser(
+            delimiters=('{','}'),
+        ),
+        argname='label',
+    ),
+])
+
+float_caption_arg = MacroSpec('caption', arguments_spec_list=[
+    LLMArgumentSpec(
+        '{',
+        argname='captiontext',
+    ),
+])
+
+
 class FloatEnvironment(LLMEnvironmentSpecBase):
 
     is_block_level = True
@@ -153,20 +170,8 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
         extend_latex_context = dict(
             macros=[
-                MacroSpec('label', arguments_spec_list=[
-                    LLMArgumentSpec(
-                        parser=latexnodes_parsers.LatexCharsGroupParser(
-                            delimiters=('{','}'),
-                        ),
-                        argname='label',
-                    ),
-                ]),
-                MacroSpec('caption', arguments_spec_list=[
-                    LLMArgumentSpec(
-                        '{',
-                        argname='captiontext',
-                    ),
-                ])
+                float_label_arg,
+                float_caption_arg,
             ],
             environments=[],
             specials=[]
@@ -545,6 +550,30 @@ class FeatureFloats(Feature):
                 float_instance.float_type_info.float_caption_name + '~' +
                 float_instance.formatted_counter_value_llm.llm_text
             )
+
+
+    # -----
+
+    def feature_llm_doc(self):
+        return r"""Floating items, such as figures and tables, along with
+        captions, are supported by the environments described here."""
+
+    def add_llm_doc_latex_context_definitions(self):
+        r"""
+        These definitions won't be used in the real world.  This method
+        will only be queried by `llm.docgen` to generate comprehensive
+        documentation that includes these commands.
+        """
+        return {
+            'macros': [
+                float_label_arg,
+                float_caption_arg,
+                SimpleIncludeGraphicsMacro(macroname='includegraphics'),
+            ],
+            'environments': [
+                CellsEnvironment()
+            ],
+        }
 
 
 # ------------------------------------------------

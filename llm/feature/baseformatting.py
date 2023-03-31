@@ -17,6 +17,13 @@ class FeatureBaseFormatting(SimpleLatexDefinitionsFeature):
     boldface using the following macros.  Several macros also provide a way to
     typeset literal characters that would otherwise have a special meaning in
     your LLM environment.
+
+    Input accents, special characters, etc., directly as Unicode:
+    \verbcode+éàààé😅Á+. Note that source files should always be encoded using
+    the UTF-8 encoding. You can use pretty quotes \verbcode+‘+ \verbcode+’+
+    \verbcode+“+ \verbcode+”+; dashes \verbcode|—| (em dash), \verbcode|–| (en
+    dash, for ranges); spaces \verbcode| | (non-breaking space), \verbcode| |
+    (em space), \verbcode| | (thin space), etc.
     """
 
     latex_definitions = {

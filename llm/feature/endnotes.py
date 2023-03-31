@@ -46,12 +46,20 @@ class EndnoteMacro(LLMMacroSpecBase):
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[
-                LLMArgumentSpec('{', argname='endnote_content'),
+                LLMArgumentSpec(
+                    parser='{',
+                    argname='endnote_content',
+                    llm_doc="The content of the endnote to place (e.g., the text of a footnote)",
+                ),
             ],
             **kwargs
         )
         self.endnote_category_name = endnote_category_name
         
+    def get_llm_doc(self):
+        return (f"Place an end note in the category ‘{self.endnote_category_name}’ with"
+                f"the given content.")
+
     def render(self, node, render_context):
         
         mgr = render_context.feature_render_manager('endnotes')
@@ -110,6 +118,14 @@ class FeatureEndnotes(Feature):
 
     feature_name = 'endnotes'
     feature_title = 'Endnotes: footnotes, references, etc.'
+
+    def feature_llm_doc(self):
+        return (
+            r"""Add footnotes and support for other endnotes (e.g., citations)
+            at the bottom of your pages or your document.  This environment
+            supports the base category(ies): """
+            + ','.join([f"‘{cat.category_name}’" for cat in self.base_categories])
+        )
 
     def __init__(self, categories, render_options=None):
         r"""

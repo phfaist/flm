@@ -43,6 +43,12 @@ class HeadingMacro(llmspecinfo.LLMMacroSpecBase):
         # reimplemented from llmspecinfo -
         self.is_block_heading = self.inline_heading
 
+    def get_llm_doc(self):
+        return (
+            f"Create a{ 'n inline' if self.inline_heading else '' } heading at "
+            f"level {self.heading_level}"
+        )
+
     def postprocess_parsed_node(self, node):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(

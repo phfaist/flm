@@ -101,7 +101,17 @@ class HtmlFragmentRenderer(FragmentRenderer):
     # ------------------
 
     def htmlescape(self, value):
-        return html.escape(value)
+        esc = html.escape(value)
+        esc = (
+            esc.replace(' ', '&nbsp;') # NON-BREAKING SPACE
+            .replace(' ', '&hairsp;') # HAIR SPACE
+            .replace(' ', '&thinsp;') # THIN SPACE
+            .replace(' ', '&puncsp;') # PUNCTUATION SPACE
+            .replace(' ', '&ensp;') # EN SPACE
+            .replace(' ', '&emsp;') # EM SPACE
+            .replace(' ', '&numsp;') # FIGURE SPACE
+        )
+        return esc
 
     def htmlescape_double_quoted_attribute_value(self, value):
 

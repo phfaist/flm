@@ -894,3 +894,23 @@ class FeatureProvideCells(Feature):
             ],
         )
 
+    # ---
+
+    def add_llm_doc_latex_context_definitions(self):
+        r"""
+        These definitions won't be used in the real world.  This method
+        will only be queried by `llm.docgen` to generate comprehensive
+        documentation that includes these commands.
+        """
+        return dict(
+            macros=[
+                CellMacro(),
+                CelldataMacroSpec(),
+                MergeMacroSpec(),
+                LatexTabularRowSeparatorSpec(),
+            ],
+            specials=[ LatexTabularColumnSeparatorSpec() ]
+        )
+
+
+FeatureClass = FeatureProvideCells

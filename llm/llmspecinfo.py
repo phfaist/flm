@@ -211,6 +211,8 @@ label_arg = LLMArgumentSpec(
         allow_multiple=True
     ),
     argname='label',
+    llm_doc=(r'A following \verbcode+\label{…}+ macro attaches a label to '
+             r'this macro call')
 )
 
 def helper_collect_labels(node_arg_label, allowed_prefixes):

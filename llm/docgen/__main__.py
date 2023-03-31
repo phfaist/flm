@@ -15,6 +15,18 @@ import llm.main.main as llm_main_main
 from . import docgen
 
 
+
+
+docgen_builtin_default_config = {
+    'llm': {
+        'features': {
+            'cells': True,
+        }
+    }
+}
+
+
+
 def main_docgen():
 
     args_parser = argparse.ArgumentParser(
@@ -89,6 +101,7 @@ def main_docgen():
     wenv = llm_main_run.load_workflow_environment(
         llm_run_info=llm_run_info,
         run_config=run_config,
+        default_configs=[orig_config, docgen_builtin_default_config]
     )
 
     #
@@ -134,10 +147,9 @@ def main_docgen():
 def run_main_docgen():
     try:
         main_docgen()
-    except:
-        logger.critical("Exception!", exc_info=True)
-        import pdb
-        pdb.post_mortem()
+    except Exception as e:
+        logger.critical(f"Exception--- {e}", exc_info=True)
+        raise
 
 
 if __name__ == '__main__':
