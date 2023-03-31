@@ -4,6 +4,7 @@ logger = logging.getLogger(__name__)
 
 from ..configmerger import ConfigMerger
 from ..template import DocumentTemplate
+from .._util import abbrev_value_str
 
 from ._base import RenderWorkflow
 
@@ -15,6 +16,9 @@ _default_config = {
 }
 
 
+
+
+
 class TemplateBasedRenderWorkflow(RenderWorkflow):
 
     @staticmethod
@@ -22,16 +26,21 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         return _default_config
 
     @staticmethod
-    def get_default_fragment_renderer(llm_run_info, run_config):
-        return 'html'
+    def get_fragment_renderer_name(outputformat, llm_run_info, run_config):
+        return outputformat or 'html'
 
     # ---
 
+    use_fragment_renderer_name = None
+
     def postprocess_rendered_document(self, rendered_content, document, render_context):
+
+        use_fragment_renderer_name = \
+            self.use_fragment_renderer_name or self.llm_run_info['fragment_renderer_name']
 
         template_info = (
             self.main_config['llm'].get('template', {})
-            .get(self.llm_run_info['fragment_renderer_name'], None)
+            .get(use_fragment_renderer_name, None)
         )
 
         if not template_info:
@@ -60,8 +69,9 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
             }
         ])
 
-        logger.debug(f"About to load template ‘%s’ (prefix ‘%s’), config is = %r",
-                     template_name, template_prefix, template_config_wdefaults)
+        logger.debug(f"About to load template ‘%s’ (prefix ‘%s’), config is = %s",
+                     template_name, template_prefix,
+                     abbrev_value_str(template_config_wdefaults))
 
         template = DocumentTemplate(template_name,
                                     template_prefix,
@@ -73,7 +83,7 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         if metadata is None:
             metadata = {}
         else:
-            metadata = {k: v for (k, v) in metadata.items() if k != "_config_llm"}
+            metadata = {k: v for (k, v) in metadata.items() if k != "_llm_config"}
 
         rendered_template = template.render_template([
             {

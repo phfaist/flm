@@ -1,3 +1,8 @@
+import logging
+logger = logging.getLogger(__name__)
+
+from .._util import abbrev_value_str
+
 
 class RenderWorkflow:
 
@@ -9,8 +14,22 @@ class RenderWorkflow:
 
 
     @staticmethod
-    def get_default_fragment_renderer(llm_run_info, run_config):
+    def get_fragment_renderer_name(outputformat, llm_run_info, run_config):
+        r"""
+        The workflow has a say about which fragment renderer class will be
+        used.  Return the fragment render name here, where the fragment renderer
+        information will be queried as if it were specified by the output
+        format.  Normally outputformat should be sufficient.
+        """
         return None
+
+    @staticmethod
+    def get_default_main_config(llm_run_info, run_config):
+        return None
+
+
+
+    # ---
 
 
     def __init__(self, workflow_config, llm_run_info,
@@ -25,6 +44,9 @@ class RenderWorkflow:
 
         for k, v in self.config.items():
             setattr(self, k, v)
+
+        logger.debug("Initialized workflow ‘%s’ with config %s", self.__class__.__name__,
+                     abbrev_value_str(workflow_config, maxstrlen=512))
 
 
     def render_document(self, document):

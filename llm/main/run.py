@@ -9,6 +9,8 @@ import yaml
 from .configmerger import ConfigMerger
 configmerger = ConfigMerger()
 
+from ._util import delayedstr, abbrev_value_str
+
 from llm import llmenvironment
 
 # ---
@@ -107,7 +109,8 @@ def load_features(features_merge_configs, llm_run_info):
 
         featureconfig = configmerger.recursive_assign_defaults(feature_merge_configs)
 
-        logger.debug("Instantiating feature ‘%s’ with config %r", featurename, featureconfig)
+        logger.debug("Instantiating feature ‘%s’ with config = %s", featurename,
+                     abbrev_value_str(featureconfig, maxstrlen=512) )
 
         features.append( FeatureClass(**featureconfig) )
 
@@ -175,17 +178,27 @@ def run(llm_content,
     #
     # Determine the fragment_renderer_name
     #
-    fragment_renderer_name = (
-        llm_run_info['outputformat']
-        or WorkflowClass.get_default_fragment_renderer(llm_run_info, run_config)
-        or run_config.get('llm', {}).get('default_format', {})
+    fragment_renderer_name = WorkflowClass.get_fragment_renderer_name(
+        (llm_run_info['outputformat'] or run_config.get('llm', {}).get('default_format', {})),
+        llm_run_info,
+        run_config
     )
+    if not fragment_renderer_name:
+        raise ValueError("Could not determine output format (fragment renderer name)")
+
     llm_run_info['fragment_renderer_name'] = fragment_renderer_name
 
     #
-    # Now we know the fragment_renderer_name, set up the full configuration.
+    # Now we know the workflow and the fragment_renderer_name, we can set up the
+    # full configuration.
     #
     merge_default_configs = list(default_configs or [])
+
+    workflow_default_main_config = \
+        WorkflowClass.get_default_main_config(llm_run_info, run_config)
+    if workflow_default_main_config is not None and workflow_default_main_config:
+        merge_default_configs.extend([workflow_default_main_config])
+
     if add_builtin_default_configs:
         merge_default_configs.extend([
             _builtin_default_config['_byformat'].get(fragment_renderer_name, {}),
@@ -221,7 +234,6 @@ def run(llm_content,
         feature_merge_configs = {}
         llmconfig = c.get('llm', {})
         if llmconfig and llmconfig.get('features', None):
-            #logger.debug("Inspecting part features config -> %r", llmconfig['features'].items())
             for featurename, featureconfig in llmconfig['features'].items():
                 feature_merge_configs[featurename] = featureconfig
                 if featureconfig is None or featureconfig is False:
@@ -231,13 +243,28 @@ def run(llm_content,
 
         features_merge_configs.append(feature_merge_configs)
 
-    #logger.debug("About to merge configs: %s", "\n".join([json.dumps(x, indent=4) for x in merge_configs]))
+    # pull out workflow-related config, don't merge these yet because we want to
+    # pull in the defaults first.
+    workflows_merge_configs = []
+    for c in merge_configs:
+        workflow_merge_configs = {}
+        llmconfig = c.get('llm', {})
+        if llmconfig and llmconfig.get('workflow_config', None):
+            for workflowname, workflowconfig in llmconfig['workflow_config'].items():
+                workflow_merge_configs[workflowname] = workflowconfig
+                if workflowconfig is None or workflowconfig is False:
+                    c['llm']['workflow_config'][workflowname] = False
+                else:
+                    c['llm']['workflow_config'][workflowname] = True
+
+        workflows_merge_configs.append(workflow_merge_configs)
 
     config = configmerger.recursive_assign_defaults(merge_configs)
 
     llm_run_info['main_config'] = config
 
-    logger.debug("Merged config = %s", json.dumps(config, indent=4))
+    logger.debug("Merged config (w/o workflow/feature configs) = %s",
+                 abbrev_value_str(config, maxstrlen=512) )
 
     #
     # Set up the fragment renderer
@@ -260,10 +287,20 @@ def run(llm_content,
     # Set up the workflow
     #
 
-    workflow_config = configmerger.recursive_assign_defaults([
-        config['llm']['workflow'].get(workflow_name, {}),
-        WorkflowClass.get_workflow_default_config(llm_run_info, config),
-    ])
+    workflow_config_merge_configs = [
+        c.get(workflow_name, {})
+        for c in workflows_merge_configs
+    ]
+    workflow_own_default_config = \
+        WorkflowClass.get_workflow_default_config(llm_run_info, config)
+    if workflow_own_default_config:
+        workflow_config_merge_configs.extend([workflow_own_default_config])
+
+    workflow_config = configmerger.recursive_assign_defaults(workflow_config_merge_configs)
+
+    logger.debug("Loading workflow ‘%s’ with config = %s", workflow_name,
+                 abbrev_value_str(workflow_config, maxstrlen=512))
+
     workflow = WorkflowClass(
         workflow_config,
         llm_run_info,
@@ -302,7 +339,8 @@ def run(llm_content,
     #
     doc_metadata = configmerger.recursive_assign_defaults([
         {
-            '_config_llm': config['llm'],
+            '_llm_config': config['llm'],
+            '_llm_workflow': workflow,
         },
         llm_run_info.get('metadata', {}),
         { k: v for (k,v) in config.items() if k != 'llm' }
@@ -349,5 +387,7 @@ def run(llm_content,
     # Done!
     #
     return result, result_info
+
+
 
 

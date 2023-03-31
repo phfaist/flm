@@ -10,6 +10,8 @@ import yaml
 from .configmerger import ConfigMerger
 configmerger = ConfigMerger()
 
+from ._util import delayedstr, abbrev_value_str
+
 
 
 _emptydict = {}
@@ -220,6 +222,8 @@ class DocumentTemplate:
             ]
         )
 
-        logger.debug("rendering template ‘%s’, config is %r", self.template_name, merged_config)
+        logger.debug("rendering template ‘%s’, config is %s",
+                     self.template_name,
+                     abbrev_value_str(merged_config))
 
         return self.template.render_template(merged_config, **kwargs)

@@ -1,5 +1,7 @@
 import importlib
 
+from collections.abc import Mapping
+
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
@@ -173,6 +175,8 @@ def get_default_presets():
 
 
 def _get_preset_keyvals(d):
+    if not isinstance(d, dict):
+        return []
     return [(k,v) for (k,v) in d.items() if isinstance(k,str) and k.startswith('$')]
 
 
@@ -197,6 +201,11 @@ class ConfigMerger:
 
         for j, obj in enumerate(obj_list):
             remaining_obj_list = obj_list[j+1:]
+
+            if not isinstance(obj, Mapping):
+                logger.warning("Incompatible config merge, ignoring value %r for ‘%s’",
+                               obj, ".".join(property_path))
+                continue
 
             # process any "meta"/preset keys
             for presetname, presetarg in _get_preset_keyvals(obj):

@@ -100,7 +100,7 @@ class Enumeration(LLMEnvironmentSpecBase):
 
     def postprocess_parsed_node(self, node):
         # parse the node structure right away when finializing then ode
-        logger.debug("finalizing node: node = %r", node)
+        #logger.debug("finalizing node: node = %r", node)
         item_nodelists = node.nodelist.split_at_node(
             lambda n: (n.isNodeType(latexnodes_nodes.LatexMacroNode)
                        and n.macroname == 'item'),

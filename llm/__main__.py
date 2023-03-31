@@ -38,13 +38,17 @@ def run_main(cmdargs=None):
                              help="Output file name (stdout by default or with ‘--output=-’)")
 
     args_parser.add_argument('-f', '--format', action='store',
-                             default='html',
+                             default=None,
                              help=f"LLM content to parse and convert.  One of "
                              f"html,text,markdown,latex or a "
                              "fully specified module or class name defining a "
                              "FragmentRenderer subclass.")
 
-    args_parser.add_argument('-T', '--template', action='store',
+    args_parser.add_argument('-w', '--workflow', action='store',
+                             default=None,
+                             help="Use custom a workflow to compile the LLM document.")
+
+    args_parser.add_argument('-t', '--template', action='store',
                              default='none',
                              help="Template to use to render the document.  Templates are "
                              "specific to output formats.  See documentation (TODO) "
@@ -58,7 +62,7 @@ def run_main(cmdargs=None):
     args_parser.add_argument('-v', '--verbose', action='store_true',
                              default=False,
                              help="Enable verbose debugging output")
-    args_parser.add_argument('-w', '--very-verbose', action='store_const',
+    args_parser.add_argument('-W', '--very-verbose', action='store_const',
                              dest='verbose',
                              const=2,
                              help="Enable very long verbose debugging output "
