@@ -6,7 +6,7 @@ authors = ["Philippe Faist"]
 license = "MIT"
 
 [tool.poetry.scripts]
-llm = 'llm.__main__:main'
+llm = 'llm.__main__:run_main'
 
 [tool.poetry.dependencies]
 python = "^3.8"

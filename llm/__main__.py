@@ -3,7 +3,7 @@ import logging
 
 from pylatexenc.latexnodes import LatexWalkerParseError
 
-from .main.main import main
+from .main.main import main as _main
 from llm import __version__ as llm_version
 
 
@@ -95,7 +95,7 @@ def run_main(cmdargs=None):
 
     d = args.__dict__
 
-    return main(**d)
+    return _main(**d)
 
 
 if __name__ == '__main__':
