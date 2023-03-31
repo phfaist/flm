@@ -420,7 +420,7 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
             result,
             r"""
 <main>
-<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.<a href="#footnote-1" class="href-endnote endnote footnote">a</a> I checked it <a href="#citation-1" class="href-endnote endnote citation">[1]</a>. And again and again <a href="#citation-2" class="href-endnote endnote citation">[2]</a><a href="#citation-3" class="href-endnote endnote citation">[3]</a><a href="#citation-4" class="href-endnote endnote citation">[4]</a>. See also <a href="#citation-2" class="href-endnote endnote citation">[2; Theorem 3]</a>.</p></div>
+<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.<a href="#footnote-1" class="href-endnote endnote footnote">a</a> I checked it&nbsp;<a href="#citation-1" class="href-endnote endnote citation">[1]</a>. And again and again&nbsp;<a href="#citation-2" class="href-endnote endnote citation">[2]</a><a href="#citation-3" class="href-endnote endnote citation">[3]</a><a href="#citation-4" class="href-endnote endnote citation">[4]</a>. See also <a href="#citation-2" class="href-endnote endnote citation">[2; Theorem&nbsp;3]</a>.</p></div>
 </main>
 """.strip()
         )
@@ -647,7 +647,7 @@ See also the topic \ref{topic:qudit}.
   \label{eq:my-equation}
 \tag*{(2)}\end{align}</span></p>
 <h2 id="sec--An-enumeration-list" class="heading-level-2">An enumeration list</h2>
-<dl class="enumeration enumerate"><dt>(a.)</dt><dd><p>First thing to see could be something nice. This line might also be pretty long, with lots of unnecessary text that I could have imagined cutting off at some point.</p></dd><dt>(b.)</dt><dd><p>Second nice thing! Check also <a href="#equation-2" class="href-ref ref-eq">(2)</a> and <a href="#figure-1" class="href-ref ref-figure">Figure 1</a>.</p></dd></dl>
+<dl class="enumeration enumerate"><dt>(a.)</dt><dd><p>First thing to see could be something nice. This line might also be pretty long, with lots of unnecessary text that I could have imagined cutting off at some point.</p></dd><dt>(b.)</dt><dd><p>Second nice thing! Check also <a href="#equation-2" class="href-ref ref-eq">(2)</a> and <a href="#figure-1" class="href-ref ref-figure">Figure&nbsp;1</a>.</p></dd></dl>
 <p><span id="sec--A-paragraph-level-sectionin" class="heading-level-4 heading-inline">A paragraph-level sectioning command</span> Paragraph content goes here. How does this work? I can add a figure, too; let&#x27;s see how it works.</p>
 <figure id="figure-1" class="float float-figure"><div class="float-contents"><img src="https://media.giphy.com/media/8Iv5lqKwKsZ2g/giphy.gif"></div>
 <figcaption class="float-caption-content"><span><span class="float-number">Figure&nbsp;1</span>: This figure has a caption.</span></figcaption></figure>
