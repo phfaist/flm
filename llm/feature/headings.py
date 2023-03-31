@@ -104,6 +104,7 @@ class FeatureHeadings(Feature):
     """
 
     feature_name = 'headings'
+    feature_title = 'Headings: sections, paragraphs'
 
     feature_optional_dependencies = [ 'refs' ]
 

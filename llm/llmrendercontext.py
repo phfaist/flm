@@ -38,9 +38,9 @@ class LLMRenderContext:
 
         yn = node.llm_specinfo.delayed_render
         if callable(yn):
-            yn = is_delayed_render(node, render_context)
+            yn = yn(node, render_context)
+            self._nodes_determined_as_delayed[node.node_id] = yn
 
-        self._nodes_determined_as_delayed[node.node_id] = yn
         return yn
 
     def set_render_pass(self, pass_name):

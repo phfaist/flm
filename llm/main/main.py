@@ -46,6 +46,29 @@ class ResourceAccessor(run.ResourceAccessorBase):
 
 
 
+def load_external_config(arg_config):
+    config_file = arg_config
+    if isinstance(config_file, str) and config_file:
+        # parse a YAML file
+        with open(config_file) as f:
+            return yaml.safe_load(f)
+    elif isinstance(config_file, dict):
+        return config_file
+    else:
+        # see if there's a llmconfig.(yaml|yml) in the current directory, and
+        # load that one if applicable.
+        if os.path.exists('llmconfig.yaml'):
+            with open('llmconfig.yaml') as f:
+                return yaml.safe_load(f)
+        elif os.path.exists('llmconfig.yml'):
+            with open('llmconfig.yml') as f:
+                return yaml.safe_load(f)
+        
+    return {}
+
+
+
+
 
 def main(**kwargs):
 
@@ -110,24 +133,8 @@ def main(**kwargs):
 
     # load config & defaults
 
-    config_file = arg_config
-    orig_config = {}
-    if isinstance(config_file, str) and config_file:
-        # parse a YAML file
-        with open(config_file) as f:
-            orig_config = yaml.safe_load(f)
-    elif isinstance(config_file, dict):
-        orig_config = config_file
-    else:
-        # see if there's a llmconfig.(yaml|yml) in the current directory, and
-        # load that one if applicable.
-        if os.path.exists('llmconfig.yaml'):
-            with open('llmconfig.yaml') as f:
-                orig_config = yaml.safe_load(f)
-        elif os.path.exists('llmconfig.yml'):
-            with open('llmconfig.yml') as f:
-                orig_config = yaml.safe_load(f)
-        
+    orig_config = load_external_config(arg_config)
+
 
     logger.debug("Input frontmatter_metadata is\n%s",
                  json.dumps(frontmatter_metadata,indent=4))

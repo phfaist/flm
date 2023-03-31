@@ -411,6 +411,7 @@ class FloatType:
 class FeatureFloats(Feature):
 
     feature_name = 'floats'
+    feature_title = 'Floating elements (figures & tables)'
 
     feature_optional_dependencies = [ 'refs' ]
 

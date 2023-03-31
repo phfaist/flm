@@ -18,6 +18,6 @@ default_config:
   layout:
     content_width: '640px'
 
-  html:
+  style:
     extra_css: ''
     extra_js: ''

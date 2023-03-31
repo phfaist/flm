@@ -45,6 +45,8 @@ class VerbatimSpecInfo(LLMSpecInfo):
 
         environment_node_name = None
 
+        verbatim_lang = None
+
         if node.isNodeType(latexnodes_nodes.LatexEnvironmentNode):
 
             environment_node_name = node.environmentname
@@ -59,10 +61,14 @@ class VerbatimSpecInfo(LLMSpecInfo):
         elif node.isNodeType(latexnodes_nodes.LatexMacroNode):
 
             node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-                ('verbatim_content',)
+                ('verbatim_content', 'verbatim_lang'),
+                skip_nonexistent_arguments=True,
             )
 
             verbatim_contents = node_args['verbatim_content'].get_content_as_chars()
+
+            if 'verbatim_lang' in node_args:
+                verbatim_lang = node_args['verbatim_lang'].get_content_as_chars()
 
         else:
 
@@ -71,6 +77,9 @@ class VerbatimSpecInfo(LLMSpecInfo):
         annotations = self.annotations or []
         if environment_node_name is not None:
             annotations.append(environment_node_name)
+
+        if verbatim_lang:
+            annotations.append(f'verbatim-lang-{verbatim_lang}')
 
         return render_context.fragment_renderer.render_verbatim(
             verbatim_contents,
@@ -87,28 +96,57 @@ def _dobaseconstructors2argslast(Me, self, args, kwargs, kwargs_to_1=None):
 ### ENDPATCH_MULTIPLE_BASE_CONSTRUCTORS
 
 
+def make_verbatim_args_spec_list(ismacro, verbatim_delimiters, optional_lang_arg):
+    a = []
+    if optional_lang_arg:
+        a.append(
+            LLMArgumentSpec(
+                parser=latexnodes_parsers.LatexCharsGroupParser(
+                    delimiters=('[', ']'),
+                    optional=True,
+                    allow_pre_space=False,
+                    enable_comments=False,
+                    enable_groups=False
+                ),
+                argname='verbatim_lang'
+            )
+        )
+    if ismacro:
+        a.append(
+            LLMArgumentSpec(
+                parser=latexnodes_parsers.LatexDelimitedVerbatimParser(
+                    delimiters=verbatim_delimiters,
+                ),
+                argname='verbatim_content'
+            )
+        )
+    return a
+
 class VerbatimMacro(VerbatimSpecInfo, macrospec.MacroSpec):
     def __init__(self, macroname,
                  verbatim_delimiters=None,
+                 optional_lang_arg=False,
                  **kwargs):
         newkwargs = dict(
             macroname=macroname,
-            arguments_spec_list=[
-                LLMArgumentSpec(
-                    parser=latexnodes_parsers.LatexDelimitedVerbatimParser(
-                        delimiters=verbatim_delimiters,
-                    ),
-                    argname='verbatim_content'
-                )
-            ],
+            arguments_spec_list=make_verbatim_args_spec_list(
+                True, verbatim_delimiters, optional_lang_arg
+            ),
             **kwargs
         )
         _dobaseconstructors2argslast(VerbatimMacro, self, [], newkwargs)
 
 
 class VerbatimEnvironment(VerbatimSpecInfo, macrospec.EnvironmentSpec):
-    def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(VerbatimEnvironment, self, args, kwargs)
+    def __init__(self, environmentname, *, optional_lang_arg=False, **kwargs):
+        newkwargs = dict(
+            environmentname=environmentname,
+            arguments_spec_list=make_verbatim_args_spec_list(
+                False, None, optional_lang_arg
+            ),
+            **kwargs
+        )
+        _dobaseconstructors2argslast(VerbatimEnvironment, self, [], newkwargs)
 
 
 
@@ -117,15 +155,33 @@ class VerbatimEnvironment(VerbatimSpecInfo, macrospec.EnvironmentSpec):
 class FeatureVerbatim(SimpleLatexDefinitionsFeature):
 
     feature_name = 'verbatim'
+    feature_title = 'Verbatim content typesetting'
 
-    latex_definitions = {
-        'macros': [
-            VerbatimMacro(macroname='verb')
-        ],
-        'environments': [
+    # include \verbcode+...+ and \begin{verbatimcode}[lang]...\end{verbatimcode}
+    verbatim_include_code = True
+
+    def add_latex_context_definitions(self):
+        macros = [
+            VerbatimMacro(macroname='verbtext'),
+        ]
+        environments = [
             VerbatimEnvironment(environmentname='verbatimtext'),
         ]
-    }
+        if self.verbatim_include_code:
+            macros.append(
+                VerbatimMacro(macroname='verbcode',
+                              optional_lang_arg=True,
+                              annotations=['verbatimcode'])
+            )
+            environments.append(
+                VerbatimEnvironment(environmentname='verbatimcode',
+                                    optional_lang_arg=True,
+                                    annotations=['verbatimcode'])
+            )
+        return {
+            'macros': macros,
+            'environments': environments,
+        }
 
 
 FeatureClass = FeatureVerbatim

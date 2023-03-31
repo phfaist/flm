@@ -43,6 +43,7 @@ class CitationEndnoteCategory(EndnoteCategory):
 class FeatureExternalPrefixedCitations(Feature):
 
     feature_name = 'citations'
+    feature_title = 'Citations'
 
     feature_optional_dependencies = [ 'endnotes' ]
 

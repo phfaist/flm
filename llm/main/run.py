@@ -3,11 +3,15 @@ import os.path
 import logging
 logger = logging.getLogger(__name__)
 
+from dataclasses import dataclass
+
 import yaml
 
 from .configmerger import ConfigMerger
 configmerger = ConfigMerger()
 
+from ..llmenvironment import LLMEnvironment
+from .workflow import RenderWorkflow
 from ._util import abbrev_value_str
 
 from llm import llmenvironment
@@ -146,12 +150,27 @@ with open(_builtin_default_config_yaml, encoding='utf-8') as f:
     _builtin_default_config = yaml.safe_load(f)
 
 
-def run(llm_content,
-        *,
-        llm_run_info,
-        run_config,
-        default_configs=None,
-        add_builtin_default_configs=True):
+
+
+@dataclass
+class WorkflowEnvironmentInformation:
+
+    environment : LLMEnvironment | None = None
+
+    config : dict | None = None
+
+    llm_run_info: dict | None = None
+
+    workflow: RenderWorkflow | None = None
+
+    fragment_renderer_name: str | None = None
+
+
+def load_workflow_environment(*,
+                              llm_run_info,
+                              run_config,
+                              default_configs=None,
+                              add_builtin_default_configs=True):
 
     resource_accessor = llm_run_info['resource_accessor']
 
@@ -323,6 +342,40 @@ def run(llm_content,
         features=features,
     )
 
+    return WorkflowEnvironmentInformation(
+        environment=environment,
+        config=config,
+        llm_run_info=llm_run_info,
+        workflow=workflow,
+        fragment_renderer_name=fragment_renderer_name
+    )
+
+
+
+
+
+
+def run(llm_content,
+        *,
+        llm_run_info,
+        run_config,
+        default_configs=None,
+        add_builtin_default_configs=True):
+
+    wenv = load_workflow_environment(
+        llm_run_info=llm_run_info,
+        run_config=run_config,
+        default_configs=default_configs,
+        add_builtin_default_configs=add_builtin_default_configs
+    )
+
+    environment = wenv.environment
+    config = wenv.config
+    llm_run_info = wenv.llm_run_info
+    workflow = wenv.workflow
+    fragment_renderer_name = wenv.fragment_renderer_name
+
+
     #
     # Set up the fragment
     #
@@ -331,6 +384,7 @@ def run(llm_content,
         #is_block_level is already set in parsing_state
         silent=True, # we'll report errors ourselves
         input_lineno_colno_offsets=llm_run_info.get('input_lineno_colno_offsets', {}),
+        what=llm_run_info.get('input_source', None)
     )
 
     #

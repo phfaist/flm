@@ -1,2 +1,2 @@
 
-from ._base import Feature
+from ._base import Feature, SimpleLatexDefinitionsFeature

@@ -48,7 +48,7 @@ def run_main(cmdargs=None):
                              help="Use custom a workflow to compile the LLM document.")
 
     args_parser.add_argument('-t', '--template', action='store',
-                             default='none',
+                             default=None,
                              help="Template to use to render the document.  Templates are "
                              "specific to output formats.  See documentation (TODO) "
                              "for more info.  (Try 'simple' or 'none'.)")

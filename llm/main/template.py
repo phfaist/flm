@@ -77,16 +77,19 @@ class OnlyContentTemplate:
 class SimpleStringTemplate:
 
     def __init__(self, template_info_path, template_info_file, llm_run_info,
-                 *, template_content_extension='.html'):
+                 *, template_content_extension='.html', template_content_filename=None):
         super().__init__()
         self.template_info_path = template_info_path # base folder
         self.template_info_file = template_info_file # the .yaml file
 
         # the template content
-        template_content_file = (
-            re.sub(r'\.(ya?ml|json.*)$', '', self.template_info_file, flags=re.IGNORECASE)
-            + template_content_extension
-        )
+        if template_content_filename is not None:
+            template_content_file = template_content_filename
+        else:
+            template_content_file = (
+                re.sub(r'\.(ya?ml|json.*)$', '', self.template_info_file, flags=re.IGNORECASE)
+                + template_content_extension
+            )
 
         self.template_content = llm_run_info['resource_accessor'].read_file(
             template_info_path, template_content_file, 'template_content'

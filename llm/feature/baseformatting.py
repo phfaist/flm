@@ -10,6 +10,14 @@ from ._base import SimpleLatexDefinitionsFeature
 class FeatureBaseFormatting(SimpleLatexDefinitionsFeature):
 
     feature_name = 'baseformatting'
+    feature_title = 'Basic formatting'
+
+    feature_llm_doc = r"""
+    You can produce basic formatting, including emphasis/italics and
+    boldface using the following macros.  Several macros also provide a way to
+    typeset literal characters that would otherwise have a special meaning in
+    your LLM environment.
+    """
 
     latex_definitions = {
         'macros': [

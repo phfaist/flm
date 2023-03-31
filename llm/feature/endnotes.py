@@ -109,6 +109,7 @@ class EndnoteInstance:
 class FeatureEndnotes(Feature):
 
     feature_name = 'endnotes'
+    feature_title = 'Endnotes: footnotes, references, etc.'
 
     def __init__(self, categories, render_options=None):
         r"""

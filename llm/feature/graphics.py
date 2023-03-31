@@ -136,6 +136,7 @@ class SimpleIncludeGraphicsMacro(LLMMacroSpecBase):
 class FeatureSimplePathGraphicsResourceProvider(Feature):
 
     feature_name = 'graphics_resource_provider'
+    feature_title = 'Include external graphics'
 
     class RenderManager(Feature.RenderManager):
 

@@ -126,6 +126,7 @@ class HrefHyperlinkMacro(LLMMacroSpecBase):
 class FeatureHref(SimpleLatexDefinitionsFeature):
 
     feature_name = 'href'
+    feature_title = 'Hyperlinks'
 
     latex_definitions = {
         'macros': [

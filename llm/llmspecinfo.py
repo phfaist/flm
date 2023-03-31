@@ -163,10 +163,24 @@ class LLMSpecialsSpecBase(LLMSpecInfo, macrospec.SpecialsSpec):
 
 # ------------------------------------------------------------------------------
 
+def make_verb_argument(value):
+    delim0 = None
+    for delim in ('+', '|', '=', '.', '-', '!', '~', ',', ';', ':'):
+        if delim not in value:
+            delim0 = delim
+            break
+    else:
+        raise ValueError("Couldn't form literal verbatim command for value %r", value)
+
+    return (delim0 + value + delim0)
+
 
 class LLMSpecInfoConstantValue(LLMSpecInfo):
 
     allowed_in_standalone_mode = True
+
+    def get_llm_doc(self):
+        return r'The literal character(s) \verbcode' + make_verb_argument(self.value)
 
     def __init__(self, *args, value, **kwargs):
         super().__init__(*args, **kwargs)
@@ -188,6 +202,7 @@ class ConstantValueSpecials(LLMSpecInfoConstantValue, macrospec.SpecialsSpec):
 text_arg = LLMArgumentSpec(
     parser='{',
     argname='text',
+    llm_doc='The text or LLM content to process',
 )
 
 label_arg = LLMArgumentSpec(
@@ -261,6 +276,12 @@ class TextFormatMacro(LLMMacroSpecBase):
         )
         self.text_formats = text_formats
 
+    def get_llm_doc(self):
+        return (
+            r"Formats its argument using the text format(s) "
+            + " ".join(f"‘{text_format}’" for text_format in self.text_formats)
+        )
+
     def render(self, node, render_context):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
@@ -285,6 +306,8 @@ class LLMSpecInfoParagraphBreak(LLMSpecInfo):
     def render(self, node, render_context):
         raise LatexWalkerParseError('Paragraph break is not allowed here', pos=node.pos)
 
+    def get_llm_doc(self):
+        return "Produce a paragraph break to begin a new paragraph"
 
 class ParagraphBreakSpecials(LLMSpecInfoParagraphBreak, macrospec.SpecialsSpec):
     def __init__(self, *args, **kwargs):

@@ -42,6 +42,18 @@ _default_math_environment_names = (
 class FeatureMath(Feature):
 
     feature_name = 'math'
+    feature_title = 'Mathematical typesetting: equations and equation references'
+
+    def feature_llm_doc(self):
+        return (
+            r"""
+            You can use the following environments and macros to typeset pretty display
+            math equations, create labels, and refer to them at other places in your
+            document.
+
+            Note that all equation labels must begin with the prefix \verbcode{"""
+            + self.eqref_ref_type + r""":}."""
+        )
 
     feature_optional_dependencies = [ 'refs' ]
 
@@ -136,8 +148,13 @@ class MathEnvironment(LLMEnvironmentSpecBase):
     # Nope! This environment adds reference labels in general
     #allowed_in_standalone_mode = True
 
+    def get_llm_doc(self):
+        return r"""Display equation typeset as the corresponding LaTeX environment."""
+
     def __init__(self, environmentname, is_numbered=None):
-        super().__init__(environmentname=environmentname)
+        super().__init__(
+            environmentname=environmentname
+        )
         if is_numbered is not None:
             self.is_numbered = is_numbered
         else:
@@ -351,10 +368,20 @@ class MathEqrefMacro(LLMMacroSpecBase):
                 LLMArgumentSpec(
                     latexnodes_parsers.LatexCharsGroupParser(),
                     argname='ref_label',
+                    llm_doc=(r'Equation label.  Must begin with the prefix ‘\verbtext+'
+                             + ref_type + ':+’'),
                 )
             ],
         )
         self.ref_type = ref_type
+
+    def get_llm_doc(self):
+        return (
+            r"""Refer to an equation by its label.  The argument must be
+            a valid equation label which starts with \verbcode+""" + self.ref_type
+            + r""":+.  You can place labels in display equations using the
+            \verbcode+\label{…}+ macro."""
+        )
 
     def postprocess_parsed_node(self, node):
 

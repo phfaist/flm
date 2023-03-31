@@ -140,3 +140,4 @@ dmypy.json
 funnytest.*
 mydraft*.llm
 mydraft*.html
+trydocgen.*

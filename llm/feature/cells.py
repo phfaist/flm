@@ -881,6 +881,9 @@ class CellsEnvironment(LLMEnvironmentSpecBase):
 
 class FeatureProvideCells(Feature):
     
+    feature_name = 'cells'
+    feature_title = 'Typesetting data tables'
+
     DocumentManager = None
     RenderManager = None
 

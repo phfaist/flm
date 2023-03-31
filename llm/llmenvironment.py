@@ -41,7 +41,7 @@ class LLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
 # ------------------------------------------------------------------------------
 
 
-def LLMArgumentSpec(parser, argname, is_block_level=False):
+def LLMArgumentSpec(parser, argname, is_block_level=False, llm_doc=None):
     r"""
     ..........
 
@@ -53,11 +53,13 @@ def LLMArgumentSpec(parser, argname, is_block_level=False):
         parsing_state_delta = LLMParsingStateDeltaSetBlockLevel(
             is_block_level=is_block_level
         )
-    return latexnodes.LatexArgumentSpec(
+    arg = latexnodes.LatexArgumentSpec(
         parser=parser,
         argname=argname,
         parsing_state_delta=parsing_state_delta,
     )
+    arg._llm_doc = llm_doc
+    return arg
 
 
 

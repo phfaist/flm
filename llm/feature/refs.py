@@ -234,6 +234,8 @@ class FeatureRefs(Feature):
     """
 
     feature_name = 'refs'
+    feature_title = 'Labels and cross-references'
+
     RenderManager = FeatureRefsRenderManager
 
     def __init__(self, external_ref_resolvers=None):

@@ -219,13 +219,24 @@ class HtmlFragmentRenderer(FragmentRenderer):
         annotations = [a.replace('--', '- - ') for a in annotations]
         return '<!-- {} -->'.format(" ".join(annotations))
 
+    verbatim_highlight_spaces = False
+    verbatim_protect_backslashes = True
+
     def render_verbatim(self, value, *, annotations, target_id=None):
         attrs = {}
         if target_id is not None:
             attrs['id'] = target_id
+        escaped = self.htmlescape(value)
+        if self.verbatim_protect_backslashes:
+            # so that MathJax doesn't automatically kick in in verbatim content
+            escaped = escaped.replace('\\', '<span>\\</span>')
+        if self.verbatim_highlight_spaces:
+            escaped = escaped.replace(
+                ' ', '<span class="verbatimspace">&nbsp;</span>'
+            )
         return self.wrap_in_tag(
             'span',
-            self.htmlescape(value),
+            escaped,
             class_names=(annotations if annotations else ['verbatimtext']),
             attrs=attrs,
         )

@@ -216,6 +216,7 @@ class FeatureEnumeration(Feature):
     """
 
     feature_name = 'enumeration'
+    feature_title = 'Enumeration and itemization lists'
     # no managers needed
     DocumentManager = None
     RenderManager = None

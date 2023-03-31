@@ -151,6 +151,7 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
 class RefTermMacro(LLMMacroSpecBase):
 
     allowed_in_standalone_mode = False
+    delayed_render = True
 
     defterm_ref_type = 'defterm'
 
@@ -158,11 +159,26 @@ class RefTermMacro(LLMMacroSpecBase):
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[
-                LLMArgumentSpec('[', argname='ref_term'),
-                LLMArgumentSpec('{', argname='term'),
+                LLMArgumentSpec('[', argname='ref_term',
+                                llm_doc=r'The term that is being referenced.  '
+                                r'May be omitted if it coincides with \a{term}'),
+                LLMArgumentSpec('{', argname='term',
+                                llm_doc=r'The term the exact way it should '
+                                r'be typeset at this point'),
             ],
             **kwargs
         )
+
+    def get_llm_doc(self):
+        return r""" Reference a term defined somewhere else in a
+        \verbcode+\begin{defterm}…\end{defterm}+ environment.  This will
+        typically produce a link in HTML output for instance to the location
+        where this term is defined.  In case you need to typeset the term
+        differently than when you defined it (e.g., because of a plural,
+        capital/lower case, other declination), use the optional argument to
+        give the term exactly as defined and specify the term as it should
+        appear in the main argument.  E.g.
+        \verbcode+These are \term[Markov chain]{Markov chains}+"""
 
     def postprocess_parsed_node(self, node):
         node_args = \
@@ -182,6 +198,9 @@ class RefTermMacro(LLMMacroSpecBase):
         
         node.llmarg_ref = (self.defterm_ref_type, node.llm_term_llm_ref_label_verbatim)
 
+
+    def prepare_delayed_render(self, node, render_context):
+        pass
 
     def render(self, node, render_context):
 
@@ -220,6 +239,7 @@ class RefTermMacro(LLMMacroSpecBase):
 class FeatureDefTerm(Feature):
 
     feature_name = 'defterm'
+    feature_title = 'Definition terms'
 
     FeatureDocumentManager = None
     FeatureRenderManager = None
