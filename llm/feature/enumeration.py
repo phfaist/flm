@@ -74,15 +74,14 @@ class Enumeration(LLMEnvironmentSpecBase):
                     argname='tag_template',
                 )
             ],
+            body_parsing_state_delta=
+                LLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level),
             **kwargs
         )
         if counter_formatter is None:
             counter_formatter = _default_enumeration_counter_formatter
         self.counter_formatter = counter_formatter
         self.annotations = annotations
-
-        self.body_parsing_state_delta = \
-            LLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level)
         
 
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):

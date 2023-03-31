@@ -140,7 +140,6 @@ class MarkdownFragmentRenderer(FragmentRenderer):
         """
 
         s_items = []
-        s_tags = []
 
         for j, item_content_nodelist in enumerate(iter_items_nodelists):
 

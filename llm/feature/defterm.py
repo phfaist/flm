@@ -53,6 +53,8 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
                 LLMArgumentSpec('{', argname='term'),
                 llmspecinfo.label_arg,
             ],
+            body_parsing_state_delta=
+                LLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level),
             **kwargs
         )
         self.render_with_term = render_with_term
@@ -61,9 +63,6 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
             mspec = TextFormatMacro('', text_formats=['defterm-term'])
             mspec.is_block_heading = True
             self.render_term_text_format_spec = mspec
-
-        self.body_parsing_state_delta = \
-            LLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level)
         
 
     def postprocess_parsed_node(self, node):
