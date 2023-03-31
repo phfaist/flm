@@ -13,8 +13,6 @@ from llm.stdfeatures import standard_features
 
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
-from llm.llmspecinfo import LLMMacroSpecBase
-
 
 
 
