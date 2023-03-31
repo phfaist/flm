@@ -3,7 +3,8 @@ import os.path
 import logging
 logger = logging.getLogger(__name__)
 
-from typing import Any
+from typing import Any, Optional
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import yaml
@@ -156,15 +157,15 @@ with open(_builtin_default_config_yaml, encoding='utf-8') as f:
 @dataclass
 class WorkflowEnvironmentInformation:
 
-    environment : Any | None = None
+    environment : Optional[Any] = None
 
-    config : dict | None = None
+    config : Optional[Mapping] = None
 
-    llm_run_info: dict | None = None
+    llm_run_info: Optional[Mapping] = None
 
-    workflow: Any | None = None
+    workflow: Optional[Any] = None
 
-    fragment_renderer_name: str | None = None
+    fragment_renderer_name: Optional[str] = None
 
 
 def load_workflow_environment(*,
