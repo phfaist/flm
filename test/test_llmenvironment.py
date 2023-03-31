@@ -2,7 +2,6 @@ import unittest
 import logging
 logger = logging.getLogger(__name__)
 
-from pylatexenc.latexnodes import LatexWalkerParseError
 from pylatexenc.latexnodes.nodes import *
 from pylatexenc.macrospec import LatexContextDb
 

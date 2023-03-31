@@ -1,12 +1,9 @@
 import os
 import os.path
-import re
 import sys
 import argparse
-import json
 
 import shutil
-import subprocess
 
 import logging
 logger = logging.getLogger('generate_llm_js')

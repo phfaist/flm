@@ -9,7 +9,7 @@ from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
 
 from .llmenvironment import (
-    LLMArgumentSpec, LLMParsingStateDeltaSetBlockLevel
+    LLMArgumentSpec
 )
 
 

@@ -101,8 +101,6 @@ class MarkdownFragmentRenderer(FragmentRenderer):
         content = delimiters[0] + nodelist.latex_verbatim() + delimiters[1]
         content = self.render_value( content )
 
-        #if self.use_target_ids and target_id is not None:
-        #    content = '[]{#' + target_id + '} ' + content
         content = self._get_target_id_md_code(target_id) + content
 
         # Don't escape '\begin{align} ...' into '\\begin\{align\} ... ' etc.
@@ -172,9 +170,6 @@ class MarkdownFragmentRenderer(FragmentRenderer):
                 )
 
             tgtid_md_code = ''
-            # if self.use_target_ids and target_id_generator is not None:
-            #     target_id = target_id_generator(enumno)
-            #     tgtid_md_code = '[]{#' + target_id + '} '
             if target_id_generator is not None:
                 target_id = target_id_generator(enumno)
                 tgtid_md_code = self._get_target_id_md_code(target_id)
@@ -207,9 +202,6 @@ class MarkdownFragmentRenderer(FragmentRenderer):
 
         title_content = self.render_inline_content(heading_nodelist, render_context)
 
-        # target_id_md_code = ''
-        # if self.use_target_ids and target_id is not None:
-        #     target_id_md_code = '[]{#' + target_id + '} '
         target_id_md_code = self._get_target_id_md_code(target_id)
 
         return (
@@ -289,9 +281,6 @@ class MarkdownFragmentRenderer(FragmentRenderer):
         else:
             float_content_with_caption = float_content_block
 
-        # target_id_md_code = ''
-        # if self.use_target_ids and float_instance.target_id is not None:
-        #     target_id_md_code = '[]{#' + float_instance.target_id + '} '
         target_id_md_code = self._get_target_id_md_code(float_instance.target_id)
 
         mdindent = render_context.get_logical_state('llm_markdown').get('md_indent', '')
@@ -308,32 +297,6 @@ class MarkdownFragmentRenderer(FragmentRenderer):
 
     def render_graphics_block(self, graphics_resource):
 
-        # imgattrs = {}
-        #
-        # styparts = []
-        # if graphics_resource.physical_dimensions is not None:
-        #
-        #     width_pt, height_pt = graphics_resource.physical_dimensions
-        #
-        #     if graphics_resource.graphics_type == 'raster':
-        #         if width_pt is not None:
-        #             width_pt *= self.graphics_raster_magnification
-        #         if height_pt is not None:
-        #             height_pt *= self.graphics_raster_magnification
-        #     elif graphics_resource.graphics_type == 'vector':
-        #         if width_pt is not None:
-        #             width_pt *= self.graphics_vector_magnification
-        #         if height_pt is not None:
-        #             height_pt *= self.graphics_vector_magnification
-        #
-        #     if width_pt is not None:
-        #         styparts.append(f"width:{width_pt:.6f}pt")
-        #     if height_pt is not None:
-        #         styparts.append(f"height:{height_pt:.6f}pt")
-        #
-        # if styparts:
-        #     imgattrs['style'] = ";".join(styparts)
-        #
         src_url = graphics_resource.src_url
 
         return '![](' + src_url + ')'
@@ -345,6 +308,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
         return HtmlFragmentRenderer().render_cells(
             cells_model, render_context, target_id=target_id
         )
+
 
     def _get_target_id_md_code(self, target_id):
         if target_id is None:

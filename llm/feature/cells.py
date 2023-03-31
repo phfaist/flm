@@ -132,14 +132,6 @@ class CelldataMacroSpec(macrospec.MacroSpec):
             _macro_args['celldata_contents'],
         ])
 
-# class CelldatacsvMacroSpec(macrospec.MacroSpec):
-#     def __init__(self, macroname='celldatacsv',):
-#         super().__init__(macroname, arguments_spec_list=[
-#             _macro_args['styles_mapping'],
-#             _macro_args['placement_mapping'],
-#             _macro_args['celldata_contents'],
-#         ])
-
 
 # ------------------
 
@@ -746,10 +738,6 @@ class CellsModel:
                 nl.get_content_as_chars(), is_row=is_row, is_col=is_col,
                 default=current_idx, default_start=current_idx, default_end=None
             )
-            # if iter_start is None:
-            #     iter_start = 0
-            # if iter_end is None:
-            #     iter_end = index_end
 
             if iter_end is None:
                 index_placements.append( CellIndexRangeModel(start=iter_start, end=None) )

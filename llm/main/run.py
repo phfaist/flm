@@ -3,13 +3,12 @@ import os.path
 import logging
 logger = logging.getLogger(__name__)
 
-import json
 import yaml
 
 from .configmerger import ConfigMerger
 configmerger = ConfigMerger()
 
-from ._util import delayedstr, abbrev_value_str
+from ._util import abbrev_value_str
 
 from llm import llmenvironment
 

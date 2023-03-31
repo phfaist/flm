@@ -4,7 +4,6 @@ from llm.fragmentrenderer import FragmentRenderer
 
 from llm.llmenvironment import make_standard_environment
 from llm.stdfeatures import standard_features
-from llm.llmfragment import LLMFragment
 
 def mk_llm_environ():
     return make_standard_environment(features=standard_features())

@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import (
-    LatexArgumentSpec, ParsedArguments, ParsedArgumentsInfo
+    ParsedArguments, ParsedArgumentsInfo
 )
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 
@@ -28,9 +28,6 @@ def get_term_ref_label_verbatim(node_term_arg_nodelist):
     return simplify_trim_whitespace(
         node_term_arg_nodelist.latex_verbatim()
     )
-# def get_term_safe_target_id(term_ref_label_verbatim):
-#     return re.sub(r'[^a-zA-Z0-9-]', lambda m: f'_{ord(m.group()):x}X',
-#                   term_ref_label_verbatim)
 
 
 # ------------------------------------------------------------------------------

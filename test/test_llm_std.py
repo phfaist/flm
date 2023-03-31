@@ -7,7 +7,6 @@ from llm.llmenvironment import make_standard_environment
 from llm.stdfeatures import standard_features
 from llm.fragmentrenderer.html import HtmlFragmentRenderer
 
-from llm.feature.endnotes import FeatureEndnotes, EndnoteCategory
 from llm.feature import refs as feature_refs
 
 

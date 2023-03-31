@@ -297,11 +297,6 @@ class LatexFragmentRenderer(FragmentRenderer):
 
         heading_command = self.heading_commands_by_level[heading_level]
 
-        # annot = list(annotations) if annotations else []
-        # annot.append(f"heading-level-{heading_level}")
-        # if inline_heading:
-        #     annot.append('heading-inline')
-
         title_content = self.render_inline_content(heading_nodelist, render_context)
 
         labelcmd = ''

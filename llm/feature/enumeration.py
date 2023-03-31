@@ -2,7 +2,6 @@
 import logging
 logger = logging.getLogger(__name__)
 
-import re
 
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 import pylatexenc.latexnodes.parsers as latexnodes_parsers

@@ -4,7 +4,8 @@ from pylatexenc.latexnodes import ParsedArgumentsInfo
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 
-from ..llmspecinfo import LLMSpecInfo, LLMArgumentSpec
+from ..llmspecinfo import LLMSpecInfo
+from ..llmenvironment import LLMArgumentSpec
 
 from ._base import SimpleLatexDefinitionsFeature
 
