@@ -100,10 +100,10 @@ class _MyDocumentSizeMacro(LLMMacroSpecBase):
 
         if node.isNodeType(latexnodes_nodes.LatexMacroNode)\
 	   and node.macroname == 'myAnchor':
-            return fragment_renderer.render_nothing(['anchor', 'myAnchor'])
+            return fragment_renderer.render_nothing(render_context, ['anchor', 'myAnchor'])
         if node.isNodeType(latexnodes_nodes.LatexMacroNode)\
 	   and node.macroname == 'anotherAnchor':
-            return fragment_renderer.render_nothing(['anchor', 'anotherAnchor'])
+            return fragment_renderer.render_nothing(render_context, ['anchor', 'anotherAnchor'])
         if node.isNodeType(latexnodes_nodes.LatexMacroNode)\
 	   and node.macroname == 'linkMyAnchor':
             content_nl = node.latex_walker.make_nodelist(
@@ -145,7 +145,8 @@ class _MyDocumentSizeMacro(LLMMacroSpecBase):
         if node.isNodeType(latexnodes_nodes.LatexMacroNode) \
            and node.macroname == 'printDocumentSize':
             return fragment_renderer.render_value(
-                str(mgr.document_size) + ' characters'
+                str(mgr.document_size) + ' characters',
+                render_context,
             )
 
         raise ValueError("I don't know what to print: " + repr(node))

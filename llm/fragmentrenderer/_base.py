@@ -121,7 +121,7 @@ class FragmentRenderer:
         if chars_value is None:
             # might happen if the chars is not specifically in a node list
             chars_value = node.chars
-        return self.render_value( chars_value )
+        return self.render_value( chars_value, render_context )
 
     def render_node_comment(self, node, render_context):
         return ''
@@ -222,6 +222,7 @@ class FragmentRenderer:
         # way will have to reimplement render_node_math().
         rendered = self.render_verbatim(
             delimiters[0] + nodelist.latex_verbatim() + delimiters[1],
+            render_context=render_context,
             annotations=[f'{displaytype}-math'],
             target_id=target_id,
         )
@@ -245,7 +246,7 @@ class FragmentRenderer:
 
             rendered_blocks.append( para )
 
-        return self.render_join_blocks( rendered_blocks )
+        return self.render_join_blocks( rendered_blocks, render_context )
 
 
     def render_build_paragraph(self, nodelist, render_context):
@@ -256,17 +257,17 @@ class FragmentRenderer:
 
     def render_inline_content(self, nodelist, render_context):
         return self.render_join([ self.render_node(n, render_context)
-                                  for n in nodelist ])
+                                  for n in nodelist ], render_context)
 
 
-    def render_join(self, content_list):
+    def render_join(self, content_list, render_context):
         r"""
         For inline content; content_list contains already rendered items.
         """
         return "".join(content_list)
 
 
-    def render_join_blocks(self, content_list):
+    def render_join_blocks(self, content_list, render_context):
         r"""
         Join together a collection of pieces of content that have already been
         rendered.  Each piece is itself a block of content, which can assumed to
@@ -280,14 +281,14 @@ class FragmentRenderer:
     # ---
 
 
-    def render_semantic_block(self, content, role, *, annotations=None, target_id=None):
+    def render_semantic_block(self, content, role, render_context, *,
+                              annotations=None, target_id=None):
         r"""
         Enclose the given content in a block (say, a DOM <section> or such) that is
         meant to convey semantic information about the document's structure, but
         with no necessary impact on the layout or appearance of the text itself.
         """
         return content
-
 
     # ---
 
@@ -308,7 +309,7 @@ class FragmentRenderer:
 
     # --- to be reimplemented ---
 
-    def render_value(self, value):
+    def render_value(self, value, render_context):
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_delayed_marker(self, node, delayed_key, render_context):
@@ -317,10 +318,10 @@ class FragmentRenderer:
     def render_delayed_dummy_placeholder(self, node, delayed_key, render_context):
         raise RuntimeError("Subclasses need to reimplement this method")
 
-    def render_nothing(self, annotations=None):
+    def render_nothing(self, render_context, annotations=None):
         raise RuntimeError("Subclasses need to reimplement this method")
 
-    def render_empty_error_placeholder(self, debug_str):
+    def render_empty_error_placeholder(self, debug_str, render_context):
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_text_format(self, text_formats, nodelist, render_context):
@@ -334,7 +335,7 @@ class FragmentRenderer:
                        heading_level=1, inline_heading=False, target_id=None):
         raise RuntimeError("Subclasses need to reimplement this method")
 
-    def render_verbatim(self, value, *, annotations=None, target_id=None):
+    def render_verbatim(self, value, render_context, *, annotations=None, target_id=None):
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
@@ -360,7 +361,7 @@ class FragmentRenderer:
     def render_float(self, float_instance, render_context):
         raise RuntimeError("Feature is not implemented by subclass")
 
-    def render_graphics_block(self, graphics_resource):
+    def render_graphics_block(self, graphics_resource, render_context):
         raise RuntimeError("Feature is not implemented by subclass")
 
     def render_cells(self, cells_model, render_context, target_id=None):

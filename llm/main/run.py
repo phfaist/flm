@@ -198,7 +198,7 @@ def load_workflow_environment(*,
     #
 
     llm_run_info['requested_outputformat'] = \
-        llm_run_info['outputformat'] or run_config.get('llm', {}).get('default_format', {})
+        llm_run_info['outputformat'] or run_config.get('llm', {}).get('default_format', None)
 
     fragment_renderer_name = WorkflowClass.get_fragment_renderer_name(
         llm_run_info['requested_outputformat'],

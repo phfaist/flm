@@ -41,19 +41,19 @@ class _MyTestFragmentRenderer(FragmentRenderer):
         return self.render_join([
             self.render_node(n, render_context)
             for n in nodelist
-        ])
+        ], render_context)
 
-    def render_join(self, content_list):
+    def render_join(self, content_list, render_context):
         _register_call(self.store, 'render_join', (content_list,))
         return self.pieces_joiner_string.join(content_list)
 
-    def render_join_blocks(self, content_list):
+    def render_join_blocks(self, content_list, render_context):
         _register_call(self.store, 'render_join_blocks', (content_list,))
         return self.blocks_joiner_string.join(content_list)
 
     # --
 
-    def render_value(self, value):
+    def render_value(self, value, render_context):
         _register_call(self.store, 'render_value', (value,))
         return value
 
@@ -61,7 +61,7 @@ class _MyTestFragmentRenderer(FragmentRenderer):
         _register_call(self.store, 'render_delayed_marker', (node, delayed_key, doc))
         return ''
 
-    def render_empty_error_placeholder(self, debug_str):
+    def render_empty_error_placeholder(self, debug_str, render_context):
         _register_call(self.store, 'render_empty_error_placeholder', (debug_str,))
         return ''
 
@@ -70,7 +70,7 @@ class _MyTestFragmentRenderer(FragmentRenderer):
         content = self.render_nodelist(nodelist, render_context, is_block_level=False)
         return '['+content+']'
     
-    def render_verbatim(self, value, *, annotations=None, target_id=None):
+    def render_verbatim(self, value, render_context, *, annotations=None, target_id=None):
         _register_call(self.store, 'render_verbatim', (value, annotations, target_id,))
         return value
 

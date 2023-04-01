@@ -279,7 +279,8 @@ class CiteMacro(LLMMacroSpecBase):
                     fragment_renderer.render_text_format(
                         text_formats=['cite'],
                         content=fragment_renderer.render_value(
-                            f'[{citation_key_prefix}:{citation_key}]'
+                            f'[{citation_key_prefix}:{citation_key}]',
+                            render_context=render_context,
                         ),
                     )
                 )
@@ -375,4 +376,4 @@ class CiteMacro(LLMMacroSpecBase):
                     full_inline_citation
                 )
 
-        return fragment_renderer.render_join(s_items)
+        return fragment_renderer.render_join(s_items, render_context)

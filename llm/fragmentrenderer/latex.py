@@ -101,10 +101,11 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     def render_inline_content(self, nodelist, render_context):
         return self.render_join(
-            [ self.render_node(n, render_context) for n in nodelist ]
+            [ self.render_node(n, render_context) for n in nodelist ],
+            render_context
         )
 
-    def render_join(self, content_list):
+    def render_join(self, content_list, render_context):
         r"""
         Join together a collection of pieces of content that have already been
         rendered.  Usually you'd want to simply join the strings together with
@@ -132,7 +133,7 @@ class LatexFragmentRenderer(FragmentRenderer):
             return a + ' ' + b
         return a + b
 
-    def render_join_blocks(self, content_list):
+    def render_join_blocks(self, content_list, render_context):
         r"""
         Join together a collection of pieces of content that have already been
         rendered.  Each piece is itself a block of content, which can assumed to
@@ -145,14 +146,14 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     # ------------------
 
-    def render_value(self, value):
+    def render_value(self, value, render_context):
         return self.latexescape(value)
 
-    def render_empty_error_placeholder(self, debug_str):
+    def render_empty_error_placeholder(self, debug_str, render_context):
         #return r"\relax % " + debug_str.replace('\n', ' ') + '\n\\relax{}'
         return "% " + debug_str.replace('\n', ' ') + "\n"
 
-    def render_nothing(self, annotations=None):
+    def render_nothing(self, render_context, annotations=None):
         if not annotations:
             annotations = []
         else:
@@ -162,7 +163,7 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     latex_wrap_verbatim_macro = None
 
-    def render_verbatim(self, value, *, annotations, target_id=None):
+    def render_verbatim(self, value, render_context, *, annotations, target_id=None):
         # what to do with annotations / target_id ??
         if self.latex_wrap_verbatim_macro:
             return "\\" + self.latex_wrap_verbatim_macro + "{" + self.latexescape(value) + "}"
@@ -192,7 +193,8 @@ class LatexFragmentRenderer(FragmentRenderer):
 
         return self.wrap_in_text_format_macro(content, text_formats, render_context)
 
-    def render_semantic_block(self, content, role, *, annotations=None, target_id=None):
+    def render_semantic_block(self, content, role, render_context, *,
+                              annotations=None, target_id=None):
 
         if not annotations:
             annotations = []
@@ -255,7 +257,7 @@ class LatexFragmentRenderer(FragmentRenderer):
 
             tag_nodelist = counter_formatter(enumno)
             if isinstance(tag_nodelist, str):
-                tag_content = self.render_value(tag_nodelist)
+                tag_content = self.render_value(tag_nodelist, render_context)
             else:
                 tag_content = self.render_nodelist(
                     tag_nodelist,
@@ -282,7 +284,7 @@ class LatexFragmentRenderer(FragmentRenderer):
 
         return self.wrap_in_latex_enumeration_environment(
             ['enumeration']+annotations,
-            self.render_join(s_items),
+            self.render_join(s_items, render_context),
             render_context
         )
 
@@ -358,7 +360,8 @@ class LatexFragmentRenderer(FragmentRenderer):
             # numbered float -- generate the "Figure X" part
             float_designator = (
                 self.render_value(
-                    float_instance.float_type_info.float_caption_name
+                    float_instance.float_type_info.float_caption_name,
+                    render_context,
                 )
                 + '~'
                 + self.render_nodelist(
@@ -370,7 +373,10 @@ class LatexFragmentRenderer(FragmentRenderer):
             # not a numbered float, but there's a caption, so typeset "Figure: "
             # before the caption text
             float_designator = (
-                self.render_value(float_instance.float_type_info.float_caption_name),
+                self.render_value(
+                    float_instance.float_type_info.float_caption_name,
+                    render_context,
+                ),
             )
         else:
             # not a numbered float, and no caption.
@@ -405,8 +411,9 @@ class LatexFragmentRenderer(FragmentRenderer):
                 r'\par' +
                 self.render_semantic_block(
                     labelcmd
-                    + self.render_join(full_figcaption_rendered_list),
-                    role='figure_caption'
+                    + self.render_join(full_figcaption_rendered_list, render_context),
+                    role='figure_caption',
+                    render_context=render_context,
                 )
             )
         
@@ -420,7 +427,7 @@ class LatexFragmentRenderer(FragmentRenderer):
             float_content_with_caption = self.render_join_blocks([
                 float_content_block_content,
                 rendered_float_caption,
-            ])
+            ], render_context)
         else:
             float_content_with_caption = float_content_block
 
@@ -434,7 +441,7 @@ class LatexFragmentRenderer(FragmentRenderer):
     graphics_raster_magnification = 1
     graphics_vector_magnification = 1
 
-    def render_graphics_block(self, graphics_resource):
+    def render_graphics_block(self, graphics_resource, render_context):
 
         whopt = ''
         if graphics_resource.physical_dimensions is not None:

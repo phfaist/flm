@@ -121,7 +121,7 @@ class SimpleIncludeGraphicsMacro(LLMMacroSpecBase):
         graphics_resource = \
             graphics_resource_provider_mgr.get_graphics_resource(graphics_path, resource_info)
 
-        return fragment_renderer.render_graphics_block( graphics_resource )
+        return fragment_renderer.render_graphics_block( graphics_resource, render_context )
 
 
 

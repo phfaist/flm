@@ -12,7 +12,7 @@ class TextFragmentRenderer(FragmentRenderer):
 
     #supports_delayed_render_markers = False # -- inherited already
 
-    def render_value(self, value):
+    def render_value(self, value, render_context):
         return value
 
     def render_delayed_marker(self, node, delayed_key, render_context):
@@ -21,10 +21,10 @@ class TextFragmentRenderer(FragmentRenderer):
     def render_delayed_dummy_placeholder(self, node, delayed_key, render_context):
         return '#DELAYED#'
 
-    def render_nothing(self, annotations=None):
+    def render_nothing(self, render_context, annotations=None):
         return ''
 
-    def render_empty_error_placeholder(self, debug_str):
+    def render_empty_error_placeholder(self, debug_str, render_context):
         return ''
 
     def render_text_format(self, text_formats, nodelist, render_context):
@@ -51,7 +51,7 @@ class TextFragmentRenderer(FragmentRenderer):
             if tag_nodelist is None:
                 tag_content = '?'
             elif isinstance(tag_nodelist, str):
-                tag_content = self.render_value(tag_nodelist)
+                tag_content = self.render_value(tag_nodelist, render_context)
             else:
                 tag_content = self.render_nodelist(
                     tag_nodelist,
@@ -67,21 +67,27 @@ class TextFragmentRenderer(FragmentRenderer):
             )
 
         if not all_items:
-            return self.render_semantic_block('', 'enumeration', annotations=annotations)
+            return self.render_semantic_block('', 'enumeration',
+                                              render_context=render_context,
+                                              annotations=annotations)
 
         max_item_width = max([ len(fmtcnt) for fmtcnt, item_content in all_items ])
 
         return self.render_join_blocks([
             self.render_semantic_block(
                 self.render_join([
-                    self.render_value(fmtcnt.rjust(max_item_width+2, ' ') + ' '),
+                    self.render_value(
+                        fmtcnt.rjust(max_item_width+2, ' ') + ' ',
+                        render_context,
+                    ),
                     item_content,
-                ]),
+                ], render_context),
                 'enumeration',
+                render_context=render_context,
                 annotations=annotations,
             )
             for fmtcnt, item_content in all_items
-        ])
+        ], render_context)
 
     def render_heading(self, heading_nodelist, render_context, *,
                        heading_level=1, target_id=None, inline_heading=False,
@@ -111,7 +117,7 @@ class TextFragmentRenderer(FragmentRenderer):
         raise ValueError(f"Bad {heading_level=}, expected 1..6")
 
 
-    def render_verbatim(self, value, *, annotations=None, target_id=None):
+    def render_verbatim(self, value, render_context, *, annotations=None, target_id=None):
         return value
 
     def render_link(self, ref_type, href, display_nodelist, render_context,
@@ -152,7 +158,7 @@ class TextFragmentRenderer(FragmentRenderer):
                     ' ',
                     self.render_nodelist(float_instance.formatted_counter_value_llm.nodes,
                                          render_context=render_context),
-                ])
+                ], render_context)
             )
         elif float_instance.caption_nodelist:
             full_figcaption_rendered_list.append(
@@ -174,7 +180,8 @@ class TextFragmentRenderer(FragmentRenderer):
 
         rendered_float_caption = None
         if full_figcaption_rendered_list:
-            rendered_float_caption = self.render_join(full_figcaption_rendered_list)
+            rendered_float_caption = self.render_join(full_figcaption_rendered_list,
+                                                      render_context)
 
         float_content_block = self.render_nodelist(
             float_instance.content_nodelist,
@@ -186,7 +193,7 @@ class TextFragmentRenderer(FragmentRenderer):
             float_content_with_caption = self.render_join_blocks([
                 float_content_block,
                 rendered_float_caption,
-            ])
+            ], render_context)
         else:
             float_content_with_caption = float_content_block
 
@@ -197,7 +204,7 @@ class TextFragmentRenderer(FragmentRenderer):
         )
 
 
-    def render_graphics_block(self, graphics_resource):
+    def render_graphics_block(self, graphics_resource, render_context):
 
         return f"{'['+graphics_resource.src_url+']':^80}"
 

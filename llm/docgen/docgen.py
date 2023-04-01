@@ -139,8 +139,9 @@ class EnvironmentDocArguments(LLMEnvironmentSpecBase):
                     counter_formatter=lambda n: '•', #lambda n: items_tags[n-1],
                     render_context=render_context,
                 )
-            ]),
-            role='llm_doc_arguments'
+            ], render_context),
+            role='llm_doc_arguments',
+            render_context=render_context
         )
 
 
@@ -227,7 +228,7 @@ class EnvironmentDocBlock(LLMEnvironmentSpecBase):
             is_block_level=True
         ))
 
-        return render_context.fragment_renderer.render_join_blocks(s_items)
+        return render_context.fragment_renderer.render_join_blocks(s_items, render_context)
 
 
 

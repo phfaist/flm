@@ -12,6 +12,7 @@ import frontmatter
 
 import llm.main.run as llm_main_run
 import llm.main.main as llm_main_main
+import llm.main.oshelper as llm_main_oshelper
 
 from . import docgen
 
@@ -58,9 +59,10 @@ def main_docgen():
 
     args_parser.add_argument('-V', '--view', action='store_true',
                              default=False,
-                             help="If true, open your browser to the output file.  "
-                             "Requires an output file to be specified (--output) as well as "
-                             "a format (--format) other than 'llm'.")
+                             help="Open the output file with your browser or default "
+                             "desktop application.  Requires an output file to be "
+                             "specified (--output) as well as "
+                             "a format (--format).")
 
     args_parser.add_argument('-v', '--verbose', action='store_true',
                              default=False,
@@ -179,22 +181,9 @@ def main_docgen():
     if args.view:
         if not args.output or args.output == '-':
             raise ValueError("You cannot use --view without --output")
-        os_view_file(args.output)
+        llm_main_oshelper.os_open_file(args.output)
 
     return
-
-
-# thanks https://stackoverflow.com/a/435669/1694896
-def os_view_file(filepath):
-
-    import subprocess, os, platform
-
-    if platform.system() == 'Darwin':       # macOS
-        subprocess.call(('open', filepath))
-    elif platform.system() == 'Windows':    # Windows
-        os.startfile(filepath)
-    else:                                   # linux variants
-        subprocess.call(('xdg-open', filepath))
 
 
 

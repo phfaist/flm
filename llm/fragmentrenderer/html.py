@@ -188,10 +188,11 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     def render_inline_content(self, nodelist, render_context):
         return self.render_join(
-            [ self.render_node(n, render_context) for n in nodelist ]
+            [ self.render_node(n, render_context) for n in nodelist ],
+            render_context
         )
 
-    def render_join(self, content_list):
+    def render_join(self, content_list, render_context):
         r"""
         Join together a collection of pieces of content that have already been
         rendered.  Usually you'd want to simply join the strings together with
@@ -199,7 +200,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         """
         return "".join([str(s) for s in content_list])
 
-    def render_join_blocks(self, content_list):
+    def render_join_blocks(self, content_list, render_context):
         r"""
         Join together a collection of pieces of content that have already been
         rendered.  Each piece is itself a block of content, which can assumed to
@@ -214,14 +215,14 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     # ------------------
 
-    def render_value(self, value):
+    def render_value(self, value, render_context):
         return self.htmlescape(value)
 
-    def render_empty_error_placeholder(self, debug_str):
+    def render_empty_error_placeholder(self, debug_str, render_context):
         debug_str_safe = debug_str.replace('--', '- - ')
         return f"<span class=\"empty-error-placeholder\"><!-- {debug_str_safe} -->(?)</span>"
 
-    def render_nothing(self, annotations=None):
+    def render_nothing(self, render_context, annotations=None):
         if not self.render_nothing_as_comment_with_annotations:
             return ''
         if not annotations:
@@ -232,7 +233,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
     verbatim_highlight_spaces = False
     verbatim_protect_backslashes = True
 
-    def render_verbatim(self, value, *, annotations, target_id=None):
+    def render_verbatim(self, value, render_context, *, annotations, target_id=None):
         attrs = {}
         if target_id is not None:
             attrs['id'] = target_id
@@ -244,8 +245,13 @@ class HtmlFragmentRenderer(FragmentRenderer):
             escaped = escaped.replace(
                 ' ', '<span class="verbatimspace">&nbsp;</span>'
             )
+        tag = 'span'
+        for annotation in annotations:
+            if annotation in ('verbatimcode-environment', ):
+                # indicates a verbatim block, use <div> instead
+                tag = 'div'
         return self.wrap_in_tag(
-            'span',
+            tag,
             escaped,
             class_names=(annotations if annotations else ['verbatimtext']),
             attrs=attrs,
@@ -310,7 +316,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
             class_names=text_formats
         )
 
-    def render_semantic_block(self, content, role, *, annotations=None, target_id=None):
+    def render_semantic_block(self, content, role, render_context, *,
+                              annotations=None, target_id=None):
         attrs = {}
         if target_id is not None:
             attrs['id'] = target_id
@@ -365,7 +372,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
             tag_nodelist = counter_formatter(enumno)
             if isinstance(tag_nodelist, str):
-                tag_content = self.render_value(tag_nodelist)
+                tag_content = self.render_value(tag_nodelist, render_context)
             else:
                 tag_content = self.render_nodelist(
                     tag_nodelist,
@@ -388,12 +395,12 @@ class HtmlFragmentRenderer(FragmentRenderer):
                         'dd',
                         item_content
                     ),
-                ])
+                ], render_context)
             )
 
         return self.wrap_in_tag(
             'dl',
-            self.render_join(s_items),
+            self.render_join(s_items, render_context),
             class_names=['enumeration'] + (annotations if annotations else []),
         )
 
@@ -471,14 +478,15 @@ class HtmlFragmentRenderer(FragmentRenderer):
                     'span',
                     self.render_join([
                         self.render_value(
-                            float_instance.float_type_info.float_caption_name
+                            float_instance.float_type_info.float_caption_name,
+                            render_context
                         ),
                         '&nbsp;',
                         self.render_nodelist(
                             float_instance.formatted_counter_value_llm.nodes,
                             render_context=render_context
                         ),
-                    ]),
+                    ], render_context),
                     class_names=['float-number'],
                 )
             )
@@ -489,8 +497,11 @@ class HtmlFragmentRenderer(FragmentRenderer):
                 self.wrap_in_tag(
                     'span',
                     self.render_join([
-                        self.render_value(float_instance.float_type_info.float_caption_name),
-                    ]),
+                        self.render_value(
+                            float_instance.float_type_info.float_caption_name,
+                            render_context,
+                        ),
+                    ], render_context),
                     class_names=['float-no-number'],
                 )
             )
@@ -518,7 +529,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
                 'figcaption',
                 self.wrap_in_tag(
                     'span',
-                    self.render_join(full_figcaption_rendered_list),
+                    self.render_join(full_figcaption_rendered_list, render_context),
                 ),
                 class_names=['float-caption-content'],
             )
@@ -530,14 +541,15 @@ class HtmlFragmentRenderer(FragmentRenderer):
         )
         float_content_block = self.render_semantic_block(
             float_content_block_content,
-            'float-contents'
+            'float-contents',
+            render_context=render_context,
         )
 
         if rendered_float_caption is not None:
             float_content_with_caption = self.render_join_blocks([
                 float_content_block,
                 rendered_float_caption,
-            ])
+            ], render_context)
         else:
             float_content_with_caption = float_content_block
 
@@ -554,7 +566,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
     graphics_raster_magnification = 1
     graphics_vector_magnification = 1
 
-    def render_graphics_block(self, graphics_resource):
+    def render_graphics_block(self, graphics_resource, render_context):
 
         imgattrs = {}
 
@@ -881,6 +893,7 @@ th.cellstyle-rH {
 }
 .verbatimcode-environment {
   display: block;
+  margin: 0.75em 0px 1em;
   white-space: pre;
 }
 

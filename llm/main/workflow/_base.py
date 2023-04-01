@@ -80,7 +80,7 @@ class RenderWorkflow:
             rendered_result = render_context.fragment_renderer.render_join_blocks([
                 rendered_result,
                 endnotes_result,
-            ])
+            ], render_context)
 
         return rendered_result
 

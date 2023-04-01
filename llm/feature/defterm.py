@@ -144,6 +144,7 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
                 is_block_level=True,
             ),
             role='defterm',
+            render_context=render_context,
             target_id=node.llm_referenceable_infos[0].get_target_id(),
         )
 

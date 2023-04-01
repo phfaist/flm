@@ -42,12 +42,13 @@ class MarkdownFragmentRenderer(FragmentRenderer):
 
     def render_inline_content(self, nodelist, render_context):
         result = self.render_join(
-            [ self.render_node(n, render_context) for n in nodelist ]
+            [ self.render_node(n, render_context) for n in nodelist ],
+            render_context
         )
         logger.debug('render_inline_content -> %r', result)
         return result
 
-    def render_join(self, content_list):
+    def render_join(self, content_list, render_context):
         r"""
         Join together a collection of pieces of content that have already been
         rendered.  Usually you'd want to simply join the strings together with
@@ -57,7 +58,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
         logger.debug('***** JOIN %r -> %r', content_list, result)
         return result
 
-    def render_join_blocks(self, content_list):
+    def render_join_blocks(self, content_list, render_context):
         r"""
         Join together a collection of pieces of content that have already been
         rendered.  Each piece is itself a block of content, which can assumed to
@@ -74,20 +75,20 @@ class MarkdownFragmentRenderer(FragmentRenderer):
 
     # ------------------
 
-    def render_value(self, value):
+    def render_value(self, value, render_context):
         return rx_mdspecials.sub(lambda m: '\\'+m.group(), value)
 
-    def render_empty_error_placeholder(self, debug_str):
+    def render_empty_error_placeholder(self, debug_str, render_context):
         return ""
 
-    def render_nothing(self, annotations=None):
+    def render_nothing(self, render_context, annotations=None):
         return ""
 
-    def render_verbatim(self, value, *, annotations, target_id=None):
+    def render_verbatim(self, value, render_context, *, annotations, target_id=None):
         value = value.replace('``', '` ` ')
         return (
             self._get_target_id_md_code(target_id) + 
-            '`` ' + self.render_value(value) + ' ``'
+            '`` ' + self.render_value(value, render_context) + ' ``'
         )
 
     def render_math_content(self,
@@ -99,7 +100,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
                             target_id=None):
 
         content = delimiters[0] + nodelist.latex_verbatim() + delimiters[1]
-        content = self.render_value( content )
+        content = self.render_value( content, render_context )
 
         content = self._get_target_id_md_code(target_id) + content
 
@@ -122,7 +123,8 @@ class MarkdownFragmentRenderer(FragmentRenderer):
 
         return mdtext
 
-    def render_semantic_block(self, content, role, *, annotations=None, target_id=None):
+    def render_semantic_block(self, content, role, render_context, *,
+                              annotations=None, target_id=None):
         return self._get_target_id_md_code(target_id) + content
     
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
@@ -161,7 +163,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
 
             tag_nodelist = counter_formatter(enumno)
             if isinstance(tag_nodelist, str):
-                tag_content = self.render_value(tag_nodelist)
+                tag_content = self.render_value(tag_nodelist, render_context)
             else:
                 tag_content = self.render_nodelist(
                     tag_nodelist,
@@ -191,7 +193,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
                     mdindent_cur + '- ' + s_item.replace('\n', '\n'+mdindent)
                 )
 
-        content = self.render_join_blocks(mdtexts)
+        content = self.render_join_blocks(mdtexts, render_context)
 
         return content
 
@@ -243,7 +245,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
                     ' ',
                     self.render_nodelist(float_instance.formatted_counter_value_llm.nodes,
                                          render_context=render_context),
-                ])
+                ], render_context)
             )
         elif float_instance.caption_nodelist:
             full_figcaption_rendered_list.append(
@@ -265,7 +267,8 @@ class MarkdownFragmentRenderer(FragmentRenderer):
 
         rendered_float_caption = None
         if full_figcaption_rendered_list:
-            rendered_float_caption = self.render_join(full_figcaption_rendered_list)
+            rendered_float_caption = self.render_join(full_figcaption_rendered_list,
+                                                      render_context)
 
         float_content_block = self.render_nodelist(
             float_instance.content_nodelist,
@@ -277,7 +280,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
             float_content_with_caption = self.render_join_blocks([
                 float_content_block,
                 rendered_float_caption,
-            ])
+            ], render_context)
         else:
             float_content_with_caption = float_content_block
 
@@ -295,7 +298,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
     graphics_raster_magnification = 1
     graphics_vector_magnification = 1
 
-    def render_graphics_block(self, graphics_resource):
+    def render_graphics_block(self, graphics_resource, render_context):
 
         src_url = graphics_resource.src_url
 

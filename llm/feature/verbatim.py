@@ -64,7 +64,16 @@ class VerbatimSpecInfo(LLMSpecInfo):
                 # the environment.
                 verbatim_contents = node.nodelist.latex_verbatim()
 
-        elif node.isNodeType(latexnodes_nodes.LatexMacroNode):
+            # check for verbatim_lang
+            node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
+                ('verbatim_lang'),
+                skip_nonexistent_arguments=True,
+            )
+            if 'verbatim_lang' in node_args:
+                verbatim_lang = node_args['verbatim_lang'].get_content_as_chars()
+
+        #elif node.isNodeType(latexnodes_nodes.LatexMacroNode):
+        else: # macro or specials
 
             is_inline = True
 
@@ -78,9 +87,8 @@ class VerbatimSpecInfo(LLMSpecInfo):
             if 'verbatim_lang' in node_args:
                 verbatim_lang = node_args['verbatim_lang'].get_content_as_chars()
 
-        else:
-
-            verbatim_contents = node.latex_verbatim()
+        # else:
+        #     verbatim_contents = node.latex_verbatim()
         
         annotations = self.annotations or []
 
@@ -100,6 +108,7 @@ class VerbatimSpecInfo(LLMSpecInfo):
 
         return render_context.fragment_renderer.render_verbatim(
             verbatim_contents,
+            render_context,
             annotations=annotations,
         )
 

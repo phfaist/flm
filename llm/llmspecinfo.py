@@ -186,7 +186,7 @@ class LLMSpecInfoConstantValue(LLMSpecInfo):
         self.value = value
 
     def render(self, node, render_context):
-        return render_context.fragment_renderer.render_value(self.value)
+        return render_context.fragment_renderer.render_value(self.value, render_context)
 
 
 class ConstantValueMacro(LLMSpecInfoConstantValue, macrospec.MacroSpec):

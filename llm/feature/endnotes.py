@@ -337,7 +337,8 @@ class FeatureEndnotes(Feature):
 
             if not has_endnotes:
                 return fragment_renderer.render_nothing(
-                    annotations=['no-endnotes']
+                    annotations=['no-endnotes'],
+                    render_context=render_context,
                 )
 
             if endnotes_heading_title is not None:
@@ -358,8 +359,9 @@ class FeatureEndnotes(Feature):
                 
 
             return fragment_renderer.render_semantic_block(
-                fragment_renderer.render_join_blocks( blocks ),
+                fragment_renderer.render_join_blocks( blocks, render_context ),
                 role='endnotes',
+                render_context=self.render_context,
                 annotations=annotations,
                 target_id=target_id,
             )

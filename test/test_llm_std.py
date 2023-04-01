@@ -626,7 +626,7 @@ See also the topic \ref{topic:qudit}.
                 render_context=render_context,
             ),
             endnotes_mgr.render_endnotes_category('footnote'),
-        ])
+        ], render_context)
 
         print(result)
         self.assertEqual(

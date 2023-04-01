@@ -317,7 +317,8 @@ class FloatEnvironment(LLMEnvironmentSpecBase):
 
         return render_context.fragment_renderer.render_nothing(
             annotations=['float-placeholder',
-                         f"float-{self.float_type}-placeholder"]
+                         f"float-{self.float_type}-placeholder"],
+            render_context=render_context,
         )
 
 

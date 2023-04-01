@@ -4,6 +4,7 @@ import logging
 from pylatexenc.latexnodes import LatexWalkerParseError
 
 from .main.main import main as _main
+from .main import oshelper as llm_main_oshelper
 from llm import __version__ as llm_version
 
 
@@ -56,6 +57,14 @@ def run_main(cmdargs=None):
                              "content (“-t ''”). (Try e.g. “-t simple”.)")
 
 
+    args_parser.add_argument('-V', '--view', action='store_true',
+                             default=False,
+                             help="Open the output file with your browser or default "
+                             "desktop application.  Requires an output file to be "
+                             "specified (--output) as well as "
+                             "a format (--format) other than 'llm'.")
+
+
     args_parser.add_argument('-n', '--suppress-final-newline', action='store_true',
                              default=False,
                              help="Do not add a newline at the end of the output")
@@ -97,7 +106,15 @@ def run_main(cmdargs=None):
 
     d = args.__dict__
 
-    return _main(**d)
+    _main(**d)
+
+    if args.view:
+        if not args.output or args.output == '-':
+            raise ValueError("You cannot use --view without --output")
+        llm_main_oshelper.os_open_file(args.output)
+
+    return
+
 
 
 if __name__ == '__main__':
