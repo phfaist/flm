@@ -39,7 +39,9 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
 
     # ---
 
-    use_fragment_renderer_name = None
+    use_output_format_name = None
+
+    template_config_workflow_defaults = {}
 
     def render_templated_document(self, rendered_content, document, render_context):
         r"""
@@ -49,12 +51,12 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         render context `render_context`.
         """
 
-        use_fragment_renderer_name = \
-            self.use_fragment_renderer_name or self.llm_run_info['fragment_renderer_name']
+        use_output_format_name = \
+            self.use_output_format_name or self.llm_run_info['fragment_renderer_name']
 
         template_info = (
             self.main_config['llm'].get('template', {})
-            .get(use_fragment_renderer_name, None)
+            .get(use_output_format_name, None)
         )
 
         if not template_info:
@@ -78,6 +80,7 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         
         template_config_wdefaults = ConfigMerger().recursive_assign_defaults([
             template_config,
+            self.template_config_workflow_defaults,
             {
                 'style': fr_style_information,
             }
