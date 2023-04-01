@@ -79,6 +79,7 @@ def main(**kwargs):
     arg_format = kwargs.get('format', None)
     arg_workflow = kwargs.get('workflow', None)
     arg_template = kwargs.get('template', None)
+    arg_template_path = kwargs.get('template_path', None)
     arg_force_block_level = kwargs.get('force_block_level', None)
     arg_files = kwargs.get('files', None)
     arg_llm_content = kwargs.get('llm_content', None)
@@ -163,6 +164,7 @@ def main(**kwargs):
         'outputformat': arg_format,
         'workflow': arg_workflow,
         'template': arg_template or None, # or None will replace an empty string by None
+        'add_template_path': arg_template_path,
         'force_block_level': arg_force_block_level,
         'cwd': dirname,
         'input_source': arg_files,

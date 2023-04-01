@@ -142,11 +142,7 @@ def main_docgen():
                         },
                     },
                 },
-                'template': {
-                    'html': {
-                        'name': 'docgen',
-                    },
-                },
+                'template': 'docgen',
                 'renderer': {
                     'html': {
                         'verbatim_highlight_spaces': True,

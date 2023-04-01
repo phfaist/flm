@@ -1,8 +1,6 @@
-\documentclass[${documentclass.fontsize},${documentclass.papersize}]{article}%$$
+\documentclass[${documentclass_options}]{revtex4-2}%$$
 
-${if:enable_phfnote}%$$
-\usepackage${if:phfnote_options}[${phfnote_options}]${endif}{phfnote}%$$
-${endif}%$$
+\usepackage[preset=reset]{phfnote}
 
 ${preamble.general}%$$
 ${preamble.fonts}%$$
@@ -16,11 +14,11 @@ ${if:enable_hyperref}%$$
 ${endif}%$$
 
 \begin{document}
-${if:render_title}%$$
 \title{${metadata.title}}%$$
 \author{${metadata.author}}%$$
 \date{${metadata.date}}%$$
 \maketitle
-${endif}%$$
+
 ${content}%$$
+
 \end{document}

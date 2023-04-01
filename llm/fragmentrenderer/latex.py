@@ -311,6 +311,8 @@ class LatexFragmentRenderer(FragmentRenderer):
             + labelcmd
         )
 
+    use_endnote_latex_command = None
+
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
 
         display_content = self.render_nodelist(
@@ -318,6 +320,12 @@ class LatexFragmentRenderer(FragmentRenderer):
             render_context=render_context,
             is_block_level=False,
         )
+
+        if ref_type == 'endnote' and self.use_endnote_latex_command is not None:
+            display_content = (
+                '\\' + self.use_endnote_latex_command + '{' + display_content + '}'
+            )
+
         if href[0:1] == '#':
             return self.render_latex_link_hyperref(
                 display_content,
@@ -444,7 +452,19 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     def render_graphics_block(self, graphics_resource, render_context):
 
-        whopt = ''
+        src_url, incloptions = self.collect_graphics_resource(graphics_resource, render_context)
+
+        opts = ''
+        if incloptions is not None:
+            opts = '['+incloptions+']'
+
+        return r'\includegraphics' + opts + '{' + src_url + '}'
+
+    def collect_graphics_resource(self, graphics_resource, render_context):
+        # can be reimplemented to collect the given graphics resource somewhere
+        # relevant etc.
+
+        whoptc = None
         if graphics_resource.physical_dimensions is not None:
 
             width_pt, height_pt = graphics_resource.physical_dimensions
@@ -465,11 +485,8 @@ class LatexFragmentRenderer(FragmentRenderer):
                 whoptc += f"width={width_pt:.6f}pt,"
             if height_pt is not None:
                 whoptc += f"height={height_pt:.6f}pt,"
-            whopt = '['+whoptc+']'
 
-        return r'\includegraphics' + whopt + '{' + graphics_resource.src_url + '}'
-
-
+        return graphics_resource.src_url, whoptc
 
     def render_cells(self, cells_model, render_context, target_id=None):
 

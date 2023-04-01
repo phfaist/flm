@@ -1,4 +1,5 @@
 import copy
+import os # os.pathsep
 import os.path
 import logging
 logger = logging.getLogger(__name__)
@@ -69,6 +70,8 @@ class ResourceAccessorBase:
 #     'outputformat': .....
 #     'workflow': ......
 #     'force_block_level': None|true|false
+#     'template': ....
+#     'add_template_path': .....
 
 #     'cwd': ..... # input CWD
 #     'input_lineno_colno_offsets': ..... # passed on to llmfragment, adjust line/col numbers
@@ -237,12 +240,6 @@ def load_workflow_environment(*,
         ])
 
     override_config = { 'llm': { 'parsing': {} } }
-    if llm_run_info.get('template', None) is not None:
-        override_config['llm']['template'] = {
-            fragment_renderer_name: {
-                'name': llm_run_info['template']
-            }
-        }
     if llm_run_info.get('force_block_level', None) is not None:
         override_config['llm']['parsing']['force_block_level'] = \
             llm_run_info['force_block_level']
@@ -301,22 +298,30 @@ def load_workflow_environment(*,
     #
     # Set up the correct template path
     #
+    def _add_template_path(path):
+        # TODO: maybe at some point in the future, actually resolve the path
+        # as an URL ...
+        if path.startswith('pkg:'):
+            tmodname = path[len('pkg:'):]
+            _, pkg_get_template_path = resource_accessor.import_class(
+                tmodname,
+                default_classnames=['get_template_path']
+            )
+            this_template_path = pkg_get_template_path()
+        else:
+            this_template_path = path
+        resource_accessor.template_path.append(this_template_path)
+
     config_template_path = config.get('llm', {}).get('template_path', [])
     if config_template_path:
         for path in config_template_path:
-            # TODO: maybe at some point in the future, actually resolve the path
-            # as an URL ...
-            if path.startswith('pkg:'):
-                tmodname = path[len('pkg:'):]
-                _, pkg_get_template_path = resource_accessor.import_class(
-                    tmodname,
-                    default_classnames=['get_template_path']
-                )
-                this_template_path = pkg_get_template_path()
-            else:
-                this_template_path = path
-            resource_accessor.template_path.append(this_template_path)
-
+            _add_template_path(path)
+    llmrun_template_path = llm_run_info['add_template_path']
+    if llmrun_template_path:
+        if isinstance(llmrun_template_path, str):
+            llmrun_template_path = llmrun_template_path.split(os.pathsep)
+        for path in llmrun_template_path:
+            _add_template_path(path)
 
     #
     # Set up the fragment renderer

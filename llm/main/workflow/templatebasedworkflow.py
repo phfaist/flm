@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 
 import logging
 logger = logging.getLogger(__name__)
@@ -35,6 +36,13 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
 
     @staticmethod
     def get_fragment_renderer_name(outputformat, llm_run_info, run_config):
+
+        if outputformat == 'pdf':
+            raise ValueError(
+                "The default workflow ‘templatebasedworkflow’ cannot generate PDF. "
+                "Try instead the options '-w runlatexpdf -f pdf'."
+            )
+
         return outputformat or 'html'
 
     # ---
@@ -54,18 +62,26 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         use_output_format_name = \
             self.use_output_format_name or self.llm_run_info['fragment_renderer_name']
 
-        template_info = (
-            self.main_config['llm'].get('template', {})
-            .get(use_output_format_name, None)
-        )
+        use_template_name = None
+        if self.llm_run_info.get('template', None) is not None:
+            use_template_name = self.llm_run_info['template']
+        if use_template_name is None:
+            use_template_name = self.main_config['llm'].get('template', {})
+            if isinstance(use_template_name, Mapping):
+                use_template_name = use_template_name.get(use_output_format_name, None)
 
-        if not template_info:
+        logger.debug("Template: using output format ‘%s’ and template name ‘%s’",
+                     use_output_format_name, use_template_name)
+
+        if use_template_name is None:
+            # no template specified
+            logger.debug("No template specified, returning raw content")
             return rendered_content
 
-        template_name = template_info.get('name', None)
-        template_config = template_info.get('config', {})
+        template_config = self.main_config['llm'].get('template_config', {}) \
+            .get(use_output_format_name, {}).get(use_template_name, {})
 
-        if not template_name:
+        if not use_template_name:
             return rendered_content
 
         # get any relevant style information for this fragment renderer & format
@@ -87,10 +103,10 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         ])
 
         logger.debug(f"About to load template ‘%s’ (prefix ‘%s’), config is = %s",
-                     template_name, template_prefix,
+                     use_template_name, template_prefix,
                      abbrev_value_str(template_config_wdefaults))
 
-        template = DocumentTemplate(template_name,
+        template = DocumentTemplate(use_template_name,
                                     template_prefix,
                                     template_config_wdefaults,
                                     self.llm_run_info)

@@ -14,13 +14,9 @@ default_config:
       % LaTeX preamble to set up the document's fonts.  E.g.:
       % \usepackage{sourceserifpro}
 
-  documentclass:
-    papersize: ''
-    fontsize: '11pt'
+  documentclass_options: 'reprint,pra,superscriptaddress'
 
   render_title: true
 
-  enable_phfnote: true
-  phfnote_options: 'nosecfmt'
   enable_hyperref: true
 

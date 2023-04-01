@@ -126,7 +126,9 @@ class MarkdownFragmentRenderer(FragmentRenderer):
 
     def render_semantic_block(self, content, role, render_context, *,
                               annotations=None, target_id=None):
-        return self._get_target_id_md_code(target_id) + content
+        # add newline because content might need to be at the beginning of the
+        # line (e.g., # Section Heading)
+        return self._get_target_id_md_code(target_id).rstrip() + '\n' + content
     
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
                            *, target_id_generator=None, annotations=None, nested_depth=None):

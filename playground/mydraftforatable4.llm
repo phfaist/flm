@@ -1,0 +1,21 @@
+\begin{table}
+
+  \begin{cells}
+    \celldata<H  rvert>[\merge{+3},\merge{+3};]{ \cell<lvert>{ROWS} \\ MORE ROWS }
+    \celldata[1-;2-]{
+      A & B & C \\
+      \cell[\merge{2-3}]{DE} & F
+    }
+    \cell<green>[2]{X}
+    \cell[\merge{+2}]{YZ}
+    \\
+    \celldata[2-]{
+      a & b & c \\
+      \cell[\merge{2-3}]{de} & f
+    }
+    \cell<yellow>[2]{x}
+    \cell[\merge{+2}]{yz}
+  \end{cells}
+
+  \caption{Here is an example of a table.}
+\end{table}

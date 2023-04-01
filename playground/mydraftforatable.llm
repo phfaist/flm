@@ -1,0 +1,35 @@
+
+
+% \cell<H> is a header cell
+%
+% \cell is an empty normal, body cell
+%
+% \cell or \cell<CELLTYPE> accept an optional [colrange] or [rowrange,colrange]
+% with indices starting at one.
+%
+% \celldata, \celldata<CELLTYPE(S)>, \celldata[startrow,startcol],
+% \celldata[startrow,startcol], \celldata<CELLTYPE(S)>[startrow,startcol] accept
+% tabular data as usually entered in LaTeX:
+%
+% \celldata{
+%   Cell contents 1 & Cell contents 2 & Cell contents 3 \\
+%   Cell contents 4 & Cell contents 5 & Cell contents 6 \\
+% }
+%
+% \celldata<CELLTYPE1,CELLTYPE2,..> applies CELLTYPE1 to the first column of
+% its data, CELLTYPE2 to second column, etc.
+
+\begin{cells}
+\cell<H>{Name}
+\cell<H>{City}
+\cell<H>{Height}
+\\
+\cell{John Doe}
+\cell<greenbg>[3]{2m15}
+\cell[2]{...}
+\\
+\celldata{
+Blabla & Berlin & 1m60 \\
+Johnny B & New York & 6'3
+}
+\end{cells}

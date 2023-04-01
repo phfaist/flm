@@ -1,3 +1,4 @@
+import os # os.pathsep
 import argparse
 import logging
 
@@ -56,6 +57,13 @@ def run_main(cmdargs=None):
                              "fragment content only without any surrounding template "
                              "content (“-t ''”). (Try e.g. “-t simple”.)")
 
+    args_parser.add_argument('-P', '--template-path', action='append',
+                             default=[],
+                             help=f"Path to search for templates. You can specify this "
+                             f"argument multiple times to give multiple paths.  "
+                             f"Each path is either a relative or absolute "
+                             f"folder, or of the form ‘pkg:llm_pkg_name’ to load the "
+                             f"template paths relevant to that LLM python extention package.")
 
     args_parser.add_argument('-V', '--view', action='store_true',
                              default=False,
