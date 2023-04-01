@@ -22,7 +22,9 @@ class ResourceAccessorBase:
 
     template_exts = ['', '.yaml', '.yml', '.json']
     
-    template_path = [ None ]
+    template_path = [
+        None
+    ]
 
     def get_template_info_file_name(self, template_prefix, template_name, llm_run_info):
 
@@ -142,6 +144,10 @@ def load_features(features_merge_configs, llm_run_info):
 #       ....
 #     text:
 #       ....
+#
+#   template_path:
+#     - path/here/
+#     - pkg:use_import_package
 #
 
 
@@ -288,6 +294,26 @@ def load_workflow_environment(*,
 
     logger.debug("Merged config (w/o workflow/feature configs) = %s",
                  abbrev_value_str(config, maxstrlen=512) )
+
+    #
+    # Set up the correct template path
+    #
+    config_template_path = config.get('llm', {}).get('template_path', [])
+    if config_template_path:
+        for path in config_template_path:
+            # TODO: maybe at some point in the future, actually resolve the path
+            # as an URL ...
+            if path.startswith('pkg:'):
+                tmodname = path[len('pkg:'):]
+                _, pkg_get_template_path = import_class(
+                    tmodname,
+                    default_classname='get_template_path'
+                )
+                this_template_path = pkg_get_template_path()
+            else:
+                this_template_path = path
+            resource_accessor.append(this_template_path)
+
 
     #
     # Set up the fragment renderer

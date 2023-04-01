@@ -152,8 +152,10 @@ def main(**kwargs):
 
     run_config = frontmatter_metadata or {}
 
+    resource_accessor = ResourceAccessor()
+
     llm_run_info = {
-        'resource_accessor': ResourceAccessor(),
+        'resource_accessor': resource_accessor,
         'outputformat': arg_format,
         'workflow': arg_workflow,
         'template': arg_template or None, # or None will replace an empty string by None
