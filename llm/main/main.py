@@ -27,7 +27,11 @@ class ResourceAccessor(run.ResourceAccessorBase):
 
     def file_exists(self, fpath, fname, ftype):
         fullpath = self.get_full_path(fpath, fname, ftype)
-        return os.path.exists(fullpath)
+        return os.path.exists(fullpath) and os.path.isfile(fullpath)
+
+    def dir_exists(self, fpath, fname, ftype):
+        fullpath = self.get_full_path(fpath, fname, ftype)
+        return os.path.exists(fullpath) and os.path.isdir(fullpath)
 
     def read_file(self, fpath, fname, ftype):
         fullpath = self.get_full_path(fpath, fname, ftype)

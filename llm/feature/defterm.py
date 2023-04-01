@@ -248,6 +248,14 @@ class FeatureDefTerm(Feature):
     render_defterm_with_term = True
     render_defterm_with_term_suffix = ': '
 
+    def __init__(self, render_defterm_with_term=None, render_defterm_with_term_suffix=None):
+        super().__init__()
+        if render_defterm_with_term is not None:
+            self.render_defterm_with_term = render_defterm_with_term
+        if render_defterm_with_term_suffix is not None:
+            self.render_defterm_with_term_suffix = render_defterm_with_term_suffix
+
+
     def add_latex_context_definitions(self):
         return dict(
             macros=[

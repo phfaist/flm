@@ -53,6 +53,9 @@ class ResourceAccessorBase:
 
     def file_exists(self, fpath, fname, ftype):
         raise RuntimeError("Must be reimplemented by subclasses!")
+
+    def dir_exists(self, fpath, fname, ftype):
+        raise RuntimeError("Must be reimplemented by subclasses!")
         
 
 
@@ -305,14 +308,14 @@ def load_workflow_environment(*,
             # as an URL ...
             if path.startswith('pkg:'):
                 tmodname = path[len('pkg:'):]
-                _, pkg_get_template_path = import_class(
+                _, pkg_get_template_path = resource_accessor.import_class(
                     tmodname,
-                    default_classname='get_template_path'
+                    default_classnames=['get_template_path']
                 )
                 this_template_path = pkg_get_template_path()
             else:
                 this_template_path = path
-            resource_accessor.append(this_template_path)
+            resource_accessor.template_path.append(this_template_path)
 
 
     #
