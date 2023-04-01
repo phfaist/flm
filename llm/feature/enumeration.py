@@ -230,7 +230,11 @@ class FeatureEnumeration(Feature):
     def __init__(self, enumeration_environments=None):
         super().__init__()
         if enumeration_environments is None:
-            enumeration_environments = {}
+            # This can normally only happen when the feature is instantiated
+            # directly.  When the feature is instantiated via config, the value
+            # should already be merged in by the config merger.
+            enumeration_environments = \
+                self.feature_default_config.get('enumeration_environments', {})
         self.enumeration_environments = enumeration_environments
 
     def add_latex_context_definitions(self):
