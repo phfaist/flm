@@ -51,7 +51,9 @@ def run_main(cmdargs=None):
                              default=None,
                              help="Template to use to render the document.  Templates are "
                              "specific to output formats.  See documentation (TODO) "
-                             "for more info.  (Try 'simple' or 'none'.)")
+                             "for more info.  Specify an empty argument to ouptut the "
+                             "fragment content only without any surrounding template "
+                             "content (“-t ''”). (Try e.g. “-t simple”.)")
 
 
     args_parser.add_argument('-n', '--suppress-final-newline', action='store_true',

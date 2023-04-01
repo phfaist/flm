@@ -196,8 +196,12 @@ def load_workflow_environment(*,
     #
     # Determine the fragment_renderer_name
     #
+
+    llm_run_info['requested_outputformat'] = \
+        llm_run_info['outputformat'] or run_config.get('llm', {}).get('default_format', {})
+
     fragment_renderer_name = WorkflowClass.get_fragment_renderer_name(
-        (llm_run_info['outputformat'] or run_config.get('llm', {}).get('default_format', {})),
+        llm_run_info['requested_outputformat'],
         llm_run_info,
         run_config
     )
@@ -277,6 +281,7 @@ def load_workflow_environment(*,
 
         workflows_merge_configs.append(workflow_merge_configs)
 
+    # merge the base config !
     config = configmerger.recursive_assign_defaults(merge_configs)
 
     llm_run_info['main_config'] = config

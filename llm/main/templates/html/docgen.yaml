@@ -24,9 +24,6 @@ default_config:
           font-family: 'DejaVu Sans Mono', 'Inconsolata', monospace;
           font-size: 13px;
       }
-      .llm_doc_verb_a {
-          font-style: italic;
-      }
       .defterm {
           font-style: normal;
           margin-top: 1em;

@@ -278,7 +278,6 @@ class FeatureLLMDocumentation(SimpleLatexDefinitionsFeature):
             MacroDocArg(),
             MacroDocText(),
             TextFormatMacro('llmDocArgumentName', text_formats=['textbf', 'llm_doc_arg_name']),
-            VerbatimMacro('a', annotations=['llm_doc_verb_a']),
         ],
         'environments': [
             EnvironmentDocArguments('llmDocArguments'),

@@ -22,7 +22,7 @@ _base:
         section_commands_by_level: null
 
       enumeration:
-        enumeration_environments: null
+        enumeration_environments: {}            
 
       refs: {}
 

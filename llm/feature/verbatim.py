@@ -24,10 +24,12 @@ class VerbatimSpecInfo(LLMSpecInfo):
     """
     def __init__(self, *args,
                  annotations=None,
+                 verbatimtype='text',
                  include_environment_begin_end=False,
                  **kwargs):
         super().__init__(*args, **kwargs)
         self.annotations = annotations
+        self.verbatimtype = verbatimtype
         self.include_environment_begin_end = include_environment_begin_end
 
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
@@ -40,14 +42,18 @@ class VerbatimSpecInfo(LLMSpecInfo):
             environment_name=environment_name
         )
 
-
     def render(self, node, render_context):
 
         environment_node_name = None
 
         verbatim_lang = None
 
+        is_inline = False
+        is_environment = False
+
         if node.isNodeType(latexnodes_nodes.LatexEnvironmentNode):
+
+            is_environment = True
 
             environment_node_name = node.environmentname
 
@@ -59,6 +65,8 @@ class VerbatimSpecInfo(LLMSpecInfo):
                 verbatim_contents = node.nodelist.latex_verbatim()
 
         elif node.isNodeType(latexnodes_nodes.LatexMacroNode):
+
+            is_inline = True
 
             node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
                 ('verbatim_content', 'verbatim_lang'),
@@ -75,8 +83,17 @@ class VerbatimSpecInfo(LLMSpecInfo):
             verbatim_contents = node.latex_verbatim()
         
         annotations = self.annotations or []
-        if environment_node_name is not None:
-            annotations.append(environment_node_name)
+
+        # ## redundant with self.verbatimtype
+        # if environment_node_name is not None:
+        #     annotations.append(environment_node_name)
+
+        if self.verbatimtype is not None:
+            annotations.append(f'verbatim{self.verbatimtype}')
+            if is_inline:
+                annotations.append(f'verbatim{self.verbatimtype}-inline')
+            if is_environment:
+                annotations.append(f'verbatim{self.verbatimtype}-environment')
 
         if verbatim_lang:
             annotations.append(f'verbatim-lang-{verbatim_lang}')
@@ -86,6 +103,10 @@ class VerbatimSpecInfo(LLMSpecInfo):
             annotations=annotations,
         )
 
+    # LLM-doc
+
+    def get_llm_doc(self):
+        return f"""Typeset verbatim content of type ‘{self.verbatimtype}’."""
 
 
 # transcrypt doesn't seem to like super().__init__() (or the default
@@ -108,7 +129,10 @@ def make_verbatim_args_spec_list(ismacro, verbatim_delimiters, optional_lang_arg
                     enable_comments=False,
                     enable_groups=False
                 ),
-                argname='verbatim_lang'
+                argname='verbatim_lang',
+                llm_doc="Programming language in which to interpret the verbatim content, "
+                "if applicable.  Some formatters might support syntax highlighting in the "
+                "relevant language."
             )
         )
     if ismacro:
@@ -117,7 +141,10 @@ def make_verbatim_args_spec_list(ismacro, verbatim_delimiters, optional_lang_arg
                 parser=latexnodes_parsers.LatexDelimitedVerbatimParser(
                     delimiters=verbatim_delimiters,
                 ),
-                argname='verbatim_content'
+                argname='verbatim_content',
+                llm_doc=r"The raw, verbatim content to typeset.  Any special characters, "
+                r"including \verbcode+\+, \verbcode+{+, and \verbcode+}+, will be typeset "
+                r"as is."
             )
         )
     return a
@@ -125,6 +152,7 @@ def make_verbatim_args_spec_list(ismacro, verbatim_delimiters, optional_lang_arg
 class VerbatimMacro(VerbatimSpecInfo, macrospec.MacroSpec):
     def __init__(self, macroname,
                  verbatim_delimiters=None,
+                 *,
                  optional_lang_arg=False,
                  **kwargs):
         newkwargs = dict(
@@ -156,28 +184,79 @@ class FeatureVerbatim(SimpleLatexDefinitionsFeature):
 
     feature_name = 'verbatim'
     feature_title = 'Verbatim content typesetting'
+    
+    # which verbatim types to include.
+    # E.g. 'code' ->  \verbcode+...+ and \begin{verbatimcode}[lang]...\end{verbatimcode}
+    verbatim_include_types = ('text', 'code', 'a')
 
-    # include \verbcode+...+ and \begin{verbatimcode}[lang]...\end{verbatimcode}
-    verbatim_include_code = True
+    def feature_llm_doc(self):
+        s = r"""
+        You can typeset verbatim content using the \verbcode+\verb...+ family of
+        macros and environments.  When typesetting verbatim content, any special
+        meaning of characters in LLM is ignored.  E.g., the characters
+        ‘\verbcode+\+’, ‘\verbcode+{+’, ‘\verbcode+}+’ are typeset as is, and
+        braces don't have to be matched.
+
+        The following verbatim types are available:
+        \begin{itemize}
+        """
+        if 'text' in self.verbatim_include_types:
+            s += r"""
+            \item \verba{text} — the verbatim characters are typeset as is, with no
+                special formatting applied to them.  This verbatim type is intended
+                for inputing special characters into normal text.
+            """
+        if 'code' in self.verbatim_include_types:
+            s += r"""
+            \item \verba{code} — the verbatim characters are typeset as a block of
+                code, possibly to be interpreted as a given programming language.
+                Renderers should represent the content as code, e.g., with a monospaced
+                font.
+            """
+        if 'a' in self.verbatim_include_types:
+            s += r"""
+            \item \verba{a} — the verbatim characters are typeset as an identifier,
+                typically in italic font.  This command is intended to typeset e.g.
+                keywords or other content that isn't necessarily to be highlighted as
+                computer code.
+            """
+        s += r"\end{itemize}"
+        return s
 
     def add_latex_context_definitions(self):
-        macros = [
-            VerbatimMacro(macroname='verbtext'),
-        ]
-        environments = [
-            VerbatimEnvironment(environmentname='verbatimtext'),
-        ]
-        if self.verbatim_include_code:
+        macros = []
+        environments = []
+        
+        if 'text' in self.verbatim_include_types:
             macros.append(
-                VerbatimMacro(macroname='verbcode',
-                              optional_lang_arg=True,
-                              annotations=['verbatimcode', 'verbatimcode-inline'])
+                VerbatimMacro(macroname='verbtext'),
+            )
+            environments.append(
+                VerbatimEnvironment(environmentname='verbatimtext'),
+            )
+        if 'code' in self.verbatim_include_types:
+            macros.append(
+                VerbatimMacro(
+                    macroname='verbcode',
+                    optional_lang_arg=True,
+                    verbatimtype='code',
+                ),
             )
             environments.append(
                 VerbatimEnvironment(environmentname='verbatimcode',
                                     optional_lang_arg=True,
-                                    annotations=['verbatimcode', 'verbatimcode-environment'])
+                                    verbatimtype='code'
+                                    )
             )
+        if 'a' in self.verbatim_include_types:
+            macros.append(
+                VerbatimMacro(
+                    macroname='verba',
+                    optional_lang_arg=True,
+                    verbatimtype='a',
+                ),
+            )
+
         return {
             'macros': macros,
             'environments': environments,

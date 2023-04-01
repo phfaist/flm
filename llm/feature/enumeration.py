@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-from pylatexenc.latexnodes import ParsedArgumentsInfo
+from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
 import pylatexenc.latexnodes.parsers as latexnodes_parsers
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 from pylatexenc.macrospec import (
@@ -12,7 +12,7 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from ..llmspecinfo import LLMEnvironmentSpecBase
+from ..llmspecinfo import LLMEnvironmentSpecBase, LLMSpecInfoParagraphBreak
 from ..llmenvironment import (
     LLMParsingStateDeltaSetBlockLevel,
     LLMArgumentSpec,
@@ -113,8 +113,12 @@ class Enumeration(LLMEnvironmentSpecBase):
             if item_macro is None:
                 continue # ?
             if (j == 0
-                and item_macro.isNodeType(latexnodes_nodes.LatexCharsNode)
-                and item_macro.chars.strip() == ''):
+                and (
+                    (item_macro.isNodeType(latexnodes_nodes.LatexCharsNode)
+                     and item_macro.chars.strip() == '')
+                    or (item_macro.isNodeType(latexnodes_nodes.LatexSpecialsNode)
+                        and isinstance(item_macro.spec, LLMSpecInfoParagraphBreak))
+                )):
                 # skip leading whitespace
                 continue
             if (not item_macro.isNodeType(latexnodes_nodes.LatexMacroNode)
@@ -199,14 +203,6 @@ class Enumeration(LLMEnvironmentSpecBase):
 
 
 
-default_enumeration_environments = {
-
-    'itemize': {'counter_formatter':['•','-','▸'],},
-
-    # uses default formatters 1., 2., ... incl. nested (i) etc.
-    'enumerate': {'counter_formatter': None},
-}
-
 
 class FeatureEnumeration(Feature):
     r"""
@@ -217,14 +213,24 @@ class FeatureEnumeration(Feature):
 
     feature_name = 'enumeration'
     feature_title = 'Enumeration and itemization lists'
+
+    feature_default_config = {
+        'enumeration_environments': {
+            'itemize': {'counter_formatter': ['•','-','▸'],},
+            # uses default formatters 1., 2., ... incl. nested (i) etc.
+            'enumerate': {'counter_formatter': None},
+        }
+    }
+
     # no managers needed
+
     DocumentManager = None
     RenderManager = None
 
     def __init__(self, enumeration_environments=None):
         super().__init__()
         if enumeration_environments is None:
-            enumeration_environments = default_enumeration_environments
+            enumeration_environments = {}
         self.enumeration_environments = enumeration_environments
 
     def add_latex_context_definitions(self):

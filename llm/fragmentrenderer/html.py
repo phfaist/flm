@@ -876,11 +876,13 @@ th.cellstyle-rH {
   display: inline-block;
   white-space: pre-wrap;
 }
+.verbatima {
+  font-style: italic;
+}
 .verbatimcode-environment {
   display: block;
   white-space: pre;
 }
-
 
 .defterm {
   font-style: italic;

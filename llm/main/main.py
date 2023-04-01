@@ -156,7 +156,7 @@ def main(**kwargs):
         'resource_accessor': ResourceAccessor(),
         'outputformat': arg_format,
         'workflow': arg_workflow,
-        'template': arg_template,
+        'template': arg_template or None, # or None will replace an empty string by None
         'force_block_level': arg_force_block_level,
         'cwd': dirname,
         'input_source': arg_files,

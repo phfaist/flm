@@ -161,7 +161,7 @@ class RefTermMacro(LLMMacroSpecBase):
             arguments_spec_list=[
                 LLMArgumentSpec('[', argname='ref_term',
                                 llm_doc=r'The term that is being referenced.  '
-                                r'May be omitted if it coincides with \a{term}'),
+                                r'May be omitted if it coincides with \verba{term}'),
                 LLMArgumentSpec('{', argname='term',
                                 llm_doc=r'The term the exact way it should '
                                 r'be typeset at this point'),
