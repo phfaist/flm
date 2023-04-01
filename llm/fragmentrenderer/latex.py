@@ -163,7 +163,8 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     latex_wrap_verbatim_macro = None
 
-    def render_verbatim(self, value, render_context, *, annotations, target_id=None):
+    def render_verbatim(self, value, render_context, *,
+                        is_block_level=False, annotations=None, target_id=None):
         # what to do with annotations / target_id ??
         if self.latex_wrap_verbatim_macro:
             return "\\" + self.latex_wrap_verbatim_macro + "{" + self.latexescape(value) + "}"

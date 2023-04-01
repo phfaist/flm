@@ -25,12 +25,17 @@ class VerbatimSpecInfo(LLMSpecInfo):
     def __init__(self, *args,
                  annotations=None,
                  verbatimtype='text',
+                 is_block_level=False,
                  include_environment_begin_end=False,
                  **kwargs):
         super().__init__(*args, **kwargs)
         self.annotations = annotations
         self.verbatimtype = verbatimtype
+
         self.include_environment_begin_end = include_environment_begin_end
+
+        # recognized LLMSpecInfo property
+        self.is_block_level = is_block_level
 
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
         r"""
@@ -109,6 +114,7 @@ class VerbatimSpecInfo(LLMSpecInfo):
         return render_context.fragment_renderer.render_verbatim(
             verbatim_contents,
             render_context,
+            is_block_level=self.is_block_level,
             annotations=annotations,
         )
 
@@ -254,7 +260,8 @@ class FeatureVerbatim(SimpleLatexDefinitionsFeature):
             environments.append(
                 VerbatimEnvironment(environmentname='verbatimcode',
                                     optional_lang_arg=True,
-                                    verbatimtype='code'
+                                    verbatimtype='code',
+                                    is_block_level=True,
                                     )
             )
         if 'a' in self.verbatim_include_types:

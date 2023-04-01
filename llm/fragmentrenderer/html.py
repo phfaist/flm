@@ -233,7 +233,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
     verbatim_highlight_spaces = False
     verbatim_protect_backslashes = True
 
-    def render_verbatim(self, value, render_context, *, annotations, target_id=None):
+    def render_verbatim(self, value, render_context, *,
+                        is_block_level=False, annotations=None, target_id=None):
         attrs = {}
         if target_id is not None:
             attrs['id'] = target_id

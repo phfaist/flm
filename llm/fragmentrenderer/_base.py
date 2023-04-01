@@ -225,6 +225,7 @@ class FragmentRenderer:
             render_context=render_context,
             annotations=[f'{displaytype}-math'],
             target_id=target_id,
+            is_block_level=(displaytype == 'display')
         )
         return rendered
     
@@ -335,7 +336,8 @@ class FragmentRenderer:
                        heading_level=1, inline_heading=False, target_id=None):
         raise RuntimeError("Subclasses need to reimplement this method")
 
-    def render_verbatim(self, value, render_context, *, annotations=None, target_id=None):
+    def render_verbatim(self, value, render_context, *,
+                        is_block_level=False, annotations=None, target_id=None):
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):

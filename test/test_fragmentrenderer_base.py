@@ -70,8 +70,10 @@ class _MyTestFragmentRenderer(FragmentRenderer):
         content = self.render_nodelist(nodelist, render_context, is_block_level=False)
         return '['+content+']'
     
-    def render_verbatim(self, value, render_context, *, annotations=None, target_id=None):
-        _register_call(self.store, 'render_verbatim', (value, annotations, target_id,))
+    def render_verbatim(self, value, render_context, *,
+                        is_block_level=False, annotations=None, target_id=None):
+        _register_call(self.store, 'render_verbatim',
+                       (value, is_block_level, annotations, target_id,))
         return value
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):

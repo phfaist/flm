@@ -84,7 +84,8 @@ class MarkdownFragmentRenderer(FragmentRenderer):
     def render_nothing(self, render_context, annotations=None):
         return ""
 
-    def render_verbatim(self, value, render_context, *, annotations, target_id=None):
+    def render_verbatim(self, value, render_context, *,
+                        is_block_level=False, annotations=None, target_id=None):
         value = value.replace('``', '` ` ')
         return (
             self._get_target_id_md_code(target_id) + 
