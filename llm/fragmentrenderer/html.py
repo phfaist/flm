@@ -867,6 +867,21 @@ th.cellstyle-rH {
   border-right: solid .5pt;
 }
 
+.verbatimcode {
+  font-family: monospace;
+  font-size: 0.9em;
+  background-color: rgba(127,127,127,0.25);
+  border-radius: 2px;
+  padding: 1px 2px;
+  display: inline-block;
+  white-space: pre-wrap;
+}
+.verbatimcode-environment {
+  display: block;
+  white-space: pre;
+}
+
+
 .defterm {
   font-style: italic;
 }

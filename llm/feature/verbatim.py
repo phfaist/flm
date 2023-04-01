@@ -171,12 +171,12 @@ class FeatureVerbatim(SimpleLatexDefinitionsFeature):
             macros.append(
                 VerbatimMacro(macroname='verbcode',
                               optional_lang_arg=True,
-                              annotations=['verbatimcode'])
+                              annotations=['verbatimcode', 'verbatimcode-inline'])
             )
             environments.append(
                 VerbatimEnvironment(environmentname='verbatimcode',
                                     optional_lang_arg=True,
-                                    annotations=['verbatimcode'])
+                                    annotations=['verbatimcode', 'verbatimcode-environment'])
             )
         return {
             'macros': macros,

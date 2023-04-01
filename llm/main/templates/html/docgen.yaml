@@ -21,10 +21,6 @@ default_config:
   style:
     extra_css: |
       .verbatimcode {
-          display: inline-block;
-          background-color: rgb(220,220,230);
-          border-radius: 2px;
-          padding: 1px 2px;
           font-family: 'DejaVu Sans Mono', 'Inconsolata', monospace;
           font-size: 13px;
       }

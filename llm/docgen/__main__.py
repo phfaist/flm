@@ -1,3 +1,4 @@
+import sys
 import os
 import os.path
 import argparse
@@ -45,6 +46,21 @@ def main_docgen():
     args_parser.add_argument('--no-frontmatter', action='store_false', default=True,
                              dest='frontmatter',
                              help='Do not include front matter in the output LLM content')
+
+    args_parser.add_argument('-o', '--output', action='store',
+                             default=None,
+                             help="Output to the given file (choose format with -f)")
+
+    args_parser.add_argument('-f', '--format', action='store',
+                             default='html',
+                             help="Output format: either 'llm' or one format we our "
+                             "LLM engine can compile to (e.g. html or text)")
+
+    args_parser.add_argument('-V', '--view', action='store_true',
+                             default=False,
+                             help="If true, open your browser to the output file.  "
+                             "Requires an output file to be specified (--output) as well as "
+                             "a format (--format) other than 'llm'.")
 
     args_parser.add_argument('-v', '--verbose', action='store_true',
                              default=False,
@@ -110,9 +126,11 @@ def main_docgen():
 
     docgen_obj = docgen.LLMEnvironmentDocumentationGenerator()
 
+    docgen_llm_content = ''
+
     if args.frontmatter:
-        print('---')
-        print(yaml.dump({
+        docgen_llm_content += '---\n'
+        docgen_llm_content += yaml.dump({
             'llm': {
                 'features': {
                     'llm.docgen.FeatureLLMDocumentation': True,
@@ -134,14 +152,50 @@ def main_docgen():
                     }
                 },
             },
-        }, default_flow_style=False).rstrip('\n'))
-        print('---')
+        }, default_flow_style=False).rstrip('\n') + '\n'
+        docgen_llm_content += '---\n'
 
-    print(docgen_obj.document_environment(wenv.environment))
-    print(docgen_obj.document_epilog())
-    print()
+    docgen_llm_content += docgen_obj.document_environment(wenv.environment) + '\n'
+    docgen_llm_content += docgen_obj.document_epilog() + '\n'
+
+    if args.format == 'llm':
+        if not args.output or args.output == '-':
+            sys.stdout.write(docgen_llm_content)
+            return
+
+        with open(args.output, 'w', encoding='utf-8') as fw:
+            fw.write(docgen_llm_content)
+        return
+
+    # It's another format, compile to that format.
+
+    llm_main_main.main(
+        llm_content=docgen_llm_content,
+        workflow=None,
+        format=args.format,
+        output=args.output,
+    )
+
+    if args.view:
+        if not args.output or args.output == '-':
+            raise ValueError("You cannot use --view without --output")
+        os_view_file(args.output)
 
     return
+
+
+# thanks https://stackoverflow.com/a/435669/1694896
+def os_view_file(filepath):
+
+    import subprocess, os, platform
+
+    if platform.system() == 'Darwin':       # macOS
+        subprocess.call(('open', filepath))
+    elif platform.system() == 'Windows':    # Windows
+        os.startfile(filepath)
+    else:                                   # linux variants
+        subprocess.call(('xdg-open', filepath))
+
 
 
 def run_main_docgen():
