@@ -451,6 +451,7 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
                             ref_label='surface',
                             formatted_ref_llm_text=r'Kitaev \emph{surface} code',
                             target_href='https://errorcorrectionzoo.org/c/surface',
+                            counter_value=None,
                         )
                     if ref_label == 'self':
                         return feature_refs.RefInstance(
@@ -458,6 +459,7 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
                             ref_label='self',
                             formatted_ref_llm_text=r'(\textbf{this} exact code)',
                             target_href='#',
+                            counter_value=None,
                         )
                     raise ValueError(f"Invalid ref target: ‘{ref_type}:{ref_label}’")
                 raise ValueError(f"Invalid ref type: {ref_type!r}")

@@ -207,12 +207,50 @@ _default_formatter_join_spec = {
 }
 
 
+# TODO: deprecate parse_counter_formatter to avoid confusion with CounterFormatter
+parse_counter_format_num = parse_counter_formatter
+
+
+def build_counter_formatter(counter_formatter, default_counter_formatter_spec, ref_type=None):
+    r"""
+    Build a CounterFormatter() instance from the given configuration
+    counter_formatter.  It can be a string (e.g. 'arabic'), a 
+    """
+
+    default_counter_formatter_spec = dict(default_counter_formatter_spec)
+    if ref_type is not None:
+        default_counter_formatter_spec['ref_type'] = ref_type
+
+    if counter_formatter is None:
+        return CounterFormatter(**default_counter_formatter_spec)
+
+    if isinstance(counter_formatter, str):
+        d = dict(default_counter_formatter_spec)
+        d['format_num'] = counter_formatter
+        return CounterFormatter(**d)
+
+    if isinstance(counter_formatter, dict):
+        if 'template' in counter_formatter:
+            d = dict(default_counter_formatter_spec)
+            d['format_num'] = counter_formatter
+            return CounterFormatter(**d)
+        d = dict(default_counter_formatter_spec)
+        d.update(counter_formatter)
+        return CounterFormatter(**d)
+        
+    raise ValueError("Invalid counter_formatter specification: " + repr(counter_formatter))
+
 
 class CounterFormatter:
     def __init__(self, format_num, prefix_display=None, ref_type=None,
                  delimiters=None, join_spec=None, name_in_link=True):
         self.format_num = parse_counter_formatter(format_num)
-        if isinstance(prefix_display, str):
+        if prefix_display is None:
+            prefix_display = {
+                'singular': '',
+                'plural': '',
+            }
+        elif isinstance(prefix_display, str):
             prefix_display = {
                 'singular': prefix_display,
                 'plural': prefix_display,
@@ -233,14 +271,17 @@ class CounterFormatter:
         self.name_in_link = name_in_link
 
     def format_llm(self, value, prefix_variant=None, with_delimiters=True, with_prefix=True,
-                   wrap_link_fn=None):
+                   wrap_format_num=None, wrap_link_fn=None):
         pre, post = self._get_format_pre_post(
             with_delimiters,
             with_prefix,
             1,
             prefix_variant,
         )
-        s = pre + self.format_num(value) + post
+        s_num = self.format_num(value)
+        if wrap_format_num is not None:
+            s_num = wrap_format_num(s_num)
+        s = pre + s_num + post
         if wrap_link_fn is not None:
             return wrap_link_fn(value, s)
         return s
@@ -269,10 +310,14 @@ class CounterFormatter:
 
 
     def format_many_llm(self, values, prefix_variant=None, with_delimiters=True,
-                        with_prefix=True, wrap_link_fn=None):
+                        with_prefix=True, wrap_link_fn=None,
+                        wrap_format_num=None, get_raw_s_items=False, s_items_join=None):
 
         join_spec = self.join_spec
         name_in_link = self.name_in_link
+
+        if s_items_join is None:
+            s_items_join = lambda a, b: a + b
 
         if len(values) == 0:
             return join_spec['empty']
@@ -304,11 +349,16 @@ class CounterFormatter:
             with_delimiters, with_prefix, num_values, prefix_variant
         )
 
+        def _format_num(n):
+            if wrap_format_num is not None:
+                return wrap_format_num( self.format_num(n) )
+            return self.format_num(n)
+
         def _render_range_items(a, b):
             if a == b:
-                return [ { 's': self.format_num(a), 'n': a } ]
-            s_a = self.format_num(a)
-            s_b = self.format_num(b)
+                return [ { 's': _format_num(a), 'n': a } ]
+            s_a = _format_num(a)
+            s_b = _format_num(b)
             return [
                 { 's': join_spec['range_pre'], 'n': False },
                 { 's': s_a, 'n': a },
@@ -346,32 +396,42 @@ class CounterFormatter:
         # add pre/post text
         s_items = [ { 's': s_pre } ] + s_items + [ { 's': s_post } ]
 
-        # now, wrap with hyperlink commands if appropriate
-        if wrap_link_fn is not None:
-            s_all = ''
-            cur_s = ''
+        # first, compress items by common link targets (if necessary)
+        if wrap_link_fn is not None or get_raw_s_items:
+            s_all = []
+            cur_s = None
             cur_n = list_of_ranges[0][0] if name_in_link else False
             for s_item in s_items:
-                s = s_item['s']
-                n = s_item.get('n', None)
-                if n is None or n == cur_n:
+                si = s_item['s']
+                ni = s_item.get('n', None)
+                if ni is None or ni == cur_n:
                     # add to current link
-                    cur_s += s
+                    if cur_s is None:
+                        cur_s = si
+                    else:
+                        # don't use += in case the type is mutable, e.g., a nodelist!
+                        cur_s = s_items_join(cur_s, si)
                     continue
                 # end link here
-                if cur_n is not False and cur_n is not None:
-                    s_all += wrap_link_fn(cur_n, cur_s)
-                else:
-                    s_all += cur_s
+                s_all.append({'s': cur_s, 'n': cur_n})
                 # start anew
-                cur_s = s
-                cur_n = n
-            if cur_s:
-                if cur_n is not False and cur_n is not None:
-                    s_all += wrap_link_fn(cur_n, cur_s)
-                else:
-                    s_all += cur_s
-            s = s_all
+                cur_s = si
+                cur_n = ni
+            if cur_s is not None:
+                s_all.append({'s': cur_s, 'n': cur_n})
+
+            s_items = s_all
+
+        if get_raw_s_items:
+            return s_items
+
+        if wrap_link_fn is not None:
+            s = "".join([
+                ( wrap_link_fn(x['n'], x['s'])
+                  if (x['n'] is not None and x['n'] is not False)
+                  else  x['s'] )
+                for x in s_items
+            ])
         else:
             # ignore link information
             s = "".join([ x['s'] for x in s_items ])
@@ -385,7 +445,7 @@ class CounterFormatter:
 
 class Counter:
     def __init__(self, counter_formatter, initial_value=0):
-        self.formatter = CounterFormatter(**counter_formatter)
+        self.formatter = counter_formatter
         self.value = initial_value
         
     def set_value(self, value):
@@ -403,7 +463,7 @@ class Counter:
     def format_llm(self, value=None):
         if value is None:
             value = self.value
-        return self.formatter.format_llm(self.value)
+        return self.formatter.format_llm(self.value, with_prefix=False)
 
     def step_and_format_llm(self):
         val = self.step()

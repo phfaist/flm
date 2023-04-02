@@ -195,49 +195,27 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             if ref is not None:
                 return ref
 
-
         raise ValueError(f"Ref target ‘{ref_type}:{ref_label}’ found neither within "
                          f"database nor with any set external resolvers")
 
 
-    def render_ref_many(self, ref_type_label_list, resource_info, render_context):
-
-        fragment_renderer = render_context.fragment_renderer
-
-        ref_instances = [
-            self._get_ref_instance(ref_type, ref_label, resource_info)
-            for (ref_type, ref_label) in ref_type_label_list
-        ]
-
-        .............
-
-        return fragment_renderer.render_link(
-            'ref',
-            ref_instance.target_href,
-            display_content_nodelist,
-            render_context=render_context,
-            annotations=[f'ref-{ref_type}',], # TODO: add annotation for external links etc. ??
-        )
-
-    def _get_ref_instance(self, ref_type, ref_label, resource_info):
-
-        try:
-            return self.get_ref(ref_type, ref_label, resource_info)
-        except Exception as e:
-            logger.debug(f"render_ref({ref_type}, {ref_label}): self.get_ref() failed: {e}",
-                         exc_info=True)
-            raise ValueError(
-                f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
-                f"[in {repr(resource_info)}]"
-            )
-
-
     def render_ref(self, ref_type, ref_label, display_content_llm,
-                   resource_info, render_context):
-
-        fragment_renderer = render_context.fragment_renderer
+                   resource_info, render_context,
+                   counter_prefix_variant=None,
+                   counter_with_prefix=True, counter_with_delimiters=True):
 
         ref_instance = self._get_ref_instance(ref_type, ref_label, resource_info)
+
+        return self.render_ref_instance(
+            ref_instance, display_content_llm, render_context,
+            counter_prefix_variant=counter_prefix_variant,
+            counter_with_prefix=counter_with_prefix,
+            counter_with_delimiters=counter_with_delimiters,
+        )
+
+    def render_ref_instance(self, ref_instance, display_content_llm, render_context,
+                            counter_prefix_variant=None,
+                            counter_with_prefix=True, counter_with_delimiters=True):
 
         if display_content_llm is None:
             display_content_llm = ref_instance.formatted_ref_llm_text
@@ -250,14 +228,95 @@ class FeatureRefsRenderManager(Feature.RenderManager):
 
         display_content_nodelist = display_content_llm.nodes
 
+        fragment_renderer = render_context.fragment_renderer
+
         return fragment_renderer.render_link(
             'ref',
             ref_instance.target_href,
             display_content_nodelist,
             render_context=render_context,
-            annotations=[f'ref-{ref_type}',], # TODO: add annotation for external links etc. ??
+            # TODO: add annotation for external links etc. ??
+            annotations=[f'ref-{ref_instance.ref_type}',],
         )
 
+
+    ref_many_use_llm_hyperref = True
+
+    def render_ref_many(self, ref_type_label_list, resource_info, render_context, *,
+                        counter_prefix_variant=None, counter_with_delimiters=True,
+                        counter_with_prefix=True):
+
+        fragment_renderer = render_context.fragment_renderer
+
+        ref_instances = [
+            self._get_ref_instance(ref_type, ref_label, resource_info)
+            for (ref_type, ref_label) in ref_type_label_list
+        ]
+        ref_instances_by_counter_ref_type = {}
+        ref_instances_nocounter = []
+        for ri in ref_instances:
+            if (ri.counter_value is None
+                or ri.ref_type not in self.registered_counter_formatters):
+                ref_instances_nocounter.append(ri)
+                continue
+            if ri.ref_type not in ref_instances_by_counter_ref_type:
+                ref_instances_by_counter_ref_type[ri.ref_type] = {}
+            ref_instances_by_counter_ref_type[ri.ref_type][ri.counter_value] = ri
+
+        s_final_blocks = []
+
+        for ref_type, rcdict in ref_instances_by_counter_ref_type.items():
+            #
+            counter_formatter = self.registered_counter_formatters[ref_type]
+            #
+            s_items = counter_formatter.format_many_llm(
+                rcdict.keys(),
+                prefix_variant=counter_prefix_variant,
+                with_delimiters=counter_with_delimiters,
+                with_prefix=counter_with_prefix,
+                get_raw_s_items=True,
+            )
+            s = ''
+            for sit in s_items:
+                s_frag = render_context.doc.environment.make_fragment(
+                    sit['s'],
+                    is_block_level=False,
+                    standalone_mode=True,
+                    what=f"Rendered counter ref bit {repr(sit)}",
+                )
+                if sit['n'] is None or sit['n'] is False:
+                    s += fragment_renderer.render_fragment(s_frag, render_context)
+                else:
+                    rinst = rcdict[sit['n']]
+                    s += fragment_renderer.render_link(
+                        'ref',
+                        rinst.target_href,
+                        s_frag.nodes,
+                        render_context=render_context,
+                        # TODO: add annotation for external links etc. ??
+                        annotations=[f'ref-{ref_type}',],
+                    )
+            s_final_blocks.append( s )
+
+        if len(ref_instances_nocounter):
+            for ri in ref_instances_nocounter:
+                s_final_blocks += [ self.render_ref_instance(ri, None, render_context) ]
+
+        return ', '.join(s_final_blocks)
+
+
+
+    def _get_ref_instance(self, ref_type, ref_label, resource_info):
+
+        try:
+            return self.get_ref(ref_type, ref_label, resource_info)
+        except Exception as e:
+            logger.debug(f"render_ref({ref_type}, {ref_label}): self.get_ref() failed: {e}",
+                         exc_info=True)
+            raise ValueError(
+                f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
+                f"[in {repr(resource_info)}]"
+            )
 
 
 
@@ -297,7 +356,10 @@ class FeatureRefs(Feature):
     def add_latex_context_definitions(self):
         return dict(
             macros=[
-                RefMacro(macroname='ref', command_arguments=('ref_label',)),
+                RefMacro(
+                    macroname='ref',
+                    command_arguments=('ref_label',)
+                ),
                 RefMacro(
                     macroname='hyperref',
                     command_arguments=('[]ref_label','display_text',)
@@ -356,19 +418,24 @@ class RefMacro(LLMMacroSpecBase):
             self.command_arguments,
         )
 
-        ref_type = None
-        ref_label = node_args['ref_label'].get_content_as_chars()
-        if ':' in ref_label:
-            ref_type, ref_label = ref_label.split(':', 1)
+        ref_spec = node_args['ref_label'].get_content_as_chars()
+        ref_pair_list = []
+        for ref_spec_one in ref_spec.split(','):
+            ref_type, ref_label = None, ref_spec_one
+            if ':' in ref_label:
+                ref_type, ref_label = ref_label.split(':', 1)
+            ref_pair_list.append( (ref_type, ref_label) )
 
         if 'display_text' in node_args:
             display_content_nodelist = node_args['display_text'].get_content_nodelist()
         else:
             display_content_nodelist = None
 
-        node.llmarg_ref = (ref_type, ref_label)
+        node.llmarg_ref_list = ref_pair_list
+        if len(ref_pair_list) == 1:
+            node.llmarg_ref = ref_pair_list[0]
         node.llm_ref_info = {
-            'ref_type_and_target': (ref_type, ref_label),
+            'ref_list': ref_pair_list,
             'display_content_nodelist': display_content_nodelist,
         }
         
@@ -378,24 +445,36 @@ class RefMacro(LLMMacroSpecBase):
 
     def render(self, node, render_context):
 
-        ref_type, ref_label = node.llm_ref_info['ref_type_and_target']
+        ref_list = node.llm_ref_info['ref_list']
         display_content_nodelist = node.llm_ref_info['display_content_nodelist']
 
         mgr = render_context.feature_render_manager('refs')
-
         resource_info = node.latex_walker.resource_info
 
-        try:
+        if len(ref_list) == 1:
+            ref_type, ref_label = ref_list[0]
+            # try:
             return mgr.render_ref(ref_type, ref_label,
                                   display_content_nodelist,
                                   resource_info, render_context)
-        except Exception as e:
-            logger.error(f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
-                         f"in ‘{node.latex_verbatim()}’ @ {node.format_pos()}")
-            raise LatexWalkerParseError(
-                f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e}",
-                pos=node.pos,
-            )
+            # except Exception as e:
+            #     logger.error(f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
+            #                  f"in ‘{node.latex_verbatim()}’ @ {node.format_pos()}")
+            #     raise LatexWalkerParseError(
+            #         f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e}",
+            #         pos=node.pos,
+            #     )
+
+        # we have multiple ref targets
+
+        # can only have one ref target if we have a display string
+
+        if display_content_nodelist is not None:
+            raise ValueError("Reference with custom display string cannot "
+                             "have multiple ref targets: " + repr(ref_list))
+
+        return mgr.render_ref_many(ref_list, resource_info, render_context)
+
 
 # ------------------------------------------------
 

@@ -133,3 +133,6 @@ Here is the content of the paragraph.
 We can add references to a section by topic, like this section:
 \ref{topic:test-labels}.  We can also refer to a defterm by topic, like so:
 \ref{topic:qudit}.
+
+Let's try references to multiple targets:
+\ref{eq:my-equation,eq:my-equation-2,figure:my-figure,eq:pauli-ac,eq:pauli-c}.

@@ -67,7 +67,7 @@ def standard_features(
     if math:
         features.append(
             FeatureMath(
-                eq_counter_formatter=eq_counter_formatter,
+                counter_formatter=eq_counter_formatter,
             )
         )
 
