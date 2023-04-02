@@ -91,7 +91,22 @@ A few remarks:
   
 - The `--template=` option can be used to change the template used to render the
   document.  See also the
-  [*llm-templates*](https://github.com/phfaist/llm-templates) extension package.
+  [*llm-templates*](https://github.com/phfaist/llm-templates) extension package
+  for some additional templates and template engines.  (Try `pip install
+  git+https://github.com/phfaist/llm-templates.git
+  git+https://github.com/phfaist/llm-htmlplus.git` and then `llm ... -o output.html
+  -w llm_htmlplus -P 'pkg:llm_templates' -t sunset`.  Or try `... -t
+  oldtextbook`.)
+
+- Some enhanced HTML output (including compilation of math equations into SVG
+  elements) is available through the
+  [*llm-htmlplus*](https://github.com/phfaist/llm-htmlplus) extension package
+  (see README file there).
+
+- Automatically fetch citations from the arXiv, DOI x-references, or other
+  sources using the [*llm-citations*](https://github.com/phfaist/llm-citations)
+  extension package (see README file there).
+
 
 ## Document Front Matter
 
