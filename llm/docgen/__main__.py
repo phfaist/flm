@@ -57,6 +57,26 @@ def main_docgen():
                              help="Output format: either 'llm' or one format we our "
                              "LLM engine can compile to (e.g. html or text)")
 
+    args_parser.add_argument('-w', '--workflow', action='store',
+                             default=None,
+                             help="Use custom a workflow to compile the LLM document.")
+
+    args_parser.add_argument('-t', '--template', action='store',
+                             default=None,
+                             help="Template to use to render the document.  Templates are "
+                             "specific to output formats.  See documentation (TODO) "
+                             "for more info.  Specify an empty argument to ouptut the "
+                             "fragment content only without any surrounding template "
+                             "content (“-t ''”). (Try e.g. “-t simple”.)")
+
+    args_parser.add_argument('-P', '--template-path', action='append',
+                             default=[],
+                             help=f"Path to search for templates. You can specify this "
+                             f"argument multiple times to give multiple paths.  "
+                             f"Each path is either a relative or absolute "
+                             f"folder, or of the form ‘pkg:llm_pkg_name’ to load the "
+                             f"template paths relevant to that LLM python extention package.")
+
     args_parser.add_argument('-V', '--view', action='store_true',
                              default=False,
                              help="Open the output file with your browser or default "
@@ -106,6 +126,7 @@ def main_docgen():
         'outputformat': None,
         'workflow': None,
         'template': None,
+        'add_template_path': None,
         'force_block_level': None,
         'cwd': os.path.dirname(args.file) if args.file else os.getcwd(),
         'input_source': args.file,
@@ -169,9 +190,11 @@ def main_docgen():
 
     llm_main_main.main(
         llm_content=docgen_llm_content,
-        workflow=None,
         format=args.format,
         output=args.output,
+        workflow=args.workflow,
+        template=args.template,
+        template_path=args.template_path,
     )
 
     if args.view:
