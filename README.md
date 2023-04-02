@@ -11,23 +11,26 @@ The framework is meant to be very easily extendible and customizable.  The
 parser is based on [*pylatexenc 3*](https://github.com/phfaist/pylatexenc)
 (which is currently still in development).
 
-As an example use case, LLM is used to write the contents of the [Error Correction
+LLM is used to write the contents of the [Error Correction
 Zoo](https://errorcorrectionzoo.org/) in a way that is intuitive for scientists,
-flexible, and robust.  It is easily extensible, does not require new types of
-syntax and avoids the necessity of blending in HTML (as is often required for
-markdown), and closely resembles the LaTeX langauge that many scientists are
-familiar with.  LLM pushes further one of the core insights of LaTeX, namely,
-that the code should *describe* document contents in an intuitive way, as a
-markup language, while disregarding as much as possible the details of how that
-contents will be typeset.
+flexible, and robust.  It is easily extensible and closely resembles the LaTeX
+langauge that many scientists are familiar with.  LLM pushes further one of the
+core insights of LaTeX, namely, that the code should *describe* document
+contents in an intuitive way, as a markup language, while disregarding as much
+as possible the details of how that contents will be typeset.  The final
+typesetting is fully customizable, e.g., through CSS styling of its HTML output
+(including the use of templates).
 
-Install with pip:
+You can install LLM with pip:
 ```bash
 $ pip install git+https://github.com/phfaist/llm.git@main
 ```
 
 Example `mydocument.llm`:
 ```latex
+---
+title: Kitaev's Surface Code
+---
 \section{Kitaev's Surface Code}
 
 The \emph{stabilizers} of the \textit{surface code} on the 2-dimensional
@@ -55,20 +58,15 @@ To compile your document into an HTML page, use:
 $ llm mydocument.llm -o mydocument.html --format=html --template=simple
 ```
 
+You can then open the `mydocument.html` file in your browser.
+
 # This is work in progress!
 
 This project is still early in an active development stage, and there might
 still be a few bugs around. You can expect the API to still change pretty
-drastically.
+drastically.  Feel free to share ideas!
 
-Planned features:
-
-- Basically all the features that are available in the [Error Correction Zoo
-  data files](https://github.com/errorcorrectionzoo/eczoo_generator/blob/main/latexlike_minilang_howto.md)
-  
-- Feel free to share ideas!
-
-# A command-line tool
+# Use as a command-line tool
 
 You can use `llm` in command-line mode to compile your documents:
 ```bash
@@ -83,8 +81,17 @@ standard and/or self-explanatory:
 $ llm mydocument.llm -o mydocument.html --format=html --template=simple
 ```
 
-Available formats are `html`, `text`, `latex`, and `markdown`.  Formats `text`,
-`markdown`, and `latex` are very experimental!
+A few remarks:
+
+- Available formats are `html`, `text`, `latex`, and `markdown`.  Formats
+  `text`, `markdown`, and `latex` are very experimental!
+
+- You can also generate `pdf` output, if you have a standard latex installation
+  with the options `--workflow=runlatexpdf --format=pdf`.
+  
+- The `--template=` option can be used to change the template used to render the
+  document.  See also the
+  [*llm-templates*](https://github.com/phfaist/llm-templates) extension package.
 
 ## Document Front Matter
 
@@ -112,10 +119,13 @@ as $a$ and $b$.  ...
 
 ```
 
-As you can see, there are a few options you can set. You can also use the
-`$import:` directive to import a configuration from an external file or URL:
+### Imports
+
+You can use the `$import:` directive to import a configuration from an
+external file, URL, or extension package:
 ```yaml
-$import: my-llm-config.yaml # merge my-llm-config.yaml into this config.
+$import:
+  - my-llm-config.yaml # merge my-llm-config.yaml into this config.
 
 # you can still specify configuration to merge with here ...
 ...
@@ -123,18 +133,18 @@ llm:
    ...
 ```
 
-The `$import:` target can also be a list to specify multiple configurations to
-import.  Each list item can be a absolute or relative file path (`$import:
-'my-llm-config.yaml'` or `$import: /path/to/my/llm-config.yaml`), a URL
-(`$import: https://example.com/my/llm-config.yaml`), or a fully qualified python
-package name introduced with ``pkg:package_name`` (`$import:
-pkg:llm_citations`).  If a package name is specified to the `$import` directive,
-the package is loaded and the default LLM configuration is extracted from it and
-included (the `llm_default_import_config` attribute of the module is read; it is
-assumed to be a dictionary).  You can optionally follow the package name by a
-path to specify submodules/attributes to read instead of
-`llm_default_import_config`; e.g., ``pkg:mypackage/foo/bar`` will import the
-module `mypackage` and import the configuration dictionary stored in
+The `$import:` target can specify multiple configurations to import.  Each list
+item can be a absolute or relative file path (`$import: 'my-llm-config.yaml'` or
+`$import: /path/to/my/llm-config.yaml`), a URL (`$import:
+https://example.com/my/llm-config.yaml`), or a fully qualified python package
+name introduced with ``pkg:package_name`` (e.g., `$import: pkg:llm_citations`).
+If a package name is specified to the `$import` directive, the package is loaded
+and the default LLM configuration is extracted from it and included (the
+`llm_default_import_config` attribute of the module is read; it is assumed to be
+a dictionary or a callable that returns a dictionary).  You can optionally
+follow the package name by a path to specify submodules/attributes to read
+instead of `llm_default_import_config`; e.g., ``pkg:mypackage/foo/bar`` will
+import the module `mypackage` and import the configuration dictionary stored in
 ``mypackage.foo.bar``.  LLM extention plugin/package authors can use this
 feature to offer preset customization configurations that can easily be included
 with ``pkg:some_llm_extension_package/some/preset/name``.
@@ -224,7 +234,7 @@ enabled or disabled at wish.  Features include:
 - enumeration (`\begin{enumerate}...\end{enumerate}`) and itemization
   (`\begin{itemize}...\end{itemize}`) lists
   
-- floats and figures (`\begin{figure}...\end{figure}`)
+- floats: figures and tables (`\begin{figure}...\end{figure}`)
 
 - headings (`\section{...}` etc.)
 
@@ -281,8 +291,8 @@ For now, check out the examples in `llm/feature/xxx.py` (and keep in mind that
 the APIs are still likely to change!).
 
 To include for instance the citations feature provided by the
-[llm-citations](https://github.com/phfaist/llm-citations) package, install that package and
-use the config:
+[llm-citations](https://github.com/phfaist/llm-citations) package, install that
+package and use the config:
 ```yaml
 $import:
   - pkg:llm_citations
@@ -290,8 +300,8 @@ bibliography:
   - bibpreset.yaml
   - anotherbibtest.json
 ```
-Citations are organized by citation prefix and are automatically retrieved depending on the
-type of citation.  By default:
+Citations are organized by citation prefix and are automatically retrieved
+depending on the type of citation.  By default:
 - Citations of the form `arxiv:<arXiv ID>` are automatically retrieved from the arXiv API
 - Citations of the form `doi:<DOI>` are automatically retrieved from [doi.org](https://doi.org/)
 - Citations of the form `manual:{Manual citation}` add the manual citation itself as a citation
@@ -362,5 +372,5 @@ print(result_html)
 
 # A Javascript LLM library
 
-You can transpile this library to Javascript using Transcrypt.  See [the
-`llm-js` subfolder](llm-js/README.md) for more details.
+You can transpile the core part of this library to Javascript using Transcrypt.
+See [the `llm-js` subfolder](llm-js/README.md) for more details.
