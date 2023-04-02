@@ -81,32 +81,43 @@ standard and/or self-explanatory:
 $ llm mydocument.llm -o mydocument.html --format=html --template=simple
 ```
 
-A few remarks:
+Available formats are `html`, `text`, `latex`, and `markdown`.  Formats
+`text`, `markdown`, and `latex` are very experimental!  (You can also
+generate `pdf` output with the options `--workflow=runlatexpdf --format=pdf`
+if your system has a standard LaTeX distribution such as TeXLive installed)
 
-- Available formats are `html`, `text`, `latex`, and `markdown`.  Formats
-  `text`, `markdown`, and `latex` are very experimental!
-
-- You can also generate `pdf` output, if you have a standard latex installation
-  with the options `--workflow=runlatexpdf --format=pdf`.
-  
-- The `--template=` option can be used to change the template used to render the
+- **Additional HTML Templates:**
+  The `--template=` option can be used to change the template used to render the
   document.  See also the
   [*llm-templates*](https://github.com/phfaist/llm-templates) extension package
-  for some additional templates and template engines.  (Try `pip install
-  git+https://github.com/phfaist/llm-templates.git
-  git+https://github.com/phfaist/llm-htmlplus.git` and then `llm ... -o output.html
-  -w llm_htmlplus -P 'pkg:llm_templates' -t sunset`.  Or try `... -t
-  oldtextbook`.)
+  for some additional templates and template engines.  You can try:
+  ```
+  > pip install git+https://github.com/phfaist/llm-templates.git
+  > pip install git+https://github.com/phfaist/llm-htmlplus.git
+  ```
+  and then
+  ```
+  > llm mydocument.llm -o output.html -w llm_htmlplus -P 'pkg:llm_templates' -t sunset
+  ```
+  Or try the template `-t oldtextbook`.
 
-- Some enhanced HTML output (including compilation of math equations into SVG
-  elements) is available through the
-  [*llm-htmlplus*](https://github.com/phfaist/llm-htmlplus) extension package
-  (see README file there).
-
-- Automatically fetch citations from the arXiv, DOI x-references, or other
+- **Citations from arXiv & DOI:**
+  Automatically fetch citations from the arXiv, DOI x-references, or other
   sources using the [*llm-citations*](https://github.com/phfaist/llm-citations)
-  extension package (see README file there).
-
+  extension package (see README file there).  Install the extension package
+  using pip:
+  ```
+  > pip install git+https://github.com/phfaist/llm-citations
+  ```
+  And then try to compile, e.g., the following LLM document:
+  ```yaml
+  ---
+  $import:
+    - pkg:llm_citations
+  ---
+  \section{Introduction}
+  Let's cite Kitaev's surface code~\cite{doi:10.1070/RM1997v052n06ABEH002155,doi:10.1007/978-1-4615-5923-8_19,arXiv:quant-ph/9707021}. ...
+  ```
 
 ## Document Front Matter
 
