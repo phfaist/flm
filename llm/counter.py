@@ -216,8 +216,6 @@ class CounterFormatter:
             prefix_display = {
                 'singular': prefix_display,
                 'plural': prefix_display,
-                'Singular': prefix_display,
-                'Plural': prefix_display,
             }
         self.prefix_display = prefix_display
         self.ref_type = ref_type
@@ -234,7 +232,7 @@ class CounterFormatter:
         }
         self.nameinlink = nameinlink
 
-    def format_llm(self, value, capital=False, with_delimiters=True, with_prefix=True,
+    def format_llm(self, value, variant=None, with_delimiters=True, with_prefix=True,
                    wrap_link_fn=None):
         glob_wrap_link_fn = wrap_link_fn and (lambda s: wrap_link_fn(value, s))
         return self._format_with_delimiters_prefix(
@@ -242,14 +240,14 @@ class CounterFormatter:
             with_delimiters,
             with_prefix,
             1,
-            capital,
+            variant,
             glob_wrap_link_fn,
             glob_wrap_link_fn,
             glob_wrap_link_fn,
         )
 
     def _format_with_delimiters_prefix(self, s, with_delimiters, with_prefix,
-                                       num_values, capital,
+                                       num_values, variant,
                                        glob_wrap_link_fn_pre,
                                        glob_wrap_link_fn_mid,
                                        glob_wrap_link_fn_post):
@@ -267,15 +265,15 @@ class CounterFormatter:
             post = self.delimiters[1]
 
         if with_prefix:
-            sing, plur = 'singular', 'plural'
-            if capital:
-                sing, plur = 'Singular', 'Plural'
+            prefixinfo = self.prefix_display
+            if variant is not None and variant in self.prefix_display:
+                prefixinfo = self.prefix_display[variant]
             if num_values == 1:
-                prefix = self.prefix_display[sing]
-            elif num_values in self.prefix_display:
-                prefix = self.prefix_display[num_values]
+                prefix = prefixinfo['singular']
+            elif num_values in prefixinfo:
+                prefix = prefixinfo[num_values]
             else:
-                prefix = self.prefix_display[plur]
+                prefix = prefixinfo['plural']
             pre = prefix + pre
 
         return (
@@ -283,7 +281,7 @@ class CounterFormatter:
             + glob_wrap_link_fn_post(post)
         )
 
-    def format_many_llm(self, values, capital=False, with_delimiters=True, with_prefix=True,
+    def format_many_llm(self, values, variant=None, with_delimiters=True, with_prefix=True,
                         wrap_link_fn=None):
         if len(values) == 0:
             return self.join_spec['empty']
@@ -319,7 +317,7 @@ class CounterFormatter:
         fmtd = self._format_list_of_ranges(fmtd_ranges)
         #
         return self._format_with_delimiters_prefix(
-            fmtd, with_delimiters, with_prefix, num_values, capital,
+            fmtd, with_delimiters, with_prefix, num_values, variant,
             lambda s: wrap_link_fn(list_of_ranges[0][0], s),
             None,
             lambda s: wrap_link_fn(list_of_ranges[-1][1], s),
