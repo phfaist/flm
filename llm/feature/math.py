@@ -20,7 +20,7 @@ from ..llmenvironment import LLMArgumentSpec
 
 from ._base import Feature
 
-from ..counter import Counter
+from ..counter import CounterFormatter
 
 
 
@@ -86,8 +86,7 @@ class FeatureMath(Feature):
             
     class RenderManager(Feature.RenderManager):
         def initialize(self):
-            self.equation_counter = Counter(formatter=self.feature.counter_formatter,
-                                            ref_type=self.feature.eqref_ref_type)
+            self.equation_counter = Counter(formatter=self.feature.counter_formatter)
 
             self.equation_info_by_node = {}
 

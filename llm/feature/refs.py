@@ -209,7 +209,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             for (ref_type, ref_label) in ref_type_label_list
         ]
 
-        ..........
+        .............
 
         return fragment_renderer.render_link(
             'ref',

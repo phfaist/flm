@@ -124,7 +124,7 @@ class TestCounterFormatter(unittest.TestCase):
             ref_type="eq",
             delimiters=('!<! ', ' !>!'),
             join_spec=jspec,
-            nameinlink=True
+            name_in_link=True
         )
         
         self.assertEqual(
@@ -140,24 +140,24 @@ class TestCounterFormatter(unittest.TestCase):
             "eqs.~!<! <[[I--III]]> !>!"
         )
         self.assertEqual(
-            f.format_many_llm([2,1,99,3], variant='capital'),
+            f.format_many_llm([2,1,99,3], prefix_variant='capital'),
             "Quartet of Equations~!<! (([[I--III]] AND XCIX)) !>!"
         )
         self.assertEqual(
-            f.format_many_llm([1,3,99,2,98,54], variant='capital'),
+            f.format_many_llm([1,3,99,2,98,54], prefix_variant='capital'),
             "Equations~!<! <<[[I--III]];LIV;&[[XCVIII--XCIX]]>> !>!"
         )
 
         self.assertEqual(
-            f.format_many_llm([2,3,1], variant='capital'),
+            f.format_many_llm([2,3,1], prefix_variant='capital'),
             "Equations~!<! <[[I--III]]> !>!"
         )
         self.assertEqual(
-            f.format_llm(1, variant='capital'),
+            f.format_llm(1, prefix_variant='capital'),
             "Equation~!<! I !>!"
         )
         self.assertEqual(
-            f.format_many_llm([1], variant='capital'),
+            f.format_many_llm([1], prefix_variant='capital'),
             "Equation~!<! <I> !>!"
         )
 
@@ -167,19 +167,20 @@ class TestCounterFormatter(unittest.TestCase):
 
         self.assertEqual(
             f.format_llm(1, wrap_link_fn=wrap_link_fn),
-            r"\mylink{1}{eq.~!<! }\mylink{1}{I}\mylink{1}{ !>!}"
+            r"\mylink{1}{eq.~!<! I !>!}"
         )
         self.assertEqual(
             f.format_many_llm([1], wrap_link_fn=wrap_link_fn),
-            r"\mylink{1}{eq.~!<! }<\mylink{1}{I}>\mylink{1}{ !>!}"
+            r"\mylink{1}{eq.~!<! <I> !>!}"
         )
         self.assertEqual(
             f.format_many_llm([2,3,1], wrap_link_fn=wrap_link_fn),
-            r"\mylink{1}{eqs.~!<! }<[[\mylink{1}{I}--\mylink{3}{III}]]>\mylink{3}{ !>!}"
+            r"\mylink{1}{eqs.~!<! <}[[\mylink{1}{I}--\mylink{3}{III}]]> !>!"
         )
         self.assertEqual(
-            f.format_many_llm([1,3,99,2,98,54], wrap_link_fn=wrap_link_fn, variant='capital'),
-            r"\mylink{1}{Equations~!<! }<<[[\mylink{1}{I}--\mylink{3}{III}]];\mylink{54}{LIV};&[[\mylink{98}{XCVIII}--\mylink{99}{XCIX}]]>>\mylink{99}{ !>!}"
+            f.format_many_llm([1,3,99,2,98,54], wrap_link_fn=wrap_link_fn,
+                              prefix_variant='capital'),
+            r"\mylink{1}{Equations~!<! }<<[[\mylink{1}{I}--\mylink{3}{III}]];\mylink{54}{LIV};&[[\mylink{98}{XCVIII}--\mylink{99}{XCIX}]]>> !>!"
         )
 
 

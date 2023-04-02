@@ -210,7 +210,7 @@ _default_formatter_join_spec = {
 
 class CounterFormatter:
     def __init__(self, format_num, prefix_display=None, ref_type=None,
-                 delimiters=None, join_spec=None, nameinlink=True):
+                 delimiters=None, join_spec=None, name_in_link=True):
         self.format_num = parse_counter_formatter(format_num)
         if isinstance(prefix_display, str):
             prefix_display = {
@@ -230,34 +230,23 @@ class CounterFormatter:
             k: _replace_dollar_template(v, jd)
             for (k,v) in jd.items()
         }
-        self.nameinlink = nameinlink
+        self.name_in_link = name_in_link
 
-    def format_llm(self, value, variant=None, with_delimiters=True, with_prefix=True,
+    def format_llm(self, value, prefix_variant=None, with_delimiters=True, with_prefix=True,
                    wrap_link_fn=None):
-        glob_wrap_link_fn = wrap_link_fn and (lambda s: wrap_link_fn(value, s))
-        return self._format_with_delimiters_prefix(
-            self.format_num(value),
+        pre, post = self._get_format_pre_post(
             with_delimiters,
             with_prefix,
             1,
-            variant,
-            glob_wrap_link_fn,
-            glob_wrap_link_fn,
-            glob_wrap_link_fn,
+            prefix_variant,
         )
+        s = pre + self.format_num(value) + post
+        if wrap_link_fn is not None:
+            return wrap_link_fn(value, s)
+        return s
 
-    def _format_with_delimiters_prefix(self, s, with_delimiters, with_prefix,
-                                       num_values, variant,
-                                       glob_wrap_link_fn_pre,
-                                       glob_wrap_link_fn_mid,
-                                       glob_wrap_link_fn_post):
-        if glob_wrap_link_fn_pre is None:
-            glob_wrap_link_fn_pre = lambda s: s
-        if glob_wrap_link_fn_mid is None:
-            glob_wrap_link_fn_mid = lambda s: s
-        if glob_wrap_link_fn_post is None:
-            glob_wrap_link_fn_post = lambda s: s
-
+    def _get_format_pre_post(self, with_delimiters, with_prefix,
+                             num_values, prefix_variant):
         pre, post = '', ''
 
         if with_delimiters:
@@ -266,8 +255,8 @@ class CounterFormatter:
 
         if with_prefix:
             prefixinfo = self.prefix_display
-            if variant is not None and variant in self.prefix_display:
-                prefixinfo = self.prefix_display[variant]
+            if prefix_variant is not None and prefix_variant in self.prefix_display:
+                prefixinfo = self.prefix_display[prefix_variant]
             if num_values == 1:
                 prefix = prefixinfo['singular']
             elif num_values in prefixinfo:
@@ -276,21 +265,21 @@ class CounterFormatter:
                 prefix = prefixinfo['plural']
             pre = prefix + pre
 
-        return (
-            glob_wrap_link_fn_pre(pre) + glob_wrap_link_fn_mid(s)
-            + glob_wrap_link_fn_post(post)
-        )
+        return pre, post
 
-    def format_many_llm(self, values, variant=None, with_delimiters=True, with_prefix=True,
-                        wrap_link_fn=None):
+
+    def format_many_llm(self, values, prefix_variant=None, with_delimiters=True,
+                        with_prefix=True, wrap_link_fn=None):
+
+        join_spec = self.join_spec
+        name_in_link = self.name_in_link
+
         if len(values) == 0:
-            return self.join_spec['empty']
-        if wrap_link_fn is None:
-            wrap_link_fn = lambda n, s: s
-        #
+            return join_spec['empty']
+
         values = sorted(values)
         num_values = len(values)
-        #
+
         list_of_ranges = []
         cur_range = None
         for v in values:
@@ -304,50 +293,94 @@ class CounterFormatter:
             cur_range = (v, v)
 
         list_of_ranges.append(cur_range)
-        if len(list_of_ranges) == 1 and list_of_ranges[0][0] == list_of_ranges[0][1]+1:
-            # single pair of consecutive values -> format as pair of values,
-            # each value seen as a range
-            list_of_ranges = [ (list_of_ranges[0][0], list_of_ranges[0][0]),
-                               (list_of_ranges[0][1], list_of_ranges[0][1]), ]
-        fmtd_ranges = [
-            self._format_range(rng[0], rng[1], wrap_link_fn)
-            for rng in list_of_ranges
-        ]
-        #
-        fmtd = self._format_list_of_ranges(fmtd_ranges)
-        #
-        return self._format_with_delimiters_prefix(
-            fmtd, with_delimiters, with_prefix, num_values, variant,
-            lambda s: wrap_link_fn(list_of_ranges[0][0], s),
-            None,
-            lambda s: wrap_link_fn(list_of_ranges[-1][1], s),
+        if len(list_of_ranges) == 1:
+            if list_of_ranges[0][0] == list_of_ranges[0][1]+1:
+                # single pair of consecutive values -> format as pair of values,
+                # each value seen as a range
+                list_of_ranges = [ (list_of_ranges[0][0], list_of_ranges[0][0]),
+                                   (list_of_ranges[0][1], list_of_ranges[0][1]), ]
+
+        s_pre, s_post = self._get_format_pre_post(
+            with_delimiters, with_prefix, num_values, prefix_variant
         )
 
-    def _format_range(self, a, b, wrap_link_fn):
-        if a == b:
-            return wrap_link_fn(a, self.format_num(a))
-        return (
-            self.join_spec['range_pre'] + wrap_link_fn(a, self.format_num(a))
-            + self.join_spec['range_mid'] + wrap_link_fn(b, self.format_num(b))
-            + self.join_spec['range_post']
-        )
-    def _format_list_of_ranges(self, fmtd_ranges):
-        if len(fmtd_ranges) == 1:
-            return (
-                self.join_spec['one_pre'] + fmtd_ranges[0] + self.join_spec['one_post']
+        def _render_range_items(a, b):
+            if a == b:
+                return [ { 's': self.format_num(a), 'n': a } ]
+            s_a = self.format_num(a)
+            s_b = self.format_num(b)
+            return [
+                { 's': join_spec['range_pre'], 'n': False },
+                { 's': s_a, 'n': a },
+                { 's': join_spec['range_mid'], 'n': False },
+                { 's': s_b, 'n': b },
+                { 's': join_spec['range_post'], 'n': False },
+            ]
+
+        if len(list_of_ranges) == 1:
+            s_items = (
+                [ { 's': join_spec['one_pre'] } ]
+                + _render_range_items(*list_of_ranges[0])
+                + [ { 's': join_spec['one_post'] } ]
             )
-        if len(fmtd_ranges) == 2:
-            return (
-                self.join_spec['pair_pre'] + fmtd_ranges[0]
-                + self.join_spec['pair_mid'] + fmtd_ranges[1]
-                + self.join_spec['pair_post']
+        elif len(list_of_ranges) == 2:
+            s_items = (
+                [ { 's': join_spec['pair_pre'], 'n': False } ]
+                + _render_range_items(*list_of_ranges[0])
+                + [ { 's': join_spec['pair_mid'], 'n': False } ]
+                + _render_range_items(*list_of_ranges[1])
+                + [ { 's':  join_spec['pair_post'], 'n': False } ]
             )
-        return (
-            self.join_spec['list_pre']
-            + self.join_spec['list_mid'].join(fmtd_ranges[:-1])
-            + self.join_spec['list_midlast'] + fmtd_ranges[-1]
-            + self.join_spec['list_post']
-        )
+        else:
+            s_items = [ { 's': join_spec['list_pre'], 'n': False } ]
+            for rngj, rng in enumerate(list_of_ranges[:-1]):
+                if rngj > 0:
+                    s_items += [ { 's': join_spec['list_mid'] } ]
+                s_items += _render_range_items(*rng)
+            s_items += (
+                [ { 's': join_spec['list_midlast'], 'n': False } ]
+                + _render_range_items(*list_of_ranges[-1])
+                + [ { 's': join_spec['list_post'], 'n': False } ]
+            )
+
+        # add pre/post text
+        s_items = [ { 's': s_pre } ] + s_items + [ { 's': s_post } ]
+
+        # now, wrap with hyperlink commands if appropriate
+        if wrap_link_fn is not None:
+            s_all = ''
+            cur_s = ''
+            cur_n = list_of_ranges[0][0] if name_in_link else False
+            for s_item in s_items:
+                s = s_item['s']
+                n = s_item.get('n', None)
+                if n is None or n == cur_n:
+                    # add to current link
+                    cur_s += s
+                    continue
+                # end link here
+                if cur_n is not False and cur_n is not None:
+                    s_all += wrap_link_fn(cur_n, cur_s)
+                else:
+                    s_all += cur_s
+                # start anew
+                cur_s = s
+                cur_n = n
+            if cur_s:
+                if cur_n is not False and cur_n is not None:
+                    s_all += wrap_link_fn(cur_n, cur_s)
+                else:
+                    s_all += cur_s
+            s = s_all
+        else:
+            # ignore link information
+            s = "".join([ x['s'] for x in s_items ])
+
+        return s
+
+
+
+# --------------------------------------
 
 
 class Counter:
