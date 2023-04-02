@@ -8,7 +8,7 @@ from ..llmspecinfo import LLMMacroSpecBase
 from ..llmenvironment import LLMArgumentSpec
 
 from ._base import Feature
-from .. import fmthelpers
+from .. import counter
 
 
 
@@ -16,7 +16,7 @@ from .. import fmthelpers
 class EndnoteCategory:
     r"""
     The `counter_formatter` can be one of the keys in
-    `fmthelpers.standard_counter_formatters` for instance.  Or it can be a
+    `counter.standard_counter_formatters` for instance.  Or it can be a
     callable.  It should return LLM text to use to represent the value of the
     counter.
 
@@ -31,7 +31,7 @@ class EndnoteCategory:
                  endnote_command=None):
         super().__init__()
         self.category_name = category_name
-        counter_formatter = fmthelpers.parse_counter_formatter(counter_formatter)
+        counter_formatter = counter.parse_counter_formatter(counter_formatter)
         self.counter_formatter = counter_formatter
         self.heading_title = heading_title
         self.endnote_command = endnote_command

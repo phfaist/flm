@@ -47,14 +47,17 @@ class ReferenceableInfo:
 
 
 class RefInstance:
-    def __init__(self, ref_type, ref_label, formatted_ref_llm_text, target_href):
+    def __init__(self, ref_type, ref_label, formatted_ref_llm_text, target_href,
+                 counter_value):
         super().__init__()
         self.ref_type = ref_type
         self.ref_label = ref_label
         self.formatted_ref_llm_text = formatted_ref_llm_text
         self.target_href = target_href
+        self.counter_value = counter_value
 
-        self._fields = ('ref_type', 'ref_label', 'formatted_ref_llm_text', 'target_href',)
+        self._fields = ('ref_type', 'ref_label', 'formatted_ref_llm_text', 'target_href',
+                        'counter_value',)
 
     def asdict(self):
         return {k: getattr(self, k) for k in self._fields}
@@ -107,6 +110,8 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         if add_external_ref_resolvers:
             self.external_ref_resolvers.extend(add_external_ref_resolvers)
         self.external_ref_resolvers.extend(self.feature.external_ref_resolvers)
+
+        self.registered_counter_formatters = {}
         
     def register_reference_referenceable(self, *, node, referenceable_info):
 
@@ -123,9 +128,16 @@ class FeatureRefsRenderManager(Feature.RenderManager):
                 target_href=target_href,
             )
 
+    def register_counter_formatter(self, ref_type, counter_formatter):
+        if ref_type in self.registered_counter_formatters:
+            logger.warning(
+                "Counter formatter for ‘%s’ already registered in 'refs' feature!", ref_type
+            )
+        self.registered_counter_formatters[ref_type] = counter_formatter
 
     def register_reference(self, ref_type, ref_label, *,
-                           node, formatted_ref_llm_text, target_href):
+                           node, formatted_ref_llm_text, target_href,
+                           counter_value=None):
         r"""
         ........
         
@@ -153,6 +165,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             ref_label=ref_label,
             formatted_ref_llm_text=formatted_ref_llm_text,
             target_href=target_href,
+            counter_value=counter_value,
         )
         self.registered_references[ kk ] = refinstance
         self.ref_labels[ (ref_type, ref_label) ] = refinstance
@@ -187,13 +200,29 @@ class FeatureRefsRenderManager(Feature.RenderManager):
                          f"database nor with any set external resolvers")
 
 
-    def render_ref(self, ref_type, ref_label, display_content_llm,
-                   resource_info, render_context):
+    def render_ref_many(self, ref_type_label_list, resource_info, render_context):
 
         fragment_renderer = render_context.fragment_renderer
 
+        ref_instances = [
+            self._get_ref_instance(ref_type, ref_label, resource_info)
+            for (ref_type, ref_label) in ref_type_label_list
+        ]
+
+        ..........
+
+        return fragment_renderer.render_link(
+            'ref',
+            ref_instance.target_href,
+            display_content_nodelist,
+            render_context=render_context,
+            annotations=[f'ref-{ref_type}',], # TODO: add annotation for external links etc. ??
+        )
+
+    def _get_ref_instance(self, ref_type, ref_label, resource_info):
+
         try:
-            ref_instance = self.get_ref(ref_type, ref_label, resource_info)
+            return self.get_ref(ref_type, ref_label, resource_info)
         except Exception as e:
             logger.debug(f"render_ref({ref_type}, {ref_label}): self.get_ref() failed: {e}",
                          exc_info=True)
@@ -201,6 +230,14 @@ class FeatureRefsRenderManager(Feature.RenderManager):
                 f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
                 f"[in {repr(resource_info)}]"
             )
+
+
+    def render_ref(self, ref_type, ref_label, display_content_llm,
+                   resource_info, render_context):
+
+        fragment_renderer = render_context.fragment_renderer
+
+        ref_instance = self._get_ref_instance(ref_type, ref_label, resource_info)
 
         if display_content_llm is None:
             display_content_llm = ref_instance.formatted_ref_llm_text

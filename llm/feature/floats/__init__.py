@@ -12,7 +12,7 @@ from pylatexenc.macrospec import (
 
 from ...llmenvironment import LLMArgumentSpec
 from ...llmspecinfo import LLMEnvironmentSpecBase
-from ... import fmthelpers
+from ... import counter
 
 from .._base import Feature
 from ..graphics import SimpleIncludeGraphicsMacro
@@ -394,7 +394,7 @@ class FloatType:
 
         if counter_formatter is None:
             counter_formatter = 'arabic'
-        self.counter_formatter = fmthelpers.parse_counter_formatter(counter_formatter)
+        self.counter_formatter = counter.parse_counter_formatter(counter_formatter)
 
         self.content_handlers = content_handlers
 

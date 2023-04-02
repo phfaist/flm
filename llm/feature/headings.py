@@ -114,12 +114,14 @@ class FeatureHeadings(Feature):
 
     feature_optional_dependencies = [ 'refs' ]
 
+
     class RenderManager(Feature.RenderManager):
         # the render manager will take care of generating render-context-unique
         # target id's for headers
         def initialize(self):
             self.target_id_counters = {}
             self.target_ids = {}
+
 
         def get_default_target_id(self, heading_labels, heading_content_nodelist, *, node):
 

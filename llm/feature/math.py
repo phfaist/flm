@@ -20,12 +20,9 @@ from ..llmenvironment import LLMArgumentSpec
 
 from ._base import Feature
 
-from .. import fmthelpers
+from ..counter import Counter
 
 
-
-def sanitize_for_id(x):
-    return re.sub(r'[^a-zA-Z0-9_-]', '-', x)
 
 
 
@@ -57,20 +54,24 @@ class FeatureMath(Feature):
 
     feature_optional_dependencies = [ 'refs' ]
 
+    feature_default_conifg = {
+        'counter_formatter': {
+            'format_num': { 'template': '(${arabic})' }
+        }
+    }
 
     def __init__(
             self,
-            eq_counter_formatter=None,
+            counter_formatter_spec=None,
             math_environment_names=None,
             eqref_macro_name='eqref',
             eqref_ref_type='eq',
     ):
         super().__init__()
 
-        if eq_counter_formatter is None:
-            eq_counter_formatter = {'template': '(${arabic})'}
-        self.eq_counter_formatter = \
-            fmthelpers.parse_counter_formatter(eq_counter_formatter)
+        if counter_formatter_spec is None:
+            counter_formatter_spec = self.feature_default_conifg['counter_formatter_spec']
+        self.counter_formatter = CounterFormatter(**counter_formatter_spec)
 
         if math_environment_names is None:
             math_environment_names = _default_math_environment_names
@@ -85,7 +86,9 @@ class FeatureMath(Feature):
             
     class RenderManager(Feature.RenderManager):
         def initialize(self):
-            self.equation_counter = 1
+            self.equation_counter = Counter(formatter=self.feature.counter_formatter,
+                                            ref_type=self.feature.eqref_ref_type)
+
             self.equation_info_by_node = {}
 
         def new_numbered_display_math(self, node, lineno, custom_tag_llm_text=None):
@@ -100,9 +103,7 @@ class FeatureMath(Feature):
                 if lineno:
                     eq_id += f"-{lineno}"
             else:
-                eq_id = self.equation_counter
-                formatted_ref_llm_text = self.feature.eq_counter_formatter(eq_id)
-                self.equation_counter += 1
+                eq_id, formatted_ref_llm_text = self.equation_counter.step_and_format_llm()
 
             info = (eq_id, formatted_ref_llm_text)
             self.equation_info_by_node[key] = info

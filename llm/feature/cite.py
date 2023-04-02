@@ -9,7 +9,7 @@ from ..llmspecinfo import LLMMacroSpecBase
 from ..llmfragment import LLMFragment
 from ..llmenvironment import LLMArgumentSpec
 
-from .. import fmthelpers
+from .. import counter
 
 from ._base import Feature
 
@@ -20,9 +20,9 @@ class CitationEndnoteCategory(EndnoteCategory):
     def __init__(self, counter_formatter='arabic', citation_delimiters=(None,None)):
 
         self.inner_counter_formatter_fn = counter_formatter
-        if self.inner_counter_formatter_fn in fmthelpers.standard_counter_formatters:
+        if self.inner_counter_formatter_fn in counter.standard_counter_formatters:
             self.inner_counter_formatter_fn = \
-                fmthelpers.standard_counter_formatters[self.inner_counter_formatter_fn]
+                counter.standard_counter_formatters[self.inner_counter_formatter_fn]
 
         self.citation_delimiters = citation_delimiters
 
