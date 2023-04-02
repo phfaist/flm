@@ -13,7 +13,7 @@ from llm.llmspecinfo import (
     TextFormatMacro
 )
 from llm.feature import SimpleLatexDefinitionsFeature
-from llm.feature.verbatim import VerbatimMacro
+#from llm.feature.verbatim import VerbatimMacro
 
 # ------------------------------------------------------------------------------
 

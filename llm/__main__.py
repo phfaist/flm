@@ -1,4 +1,3 @@
-import os # os.pathsep
 import argparse
 import logging
 

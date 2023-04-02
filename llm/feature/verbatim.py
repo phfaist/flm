@@ -49,7 +49,7 @@ class VerbatimSpecInfo(LLMSpecInfo):
 
     def render(self, node, render_context):
 
-        environment_node_name = None
+        # environment_node_name = None
 
         verbatim_lang = None
 
@@ -60,7 +60,7 @@ class VerbatimSpecInfo(LLMSpecInfo):
 
             is_environment = True
 
-            environment_node_name = node.environmentname
+            # environment_node_name = node.environmentname
 
             if self.include_environment_begin_end:
                 verbatim_contents = node.latex_verbatim()

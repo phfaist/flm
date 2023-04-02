@@ -105,7 +105,6 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
 
         render_context.data['graphics_resource_data'][gr_fname] = grdata
 
-        include_graphics_options = r"width=\textwidth"
         if 'adjustbox' not in render_context.data['latex_preamble']:
             # 'export' allows adjustbox keys in \includegraphics
             render_context.data['latex_preamble']['adjustbox'] = \
@@ -227,7 +226,6 @@ class RunPdfLatexRenderWorkflow(RenderWorkflow):
 
             return result_pdf
 
-        raise ValueError("Shouldn't arrive at this point, internal error.")
             
     
 # ------------------------------------------------
