@@ -77,7 +77,6 @@ class VerbatimSpecInfo(LLMSpecInfo):
             if 'verbatim_lang' in node_args:
                 verbatim_lang = node_args['verbatim_lang'].get_content_as_chars()
 
-        #elif node.isNodeType(latexnodes_nodes.LatexMacroNode):
         else: # macro or specials
 
             is_inline = True
@@ -92,14 +91,7 @@ class VerbatimSpecInfo(LLMSpecInfo):
             if 'verbatim_lang' in node_args:
                 verbatim_lang = node_args['verbatim_lang'].get_content_as_chars()
 
-        # else:
-        #     verbatim_contents = node.latex_verbatim()
-        
         annotations = self.annotations or []
-
-        # ## redundant with self.verbatimtype
-        # if environment_node_name is not None:
-        #     annotations.append(environment_node_name)
 
         if self.verbatimtype is not None:
             annotations.append(f'verbatim{self.verbatimtype}')

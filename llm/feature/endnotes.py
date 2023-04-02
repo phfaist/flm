@@ -213,8 +213,8 @@ class FeatureEndnotes(Feature):
                 # this happens on second pass when rendering in two passes.
                 return self.endnote_instances[node_id]
 
-            endnote_category_info = \
-                self.feature_document_manager.categories_by_name[category_name]
+            # endnote_category_info = \
+            #     self.feature_document_manager.categories_by_name[category_name]
 
             number, fmtvalue_llm_text = \
                 self.endnote_counters[category_name].step_and_format_llm()

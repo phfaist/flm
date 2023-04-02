@@ -463,7 +463,7 @@ class Counter:
     def format_llm(self, value=None):
         if value is None:
             value = self.value
-        return self.formatter.format_llm(self.value, with_prefix=False)
+        return self.formatter.format_llm(value, with_prefix=False)
 
     def step_and_format_llm(self):
         val = self.step()
