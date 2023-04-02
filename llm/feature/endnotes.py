@@ -8,8 +8,16 @@ from ..llmspecinfo import LLMMacroSpecBase
 from ..llmenvironment import LLMArgumentSpec
 
 from ._base import Feature
-from .. import counter
+from ..counter import build_counter_formatter, Counter
 
+
+
+_default_endnote_counter_formatter_spec = {
+    'format_num': { 'template': '${roman}' },
+    'prefix_display': None,
+    'delimiters': ('',''),
+    'join_spec': 'compact',
+}
 
 
 
@@ -31,7 +39,10 @@ class EndnoteCategory:
                  endnote_command=None):
         super().__init__()
         self.category_name = category_name
-        counter_formatter = counter.parse_counter_formatter(counter_formatter)
+        counter_formatter = build_counter_formatter(
+            counter_formatter,
+            _default_endnote_counter_formatter_spec,
+        )
         self.counter_formatter = counter_formatter
         self.heading_title = heading_title
         self.endnote_command = endnote_command
@@ -188,7 +199,7 @@ class FeatureEndnotes(Feature):
                 for c in self.feature_document_manager.categories
             }
             self.endnote_counters = {
-                c.category_name: 1
+                c.category_name: Counter(c.counter_formatter)
                 for c in self.feature_document_manager.categories
             }
             self.endnote_instances = {} # node_id -> endnote instance
@@ -204,11 +215,10 @@ class FeatureEndnotes(Feature):
 
             endnote_category_info = \
                 self.feature_document_manager.categories_by_name[category_name]
-            fmtcounter = endnote_category_info.counter_formatter
-            number = self.endnote_counters[category_name]
-            self.endnote_counters[category_name] += 1
 
-            fmtvalue_llm_text = fmtcounter(number)
+            number, fmtvalue_llm_text = \
+                self.endnote_counters[category_name].step_and_format_llm()
+
             fmtvalue_llm = self.render_context.doc.environment.make_fragment(
                 fmtvalue_llm_text,
                 is_block_level=False,

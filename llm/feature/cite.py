@@ -9,34 +9,47 @@ from ..llmspecinfo import LLMMacroSpecBase
 from ..llmfragment import LLMFragment
 from ..llmenvironment import LLMArgumentSpec
 
-from .. import counter
+from ..counter import build_counter_formatter
 
 from ._base import Feature
 
 from .endnotes import EndnoteCategory
 
 
-class CitationEndnoteCategory(EndnoteCategory):
-    def __init__(self, counter_formatter='arabic', citation_delimiters=(None,None)):
+_cite_default_counter_formatter_spec = {
+    'format_num': 'arabic',
+    'prefix_display': None,
+    'delimiters': ('[',']'),
+    'join_spec': 'compact',
+}
 
-        self.inner_counter_formatter_fn = counter_formatter
-        if self.inner_counter_formatter_fn in counter.standard_counter_formatters:
-            self.inner_counter_formatter_fn = \
-                counter.standard_counter_formatters[self.inner_counter_formatter_fn]
 
-        self.citation_delimiters = citation_delimiters
+# class CitationEndnoteCategory(EndnoteCategory):
+#     def __init__(self, counter_formatter='arabic'): #, citation_delimiters=(None,None)):
 
-        full_counter_formatter = lambda x: (
-            self.citation_delimiters[0]
-            + self.inner_counter_formatter_fn(x)
-            + self.citation_delimiters[1]
-        )
+#         self.counter_formatter = build_counter_formatter(
+#             counter_formatter,
+#             _cite_default_counter_formatter_spec,
+#         )
+#         # self.inner_counter_formatter_fn = counter_formatter
+#         # if self.inner_counter_formatter_fn in counter.standard_counter_formatters:
+#         #     self.inner_counter_formatter_fn = \
+#         #         counter.standard_counter_formatters[self.inner_counter_formatter_fn]
 
-        super().__init__(
-            'citation',
-            counter_formatter=full_counter_formatter,
-            heading_title='References',
-        )
+#         # self.citation_delimiters = citation_delimiters
+
+#         # full_counter_formatter = lambda x: (
+#         #     self.citation_delimiters[0]
+#         #     + self.inner_counter_formatter_fn(x)
+#         #     + self.citation_delimiters[1]
+#         # )
+
+#         super().__init__(
+#             'citation',
+#             counter_formatter=self.counter_formatter, #lambda n: self.counter_formatter.format_llm(n),
+#             #                =full_counter_formatter,
+#             heading_title='References',
+#         )
 
 
 
@@ -58,9 +71,11 @@ class FeatureExternalPrefixedCitations(Feature):
 
             if self.use_endnotes:
                 endnotes_mgr = self.doc.feature_document_manager('endnotes')
-                self.endnote_category = CitationEndnoteCategory(
+                self.endnote_category = EndnoteCategory(
+                    'citation',
                     counter_formatter=self.feature.counter_formatter,
-                    citation_delimiters=self.feature.citation_delimiters,
+                    #citation_delimiters=self.feature.citation_delimiters,
+                    heading_title=self.feature.references_heading_title,
                 )
                 endnotes_mgr.add_endnote_category( self.endnote_category )
 
@@ -129,8 +144,9 @@ class FeatureExternalPrefixedCitations(Feature):
             # number with an optional text as in [31; Theorem 4].
             endnote.formatted_inner_counter_value_llm = \
                 self.render_context.doc.environment.make_fragment(
-                    self.feature_document_manager.endnote_category.inner_counter_formatter_fn(
-                        endnote.number
+                    self.feature_document_manager.endnote_category.counter_formatter.format_llm(
+                        endnote.number,
+                        with_delimiters=False
                     ),
                     is_block_level=False,
                     standalone_mode=True,
@@ -146,14 +162,22 @@ class FeatureExternalPrefixedCitations(Feature):
     def __init__(self,
                  external_citations_providers,
                  counter_formatter='arabic',
-                 citation_delimiters=('[',']'),
+                 citation_delimiters=None,
                  citation_optional_text_separator="; ",
+                 references_heading_title='References',
                  ):
         super().__init__()
         self.external_citations_providers = external_citations_providers
-        self.counter_formatter = counter_formatter
-        self.citation_delimiters = citation_delimiters
+        dflt = dict(_cite_default_counter_formatter_spec)
+        if citation_delimiters is not None:
+            dflt['delimiters'] = citation_delimiters
+        self.counter_formatter = build_counter_formatter(
+            counter_formatter,
+            dflt,
+        )
+        #self.citation_delimiters = citation_delimiters
         self.citation_optional_text_separator = citation_optional_text_separator
+        self.references_heading_title = references_heading_title
 
     def set_external_citations_providers(self, external_citations_providers):
         if self.external_citations_providers is not None:
@@ -265,9 +289,13 @@ class CiteMacro(LLMMacroSpecBase):
         optional_cite_extra_nodelist = node.llmarg_optional_cite_extra_nodelist
 
         cite_mgr = render_context.feature_render_manager('citations')
-        citation_delimiters = cite_mgr.feature.citation_delimiters
+        citation_delimiters = cite_mgr.feature.counter_formatter.delimiters
 
         resource_info = node.latex_walker.resource_info
+
+        #
+        # TODO: SORT & MERGE CITATIONS -- use CounterFormatter's cool new methods
+        #
 
         s_items = []
         for cite_item in node.llmarg_cite_items:

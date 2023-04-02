@@ -211,15 +211,16 @@ _default_formatter_join_spec = {
 parse_counter_format_num = parse_counter_formatter
 
 
-def build_counter_formatter(counter_formatter, default_counter_formatter_spec, ref_type=None):
+def build_counter_formatter(counter_formatter, default_counter_formatter_spec):
     r"""
     Build a CounterFormatter() instance from the given configuration
     counter_formatter.  It can be a string (e.g. 'arabic'), a 
     """
 
+    if isinstance(counter_formatter, CounterFormatter):
+        return counter_formatter
+
     default_counter_formatter_spec = dict(default_counter_formatter_spec)
-    if ref_type is not None:
-        default_counter_formatter_spec['ref_type'] = ref_type
 
     if counter_formatter is None:
         return CounterFormatter(**default_counter_formatter_spec)
@@ -242,7 +243,7 @@ def build_counter_formatter(counter_formatter, default_counter_formatter_spec, r
 
 
 class CounterFormatter:
-    def __init__(self, format_num, prefix_display=None, ref_type=None,
+    def __init__(self, format_num, prefix_display=None, 
                  delimiters=None, join_spec=None, name_in_link=True):
         self.format_num = parse_counter_formatter(format_num)
         if prefix_display is None:
@@ -256,7 +257,6 @@ class CounterFormatter:
                 'plural': prefix_display,
             }
         self.prefix_display = prefix_display
-        self.ref_type = ref_type
         self.delimiters = delimiters if delimiters is not None else ('', '')
         jd = dict(_default_formatter_join_spec['default'])
         if join_spec is not None:

@@ -64,7 +64,6 @@ class TestCounterFormatter(unittest.TestCase):
         
         f = counter.CounterFormatter(lambda n: f"({n})",
                                      "Eq.~",
-                                     ref_type="eq",
                                      delimiters=('[', ']'),
                                      join_spec='compact')
         
@@ -121,7 +120,6 @@ class TestCounterFormatter(unittest.TestCase):
                     4: "Quartet of Equations~",
                 },
             },
-            ref_type="eq",
             delimiters=('!<! ', ' !>!'),
             join_spec=jspec,
             name_in_link=True

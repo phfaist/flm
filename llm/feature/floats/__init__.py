@@ -403,7 +403,6 @@ def _float_default_counter_formatter_spec(float_type):
         'prefix_display': prefix_display,
         'delimiters': ('',''),
         'join_spec': 'compact',
-        'ref_type': float_type,
     }
 
 

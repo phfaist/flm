@@ -87,7 +87,6 @@ class FeatureMath(Feature):
         self.counter_formatter = build_counter_formatter(
             counter_formatter,
             eq_default_counter_formatter_spec,
-            ref_type=eqref_ref_type,
         )
 
         if math_environment_names is None:
