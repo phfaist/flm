@@ -385,7 +385,7 @@ class LatexFragmentRenderer(FragmentRenderer):
                 self.render_value(
                     float_instance.float_type_info.float_caption_name,
                     render_context,
-                ),
+                )
             )
         else:
             # not a numbered float, and no caption.
@@ -491,20 +491,86 @@ class LatexFragmentRenderer(FragmentRenderer):
     def render_cells(self, cells_model, render_context, target_id=None):
 
         # no support for styles yet ...
-        logger.warning("LaTeX output only has very rudimentary support for tables !")
+        # logger.warning("LaTeX output only has very rudimentary support for tables !")
 
-        s = r'\begin{tabular}{' + 'c'*cells_model.cells_size[1] + r'}' + '\n'
+        s = (
+            r'\begin{tblr}{width=0.96\linewidth,hspan=minimal,'
+            + r'colspec={' + 'X'*cells_model.cells_size[1] + r'}}'
+            + '\n'
+            + r'\toprule'
+            + '\n'
+        )
 
         for row in cells_model.grid_data:
             s_rowitems = []
+            row_has_any_non_header_element = False
             for cellinfo in row:
-                s_rowitems.append( self.render_nodelist(
-                    cellinfo['cell'].content_nodes,
-                    render_context=render_context,
-                ) )
-            s += '&'.join(s_rowitems) + '\\\\' + '\n'
+                if cellinfo is not None and cellinfo['is_topleft']:
+                    cell = cellinfo['cell']
+                    cell_content =  self.render_nodelist(
+                        cell.content_nodes,
+                        render_context=render_context,
+                    )
+                    # if we're spanning multiple rows/columns, we need a
+                    # \SetCell{...} macro call
+                    setcellopts = {}
+                    numrows = cell.placement.row_range.end - cell.placement.row_range.start
+                    if numrows > 1:
+                        setcellopts['r'] = numrows
+                    numcols = cell.placement.col_range.end - cell.placement.col_range.start
+                    if numcols > 1:
+                        setcellopts['c'] = numcols
 
-        s += r'\end{tabular}'
+                    celltype = 'm'
+                    if 'l' in cell.styles:
+                        celltype = 'l'
+                    elif 'c' in cell.styles:
+                        celltype = 'c'
+                    elif 'r' in cell.styles:
+                        celltype = 'r'
+
+                    bgcol = None
+                    if 'green' in cell.styles:
+                        bgcol = 'llmTabCellColorGreen'
+                    elif 'red' in cell.styles:
+                        bgcol = 'llmTabCellColorRed'
+                    elif 'blue' in cell.styles:
+                        bgcol = 'llmTabCellColorBlue'
+                    elif 'yellow' in cell.styles:
+                        bgcol = 'llmTabCellColorYellow'
+
+                    if bgcol:
+                        celltype += f', bg={bgcol}'
+
+                    if 'H' in cell.styles or 'rH' in cell.styles:
+                        celltype += r', font=\bfseries'
+                    else:
+                        row_has_any_non_header_element = True
+
+                    if len(setcellopts) == 0 and celltype == 'm':
+                        # no need for \SetCell wrapper
+                        pass
+                    else:
+                        cell_content = (
+                            r'\SetCell['
+                            + (
+                                ",".join([f"{k}={v}" for (k,v) in setcellopts.items()])
+                                if len(setcellopts) else ''
+                            )
+                            + r']{' + celltype + r'} {' 
+                            + cell_content + '}'
+                        )
+                else:
+                    cell_content = '' # part of multicell
+
+                s_rowitems.append(cell_content)
+
+            s += '&'.join(s_rowitems) + '\\\\' + '\n'
+            if not row_has_any_non_header_element:
+                s += r'\midrule' + '\n'
+
+        s += r'\bottomrule'
+        s += r'\end{tblr}'
 
         return s
 
@@ -533,6 +599,15 @@ _latex_preamble_suggested_defs = r"""
 \providecommand\phantomsection{}
 
 \usepackage{amsmath}
+
+% for cells/tables
+\usepackage{tabularray}
+\UseTblrLibrary{booktabs}
+\definecolor{llmTabCellColorGreen}{RGB}{200,255,200}
+\definecolor{llmTabCellColorBlue}{RGB}{200,220,255}
+\definecolor{llmTabCellColorYellow}{RGB}{255,255,200}
+\definecolor{llmTabCellColorRed}{RGB}{255,200,200}
+
 """
 
 
