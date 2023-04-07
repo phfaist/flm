@@ -493,41 +493,49 @@ class LatexFragmentRenderer(FragmentRenderer):
         # no support for styles yet ...
         # logger.warning("LaTeX output only has very rudimentary support for tables !")
 
-        s = (
-            r'\begin{tblr}{width=0.96\linewidth,hspan=minimal,'
-            + r'colspec={' + 'X'*cells_model.cells_size[1] + r'}}'
-            + '\n'
-            + r'\toprule'
-            + '\n'
-        )
+        stab_contents = ''
+
+        cell_spans_styles = ''
+        cell_hlines = []
+        cell_vlines = []
+
+        tabheight, tabwidth = len(cells_model.grid_data), len(cells_model.grid_data[0])
 
         for row in cells_model.grid_data:
-            s_rowitems = []
-            row_has_any_non_header_element = False
+            stab_rowitems = []
+            # row_has_any_non_header_element = False
             for cellinfo in row:
-                if cellinfo is not None and cellinfo['is_topleft']:
+                if (cellinfo is not None and cellinfo['cell'] is not None
+                    and cellinfo['is_topleft']):
+                    #
                     cell = cellinfo['cell']
                     cell_content =  self.render_nodelist(
                         cell.content_nodes,
                         render_context=render_context,
                     )
-                    # if we're spanning multiple rows/columns, we need a
-                    # \SetCell{...} macro call
-                    setcellopts = {}
-                    numrows = cell.placement.row_range.end - cell.placement.row_range.start
-                    if numrows > 1:
-                        setcellopts['r'] = numrows
-                    numcols = cell.placement.col_range.end - cell.placement.col_range.start
-                    if numcols > 1:
-                        setcellopts['c'] = numcols
 
-                    celltype = 'm'
+                    # if we're spanning multiple rows/columns, we need a
+                    # cell={...} specifier...
+                    thiscellspanopts = []
+                    rowj = cell.placement.row_range.start
+                    rowjend = cell.placement.row_range.end
+                    numrows = rowjend - rowj
+                    if numrows > 1:
+                        thiscellspanopts.append(f'r={numrows}')
+
+                    colj = cell.placement.col_range.start
+                    coljend = cell.placement.col_range.end
+                    numcols = coljend - colj
+                    if numcols > 1:
+                        thiscellspanopts.append(f'c={numcols}')
+
+                    thiscellstyles = 'm'
                     if 'l' in cell.styles:
-                        celltype = 'l'
+                        thiscellstyles = 'l'
                     elif 'c' in cell.styles:
-                        celltype = 'c'
+                        thiscellstyles = 'c'
                     elif 'r' in cell.styles:
-                        celltype = 'r'
+                        thiscellstyles = 'r'
 
                     bgcol = None
                     if 'green' in cell.styles:
@@ -540,39 +548,88 @@ class LatexFragmentRenderer(FragmentRenderer):
                         bgcol = 'llmTabCellColorYellow'
 
                     if bgcol:
-                        celltype += f', bg={bgcol}'
+                        thiscellstyles += f', bg={bgcol}'
 
                     if 'H' in cell.styles or 'rH' in cell.styles:
-                        celltype += r', font=\bfseries'
-                    else:
-                        row_has_any_non_header_element = True
+                        thiscellstyles += r', font={\llmCellsHeaderFont}'
+                    # else:
+                    #     row_has_any_non_header_element = True
 
-                    if len(setcellopts) == 0 and celltype == 'm':
-                        # no need for \SetCell wrapper
-                        pass
-                    else:
-                        cell_content = (
-                            r'\SetCell['
-                            + (
-                                ",".join([f"{k}={v}" for (k,v) in setcellopts.items()])
-                                if len(setcellopts) else ''
-                            )
-                            + r']{' + celltype + r'} {' 
-                            + cell_content + '}'
+                    if 'H' in cell.styles:
+                        if coljend == colj+1:
+                            colnstr = f'{1+colj}'
+                        else:
+                            colnstr = f'{1+colj}-{coljend}'
+                        # only add hline if it is not already at the bottom of
+                        # the table (where the \bottomline is already enforced)
+                        if rowjend < tabheight:
+                            cell_hlines.append( (str(1+rowjend), colnstr, '.4pt,solid') )
+
+                    if 'lvert' in cell.styles or 'rvert' in cell.styles:
+                        if rowjend == rowj+1:
+                            rownstr = f'{1+rowj}'
+                        else:
+                            rownstr = f'{1+rowj}-{rowjend}'
+
+                        if 'lvert' in cell.styles:
+                            cell_vlines.append( (rownstr, str(1+colj), '.4pt,solid') )
+                        if 'rvert' in cell.styles:
+                            cell_vlines.append( (rownstr, str(2+colj), '.4pt,solid') )
+
+                    if len(thiscellspanopts) > 0 or thiscellstyles != 'm':
+                        cell_spans_styles += (
+                            ',\n  cell{' + str(1+rowj) + r'}{' + str(1+colj) + r'}='
+                            + r'{' + ','.join(thiscellspanopts) + r'}{'
+                            + thiscellstyles
+                            + r'}'
                         )
                 else:
                     cell_content = '' # part of multicell
 
-                s_rowitems.append(cell_content)
+                stab_rowitems.append(cell_content)
 
-            s += '&'.join(s_rowitems) + '\\\\' + '\n'
-            if not row_has_any_non_header_element:
-                s += r'\midrule' + '\n'
+            stab_contents += '&'.join(stab_rowitems) + '\\\\' + '\n'
+            # if not row_has_any_non_header_element:
+            #     stab_contents += r'\midrule' + '\n'
 
-        s += r'\bottomrule'
-        s += r'\end{tblr}'
+        s = (
+            r'\begin{center}' + '\n'
+            # Hack for automatic width detection -- typeset table once with 'c'
+            # column types; if the width exceeds a maximum set width
+            # (0.96\linewidth), then re-typeset the table with 'X[-1]' column
+            # types.
+            r'\long\def\llmTempTypesetThisTable#1{%' + '\n'
+            r'\begin{tblr}{#1,' + '\n' + r'  hspan=minimal'
+            + cell_spans_styles
+            + "".join([ ",\n  hline{"+rownrng+"}={"+colnrng+"}{"+lsty+"}"
+                         for (rownrng, colnrng, lsty) in cell_hlines ])
+            + "".join([ ",\n  vline{"+colnrng+"}={"+rownrng+"}{"+lsty+"}"
+                         for (rownrng, colnrng, lsty) in cell_vlines ])
+            + r'}' + '\n'
+            + r'\toprule'
+            + '\n'
+        )
+        s += stab_contents
+        s += r'\bottomrule' + '\n'
+        s += r'\end{tblr}%' + '\n'
+        s += r'}%' + '\n'
+        # now, the code to automatically detect the correct width
+        s += (
+            r'\def\llmTmpMaxW{\dimexpr ' + self.max_table_width_latexdim + r'\relax}%' + '\n'
+            + r'\setbox0=\hbox{\llmTempTypesetThisTable{colspec={'
+                + ('c' * tabwidth) + r'}}}%' + '\n'
+            + r'\ifdim\wd0<\llmTmpMaxW\relax' + '\n'
+            + r'  \leavevmode\box0 ' + '\n'
+            + r'\else' + '\n'
+            + r'  \llmTempTypesetThisTable{width=\llmTmpMaxW,colspec={'
+                + ('X[-1]' * tabwidth) + r'}}' + '\n'
+            + r'\fi' + '\n'
+        )
+        s += r'\end{center}'
 
         return s
+
+    max_table_width_latexdim = r'0.96\linewidth'
 
 # ------------------
 
@@ -607,6 +664,7 @@ _latex_preamble_suggested_defs = r"""
 \definecolor{llmTabCellColorBlue}{RGB}{200,220,255}
 \definecolor{llmTabCellColorYellow}{RGB}{255,255,200}
 \definecolor{llmTabCellColorRed}{RGB}{255,200,200}
+\providecommand\llmCellsHeaderFont{\bfseries}
 
 """
 

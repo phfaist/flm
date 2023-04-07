@@ -607,6 +607,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     def render_cells(self, cells_model, render_context, target_id=None):
 
+        tabheight, tabwidth = len(cells_model.grid_data), len(cells_model.grid_data[0])
+
         data_items = []
         row_j = 0
         while row_j < len(cells_model.grid_data):
@@ -635,6 +637,14 @@ class HtmlFragmentRenderer(FragmentRenderer):
                         render_context=render_context,
                     )
                     clsnames = ['cell'] + [ f"cellstyle-{sty}" for sty in cell.styles ]
+                    if row_j == 0:
+                        clsnames.append('celltbledge-top')
+                    if col_j == 0:
+                        clsnames.append('celltbledge-left')
+                    if cell.placement.row_range.end == tabheight:
+                        clsnames.append('celltbledge-bottom')
+                    if cell.placement.col_range.end == tabwidth:
+                        clsnames.append('celltbledge-right')
                     tagname = 'td'
                     if 'H' in cell.styles or 'rH' in cell.styles:
                         tagname = 'th'
@@ -834,23 +844,26 @@ figure.float figcaption > span {
 
 table {
   margin: 1em 0px 1em 0px;
-  border-collapse: collapse;
-  border-top: solid 1pt;
-  border-bottom: solid 1pt;
+  border-collapse: separate;
+  border-spacing: 0px;
+  /*border-top: solid 1pt;
+  border-bottom: solid 1pt;*/
 }
 figure.float .float-contents table {
   margin: 0px auto;
 }
 td {
   padding: 0.3em 0.5em;
+  border: none 0px;
 }
 th {
   padding: 0.3em 0.5em;
+  border: none 0px;
 }
-th.cellstyle-H {
+.cellstyle-H {
   border-bottom: solid .5pt;
 }
-th.cellstyle-rH {
+.cellstyle-rH {
 }
 .cellstyle-l {
   text-align: left;
@@ -878,6 +891,13 @@ th.cellstyle-rH {
 }
 .cellstyle-rvert {
   border-right: solid .5pt;
+}
+
+.celltbledge-top {
+  border-top: solid 1pt;
+}
+.celltbledge-bottom {
+  border-bottom: solid 1pt;
 }
 
 .verbatimcode {

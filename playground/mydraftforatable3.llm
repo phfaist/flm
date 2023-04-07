@@ -116,3 +116,20 @@ A & B & C \\
 \celldata<H>{A & B & \cell<blue>[\merge{+2}]{C}}
 \celldata{1 & 2 & 3 & 4 & 5}
 \end{cells}
+
+
+
+
+
+
+
+
+\begin{cells}
+\celldata<H c>{ One Heading & Two Headings & Three Headings }
+\celldata<c>[-]{
+A & B this is a really long cell with tons of content! We can add more content and more content & C \\
+\cell<red>[\merge{1-2}]{DE} & F
+}
+\cell<green>{X}
+\cell<yellow>[\merge{+2}]{YZ}
+\end{cells}
