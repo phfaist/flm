@@ -194,6 +194,25 @@ class LatexFragmentRenderer(FragmentRenderer):
 
         return self.wrap_in_text_format_macro(content, text_formats, render_context)
 
+
+    use_endnote_latex_command = None #'textsuperscript'
+    use_citation_latex_command = None #'textsuperscript'
+
+    def render_semantic_span(self, content, role, render_context, *,
+                             annotations=None, target_id=None):
+
+        if self.use_endnote_latex_command is not None and role == 'endnotes':
+            content = (
+                '\\' + self.use_endnote_latex_command + '{' + content + '}'
+            )
+        if self.use_citation_latex_command is not None and role == 'citations':
+            content = (
+                '\\' + self.use_citation_latex_command + '{' + content + '}'
+            )
+
+        return content
+
+
     def render_semantic_block(self, content, role, render_context, *,
                               annotations=None, target_id=None):
 
@@ -311,8 +330,6 @@ class LatexFragmentRenderer(FragmentRenderer):
             + labelcmd
         )
 
-    use_endnote_latex_command = None
-
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
 
         display_content = self.render_nodelist(
@@ -321,9 +338,15 @@ class LatexFragmentRenderer(FragmentRenderer):
             is_block_level=False,
         )
 
-        if ref_type == 'endnote' and self.use_endnote_latex_command is not None:
+        annotations = annotations or []
+
+        if self.use_endnote_latex_command is not None and 'endnotes' in annotations:
             display_content = (
                 '\\' + self.use_endnote_latex_command + '{' + display_content + '}'
+            )
+        if self.use_citation_latex_command is not None and 'citations' in annotations:
+            display_content = (
+                '\\' + self.use_citation_latex_command + '{' + display_content + '}'
             )
 
         if href[0:1] == '#':

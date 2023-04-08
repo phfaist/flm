@@ -54,10 +54,15 @@ class FeatureExternalPrefixedCitations(Feature):
 
     class RenderManager(Feature.RenderManager):
 
-        def initialize(self):
+        def initialize(self, sort_and_compress=None):
             self.citation_endnotes = {}
             self.use_endnotes = self.feature_document_manager.use_endnotes
             self.external_citations_providers = self.feature.external_citations_providers
+
+            if sort_and_compress is not None:
+                self.sort_and_compress = sort_and_compress
+            else:
+                self.sort_and_compress = self.feature.sort_and_compress
 
         def get_citation_content_llm(self, cite_prefix, cite_key, resource_info):
 
@@ -132,6 +137,187 @@ class FeatureExternalPrefixedCitations(Feature):
 
             return endnote
 
+        # -----
+
+        def render_citation_marks(self, cite_items, node):
+
+            render_context = self.render_context
+            fragment_renderer = render_context.fragment_renderer
+
+            resource_info = node.latex_walker.resource_info
+
+            #
+            # First pass -- sort out any citations that have an optional cite extra
+            # text (as in "\cite[Theorem 3, p.54]{Key}").
+            #
+            citations_compressible = []
+            citations_manual_render = []
+            for cd in cite_items:
+                citation_key_prefix, citation_key, extra = cd['prefix'], cd['key'], cd['extra']
+
+                endnote = None
+                if self.use_endnotes:
+                    endnote = self.get_citation_endnote(
+                        citation_key_prefix,
+                        citation_key,
+                        resource_info
+                    )
+
+                if extra is None:
+                    citations_compressible.append(
+                        (citation_key_prefix, citation_key, extra, endnote)
+                    )
+                if extra is not None:
+                    citations_manual_render.append(
+                        (citation_key_prefix, citation_key, extra, endnote)
+                    )
+
+            #
+            # Render citation list for those citations without any additional extra
+            # text ("compressible") using our endnote mark renderer.  This will
+            # automatically sort & compress citation ranges.
+            #
+
+            s_items = []
+
+            endnotes_mgr = None
+            if render_context.supports_feature('endnotes'):
+                endnotes_mgr = render_context.feature_render_manager('endnotes')
+
+            delimiters_part_of_link = True
+
+            if self.use_endnotes and self.sort_and_compress:
+
+                delimiters_part_of_link = False
+
+                endnote_numbers = [
+                    endnote for (key_prefix, key, extra, endnote) in citations_compressible
+                ]
+
+                rendered_citations_woextra = endnotes_mgr.render_endnote_mark_many(
+                    endnote_numbers,
+                    wrap_with_semantic_span=False
+                )
+
+                logger.debug("rendered_citations_woextra = %r", rendered_citations_woextra)
+
+                s_items.append(rendered_citations_woextra)
+            else:
+                # otherwise, simply render the "compressible" citations along with
+                # the other ones
+                citations_manual_render = citations_compressible + citations_manual_render
+
+            #
+            # Render any further citations.  These are either full text citaions
+            # because we're not using endnotes, or they are citations with
+            # additional extra text ("Theorem 3, p.54").
+            #
+
+            citation_delimiters = self.feature.counter_formatter.delimiters
+
+            for cite_item in citations_manual_render:
+
+                (citation_key_prefix, citation_key,
+                 optional_cite_extra_nodelist, endnote) = cite_item
+
+                citation_content_llm = None
+                show_inline_content_llm = None
+                if self.use_endnotes:
+                    show_inline_content_llm = endnote.formatted_inner_counter_value_llm
+                else:
+                    citation_content_llm = self.get_citation_content_llm(
+                        citation_key_prefix,
+                        citation_key,
+                        resource_info
+                    )
+                    show_inline_content_llm = citation_content_llm
+
+                # don't use endnotes_mgr.render_endnote_mark(endnote) because it
+                # can't render the optional citation text.  Form the citation mark
+                # ourselves, using the citation delimiters etc.
+                cite_content_list_of_nodes = []
+
+                # Don't necessarily make the citation delimiters themselves part of the link
+                if delimiters_part_of_link and citation_delimiters[0] is not None:
+                    cite_content_list_of_nodes.append(
+                        node.latex_walker.make_node(
+                            latexnodes_nodes.LatexCharsNode,
+                            chars=citation_delimiters[0],
+                            pos=node.pos,
+                            pos_end=node.pos_end,
+                            parsing_state=node.parsing_state,
+                        )
+                    )
+
+                # list() apparently needed for transcrypt ... :/ -->
+                cite_content_list_of_nodes.extend( list(show_inline_content_llm.nodes) )
+                if optional_cite_extra_nodelist is not None:
+                    cite_content_list_of_nodes.append(
+                        node.latex_walker.make_node(
+                            latexnodes_nodes.LatexCharsNode,
+                            chars=self.feature.citation_optional_text_separator,
+                            pos=node.pos,
+                            pos_end=node.pos_end,
+                            parsing_state=node.parsing_state,
+                        )
+                    )
+                    # list() apparently needed for transcrypt ... :/ -->
+                    cite_content_list_of_nodes.extend( list(optional_cite_extra_nodelist) )
+
+                # Don't necessarily make the citation delimiters themselves part of the link
+                if delimiters_part_of_link and citation_delimiters[1] is not None:
+                    cite_content_list_of_nodes.append(
+                        node.latex_walker.make_node(
+                            latexnodes_nodes.LatexCharsNode,
+                            chars=citation_delimiters[1],
+                            pos=node.pos,
+                            pos_end=node.pos_end,
+                            parsing_state=node.parsing_state,
+                        )
+                    )
+
+                citation_nodes_parsing_state = node.parsing_state.sub_context(
+                    is_block_level=False,
+                )
+
+                display_nodelist = node.latex_walker.make_nodelist(
+                    cite_content_list_of_nodes,
+                    parsing_state=citation_nodes_parsing_state,
+                )
+
+                if self.use_endnotes:
+
+                    full_cite_mark = endnotes_mgr.render_endnote_mark(
+                        endnote, display_nodelist,
+                        wrap_with_semantic_span=False,
+                    )
+
+                    if not delimiters_part_of_link:
+                        full_cite_mark = \
+                            citation_delimiters[0] + full_cite_mark + citation_delimiters[1]
+
+                    s_items.append( full_cite_mark )
+
+                else:
+
+                    full_inline_citation = fragment_renderer.render_nodelist(
+                        display_nodelist,
+                        render_context
+                    )
+
+                    if not delimiters_part_of_link:
+                        full_inline_citation = (
+                            citation_delimiters[0] + full_inline_citation
+                            + citation_delimiters[1]
+                        )
+
+                    s_items.append( full_inline_citation )
+
+            return fragment_renderer.render_semantic_span(
+                fragment_renderer.render_join(s_items, render_context),
+                'citations',
+                render_context,
+            )
 
 
     def __init__(self,
@@ -140,6 +326,7 @@ class FeatureExternalPrefixedCitations(Feature):
                  citation_delimiters=None,
                  citation_optional_text_separator="; ",
                  references_heading_title='References',
+                 sort_and_compress=True
                  ):
         super().__init__()
         self.external_citations_providers = external_citations_providers
@@ -153,6 +340,7 @@ class FeatureExternalPrefixedCitations(Feature):
         #self.citation_delimiters = citation_delimiters
         self.citation_optional_text_separator = citation_optional_text_separator
         self.references_heading_title = references_heading_title
+        self.sort_and_compress = sort_and_compress
 
     def set_external_citations_providers(self, external_citations_providers):
         if self.external_citations_providers is not None:
@@ -273,169 +461,10 @@ class CiteMacro(LLMMacroSpecBase):
 
     def render(self, node, render_context):
 
-        fragment_renderer = render_context.fragment_renderer
-
         cite_mgr = render_context.feature_render_manager('citations')
 
-        resource_info = node.latex_walker.resource_info
-
-        #
-        # First pass -- sort out any citations that have an optional cite extra
-        # text (as in "\cite[Theorem 3, p.54]{Key}").
-        #
-        citations_compressible = []
-        citations_manual_render = []
-        for cd in node.llmarg_cite_items:
-            citation_key_prefix, citation_key, extra = cd['prefix'], cd['key'], cd['extra']
-
-            endnote = None
-            if cite_mgr.use_endnotes:
-                endnote = cite_mgr.get_citation_endnote(
-                    citation_key_prefix,
-                    citation_key,
-                    resource_info
-                )
-
-            if extra is None:
-                citations_compressible.append(
-                    (citation_key_prefix, citation_key, extra, endnote)
-                )
-            if extra is not None:
-                citations_manual_render.append(
-                    (citation_key_prefix, citation_key, extra, endnote)
-                )
-        
-        #
-        # Render citation list for those citations without any additional extra
-        # text ("compressible") using our endnote mark renderer.  This will
-        # automatically sort & compress citation ranges.
-        #
-
-        s_items = []
-
-        endnotes_mgr = None
-        if cite_mgr.use_endnotes:
-            endnotes_mgr = render_context.feature_render_manager('endnotes')
-            
-            endnote_numbers = [
-                endnote for (key_prefix, key, extra, endnote) in citations_compressible
-            ]
-
-            rendered_citations_woextra = endnotes_mgr.render_endnote_mark_many(
-                endnote_numbers,
-                wrap_with_semantic_span=False
-            )
-
-            logger.debug("rendered_citations_woextra = %r", rendered_citations_woextra)
-
-            s_items.append(rendered_citations_woextra)
-        else:
-            # otherwise, simply render the "compressible" citations along with
-            # the other ones
-            citations_manual_render = citations_compressible + citations_manual_render
-
-        #
-        # Render any further citations.  These are either full text citaions
-        # because we're not using endnotes, or they are citations with
-        # additional extra text ("Theorem 3, p.54").
-        #
-
-        citation_delimiters = cite_mgr.feature.counter_formatter.delimiters
-
-        for cite_item in citations_manual_render:
-
-            (citation_key_prefix, citation_key,
-             optional_cite_extra_nodelist, endnote) = cite_item
-
-            citation_content_llm = None
-            show_inline_content_llm = None
-            if cite_mgr.use_endnotes:
-                show_inline_content_llm = endnote.formatted_inner_counter_value_llm
-            else:
-                citation_content_llm = cite_mgr.get_citation_content_llm(
-                    citation_key_prefix,
-                    citation_key,
-                    resource_info
-                )
-                show_inline_content_llm = citation_content_llm
-
-            # don't use endnotes_mgr.render_endnote_mark(endnote) because it
-            # can't render the optional citation text.  Form the citation mark
-            # ourselves, using the citation delimiters etc.
-            cite_content_list_of_nodes = []
-
-            # Don't make the citation delimiters themselves part of the link
-            #
-            # if citation_delimiters[0] is not None:
-            #     cite_content_list_of_nodes.append(
-            #         node.latex_walker.make_node(
-            #             latexnodes_nodes.LatexCharsNode,
-            #             chars=citation_delimiters[0],
-            #             pos=node.pos,
-            #             pos_end=node.pos_end,
-            #             parsing_state=node.parsing_state,
-            #         )
-            #     )
-
-            # list() apparently needed for transcrypt ... :/ -->
-            cite_content_list_of_nodes.extend( list(show_inline_content_llm.nodes) )
-            if optional_cite_extra_nodelist is not None:
-                cite_content_list_of_nodes.append(
-                    node.latex_walker.make_node(
-                        latexnodes_nodes.LatexCharsNode,
-                        chars=cite_mgr.feature.citation_optional_text_separator,
-                        pos=node.pos,
-                        pos_end=node.pos_end,
-                        parsing_state=node.parsing_state,
-                    )
-                )
-                # list() apparently needed for transcrypt ... :/ -->
-                cite_content_list_of_nodes.extend( list(optional_cite_extra_nodelist) )
-
-            # Don't make the citation delimiters themselves part of the link
-            #
-            # if citation_delimiters[1] is not None:
-            #     cite_content_list_of_nodes.append(
-            #         node.latex_walker.make_node(
-            #             latexnodes_nodes.LatexCharsNode,
-            #             chars=citation_delimiters[1],
-            #             pos=node.pos,
-            #             pos_end=node.pos_end,
-            #             parsing_state=node.parsing_state,
-            #         )
-            #     )
-
-            citation_nodes_parsing_state = node.parsing_state.sub_context(
-                is_block_level=False,
-            )
-
-            display_nodelist = node.latex_walker.make_nodelist(
-                cite_content_list_of_nodes,
-                parsing_state=citation_nodes_parsing_state,
-            )
-
-            if cite_mgr.use_endnotes:
-
-                full_cite_mark = endnotes_mgr.render_endnote_mark(endnote, display_nodelist)
-
-                s_items.append(
-                    citation_delimiters[0] + full_cite_mark + citation_delimiters[1]
-                )
-
-            else:
-
-                full_inline_citation = fragment_renderer.render_nodelist(
-                    display_nodelist,
-                    render_context
-                )
-
-                s_items.append(
-                    citation_delimiters[0] + full_inline_citation
-                    + citation_delimiters[1]
-                )
-
-        return fragment_renderer.render_semantic_span(
-            fragment_renderer.render_join(s_items, render_context),
-            'citations',
-            render_context,
+        return cite_mgr.render_citation_marks(
+            node.llmarg_cite_items,
+            node,
         )
+

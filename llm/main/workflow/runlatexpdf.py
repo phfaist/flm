@@ -59,6 +59,7 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
     graphics_resource_data_name_prefix = 'gr'
 
     use_endnote_latex_command = 'llmEndnoteMark'
+    use_citation_latex_command = 'llmCitationMark'
 
     heading_commands_by_level = {
         1: "section",
@@ -163,6 +164,8 @@ class RunPdfLatexRenderWorkflow(RenderWorkflow):
 
     def postprocess_rendered_document(self, rendered_content, document, render_context):
 
+        latex_preamble_collected = render_context.data.get('latex_preamble', {})
+
         # post-process LaTeX document contents
 
         latex_template_workflow_config = ConfigMerger().recursive_assign_defaults([
@@ -170,11 +173,14 @@ class RunPdfLatexRenderWorkflow(RenderWorkflow):
                 'use_output_format_name': 'latex',
                 'template_config_workflow_defaults': {
                     'style': {
-                        'extra_preamble': '\n'.join([
-                            p
-                            for what, p in render_context.data.get('latex_preamble', {}).items()
-                        ]) + '\n'
-                        + r"\providecommand\llmEndnoteMark{\textsuperscript}" + "\n",
+                        'extra_preamble': (
+                            '\n'.join([
+                                p
+                                for what, p in latex_preamble_collected.items()
+                            ]) + '\n'
+                            + r"\providecommand\llmEndnoteMark{\textsuperscript}" + "\n"
+                            + r"\providecommand\llmCitationMark{}" + "\n"
+                        ),
                     },
                 }
             },

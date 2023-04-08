@@ -64,6 +64,12 @@ class Feature:
             self.render_context = render_context
 
         def initialize(self):
+            r"""
+            Initialize the render manager.  You should subclass this
+            method, and avoid subclassing the constructor.  You'll get all the
+            `feature_render_options` for this feature (which you provided to the
+            document's render() method) as keyword arguments to this method.
+            """
             pass
 
         def process(self, first_pass_value):
@@ -75,6 +81,8 @@ class Feature:
         def get_node_id(self, node):
             return self.feature.get_node_id(node)
 
+
+    # -----
 
     def add_latex_context_definitions(self):
         r"""

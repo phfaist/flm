@@ -357,7 +357,7 @@ r"""
             result,
             r"""
 <main>
-<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.<a href="#footnote-1" class="href-endnote endnote footnote">a</a> I checked it.</p></div>
+<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.<a href="#footnote-1" class="href-endnote endnote footnote endnotes">a</a> I checked it.</p></div>
 </main>""".strip()
         )
 
@@ -414,13 +414,17 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
         doc = environ.make_document(render_fn)
 
         fr = HtmlFragmentRenderer()
-        result, render_context = doc.render(fr)
+        result, render_context = doc.render(fr, {
+            'citations': {
+                'sort_and_compress': False
+            }
+        })
         print(result)
         self.assertEqual(
             result,
             r"""
 <main>
-<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.<a href="#footnote-1" class="href-endnote endnote footnote">a</a> I checked it&nbsp;<a href="#citation-1" class="href-endnote endnote citation">[1]</a>. And again and again&nbsp;<a href="#citation-2" class="href-endnote endnote citation">[2]</a><a href="#citation-3" class="href-endnote endnote citation">[3]</a><a href="#citation-4" class="href-endnote endnote citation">[4]</a>. See also <a href="#citation-2" class="href-endnote endnote citation">[2; Theorem&nbsp;3]</a>.</p></div>
+<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.<a href="#footnote-1" class="href-endnote endnote footnote endnotes">a</a> I checked it&nbsp;<span class="citations"><a href="#citation-1" class="href-endnote endnote citation">[1]</a></span>. And again and again&nbsp;<span class="citations"><a href="#citation-2" class="href-endnote endnote citation">[2]</a><a href="#citation-3" class="href-endnote endnote citation">[3]</a><a href="#citation-4" class="href-endnote endnote citation">[4]</a></span>. See also <span class="citations"><a href="#citation-2" class="href-endnote endnote citation">[2; Theorem&nbsp;3]</a></span>.</p></div>
 </main>
 """.strip()
         )
@@ -661,7 +665,7 @@ as <span>\</span>{is.<span>\</span>end{verbatim<span>\</span> ha no, gotcha pars
   </span></p>
 <p><span class="textit">Vertaim macros like <span class="verbatimtext verbatimtext-inline">}</span> and <span class="verbatimtext verbatimtext-inline">{</span> should be parsed correctly, even as macro arguments!</span></p>
 <h1 id="sec-test-label-another-sec" class="heading-level-1">Another section</h1>
-<p>We can try to add some footnotes, too.<a href="#footnote-1" class="href-endnote endnote footnote">a</a> Does it work?</p>
+<p>We can try to add some footnotes, too.<a href="#footnote-1" class="href-endnote endnote footnote endnotes">a</a> Does it work?</p>
 <p>See also the topic <a href="#defterm-qu_5cX_28Xd_5cX_29Xit" class="href-ref ref-topic">qu<span class="inline-math">\(d\)</span>it</a>.</p>
 <h1 class="heading-level-1">Footnotes</h1>
 <dl class="enumeration footnote-list"><dt id="footnote-1">a</dt><dd>Like this! Does it work?</dd></dl>
