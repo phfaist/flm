@@ -182,7 +182,7 @@ Citation \cite[Theorem~45]{arxiv:1111.11111}.
         self.assertEqual(
             result['text'],
             r"""
-Citation <span class="citations">[<a href="#citation-1" class="href-endnote endnote citation">1; Theorem&nbsp;45</a>]</span>.
+Citation <span class="citations"><a href="#citation-1" class="href-endnote endnote citation">[1; Theorem&nbsp;45]</a></span>.
 """.strip() .replace('\n', ' ')
         )
 
@@ -209,3 +209,59 @@ Citation \cite[Theorem~45]{arxiv:1111.11111,arxiv:2222.22222}.
                 is_block_level=False
             )
 
+
+
+
+
+    def test_citation_chain_macros(self):
+
+        environ = mk_llm_environ(
+            external_citations_providers=[ MyCitationsProvider() ]
+        )
+
+        frag1 = environ.make_fragment(
+            r"""
+Citation \cite{arxiv:1111.11111}\cite{arxiv:2222.22222}.
+Citation \cite[Theorem~45]{arxiv:1111.11111}\cite{arxiv:2222.22222}.
+Citation \cite{arxiv:1111.11111}\cite[Theorem~45]{arxiv:2222.22222}.
+Citation \cite{arxiv:1111.11111,arxiv:3333.33333}\cite[Theorem~45]{arxiv:2222.22222}.
+            """ .strip(),
+            is_block_level=False
+        )
+
+        def rdr(render_context):
+            return {
+                'text': frag1.render(render_context),
+                'endnotes': render_context.feature_render_manager('endnotes')
+                            .render_endnotes(target_id=None, include_headings_at_level=None,
+                                             endnotes_heading_level=None)
+            }
+        doc = environ.make_document(rdr)
+
+        fr = HtmlFragmentRenderer()
+        result, render_context = doc.render(fr)
+        print(result['text'])
+        self.assertEqual(
+            result['text'],
+            r"""
+Citation <span class="citations">[<a href="#citation-1" class="href-endnote endnote citation">1</a>,<a href="#citation-2" class="href-endnote endnote citation">2</a>]</span>.
+Citation <span class="citations"><a href="#citation-2" class="href-endnote endnote citation">[2]</a><a href="#citation-1" class="href-endnote endnote citation">[1; Theorem&nbsp;45]</a></span>.
+Citation <span class="citations"><a href="#citation-1" class="href-endnote endnote citation">[1]</a><a href="#citation-2" class="href-endnote endnote citation">[2; Theorem&nbsp;45]</a></span>.
+Citation <span class="citations">[<a href="#citation-1" class="href-endnote endnote citation">1</a>,<a href="#citation-3" class="href-endnote endnote citation">3</a>][<a href="#citation-2" class="href-endnote endnote citation">2; Theorem&nbsp;45</a>]</span>.
+""".strip() .replace('\n', ' ')
+        )
+
+        print(result['endnotes'])
+        self.assertEqual(
+            result['endnotes'],
+            r"""
+<div class="endnotes"><dl class="enumeration citation-list"><dt id="citation-1">[1]</dt><dd><span class="textit">arXiv</span> paper arXiv:1111.11111</dd><dt id="citation-2">[2]</dt><dd><span class="textit">arXiv</span> paper arXiv:2222.22222</dd><dt id="citation-3">[3]</dt><dd><span class="textit">arXiv</span> paper arXiv:3333.33333</dd></dl></div>
+            """.strip()
+)
+
+
+
+
+
+if __name__ == '__main__':
+    unittest.main()

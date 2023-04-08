@@ -4,6 +4,7 @@ logger = logging.getLogger(__name__)
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo
+from pylatexenc import macrospec
 
 from ..llmspecinfo import LLMMacroSpecBase
 from ..llmfragment import LLMFragment
@@ -188,11 +189,11 @@ class FeatureExternalPrefixedCitations(Feature):
 
             if self.use_endnotes and self.sort_and_compress:
 
-                delimiters_part_of_link = False
-
                 endnote_numbers = [
                     endnote for (key_prefix, key, extra, endnote) in citations_compressible
                 ]
+                if len(endnote_numbers) > 1:
+                    delimiters_part_of_link = False
 
                 rendered_citations_woextra = endnotes_mgr.render_endnote_mark_many(
                     endnote_numbers,
@@ -369,6 +370,44 @@ class FeatureExternalPrefixedCitations(Feature):
 
 
 
+
+cite_macro_arguments = [
+    LLMArgumentSpec(
+        '[',
+        argname='cite_pre_text',
+    ),
+    LLMArgumentSpec(
+        latexnodes_parsers.LatexCharsCommaSeparatedListParser(
+            enable_comments=False
+        ),
+        argname='citekey'
+    ),
+]
+
+
+
+class CiteMoreArgsParser(macrospec.LatexArgumentsParser):
+    def __init__(self):
+        super().__init__(cite_macro_arguments)
+    def parse(self, latex_walker, token_reader, parsing_state, **kwargs):
+        # make sure the parser returns a LatexNode
+        parsed, _ = super().parse(latex_walker, token_reader, parsing_state, **kwargs)
+        n = latex_walker.make_node(latexnodes_nodes.LatexCharsNode,
+                                   chars='(MORE CITATION KEYS)',
+                                   parsing_state=parsing_state,
+                                   pos=None, pos_end=None)
+        n.cite_more_parsed_arguments = parsed
+        return n, None
+
+class TackOnMultipleCiteCommandsMacroParser(
+        latexnodes_parsers.LatexTackOnInformationFieldMacrosParser
+):
+    def __init__(self, citemacronames):
+        super().__init__(citemacronames, allow_multiple=True)
+    def get_macro_arg_parser(self, macroname):
+        return CiteMoreArgsParser()
+
+
 class CiteMacro(LLMMacroSpecBase):
 
     allowed_in_standalone_mode = False
@@ -377,23 +416,22 @@ class CiteMacro(LLMMacroSpecBase):
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[
+                *cite_macro_arguments,
                 LLMArgumentSpec(
-                    '[',
-                    argname='cite_pre_text',
-                ),
-                LLMArgumentSpec(
-                    latexnodes_parsers.LatexCharsCommaSeparatedListParser(
-                        enable_comments=False
+                    parser=TackOnMultipleCiteCommandsMacroParser(
+                        ['cite'],
                     ),
-                    argname='citekey'
-                ),
+                    argname='cite_more',
+                    llm_doc=(r'An immediately following \verbcode+\cite{…}+ macro call '
+                             'gets appended to the current batch of citations')
+                )
             ]
         )
 
     def postprocess_parsed_node(self, node):
         
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-            ('cite_pre_text', 'citekey') ,
+            ('cite_pre_text', 'citekey', 'cite_more') ,
         )
 
         optional_cite_extra_nodelist = None
@@ -403,8 +441,10 @@ class CiteMacro(LLMMacroSpecBase):
 
         citekeylist_nodelist = node_args['citekey'].get_content_nodelist()
 
-        node.llmarg_optional_cite_extra_nodelist = optional_cite_extra_nodelist
-        node.llmarg_citekeylist_nodelist = citekeylist_nodelist
+        # not necessary to expose this raw information -- it's the arguments really
+        #
+        #node.llmarg_optional_cite_extra_nodelist = optional_cite_extra_nodelist
+        #node.llmarg_citekeylist_nodelist = citekeylist_nodelist
 
         # citekeylist_nodelist is a list of groups, each group is delimited by
         # ('', ',') and represents a citation key.  It was parsed using
@@ -412,47 +452,81 @@ class CiteMacro(LLMMacroSpecBase):
 
         #logger.debug(f"Citation key nodes: {citekeylist_nodelist=}")
 
-        cite_items = []
-        for citekeygroupnode in citekeylist_nodelist:
+        def _get_cite_items_from_key_nodelist(
+                citekeylist_nodelist, optional_cite_extra_nodelist
+        ):
 
-            if not citekeygroupnode:
-                continue
+            cite_items = []
+            for citekeygroupnode in citekeylist_nodelist:
 
-            citekey_verbatim = citekeygroupnode.latex_verbatim()
-            if citekeygroupnode.delimiters[0]:
-                citekey_verbatim = citekey_verbatim[
-                    len(citekeygroupnode.delimiters[0]) :
-                ]
-            if citekeygroupnode.delimiters[1]:
-                citekey_verbatim = citekey_verbatim[
-                    : -len(citekeygroupnode.delimiters[1])
-                ]
+                if not citekeygroupnode:
+                    continue
 
-            #logger.debug(f"Parsing citation {citekey_verbatim=}")
+                citekey_verbatim = citekeygroupnode.latex_verbatim()
+                if citekeygroupnode.delimiters[0]:
+                    citekey_verbatim = citekey_verbatim[
+                        len(citekeygroupnode.delimiters[0]) :
+                    ]
+                if citekeygroupnode.delimiters[1]:
+                    citekey_verbatim = citekey_verbatim[
+                        : -len(citekeygroupnode.delimiters[1])
+                    ]
 
-            if ':' in citekey_verbatim:
-                citation_key_prefix, citation_key = citekey_verbatim.split(':', 1)
-                # normalize citation_key_prefix to allow for surrounding spaces as well
-                # as case tolerance e.g. 'arxiv' vs 'arXiv' etc.
-                citation_key_prefix = citation_key_prefix.strip().lower()
-            else:
-                citation_key_prefix, citation_key = None, citekey_verbatim
-            
-            cite_items.append(
-                { 'prefix': citation_key_prefix,
-                  'key': citation_key,
-                  'extra': optional_cite_extra_nodelist }
-            )
+                #logger.debug(f"Parsing citation {citekey_verbatim=}")
+
+                if ':' in citekey_verbatim:
+                    citation_key_prefix, citation_key = citekey_verbatim.split(':', 1)
+                    # normalize citation_key_prefix to allow for surrounding spaces as well
+                    # as case tolerance e.g. 'arxiv' vs 'arXiv' etc.
+                    citation_key_prefix = citation_key_prefix.strip().lower()
+                else:
+                    citation_key_prefix, citation_key = None, citekey_verbatim
+
+                cite_items.append(
+                    { 'prefix': citation_key_prefix,
+                      'key': citation_key,
+                      'extra': optional_cite_extra_nodelist }
+                )
+
+            #
+            # If we have an optional argument, we should only have one citation key
+            #
+            if optional_cite_extra_nodelist is not None and len(cite_items) > 1:
+                raise ValueError(
+                    r"When using the syntax \cite[extra]{citekey}, you can only specify a "
+                    r"single citation key."
+                )
+
+            return cite_items
 
 
-        #
-        # If we have an optional argument, we should only have one citation key
-        #
-        if optional_cite_extra_nodelist is not None and len(cite_items) > 1:
-            raise ValueError(
-                r"When using the syntax \cite[extra]{citekey}, you can only specify a "
-                r"single citation key."
-            )
+        cite_items = _get_cite_items_from_key_nodelist(
+            citekeylist_nodelist, optional_cite_extra_nodelist
+        )
+
+        # maybe there were more \cite commands tacked onto this one?
+        cite_more_macros_nodelist = node_args['cite_more'].get_content_nodelist()
+        if cite_more_macros_nodelist is not None:
+            for gn in cite_more_macros_nodelist:
+                assert( gn.isNodeType(latexnodes_nodes.LatexGroupNode) )
+                assert( gn.delimiters[0] == '\\'+self.macroname )
+                gna = gn.nodelist[0]
+                parsed_args = gna.cite_more_parsed_arguments
+                assert( parsed_args is not None )
+                
+                more_node_args = ParsedArgumentsInfo(parsed_arguments=parsed_args) \
+                    .get_all_arguments_info( ('cite_pre_text', 'citekey',) )
+
+                more_extra_nl = None
+                if more_node_args['cite_pre_text'].was_provided():
+                    more_extra_nl = more_node_args['cite_pre_text'].get_content_nodelist()
+                more_citekeylist_nl = more_node_args['citekey'].get_content_nodelist()
+
+                more_cite_items = _get_cite_items_from_key_nodelist(
+                    more_citekeylist_nl, more_extra_nl,
+                )
+                cite_items.extend( more_cite_items )
+
 
         node.llmarg_cite_items = cite_items
 
