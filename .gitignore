@@ -145,3 +145,5 @@ playground/*.html
 playground/*.tex
 playground/*.aux
 playground/*.log
+
+playground/.llm-citations.cache.json

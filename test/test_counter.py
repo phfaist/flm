@@ -84,6 +84,10 @@ class TestCounterFormatter(unittest.TestCase):
             "Eq.~[(1)–(3)]"
         )
         self.assertEqual(
+            f.format_many_llm([8,9,10,11]),
+            "Eq.~[(8)–(11)]"
+        )
+        self.assertEqual(
             f.format_many_llm([2,1,99,3]),
             "Eq.~[(1)–(3),(99)]"
         )
@@ -98,7 +102,7 @@ class TestCounterFormatter(unittest.TestCase):
             'one_pre': '<',
             'one_post': '>',
             'pair_pre': '((',
-            'pair_mid': ' AND ',
+            'pair_mid': '||',
             'pair_post': '))',
             'range_pre': '[[',
             'range_mid': '--',
@@ -136,7 +140,7 @@ class TestCounterFormatter(unittest.TestCase):
         )
         self.assertEqual(
             f.format_many_llm([2,1]),
-            "eqs.~!<! <[[I|II]]> !>!"
+            "eqs.~!<! ((I||II)) !>!"
         )
         self.assertEqual(
             f.format_many_llm([2,3,1]),
@@ -144,7 +148,7 @@ class TestCounterFormatter(unittest.TestCase):
         )
         self.assertEqual(
             f.format_many_llm([2,1,99,3], prefix_variant='capital'),
-            "Quartet of Equations~!<! (([[I--III]] AND XCIX)) !>!"
+            "Quartet of Equations~!<! (([[I--III]]||XCIX)) !>!"
         )
         self.assertEqual(
             f.format_many_llm([1,3,99,2,98,54], prefix_variant='capital'),
@@ -178,7 +182,7 @@ class TestCounterFormatter(unittest.TestCase):
         )
         self.assertEqual(
             f.format_many_llm([2,3], wrap_link_fn=wrap_link_fn),
-            r"\mylink{2}{eqs.~}!<! <[[\mylink{2}{II}|\mylink{3}{III}]]> !>!"
+            r"\mylink{2}{eqs.~}!<! ((\mylink{2}{II}||\mylink{3}{III})) !>!"
         )
         self.assertEqual(
             f.format_many_llm([2,3,1], wrap_link_fn=wrap_link_fn),
@@ -199,7 +203,7 @@ class TestCounterFormatter(unittest.TestCase):
             'one_pre': '',
             'one_post': '',
             'pair_pre': '',
-            'pair_mid': ',',
+            'pair_mid': '|',
             'pair_post': '',
             'range_pre': '',
             'range_mid': '--',

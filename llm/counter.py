@@ -327,7 +327,10 @@ class CounterFormatter:
             if not isinstance(v, int):
                 raise ValueError("Invalid value, expected integer: " + repr(v))
 
-        values = sorted(values)
+        # key= appears to be required for Transcrypt(), otherwise JavaScript's
+        # sort() converts to string and sorts alphabetically ... :/
+        values = sorted(values, key=lambda x: int(x))
+
         num_values = len(values)
 
         only_one_value = False
@@ -348,7 +351,7 @@ class CounterFormatter:
 
         list_of_ranges.append(cur_range)
         if len(list_of_ranges) == 1:
-            if list_of_ranges[0][0] == list_of_ranges[0][1]+1:
+            if list_of_ranges[0][0] + 1 == list_of_ranges[0][1]:
                 # single pair of consecutive values -> format as pair of values,
                 # each value seen as a range
                 list_of_ranges = [ (list_of_ranges[0][0], list_of_ranges[0][0]),
