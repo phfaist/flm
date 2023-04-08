@@ -14,16 +14,17 @@ llm:
            #family: 'Comic Sans MS'
            family: 'EB Garamond' #'Harrington'
            size: '18px'
-   features:
-     endnotes:
-       categories:
-         - category_name: footnote
-           counter_formatter: roman #unicodesuperscript
-           heading_title: 'The Footnotes Are To Be Found Here'
-           endnote_command: 'footnote'
-   #     #render_options:
-   #       #include_headings_at_level: 2
-   #       #endnotes_heading_title: 'Endnotes'
+   #features:
+     # ### Will override format-specific LLM defaults
+     # endnotes:
+     #   categories:
+     #     - category_name: footnote
+     #       counter_formatter: roman #unicodesuperscript
+     #       heading_title: 'The Footnotes Are To Be Found Here'
+     #       endnote_command: 'footnote'
+     #   #render_options:
+     #     #include_headings_at_level: 2
+     #     #endnotes_heading_title: 'Endnotes'
 ---
 Hello, world. \emph{Here I am.} What would you like
 to    see?
