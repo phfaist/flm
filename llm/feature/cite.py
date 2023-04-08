@@ -388,7 +388,7 @@ cite_macro_arguments = [
 
 class CiteMoreArgsParser(macrospec.LatexArgumentsParser):
     def __init__(self):
-        super().__init__(cite_macro_arguments)
+        super().__init__(arguments_spec_list=cite_macro_arguments)
     def parse(self, latex_walker, token_reader, parsing_state, **kwargs):
         # make sure the parser returns a LatexNode
         parsed, _ = super().parse(latex_walker, token_reader, parsing_state, **kwargs)
@@ -408,24 +408,25 @@ class TackOnMultipleCiteCommandsMacroParser(
         return CiteMoreArgsParser()
 
 
+
 class CiteMacro(LLMMacroSpecBase):
 
     allowed_in_standalone_mode = False
 
     def __init__(self, macroname):
+        arguments_spec_list = [] + cite_macro_arguments + [
+            LLMArgumentSpec(
+                parser=TackOnMultipleCiteCommandsMacroParser(
+                    ['cite'],
+                ),
+                argname='cite_more',
+                llm_doc=(r'An immediately following \verbcode+\cite{…}+ macro call '
+                         'gets appended to the current batch of citations')
+            )
+        ]
         super().__init__(
             macroname=macroname,
-            arguments_spec_list=[
-                *cite_macro_arguments,
-                LLMArgumentSpec(
-                    parser=TackOnMultipleCiteCommandsMacroParser(
-                        ['cite'],
-                    ),
-                    argname='cite_more',
-                    llm_doc=(r'An immediately following \verbcode+\cite{…}+ macro call '
-                             'gets appended to the current batch of citations')
-                )
-            ]
+            arguments_spec_list=arguments_spec_list,
         )
 
     def postprocess_parsed_node(self, node):
