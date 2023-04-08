@@ -251,7 +251,9 @@ class CiteMacro(LLMMacroSpecBase):
                 citation_key_prefix, citation_key = None, citekey_verbatim
             
             cite_items.append(
-                (citation_key_prefix, citation_key, optional_cite_extra_nodelist)
+                { 'prefix': citation_key_prefix,
+                  'key': citation_key,
+                  'extra': optional_cite_extra_nodelist }
             )
 
 
@@ -283,7 +285,8 @@ class CiteMacro(LLMMacroSpecBase):
         #
         citations_compressible = []
         citations_manual_render = []
-        for citation_key_prefix, citation_key, extra in node.llmarg_cite_items:
+        for cd in node.llmarg_cite_items:
+            citation_key_prefix, citation_key, extra = cd['prefix'], cd['key'], cd['extra']
 
             endnote = None
             if cite_mgr.use_endnotes:
