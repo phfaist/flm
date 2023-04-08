@@ -317,6 +317,19 @@ class HtmlFragmentRenderer(FragmentRenderer):
             class_names=text_formats
         )
 
+    def render_semantic_span(self, content, role, render_context, *,
+                             annotations=None, target_id=None):
+        attrs = {}
+        if target_id is not None:
+            attrs['id'] = target_id
+        return self.wrap_in_tag(
+            'span',
+            content,
+            attrs=attrs,
+            class_names=[role]+(annotations if annotations else []),
+        )
+        
+
     def render_semantic_block(self, content, role, render_context, *,
                               annotations=None, target_id=None):
         attrs = {}

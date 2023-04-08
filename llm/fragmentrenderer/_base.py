@@ -282,6 +282,15 @@ class FragmentRenderer:
     # ---
 
 
+    def render_semantic_span(self, content, role, render_context, *,
+                             annotations=None, target_id=None):
+        r"""
+        Possibly mark the given inline text content as belonging to a
+        single construct (e.g., a sequence of citations or endnotes).  This
+        might correspond to a `<span>` tag in HTML.
+        """
+        return content
+
     def render_semantic_block(self, content, role, render_context, *,
                               annotations=None, target_id=None):
         r"""

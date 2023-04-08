@@ -89,7 +89,7 @@ class TestCounterFormatter(unittest.TestCase):
         )
         self.assertEqual(
             f.format_many_llm([1,3,99,2,98,54]),
-            "Eq.~[(1)–(3),(54),(98)–(99)]"
+            "Eq.~[(1)–(3),(54),(98),(99)]"
         )
 
     def test_join(self):
@@ -102,6 +102,7 @@ class TestCounterFormatter(unittest.TestCase):
             'pair_post': '))',
             'range_pre': '[[',
             'range_mid': '--',
+            'range_pairmid': '|',
             'range_post': ']]',
             'list_pre': '<<',
             'list_mid': ';',
@@ -134,6 +135,10 @@ class TestCounterFormatter(unittest.TestCase):
             "eq.~!<! <I> !>!"
         )
         self.assertEqual(
+            f.format_many_llm([2,1]),
+            "eqs.~!<! <[[I|II]]> !>!"
+        )
+        self.assertEqual(
             f.format_many_llm([2,3,1]),
             "eqs.~!<! <[[I--III]]> !>!"
         )
@@ -143,7 +148,7 @@ class TestCounterFormatter(unittest.TestCase):
         )
         self.assertEqual(
             f.format_many_llm([1,3,99,2,98,54], prefix_variant='capital'),
-            "Equations~!<! <<[[I--III]];LIV;&[[XCVIII--XCIX]]>> !>!"
+            "Equations~!<! <<[[I--III]];LIV;&[[XCVIII|XCIX]]>> !>!"
         )
 
         self.assertEqual(
@@ -172,13 +177,67 @@ class TestCounterFormatter(unittest.TestCase):
             r"\mylink{1}{eq.~!<! <I> !>!}"
         )
         self.assertEqual(
-            f.format_many_llm([2,3,1], wrap_link_fn=wrap_link_fn),
-            r"\mylink{1}{eqs.~!<! <}[[\mylink{1}{I}--\mylink{3}{III}]]> !>!"
+            f.format_many_llm([2,3], wrap_link_fn=wrap_link_fn),
+            r"\mylink{2}{eqs.~}!<! <[[\mylink{2}{II}|\mylink{3}{III}]]> !>!"
         )
         self.assertEqual(
-            f.format_many_llm([1,3,99,2,98,54], wrap_link_fn=wrap_link_fn,
-                              prefix_variant='capital'),
-            r"\mylink{1}{Equations~!<! }<<[[\mylink{1}{I}--\mylink{3}{III}]];\mylink{54}{LIV};&[[\mylink{98}{XCVIII}--\mylink{99}{XCIX}]]>> !>!"
+            f.format_many_llm([2,3,1], wrap_link_fn=wrap_link_fn),
+            r"\mylink{1}{eqs.~}!<! <[[\mylink{1}{I}--\mylink{3}{III}]]> !>!"
+        )
+        self.assertEqual(
+            f.format_many_llm(
+                [1,3,99,2,98,54], wrap_link_fn=wrap_link_fn,
+                prefix_variant='capital'
+            ),
+            r"\mylink{1}{Equations~}!<! <<[[\mylink{1}{I}--\mylink{3}{III}]];\mylink{54}{LIV};&[[\mylink{98}{XCVIII}|\mylink{99}{XCIX}]]>> !>!"
+        )
+
+
+    def test_join_noinnerdelim(self):
+        
+        jspec = {
+            'one_pre': '',
+            'one_post': '',
+            'pair_pre': '',
+            'pair_mid': ',',
+            'pair_post': '',
+            'range_pre': '',
+            'range_mid': '--',
+            'range_pairmid': '|',
+            'range_post': '',
+            'list_pre': '<<',
+            'list_mid': ';',
+            'list_midlast': ';',
+            'list_post': '>>',
+        }
+
+        f = counter.CounterFormatter(
+            {'template': "${Alph}"},
+            prefix_display={
+                'singular': "",
+                'plural': "",
+            },
+            delimiters=('[', ']'),
+            join_spec=jspec,
+            name_in_link=True
+        )
+
+        def wrap_link_fn(n, s):
+            return r'\mylink{' + str(n) + '}{' + s + '}'
+
+        self.assertEqual(
+            f.format_many_llm([1], wrap_link_fn=wrap_link_fn),
+            r"\mylink{1}{[A]}"
+        )
+
+        self.assertEqual(
+            f.format_many_llm([2,3], wrap_link_fn=wrap_link_fn),
+            r"[\mylink{2}{B}|\mylink{3}{C}]"
+        )
+
+        self.assertEqual(
+            f.format_many_llm([2,3,1], wrap_link_fn=wrap_link_fn),
+            r"[\mylink{1}{A}--\mylink{3}{C}]"
         )
 
 

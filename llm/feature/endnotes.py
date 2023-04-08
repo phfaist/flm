@@ -6,6 +6,7 @@ from pylatexenc.latexnodes import ParsedArgumentsInfo
 
 from ..llmspecinfo import LLMMacroSpecBase
 from ..llmenvironment import LLMArgumentSpec
+from ..llmfragment import LLMFragment
 
 from ._base import Feature
 from ..counter import build_counter_formatter, Counter
@@ -240,16 +241,97 @@ class FeatureEndnotes(Feature):
 
             return endnote
 
-        def render_endnote_mark(self, endnote):
+        def render_endnote_mark(self, endnote, display_llm=None):
+            r"""
+            Render the endnote mark for the given `endnote`.  You can
+            replace the mark's displayed content by specifying the `display_llm`
+            argument.  The latter must be a `LLMFragment` instance or a
+            `pylatexenc.latexnodes.nodes.LatexNodesList` instance.
+            """
             endnote_link_href = f"#{endnote.category_name}-{endnote.number}"
-            fmtvalue_llm = endnote.formatted_counter_value_llm
+
+            if display_llm is None:
+                fmtvalue_llm = endnote.formatted_counter_value_llm
+            else:
+                fmtvalue_llm = display_llm
+
+            if isinstance(fmtvalue_llm, LLMFragment):
+                fmtvalue_nodelist = fmtvalue_llm.nodes
+            else:
+                fmtvalue_nodelist = fmtvalue_llm
+
             return self.render_context.fragment_renderer.render_link(
                 'endnote',
                 endnote_link_href,
-                display_nodelist=fmtvalue_llm.nodes,
+                display_nodelist=fmtvalue_nodelist,
                 render_context=self.render_context,
                 annotations=['endnote', endnote.category_name],
             )
+
+        def render_endnote_mark_many(self, endnote_list, *,
+                                     counter_prefix_variant=None,
+                                     counter_with_delimiters=True,
+                                     counter_with_prefix=False,
+                                     wrap_with_semantic_span='endnotes'):
+
+            render_context = self.render_context
+            fragment_renderer = render_context.fragment_renderer
+
+            endnotes_by_category = {}
+            for endnote in endnote_list:
+                if endnote.category_name not in endnotes_by_category:
+                    endnotes_by_category[endnote.category_name] = []
+                endnotes_by_category[endnote.category_name].append(endnote)
+
+            s_final_blocks = []
+
+            for category_name, endnote_list in endnotes_by_category.items():
+
+                endnote_category_info = \
+                    self.feature_document_manager.categories_by_name[endnote.category_name]
+
+                counter_formatter = endnote_category_info.counter_formatter
+
+                s_items = counter_formatter.format_many_llm(
+                    [ e.number for e in endnote_list ],
+                    prefix_variant=counter_prefix_variant,
+                    with_delimiters=counter_with_delimiters,
+                    with_prefix=counter_with_prefix,
+                    get_raw_s_items=True,
+                )
+                s = ''
+                for sit in s_items:
+                    s_frag = render_context.doc.environment.make_fragment(
+                        sit['s'],
+                        is_block_level=False,
+                        standalone_mode=True,
+                        what=f"Rendered endnote mark(s) bit {repr(sit)}",
+                    )
+                    if sit['n'] is None or sit['n'] is False:
+                        s += fragment_renderer.render_fragment(s_frag, render_context)
+                    else:
+                        endnote_link_href = f"#{category_name}-{sit['n']}"
+
+                        s += fragment_renderer.render_link(
+                            'endnote',
+                            endnote_link_href,
+                            s_frag.nodes,
+                            render_context=render_context,
+                            # TODO: add annotation for external links etc. ??
+                            annotations=['endnote', category_name,],
+                        )
+
+                s_final_blocks.append( s )
+
+            contents = fragment_renderer.render_join(s_final_blocks, render_context)
+
+            if wrap_with_semantic_span:
+                return fragment_renderer.render_semantic_span(
+                    contents,
+                    wrap_with_semantic_span,
+                    render_context,
+                )
+            return contents
 
 
         def render_endnotes_category(self, category_name):

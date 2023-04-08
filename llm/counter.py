@@ -185,6 +185,7 @@ _default_formatter_join_spec = {
         'pair_post': '',
         'range_pre': '',
         'range_mid': '${endash}',
+        'range_pairmid': '${sep}',
         'range_post': '',
         'list_pre': '',
         'list_mid': '${sep} ',
@@ -199,6 +200,7 @@ _default_formatter_join_spec = {
     'compact': {
         'pair_mid': ',',
         'range_mid': '–', # en dash
+        'range_pairmid': ',',
         'list_mid': ',',
         'list_midlast': ',',
 
@@ -272,7 +274,7 @@ class CounterFormatter:
 
     def format_llm(self, value, prefix_variant=None, with_delimiters=True, with_prefix=True,
                    wrap_format_num=None, wrap_link_fn=None):
-        pre, post = self._get_format_pre_post(
+        prefix, pre, post = self._get_format_pre_post(
             with_delimiters,
             with_prefix,
             1,
@@ -281,14 +283,14 @@ class CounterFormatter:
         s_num = self.format_num(value)
         if wrap_format_num is not None:
             s_num = wrap_format_num(s_num)
-        s = pre + s_num + post
+        s = prefix + pre + s_num + post
         if wrap_link_fn is not None:
             return wrap_link_fn(value, s)
         return s
 
     def _get_format_pre_post(self, with_delimiters, with_prefix,
                              num_values, prefix_variant):
-        pre, post = '', ''
+        prefix, pre, post = '', '', ''
 
         if with_delimiters:
             pre = self.delimiters[0]
@@ -304,9 +306,8 @@ class CounterFormatter:
                 prefix = prefixinfo[num_values]
             else:
                 prefix = prefixinfo['plural']
-            pre = prefix + pre
 
-        return pre, post
+        return prefix, pre, post
 
 
     def format_many_llm(self, values, prefix_variant=None, with_delimiters=True,
@@ -322,8 +323,16 @@ class CounterFormatter:
         if len(values) == 0:
             return join_spec['empty']
 
+        for v in values:
+            if not isinstance(v, int):
+                raise ValueError("Invalid value, expected integer: " + repr(v))
+
         values = sorted(values)
         num_values = len(values)
+
+        only_one_value = False
+        if num_values == 1:
+            only_one_value = True
 
         list_of_ranges = []
         cur_range = None
@@ -345,10 +354,6 @@ class CounterFormatter:
                 list_of_ranges = [ (list_of_ranges[0][0], list_of_ranges[0][0]),
                                    (list_of_ranges[0][1], list_of_ranges[0][1]), ]
 
-        s_pre, s_post = self._get_format_pre_post(
-            with_delimiters, with_prefix, num_values, prefix_variant
-        )
-
         def _format_num(n):
             if wrap_format_num is not None:
                 return wrap_format_num( self.format_num(n) )
@@ -359,19 +364,23 @@ class CounterFormatter:
                 return [ { 's': _format_num(a), 'n': a } ]
             s_a = _format_num(a)
             s_b = _format_num(b)
+            if b == a + 1:
+                mid = join_spec['range_pairmid']
+            else:
+                mid = join_spec['range_mid']
             return [
                 { 's': join_spec['range_pre'], 'n': False },
                 { 's': s_a, 'n': a },
-                { 's': join_spec['range_mid'], 'n': False },
+                { 's': mid, 'n': False },
                 { 's': s_b, 'n': b },
                 { 's': join_spec['range_post'], 'n': False },
             ]
 
         if len(list_of_ranges) == 1:
             s_items = (
-                [ { 's': join_spec['one_pre'] } ]
+                [ { 's': join_spec['one_pre'], 'n': None } ]
                 + _render_range_items(*list_of_ranges[0])
-                + [ { 's': join_spec['one_post'] } ]
+                + [ { 's': join_spec['one_post'], 'n': None } ]
             )
         elif len(list_of_ranges) == 2:
             s_items = (
@@ -385,7 +394,7 @@ class CounterFormatter:
             s_items = [ { 's': join_spec['list_pre'], 'n': False } ]
             for rngj, rng in enumerate(list_of_ranges[:-1]):
                 if rngj > 0:
-                    s_items += [ { 's': join_spec['list_mid'] } ]
+                    s_items += [ { 's': join_spec['list_mid'], 'n': False } ]
                 s_items += _render_range_items(*rng)
             s_items += (
                 [ { 's': join_spec['list_midlast'], 'n': False } ]
@@ -393,18 +402,45 @@ class CounterFormatter:
                 + [ { 's': join_spec['list_post'], 'n': False } ]
             )
 
+        s_prefix, s_pre, s_post = self._get_format_pre_post(
+            with_delimiters, with_prefix, num_values, prefix_variant
+        )
+
+        first_n = None
+        for si in s_items:
+            nn = si.get('n', None)
+            if nn is not None and nn is not False:
+                first_n = nn
+                break
+
+        s_pre_items = []
+        if len(s_prefix):
+            s_pre_items.append( { 's': s_prefix, 'n': first_n } )
+        s_pre_items.append( { 's': s_pre, 'n': None if only_one_value else False } )
+
         # add pre/post text
-        s_items = [ { 's': s_pre } ] + s_items + [ { 's': s_post } ]
+        s_items = (
+            s_pre_items
+            + s_items
+            + [ { 's': s_post, 'n': None if only_one_value else False } ]
+        )
+
+        #print('s_items = ', s_items) #DEBUG
 
         # first, compress items by common link targets (if necessary)
         if wrap_link_fn is not None or get_raw_s_items:
             s_all = []
             cur_s = None
-            cur_n = list_of_ranges[0][0] if name_in_link else False
+            cur_n = False
             for s_item in s_items:
                 si = s_item['s']
                 ni = s_item.get('n', None)
-                if ni is None or ni == cur_n:
+                if ni is False and cur_n is False and cur_s is not None:
+                    cur_s = s_items_join(cur_s, si)
+                    continue
+                if cur_n is not False and (ni is None or cur_n is None or ni == cur_n):
+                    if ni is not None and cur_n is None:
+                        cur_n = ni
                     # add to current link
                     if cur_s is None:
                         cur_s = si
@@ -413,14 +449,18 @@ class CounterFormatter:
                         cur_s = s_items_join(cur_s, si)
                     continue
                 # end link here
-                s_all.append({'s': cur_s, 'n': cur_n})
+                if cur_s is not None:
+                    s_all.append({'s': cur_s, 'n': cur_n})
                 # start anew
                 cur_s = si
                 cur_n = ni
+
             if cur_s is not None:
                 s_all.append({'s': cur_s, 'n': cur_n})
 
             s_items = s_all
+
+        #print('compressed s_items = ', s_items) # DEBUG
 
         if get_raw_s_items:
             return s_items

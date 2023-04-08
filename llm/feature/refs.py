@@ -453,17 +453,17 @@ class RefMacro(LLMMacroSpecBase):
 
         if len(ref_list) == 1:
             ref_type, ref_label = ref_list[0]
-            # try:
-            return mgr.render_ref(ref_type, ref_label,
-                                  display_content_nodelist,
-                                  resource_info, render_context)
-            # except Exception as e:
-            #     logger.error(f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
-            #                  f"in ‘{node.latex_verbatim()}’ @ {node.format_pos()}")
-            #     raise LatexWalkerParseError(
-            #         f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e}",
-            #         pos=node.pos,
-            #     )
+            try:
+                return mgr.render_ref(ref_type, ref_label,
+                                      display_content_nodelist,
+                                      resource_info, render_context)
+            except Exception as e:
+                logger.error(f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
+                             f"in ‘{node.latex_verbatim()}’ @ {node.format_pos()}")
+                raise LatexWalkerParseError(
+                    f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e}",
+                    pos=node.pos,
+                )
 
         # we have multiple ref targets
 
