@@ -152,7 +152,8 @@ class TheoremEnvironment(llmspecinfo.LLMEnvironmentSpecBase):
                     node=node,
                     formatted_ref_llm_text=title_heading_formatted_llm_frag,
                     target_href='#' + target_id,
-                    counter_value=counter.value
+                    counter_value=counter.value,
+                    counter_formatter_id=counter.formatter.counter_formatter_id
                 )
 
         else:
@@ -535,7 +536,11 @@ default_thm_shared_counter_formatter_spec = {
     # no prefixes, each theorem type will be added as a prefix variant
 }
 
-
+default_allowed_ref_label_prefixes = [
+    'thm', 'prop', 'cor', 'lem',
+    'rem', 'def', 'dfn',
+    'x', 'topic'
+]
 
 
 class FeatureTheorems(Feature):
@@ -548,11 +553,7 @@ class FeatureTheorems(Feature):
         'environments': default_theorem_environments['defaultset'],
         'theorem_types': default_theorem_theorem_types,
         'shared_counter_formatter': 'arabic',
-        'allowed_ref_label_prefixes': [
-            'thm', 'prop', 'cor', 'lem',
-            'rem', 'def', 'dfn',
-            'x', 'topic'
-        ]
+        'allowed_ref_label_prefixes': default_allowed_ref_label_prefixes,
     }
 
 
@@ -657,7 +658,9 @@ class FeatureTheorems(Feature):
             )
 
         self.allowed_ref_label_prefixes = list(
-            allowed_ref_label_prefixes if allowed_ref_label_prefixes is not None else []
+            allowed_ref_label_prefixes
+            if allowed_ref_label_prefixes is not None
+            else default_allowed_ref_label_prefixes
         )
 
 
@@ -745,6 +748,8 @@ class FeatureTheorems(Feature):
         prefix['lowercase'] = _add_space_values(thm_spec['title']['lowercase'])
         prefix['capital'] = _add_space_values(thm_spec['title']['capital'])
         prefix['abbreviated'] = _add_space_values(thm_spec['title']['abbreviated'])
+
+        prefix.update(prefix['capital'])
 
         return prefix
 

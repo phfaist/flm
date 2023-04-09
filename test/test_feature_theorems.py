@@ -180,6 +180,48 @@ The square root of four is rational.
 
 
 
+    def test_ref_multi(self):
+
+        environ = mk_llm_environ_wthms()
+
+        frag1 = environ.make_fragment(r"""
+\begin{theorem}
+\label{thm:sqrt2}
+The square root of two is irrational.
+\end{theorem}
+
+\begin{theorem}
+\label{thm:sqrt3}
+The square root of three is irrational.
+\end{theorem}
+
+\begin{proposition}
+\label{thm:sqrt4}
+The square root of four is rational.
+\end{proposition}
+
+Ref: \ref{thm:sqrt2,thm:sqrt4,thm:sqrt3}
+        """ .strip())
+
+        doc = environ.make_document(frag1.render)
+
+        fr = HtmlFragmentRenderer()
+        result, _ = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result,
+            r"""
+<div class="theoremlike theorem"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1</span> The square root of two is irrational.</p></div>
+<div class="theoremlike theorem"><p><span id="theorem-2" class="heading-level-theorem heading-inline">Theorem&nbsp;2</span> The square root of three is irrational.</p></div>
+<div class="theoremlike proposition"><p><span id="proposition-3" class="heading-level-theorem heading-inline">Proposition&nbsp;3</span> The square root of four is rational.</p></div>
+<p>Ref: <a href="#theorem-1" class="href-ref refcnt-theorem">Theorems&nbsp;</a><a href="#theorem-1" class="href-ref refcnt-theorem">1</a> and&nbsp;<a href="#theorem-2" class="href-ref refcnt-theorem">2</a>, <a href="#proposition-3" class="href-ref refcnt-proposition">Proposition&nbsp;3</a></p>
+""".strip()
+        )
+
+
+
+
+
 
 if __name__ == '__main__':
     unittest.main()

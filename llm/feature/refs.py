@@ -58,7 +58,7 @@ class RefInstance:
         self.counter_formatter_id = counter_formatter_id
 
         self._fields = ('ref_type', 'ref_label', 'formatted_ref_llm_text', 'target_href',
-                        'counter_value',)
+                        'counter_value', 'counter_formatter_id',)
 
     def asdict(self):
         return {k: getattr(self, k) for k in self._fields}
@@ -168,6 +168,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             formatted_ref_llm_text=formatted_ref_llm_text,
             target_href=target_href,
             counter_value=counter.value,
+            counter_formatter_id=counter.formatter.counter_formatter_id
         )
 
 
@@ -205,6 +206,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             counter_value=counter_value,
             counter_formatter_id=counter_formatter_id,
         )
+
         self.registered_references[ kk ] = refinstance
         if ref_type is not None and ref_label is not None:
             self.ref_labels[ (ref_type, ref_label) ] = refinstance
@@ -332,7 +334,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
                         s_frag.nodes,
                         render_context=render_context,
                         # TODO: add annotation for external links etc. ??
-                        annotations=[f'ref-{ref_type}',],
+                        annotations=[f'refcnt-{counter_formatter_id}',],
                     )
             s_final_blocks.append( s )
 

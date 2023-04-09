@@ -181,7 +181,7 @@ _default_formatter_join_spec = {
         'one_pre': '',
         'one_post': '',
         'pair_pre': '',
-        'pair_mid': ' ${and} ',
+        'pair_mid': ' ${and} ',
         'pair_post': '',
         'range_pre': '',
         'range_mid': '${endash}',
@@ -189,7 +189,7 @@ _default_formatter_join_spec = {
         'range_post': '',
         'list_pre': '',
         'list_mid': '${sep} ',
-        'list_midlast': '${sep} ${and} ',
+        'list_midlast': '${sep} ${and} ',
         'list_post': '',
         
         'and': 'and',
