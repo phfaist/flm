@@ -61,14 +61,6 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
     use_endnote_latex_command = 'llmEndnoteMark'
     use_citation_latex_command = 'llmCitationMark'
 
-    heading_commands_by_level = {
-        1: "section",
-        2: "subsection",
-        3: "subsubsection",
-        4: "paragraph",
-        5: "subparagraph",
-        6: None,
-    }
 
     def collect_graphics_resource(self, graphics_resource, render_context):
         # can be reimplemented to collect the given graphics resource somewhere
@@ -223,9 +215,12 @@ class RunPdfLatexRenderWorkflow(RenderWorkflow):
                                cwd=tempdirname, check=True)
             except subprocess.CalledProcessError as e:
                 logfn = '_llm_runlatexpdf_compile_log.latex.log'
-                logger.warning('latexmk exited with error code.  Copying log file to %s',
-                               logfn, exc_info=True)
                 shutil.copyfile(os.path.join(tempdirname, 'main.log'), logfn)
+                loctexfn = '_llm_runlatexpdf_compile_log.latex.tex'
+                shutil.copyfile(latexfn, loctexfn)
+                logger.warning("latexmk exited with error code.  Copying tex file to %s "
+                               "and log file to %s",
+                               loctexfn, logfn, exc_info=True)
 
             with open(os.path.join(tempdirname, 'main.pdf'), 'rb') as f:
                 result_pdf = f.read()

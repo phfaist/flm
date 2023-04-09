@@ -27,12 +27,15 @@ class LatexFragmentRenderer(FragmentRenderer):
     """
 
     heading_commands_by_level = {
-        1: "chapter",
-        2: "section",
-        3: "subsection",
-        4: "subsubsection",
-        5: "paragraph",
-        6: "subparagraph",
+        1: "section",
+        2: "subsection",
+        3: "subsubsection",
+        4: "paragraph",
+        5: "subparagraph",
+        6: "subsubparagraph",
+        
+        # special heading type for theorems
+        'theorem': "llmTheoremHeading",
     }
 
     text_format_cmds = {
@@ -42,7 +45,11 @@ class LatexFragmentRenderer(FragmentRenderer):
     }
 
     latex_semantic_block_environments = {
-        'defterm': 'defterm'
+        'defterm': 'defterm',
+        
+        'theoremlike': 'llmThmTheoremLike',
+        'definitionlike': 'llmThmDefinitionLike',
+        'prooflike': 'llmThmProofLike',
     }
 
     # ------------------
@@ -667,18 +674,54 @@ _rx_delayed_markers = re.compile(r'\\LLMDLYD\{(?P<key>\d+)\}')
 #
 
 _latex_preamble_suggested_defs = r"""
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\usepackage{graphicx}
+\usepackage{xcolor}
+
+\providecommand\phantomsection{}
+
 \ifdefined\defterm\else
 \newenvironment{defterm}{%
-  \par\begingroup\itshape
+  \par\vspace{0.5ex plus 0.5ex}\noindent
+  \begingroup\itshape
 }{%
-  \endgroup\par
+  \endgroup\par\vspace{0.5ex plus 0.5ex}%
 }
 \fi
 
 \providecommand\displayterm[1]{\textbf{#1}}
-\providecommand\phantomsection{}
 
-\usepackage{amsmath}
+\providecommand\llmThmHeadingTheoremLike[1]{\textbf{#1}.\hspace{.8em}\ignorespaces}
+\providecommand\llmThmHeadingDefinitionLike[1]{\textbf{#1}.\hspace{.8em}\ignorespaces}
+\providecommand\llmThmHeadingProofLike[1]{\textit{#1}.\hspace{.8em}\ignorespaces}
+\providecommand\llmTheoremHeading{\llmThmHeadingTheoremLike}
+\ifdefined\llmThmTheoremLike\else
+\newenvironment{llmThmTheoremLike}{%
+  \par\vspace{0.5ex plus 0.5ex}\noindent
+  \let\llmTheoremHeading\llmThmHeadingTheoremLike
+}{%
+  \par\vspace{0.5ex plus 0.5ex}%
+}
+\fi
+\ifdefined\llmThmDefinitionLike\else
+\newenvironment{llmThmDefinitionLike}{%
+  \par\vspace{0.5ex plus 0.5ex}\noindent
+  \let\llmTheoremHeading\llmThmHeadingDefinitionLike
+}{%
+  \par\vspace{0.5ex plus 0.5ex}%
+}
+\fi
+\ifdefined\llmThmProofLike\else
+\newenvironment{llmThmProofLike}{%
+  \par\vspace{0.5ex plus 0.5ex}\noindent
+  \let\llmTheoremHeading\llmThmHeadingProofLike
+}{%
+  \par\vspace{0.5ex plus 0.5ex}%
+}
+\fi
 
 % for cells/tables
 \usepackage{tabularray}

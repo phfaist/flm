@@ -108,6 +108,11 @@ figure, too; let's see how it works.
   \caption{This figure has a caption.}
   \label{figure:my-figure}
 \end{figure}
+\begin{figure}
+  \includegraphics{https://media.giphy.com/media/8Iv5lqKwKsZ2g/giphy.gif}
+  \caption{Another figure with a caption.}
+  \label{figure:my-figure-2}
+\end{figure}
 
 Don't forget how the \term{Pauli matrices} are defined.  Also, \(\sigma_X\) is a
 \hyperref[defterm:{Pauli matrices}]{Pauli matrix} (or a \term[Pauli
@@ -137,7 +142,23 @@ We can add references to a section by topic, like this section:
 \ref{topic:qudit}.
 
 Let's try references to multiple targets:
-\ref{eq:my-equation,eq:my-equation-2,figure:my-figure,thm:sqrt4-rational,thm:sqrt2-irrational,eq:pauli-ac,eq:pauli-c}.
+\ref{eq:my-equation,eq:my-equation-2,figure:my-figure,thm:sqrt4-rational,figure:my-figure-2,thm:sqrt2-irrational,eq:pauli-ac,eq:pauli-c}.
+
+
+\section{Here's a table}
+
+\begin{table}
+  \begin{cells}
+    \celldata<H>{Brand & Type & Darkness}
+    \celldata{
+      \cell<green>{Frey} & \cell<blue>{Crémant} & \cell<yellow>{40\%} \\
+      Frey & Spécial & milk \\
+      Frey & \cell<red c>[\merge{+2}]{Noir Intense 90\% }
+    }
+  \end{cells}
+  \caption{Here is a table caption.}
+  \label{table:testtable}
+\end{table}
 
 
 \section{Let's try some theorems}

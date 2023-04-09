@@ -525,7 +525,7 @@ default_theorem_theorem_types = {
         'numbered': False,
         # 'body_text_formats': [],
         'title_enable_relation_ref': True, # for "Proof of..."
-        'body_final_content': ' ■',
+        'body_final_content': ' □',
     }
 }
 

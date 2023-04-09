@@ -360,11 +360,14 @@ class MathEnvironment(LLMEnvironmentSpecBase):
             if refs_mgr is not None and render_context.is_first_pass:
                 for label_info in line_infos['labels']:
                     (ref_type, ref_label) = label_info['label']
+                    counter_formatter_id = \
+                        math_mgr.feature.counter_formatter.counter_formatter_id
                     refs_mgr.register_reference(
                         ref_type, ref_label,
                         node=node, formatted_ref_llm_text=formatted_ref_llm_text,
                         target_href=f'#{this_target_id}',
                         counter_value=eq_counter_number,
+                        counter_formatter_id=counter_formatter_id
                     )
 
         return render_context.fragment_renderer.render_math_content(

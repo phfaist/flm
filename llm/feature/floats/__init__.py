@@ -427,6 +427,7 @@ class FloatType:
 
         if counter_formatter is None:
             counter_formatter = {'format_num': 'arabic'}
+
         self.counter_formatter = build_counter_formatter(
             counter_formatter,
             _float_default_counter_formatter_spec(float_type),
@@ -444,7 +445,7 @@ class FloatType:
     def __repr__(self):
         return "{}({})".format(
             self.__class__.__name__,
-            ", ".join([ f"{k}={getattr(self,k)!r}" for k in self._fields ])
+            ", ".join([ f"{k}={repr(getattr(self,k))}" for k in self._fields ])
         )
 
 
@@ -552,9 +553,13 @@ class FeatureFloats(Feature):
                     is_block_level=False,
                     what=f"{float_type} {number} counter value",
                 )
+
+                fmtcounter_id = fmtcounter.counter_formatter_id
+
             else:
                 number = None
                 fmtvalue_llm = None
+                fmtcounter_id = None
 
             target_id = None
             if number is not None:
@@ -589,6 +594,8 @@ class FeatureFloats(Feature):
 
                     formatted_ref_llm_text = self.get_formatted_ref_llm_text(float_instance)
 
+                    counter_formatter = self.feature.float_types[float_type].counter_formatter
+
                     refs_mgr.register_reference(
                         ref_label_prefix,
                         ref_label,
@@ -596,6 +603,7 @@ class FeatureFloats(Feature):
                         formatted_ref_llm_text=formatted_ref_llm_text,
                         target_href=f'#{target_id}',
                         counter_value=number,
+                        counter_formatter_id=fmtcounter_id,
                     )
 
             self.float_instances[node_id] = float_instance

@@ -95,15 +95,16 @@ _byformat:
 
     latex:
       llm:
-        renderer:
-          latex:
-            heading_commands_by_level:
-              1: "section"
-              2: "subsection"
-              3: "subsubsection"
-              4: "paragraph"
-              5: "subparagraph"
-              6: null
+        renderer: {}
+          # latex:
+          #   heading_commands_by_level:
+          #     1: "section"
+          #     2: "subsection"
+          #     3: "subsubsection"
+          #     4: "paragraph"
+          #     5: "subparagraph"
+          #     6: null
+          #     theorem: 'llmTheoremHeading'
         features:
           endnotes:
             categories:

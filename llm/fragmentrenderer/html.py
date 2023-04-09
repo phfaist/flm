@@ -824,6 +824,12 @@ div.theoremlike, div.definitionlike, div.prooflike {
   margin: 1em 0px;
 }
 
+div.prooflike > p > .heading-level-theorem,
+div.prooflike > p > .heading-level-theorem::after {
+  font-weight: normal;
+  font-style: italic;
+}
+
 
 dl.enumeration {
   display: block;
@@ -918,16 +924,16 @@ th {
   text-align: right;
 }
 .cellstyle-green {
-  background-color: rgb(200,255,200);
+  background-color: rgba(69, 255, 69, 0.31); /*rgb(200,255,200);*/
 }
 .cellstyle-blue {
-  background-color: rgb(200,220,255);
+  background-color: rgba(79, 142, 255, 0.27); /*rgb(200,220,255);*/
 }
 .cellstyle-yellow {
-  background-color: rgb(255,255,200);
+  background-color: rgba(255, 255, 49, 0.33); /*rgb(255,255,200);*/
 }
 .cellstyle-red {
-  background-color: rgb(255,200,200);
+  background-color: rgba(255,120,120,0.30);  /*rgb(255,200,200);*/
 }
 .cellstyle-lvert {
   border-left: solid .5pt;
