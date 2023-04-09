@@ -119,6 +119,24 @@ if your system has a standard LaTeX distribution such as TeXLive installed)
   Let's cite Kitaev's surface code~\cite{doi:10.1070/RM1997v052n06ABEH002155,doi:10.1007/978-1-4615-5923-8_19,arXiv:quant-ph/9707021}. ...
   ```
 
+- **Theorems and proofs:** Use the environments
+  ``\begin{theorem}..\end{theorem}``, ``{lemma}``, ``{proposition}``,
+  ``{definition}``, ``{remark}``, etc. for typesetting theorems.  You can pin
+  labels to theorem statements ``\label{thm:XXXX}`` (use the `thm:` or `x:`
+  prefixes regardless of the theorem type, so you can easily change it without
+  having to update the label).  These environments accept an optional argument
+  so you can specify a title, e.g. ``\begin{theorem}[Euler's theorem]
+  ... \end{theorem}``.  Typeset proofs with ``\begin{proof} ... \end{proof}``.
+  The proof's optional argument enjoys an additional syntax: use
+  ``\begin{proof}[*thm:XYZ] ...`` to typeset `Proof (Theorem 3)` (with the
+  correct theorem reference).  Use ``\begin{proof}[**thm:XYZ] ...`` to simply
+  typeset `Proof` as usual, but in this way you have the information about which
+  theorem the proof is directly at hand; if you later move it around there is no
+  ambiguity as to which theorem the proof is associated with.  It is also the
+  same syntax as supported by the [phfthm latex
+  package](https://github.com/phfaist/phfqitltx) which is able to produce
+  hyperlinks between theorems and their proofs.
+
 ## Document Front Matter
 
 LLM Documents can contain YAML front matter that specify (i) options for the LLM
