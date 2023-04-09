@@ -62,6 +62,9 @@ class HtmlFragmentRenderer(FragmentRenderer):
         4: "span",
         5: "span",
         6: "span",
+
+        # special level for theorems:
+        'theorem': "span",
     }
 
     inline_heading_add_space = True
@@ -322,11 +325,16 @@ class HtmlFragmentRenderer(FragmentRenderer):
         attrs = {}
         if target_id is not None:
             attrs['id'] = target_id
+
+        annotations = list(annotations if annotations is not None else [])
+        if role in annotations:
+            annotations.remove(role)
+
         return self.wrap_in_tag(
             'span',
             content,
             attrs=attrs,
-            class_names=[role]+(annotations if annotations else []),
+            class_names=[role]+annotations,
         )
         
 
@@ -335,6 +343,11 @@ class HtmlFragmentRenderer(FragmentRenderer):
         attrs = {}
         if target_id is not None:
             attrs['id'] = target_id
+
+        annotations = list(annotations if annotations is not None else [])
+        if role in annotations:
+            annotations.remove(role)
+
         if role in ('section', 'main', 'article', ): # todo, add
             return self.wrap_in_tag(
                 role,
@@ -346,7 +359,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
             'div',
             content,
             attrs=attrs,
-            class_names=[role]+(annotations if annotations else []),
+            class_names=[role] + annotations
         )
             
  
@@ -794,6 +807,23 @@ h3 {
   margin-right: .06em;
   content: '';
 }
+
+
+.heading-level-theorem {
+  font-weight: bold;
+  display: inline-block;
+}
+.heading-level-theorem::after {
+  font-weight: bold;
+  display: inline-block;
+  margin: 0px .12em 0px 0px;
+  content: '.';
+}
+
+div.theoremlike, div.definitionlike, div.prooflike {
+  margin: 1em 0px;
+}
+
 
 dl.enumeration {
   display: block;

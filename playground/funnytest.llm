@@ -14,7 +14,8 @@ llm:
            #family: 'Comic Sans MS'
            family: 'EB Garamond' #'Harrington'
            size: '18px'
-   #features:
+   features:
+     theorems: {}
      # ### Will override format-specific LLM defaults
      # endnotes:
      #   categories:
@@ -137,3 +138,15 @@ We can add references to a section by topic, like this section:
 
 Let's try references to multiple targets:
 \ref{eq:my-equation,eq:my-equation-2,figure:my-figure,eq:pauli-ac,eq:pauli-c}.
+
+
+\section{Let's try some theorems}
+
+\begin{theorem}[Irrationality of \(\sqrt{2}\)]
+  \label{thm:sqrt2-irrational}
+  The square root of two is irrational.
+\end{theorem}
+
+\begin{proof}[*thm:sqrt2-irrational]
+  You can just google this one if you don't remember it.
+\end{proof}

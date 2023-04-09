@@ -16,7 +16,6 @@ module_list:
   - 'llm.fragmentrenderer.text'
   - 'llm.llmdump'
 
-
 skip_relative_import_prefixes:
   - 'pylatexenc'
 

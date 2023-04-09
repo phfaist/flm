@@ -503,10 +503,12 @@ class Counter:
         self.value = self.initial_value
         return self.value
 
-    def format_llm(self, value=None):
+    def format_llm(self, value=None, **kwargs):
         if value is None:
             value = self.value
-        return self.formatter.format_llm(value, with_prefix=False)
+        kwargs2 = {'with_prefix': False}
+        kwargs2.update(kwargs)
+        return self.formatter.format_llm(value, **kwargs2)
 
     def step_and_format_llm(self):
         val = self.step()

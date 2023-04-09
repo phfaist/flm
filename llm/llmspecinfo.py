@@ -4,6 +4,7 @@ logger = logging.getLogger(__name__)
 
 
 from pylatexenc import macrospec
+from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
 
@@ -59,6 +60,17 @@ class LLMSpecInfo:
     Whether or not this node is allowed in *standalone mode*, i.e., whether or
     not this node can be rendered independently of any document object.
     """
+
+    # TODO: --- try something like this ---
+    #
+    # manages_preceding_whitespace = False
+    # manages_succeeding_whitespace = False
+    # r"""
+    # If either of these are `True`, then whitespace will be trimmed on the
+    # corresponding side of this callable invocation, and it is the render
+    # function of this object that is responsible for ensuring there is the right
+    # amount of whitespace on that side of this macro/env/specials call.
+    # """
 
 
     def postprocess_parsed_node(self, node):
@@ -129,6 +141,10 @@ class LLMSpecInfo:
         node.llm_is_block_level = self.is_block_level
         node.llm_is_block_heading = self.is_block_heading
         node.llm_is_paragraph_break_marker = self.is_paragraph_break_marker
+
+        # Don't overload the node with properties if they're not needed... 
+        #node.llm_strip_preceding_whitespace = False
+        
         return node
     
 
@@ -214,7 +230,7 @@ label_arg = LLMArgumentSpec(
              r'this macro call')
 )
 
-def helper_collect_labels(node_arg_label, allowed_prefixes):
+def helper_collect_labels(node_arg_label, allowed_prefixes, allow_unknown_macros=False):
 
     if not node_arg_label.was_provided():
         return None
@@ -238,6 +254,9 @@ def helper_collect_labels(node_arg_label, allowed_prefixes):
                 )
 
             the_labels.append( (ref_type, ref_label) )
+            continue
+
+        if allow_unknown_macros:
             continue
 
         raise LatexWalkerParseError(
@@ -351,6 +370,8 @@ class LLMEnvironmentSpecError(LLMSpecInfoError, macrospec.EnvironmentSpec):
 class LLMSpecialsSpecError(LLMSpecInfoError, macrospec.SpecialsSpec):
     def __init__(self, *args, **kwargs):
         _dobaseconstructors2argslast(LLMSpecialsSpecError, self, args, kwargs)
+
+
 
 
 

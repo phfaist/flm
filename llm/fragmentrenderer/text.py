@@ -89,30 +89,28 @@ class TextFragmentRenderer(FragmentRenderer):
             for fmtcnt, item_content in all_items
         ], render_context)
 
+
+    heading_level_formatter = {
+        1: lambda s: f"{s}\n{'='*len(s)}",
+        2: lambda s: f"{s}\n{'-'*len(s)}",
+        3: lambda s: f"{s}\n{'~'*len(s)}",
+        4: lambda s: f"{_add_punct(s, ':')}  ",
+        5: lambda s: f"    {_add_punct(s, ':')}  ",
+        6: lambda s: f"        {_add_punct(s, ':')}  ",
+
+        # special 'theorem' level
+        'theorem': lambda s: f"{s}.  ",
+    }
+
     def render_heading(self, heading_nodelist, render_context, *,
                        heading_level=1, target_id=None, inline_heading=False,
                        annotations=None):
 
         rendered_heading = self.render_inline_content(heading_nodelist, render_context)
 
-        def add_punct(x, c):
-            x = str(x)
-            if x.rstrip()[-1:] in '.,:;?!':
-                return x
-            return x + c
-
-        if heading_level == 1:
-            return f"{rendered_heading}\n{'='*len(rendered_heading)}"
-        if heading_level == 2:
-            return f"{rendered_heading}\n{'-'*len(rendered_heading)}"
-        if heading_level == 3:
-            return f"{rendered_heading}\n{'~'*len(rendered_heading)}"
-        if heading_level == 4:
-            return f"{add_punct(rendered_heading,':')}  "
-        if heading_level == 5:
-            return f"    {add_punct(rendered_heading,':')}  "
-        if heading_level == 6:
-            return f"        {add_punct(rendered_heading,':')}  "
+        if heading_level in self.heading_level_formatter:
+            formatter = self.heading_level_formatter[heading_level]
+            return formatter(rendered_heading)
 
         raise ValueError(f"Bad {heading_level=}, expected 1..6")
 
@@ -278,6 +276,16 @@ class TextFragmentRenderer(FragmentRenderer):
             )
 
         return '\n'.join(s_items)
+
+
+
+
+def _add_punct(x, c):
+    x = str(x)
+    if x.rstrip()[-1:] in '.,:;?!':
+        return x
+    return x + c
+
 
 
 # ------------------------------------------------------------------------------

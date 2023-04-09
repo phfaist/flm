@@ -135,6 +135,40 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             )
         self.registered_counter_formatters[ref_type] = counter_formatter
 
+
+    def register_reference_step_counter(
+            self, ref_type=None, ref_label=None, *,
+            node, counter, target_href_fn=None,
+            counter_with_prefix=True,
+            counter_prefix_variant=None, counter_with_delimiters=True):
+        
+        node_id = self.get_node_id(node)
+        kk = (node_id, ref_type, ref_label)
+        if kk in self.registered_references:
+            return self.registered_references[kk]
+
+        counter.step()
+
+        formatted_ref_llm_text = counter.format_llm(
+            with_prefix=counter_with_prefix,
+            prefix_variant=counter_prefix_variant,
+            with_delimiters=counter_with_delimiters,
+        )
+
+        if target_href_fn is not None:
+            target_href = target_href_fn(counter.value)
+        else:
+            target_href = None
+
+        return self.register_reference(
+            ref_type, ref_label,
+            node=node,
+            formatted_ref_llm_text=formatted_ref_llm_text,
+            target_href=target_href,
+            counter_value=counter.value,
+        )
+
+
     def register_reference(self, ref_type, ref_label, *,
                            node, formatted_ref_llm_text, target_href,
                            counter_value=None):
@@ -153,9 +187,10 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         node_id = self.get_node_id(node)
         kk = (node_id, ref_type, ref_label)
         if kk in self.registered_references:
-            return self.registered_references
+            return self.registered_references[kk]
 
-        if (ref_type, ref_label) in self.ref_labels:
+        if (ref_type is not None and ref_label is not None
+            and (ref_type, ref_label) in self.ref_labels):
             raise ValueError(
                 f"Duplicate reference label ‘{ref_type}:{ref_label}’ in the same document!"
             )
@@ -168,7 +203,8 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             counter_value=counter_value,
         )
         self.registered_references[ kk ] = refinstance
-        self.ref_labels[ (ref_type, ref_label) ] = refinstance
+        if ref_type is not None and ref_label is not None:
+            self.ref_labels[ (ref_type, ref_label) ] = refinstance
         logger.debug("Registered reference: %r", refinstance)
         return refinstance
 
@@ -398,7 +434,8 @@ class RefMacro(LLMMacroSpecBase):
             macroname,
             *,
             ref_type='ref',
-            command_arguments=('ref_label', 'display_text',)
+            command_arguments=('ref_label', 'display_text',),
+            counter_prefix_variant=None,
     ):
         super().__init__(
             macroname=macroname,
@@ -406,6 +443,7 @@ class RefMacro(LLMMacroSpecBase):
         )
         self.ref_type = ref_type
         self.command_arguments = [ c.replace('[]','') for c in command_arguments ]
+        self.counter_prefix_variant = counter_prefix_variant
         
     @classmethod
     def _get_arguments_spec_list(cls, command_arguments):
@@ -456,7 +494,9 @@ class RefMacro(LLMMacroSpecBase):
             try:
                 return mgr.render_ref(ref_type, ref_label,
                                       display_content_nodelist,
-                                      resource_info, render_context)
+                                      resource_info,
+                                      render_context,
+                                      counter_prefix_variant=self.counter_prefix_variant)
             except Exception as e:
                 logger.error(f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
                              f"in ‘{node.latex_verbatim()}’ @ {node.format_pos()}")

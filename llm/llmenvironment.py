@@ -108,6 +108,7 @@ class BlocksBuilder:
 
         is_head = True
         tail_char_node_info = None
+        next_node_should_strip_leading_whitespace = False
         first_node = None
         char_nodes = []
         for j, node in enumerate(paragraph_nodes):
@@ -118,8 +119,14 @@ class BlocksBuilder:
                 # run-in header -- this still counts as head
                 is_head = True
 
+            if getattr(node, 'llm_strip_preceding_whitespace', False):
+                if tail_char_node_info is not None:
+                    tail_char_node_info['is_tail'] = True
+
             if node.isNodeType(latexnodes_nodes.LatexCharsNode):
                 info = {'is_head': is_head, 'is_tail': False}
+                if next_node_should_strip_leading_whitespace:
+                    info['is_head'] = True
                 char_nodes.append( (node, info ) )
                 is_head = False
                 tail_char_node_info = info
@@ -128,6 +135,10 @@ class BlocksBuilder:
                     first_node = node
                 is_head = False
                 tail_char_node_info = None
+
+            next_node_should_strip_leading_whitespace = False
+            if getattr(node, 'llm_strip_following_whitespace', False):
+                next_node_should_strip_leading_whitespace = True
 
         # find last char_node and mark it is_tail:
         if tail_char_node_info is not None:
@@ -589,7 +600,7 @@ class LLMEnvironment:
                     moredefs = dict(moredefs)
                     if len(moredefs):
                         logger.debug(f"Adding definitions for “{f.feature_name}”")
-                        moredefs.update(prepend=True)
+                        moredefs.update(dict(prepend=True)) # dict() for Transcrypt
                         self.latex_context.add_context_category(
                             f'feature--{f.feature_name}',
                             **moredefs
@@ -689,6 +700,20 @@ class LLMEnvironment:
 
 
     def make_fragment(self, llm_text, **kwargs):
+
+        if isinstance(llm_text, LLMFragment):
+            frag = llm_text
+            for fld in ('is_block_level', 'standalone_mode', ):
+                if (fld in kwargs and kwargs[fld] is not None
+                    and kwargs[fld] != getattr(frag, fld)):
+                    # error
+                    raise ValueError(
+                        "make_fragment(): LLMFragment instance specified but "
+                        f"its ‘{fld}’ ({repr(getattr(frag, fld))}) "
+                        f"differs with requested ‘{fld}’ ({kwargs[fld]})"
+                    )
+            return frag
+
         try:
             fragment = LLMFragment(llm_text, environment=self, **kwargs)
             return fragment
@@ -903,3 +928,135 @@ def make_standard_environment(features, parsing_state=None, latex_context=None,
 
 
 
+
+
+
+
+
+
+# ------------------------------------------------------------------------------
+
+
+
+def _make_argvalue(argvalue, latex_walker, parsing_state):
+
+    if argvalue is None:
+        return None
+
+    if isinstance(argvalue, str):
+        argvalue = latex_walker.make_node(
+            latexnodes_nodes.LatexCharsNode,
+            chars=argvalue,
+            pos=None,
+            pos_end=None,
+            parsing_state=parsing_state,
+        )
+
+    if isinstance(argvalue, latexnodes_nodes.LatexGroupNode):
+        return argvalue
+
+    # wrap the argument in a group node
+
+    if isinstance(argvalue, latexnodes_nodes.LatexNodeList):
+        nodelist = argvalue
+
+    elif isinstance(argvalue, list):
+        nodelist = latex_walker.make_nodelist(
+            argvalue,
+            parsing_state=parsing_state
+        )
+
+    else:
+        nodelist = latex_walker.make_nodelist(
+            [ argvalue ],
+            parsing_state=parsing_state
+        )
+
+    groupnode = latex_walker.make_node(
+        latexnodes_nodes.LatexGroupNode,
+        delimiters=('', ''),
+        nodelist=nodelist,
+        pos=nodelist.pos,
+        pos_end=nodelist.pos_end,
+        parsing_state=parsing_state,
+    )
+
+    return groupnode
+
+
+def make_invocable_arguments(llm_spec, args, *, latex_walker, parsing_state):
+
+    argnlist = [ None for _ in llm_spec.arguments_spec_list ] 
+
+    if args is None:
+        return argnlist
+
+    for argname, argvalue in args.items():
+        # find argname in llm_spec's arguments
+        argj = None
+        for candidateargj, candidateargspec in enumerate(llm_spec.arguments_spec_list):
+            if candidateargspec.argname == argname:
+                argj = candidateargj
+                break
+        if argj is None:
+            logger.error("Cannot find argument %r in spec %r",
+                         argname, llm_spec.arguments_spec_list)
+            raise ValueError(f"No argument named ‘{argname}’ in spec")
+
+        # Found it.  Prepare the argument contents.
+        argnlist[argj] = _make_argvalue(argvalue, latex_walker, parsing_state)
+
+    return argnlist
+
+
+def make_invocable_node_instance(node_type, llm_spec, *,
+                                 args=None,
+                                 latex_walker,
+                                 parsing_state,
+                                 body_nodelist=None, # for environments
+                                 node_kwargs=None):
+
+    nkwargs = {
+        'pos': None,
+        'pos_end': None,
+    }
+
+    if node_type is latexnodes_nodes.LatexMacroNode:
+        nkwargs['macroname'] = llm_spec.macroname
+        if body_nodelist is not None:
+            raise ValueError("For a LatexMacroNode you must have body_nodelist=None")
+
+    elif node_type is latexnodes_nodes.LatexEnvironmentNode:
+        nkwargs['environmentname'] = llm_spec.environmentname
+
+    elif node_type is latexnodes_nodes.LatexSpecialsNode:
+        nkwargs['specials_chars'] = llm_spec.specials_chars
+        if body_nodelist is not None:
+            raise ValueError("For a LatexSpecialsNode you must have body_nodelist=None")
+    
+    argnlist = make_invocable_arguments(llm_spec, args,
+                                        latex_walker=latex_walker,
+                                        parsing_state=parsing_state)
+
+    nodeargd = latexnodes_nodes.ParsedArguments(
+        argnlist=argnlist,
+        arguments_spec_list=llm_spec.arguments_spec_list,
+    )
+
+    if body_nodelist is not None:
+        nkwargs['nodelist'] = body_nodelist
+
+    if node_kwargs is not None:
+        nkwargs.update(node_kwargs)
+
+    node = latex_walker.make_node(
+        node_type,
+        spec=llm_spec,
+        nodeargd=nodeargd,
+        parsing_state=parsing_state,
+        **nkwargs
+    )
+
+    node = llm_spec.finalize_node(node)
+
+    return node

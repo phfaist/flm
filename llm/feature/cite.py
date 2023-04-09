@@ -87,10 +87,9 @@ class FeatureExternalPrefixedCitations(Feature):
             if isinstance(citation_llm_text, LLMFragment):
                 citation_llm = citation_llm_text
             else:
-                citation_llm = self.render_context.doc.environment.make_fragment(
+                citation_llm = self.render_context.make_standalone_fragment(
                     citation_llm_text,
                     is_block_level=False,
-                    standalone_mode=True,
                     what=f"Citation text for {cite_prefix}:{cite_key}",
                 )
 
@@ -124,13 +123,12 @@ class FeatureExternalPrefixedCitations(Feature):
             # "1" for citation "[1]").  It'll be useful for combining a citation
             # number with an optional text as in [31; Theorem 4].
             endnote.formatted_inner_counter_value_llm = \
-                self.render_context.doc.environment.make_fragment(
+                self.render_context.make_standalone_fragment(
                     self.feature_document_manager.endnote_category.counter_formatter.format_llm(
                         endnote.number,
                         with_delimiters=False
                     ),
                     is_block_level=False,
-                    standalone_mode=True,
                     what=f"citation counter (inner)",
                 )
 

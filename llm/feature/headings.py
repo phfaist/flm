@@ -73,14 +73,23 @@ class HeadingMacro(llmspecinfo.LLMMacroSpecBase):
     def render(self, node, render_context):
 
         headings_mgr = render_context.feature_render_manager('headings')
-        target_id = node.llm_referenceable_infos[0].get_target_id()
 
-        if target_id is None:
-            target_id = headings_mgr.get_default_target_id(
-                node.llmarg_labels,
-                node.llmarg_heading_content_nodelist,
-                node=node,
-            )
+        target_id = None
+
+        if hasattr(node, 'llm_heading_target_id'):
+            # used to set the target_id when an internally generated heading is
+            # needed and a HeadingMacro macro instance is internally created
+            # (e.g., for theorems)
+            target_id = node.llm_heading_target_id
+
+        else:
+            target_id = node.llm_referenceable_infos[0].get_target_id()
+            if target_id is None:
+                target_id = headings_mgr.get_default_target_id(
+                    node.llmarg_labels,
+                    node.llmarg_heading_content_nodelist,
+                    node=node,
+                )
 
         if render_context.supports_feature('refs') and render_context.is_first_pass:
             refs_mgr = render_context.feature_render_manager('refs')

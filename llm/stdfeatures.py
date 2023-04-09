@@ -17,6 +17,8 @@ from .feature.floats import FeatureFloats
 from .feature.graphics import FeatureSimplePathGraphicsResourceProvider
 from .feature.defterm import FeatureDefTerm
 
+from .feature.theorems import FeatureTheorems
+
 
 def standard_features(
         *,
@@ -40,6 +42,7 @@ def standard_features(
         floats=True,
         float_types=None,
         defterm=True,
+        theorems=False,
 ):
 
     if footnote_counter_formatter is None:
@@ -126,6 +129,14 @@ def standard_features(
     if defterm:
         features.append(
             FeatureDefTerm()
+        )
+
+    if theorems:
+        # The interface to define new theorems here is not great, if you really
+        # need this then it's recommended to simply create the FeatureTheorems
+        # instance directly
+        features.append(
+            FeatureTheorems(**(theorems if isinstance(theorems, dict) else {}))
         )
 
     return features

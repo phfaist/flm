@@ -48,6 +48,8 @@ class LLMDocumentRenderContext(LLMRenderContext):
         key = node.node_id
         return self._delayed_render_content[key]
 
+    def make_standalone_fragment(self, llm_text, **kwargs):
+        return self.doc.environment.make_fragment(llm_text, standalone_mode=True, **kwargs)
 
 
 

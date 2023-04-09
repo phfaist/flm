@@ -95,6 +95,7 @@ class FragmentRenderer:
 
     def render_node(self, node, render_context):
         render_context = self.ensure_render_context(render_context)
+
         if node.isNodeType(nodes.LatexCharsNode):
             return self.render_node_chars(node, render_context)
         if node.isNodeType(nodes.LatexCommentNode):
