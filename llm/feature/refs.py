@@ -48,13 +48,14 @@ class ReferenceableInfo:
 
 class RefInstance:
     def __init__(self, ref_type, ref_label, formatted_ref_llm_text, target_href,
-                 counter_value):
+                 counter_value, counter_formatter_id):
         super().__init__()
         self.ref_type = ref_type
         self.ref_label = ref_label
         self.formatted_ref_llm_text = formatted_ref_llm_text
         self.target_href = target_href
         self.counter_value = counter_value
+        self.counter_formatter_id = counter_formatter_id
 
         self._fields = ('ref_type', 'ref_label', 'formatted_ref_llm_text', 'target_href',
                         'counter_value',)
@@ -65,7 +66,7 @@ class RefInstance:
     def __repr__(self):
         return (
             f"{self.__class__.__name__}("
-            + ", ".join(f"{k}={getattr(self,k)!r}" for k in self._fields)
+            + ", ".join(f"{k}={repr(getattr(self,k))}" for k in self._fields)
             + ")"
         )
 
@@ -128,13 +129,14 @@ class FeatureRefsRenderManager(Feature.RenderManager):
                 target_href=target_href,
             )
 
-    def register_counter_formatter(self, ref_type, counter_formatter):
-        if ref_type in self.registered_counter_formatters:
-            logger.warning(
-                "Counter formatter for ‘%s’ already registered in 'refs' feature!", ref_type
+    def register_counter_formatter(self, *, counter_formatter_id=None, counter_formatter):
+        if counter_formatter_id is None:
+            counter_formatter_id = counter_formatter.counter_formatter_id
+        if counter_formatter_id in self.registered_counter_formatters:
+            raise ValueError(
+                f"Counter formatter width ID ‘{counter_formatter_id}’ is already registered!"
             )
-        self.registered_counter_formatters[ref_type] = counter_formatter
-
+        self.registered_counter_formatters[counter_formatter_id] = counter_formatter
 
     def register_reference_step_counter(
             self, ref_type=None, ref_label=None, *,
@@ -171,7 +173,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
 
     def register_reference(self, ref_type, ref_label, *,
                            node, formatted_ref_llm_text, target_href,
-                           counter_value=None):
+                           counter_value=None, counter_formatter_id=None):
         r"""
         ........
         
@@ -201,6 +203,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             formatted_ref_llm_text=formatted_ref_llm_text,
             target_href=target_href,
             counter_value=counter_value,
+            counter_formatter_id=counter_formatter_id,
         )
         self.registered_references[ kk ] = refinstance
         if ref_type is not None and ref_label is not None:
@@ -288,22 +291,22 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             self._get_ref_instance(ref_type, ref_label, resource_info)
             for (ref_type, ref_label) in ref_type_label_list
         ]
-        ref_instances_by_counter_ref_type = {}
+        ref_instances_by_counter_formatter_id = {}
         ref_instances_nocounter = []
         for ri in ref_instances:
-            if (ri.counter_value is None
-                or ri.ref_type not in self.registered_counter_formatters):
+            if (ri.counter_value is None or ri.counter_formatter_id is None):
                 ref_instances_nocounter.append(ri)
                 continue
-            if ri.ref_type not in ref_instances_by_counter_ref_type:
-                ref_instances_by_counter_ref_type[ri.ref_type] = {}
-            ref_instances_by_counter_ref_type[ri.ref_type][ri.counter_value] = ri
+            if ri.counter_formatter_id not in ref_instances_by_counter_formatter_id:
+                ref_instances_by_counter_formatter_id[ri.counter_formatter_id] = {}
+
+            ref_instances_by_counter_formatter_id[ri.counter_formatter_id][ri.counter_value] = ri
 
         s_final_blocks = []
 
-        for ref_type, rcdict in ref_instances_by_counter_ref_type.items():
+        for counter_formatter_id, rcdict in ref_instances_by_counter_formatter_id.items():
             #
-            counter_formatter = self.registered_counter_formatters[ref_type]
+            counter_formatter = self.registered_counter_formatters[counter_formatter_id]
             #
             s_items = counter_formatter.format_many_llm(
                 rcdict.keys(),
@@ -314,10 +317,9 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             )
             s = ''
             for sit in s_items:
-                s_frag = render_context.doc.environment.make_fragment(
+                s_frag = render_context.make_standalone_fragment(
                     sit['s'],
                     is_block_level=False,
-                    standalone_mode=True,
                     what=f"Rendered counter ref bit {repr(sit)}",
                 )
                 if sit['n'] is None or sit['n'] is False:

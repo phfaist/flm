@@ -6,7 +6,7 @@ from pylatexenc import macrospec
 from ..llmenvironment import LLMArgumentSpec, make_invocable_node_instance
 from .. import llmspecinfo
 
-from ..counter import Counter, build_counter_formatter #, CounterFormatter
+from ..counter import Counter, CounterAlias, build_counter_formatter
 
 from ._base import Feature
 from . import headings
@@ -122,10 +122,8 @@ class TheoremEnvironment(llmspecinfo.LLMEnvironmentSpecBase):
 
         if self.theorem_type_spec['numbered']:
 
-            counter, prefix_variant = thms_mgr.get_counter_and_prefix_variant(
-                self.environmentname,
-                'capital',
-            )
+            counter = thms_mgr.counters[self.environmentname]
+            prefix_variant = 'capital'
 
             ref_instance = refs_mgr.register_reference_step_counter(
                 node=node,
@@ -538,6 +536,8 @@ default_thm_shared_counter_formatter_spec = {
 }
 
 
+
+
 class FeatureTheorems(Feature):
 
     feature_name = 'theorems'
@@ -561,20 +561,31 @@ class FeatureTheorems(Feature):
         def initialize(self):
             self.shared_counter = Counter(self.feature.shared_counter_formatter)
 
-            self.counters = {
-                env_name: Counter(counter_formatter)
-                for env_name, counter_formatter in self.feature.thm_counter_formatters.items() 
-            }
+            refs_mgr = self.render_context.feature_render_manager('refs')
 
-        def get_counter_and_prefix_variant(self, env_name, prefix_variant):
-            if env_name in self.counters:
-                return self.counters[env_name], prefix_variant
+            self.counters = {}
+            for env_name, counter_formatter in self.feature.thm_counter_formatters.items():
+                thm_spec = self.feature.environments[env_name]
+                thm_type_spec = self.feature.theorem_types[ thm_spec['theorem_type'] ]
+                if thm_type_spec['shared_numbering']:
+                    self.counters[env_name] = CounterAlias(
+                        counter_formatter=counter_formatter,
+                        alias_counter=self.shared_counter
+                    )
+                else:
+                    self.counters[env_name] = Counter(
+                        counter_formatter=counter_formatter,
+                    )
 
-            return self.shared_counter, f"{env_name}-{prefix_variant}"
+                # register the counter_formatter in our refs manager
+                refs_mgr.register_counter_formatter(counter_formatter=counter_formatter)
+
 
     # ---
 
-    def __init__(self, environments=None, theorem_types=None,
+    def __init__(self,
+                 environments=None,
+                 theorem_types=None,
                  shared_counter_formatter=None,
                  allowed_ref_label_prefixes=None):
         super().__init__()
@@ -586,11 +597,15 @@ class FeatureTheorems(Feature):
         if theorem_types is None:
             theorem_types = default_theorem_theorem_types
 
+        # set up theorem type specs
+
         self.theorem_types = {
             thm_type: self._standardize_type_spec(thm_type, thm_type_spec)
             for thm_type, thm_type_spec in dict(theorem_types).items()
             if thm_type_spec is not None
         }
+
+        # set up thm_spec objects
 
         self.environments = {}
         for thm_type, env_list in environments.items():
@@ -602,49 +617,44 @@ class FeatureTheorems(Feature):
                 self.environments[env_name] = \
                     self._standardize_thm_spec(thm_type, env_name, thm_spec)
                 
-        shared_cf_prefixes = {}
+        # set up counter formatters
+
+        self.shared_counter_formatter = build_counter_formatter(
+            shared_counter_formatter,
+            default_thm_shared_counter_formatter_spec,
+            counter_formatter_id='_theorems_shared',
+        )
+
+        use_default_counter_formatter_spec = self.shared_counter_formatter.asdict()
+
         self.thm_counter_formatters = {}
         for env_name, thm_spec in self.environments.items():
             thm_type_spec = self.theorem_types[thm_spec['theorem_type']]
             if not thm_type_spec['numbered']:
                 # no numbering
                 continue
-            if thm_type_spec['shared_numbering']:
-                prefix_for_thm = self._make_counter_formatter_prefix_for_thm(
+
+            counter_formatter_spec = thm_type_spec.get('counter_formatter', None)
+            if counter_formatter_spec is None:
+                counter_formatter_spec = {}
+            elif isinstance(counter_formatter_spec, str):
+                counter_formatter_spec = {'format_num': counter_formatter_spec}
+            else:
+                counter_formatter_spec = dict(counter_formatter_spec)
+
+            # customize the prefix_display of this counter formatter to match
+            # the theorem name in all its glorious variants (lowercase, capital,
+            # etc.)
+            counter_formatter_spec['prefix_display'] = \
+                self._make_counter_formatter_prefix_for_thm(
                     env_name,
                     thm_spec,
-                    prefix_prefix=f'{env_name}-'
                 )
-                shared_cf_prefixes.update(prefix_for_thm)
-            else:
-                counter_formatter_spec = thm_type_spec.get(
-                    'counter_formatter',
-                    default_thm_shared_counter_formatter_spec
-                )
-                if isinstance(counter_formatter_spec, str):
-                    counter_formatter_spec = {'format_num': counter_formatter_spec}
-                else:
-                    counter_formatter_spec = dict(counter_formatter_spec)
-                counter_formatter_spec['prefix_display'] = \
-                    self._make_counter_formatter_prefix_for_thm(
-                        env_name,
-                        thm_spec,
-                        prefix_prefix=''
-                    )
-                self.thm_counter_formatters[env_name] = build_counter_formatter(
-                    counter_formatter_spec,
-                    default_thm_shared_counter_formatter_spec,
-                )
-
-        default_thm_shared_counter_formatter_spec_wprefixes = dict(
-            default_thm_shared_counter_formatter_spec
-        ) # dict(x, **{...}) doesn't work with transcrypt ... :/
-        default_thm_shared_counter_formatter_spec_wprefixes['prefix_display'] = \
-            shared_cf_prefixes
-        self.shared_counter_formatter = build_counter_formatter(
-            shared_counter_formatter,
-            default_thm_shared_counter_formatter_spec_wprefixes,
-        )
+            self.thm_counter_formatters[env_name] = build_counter_formatter(
+                counter_formatter_spec,
+                use_default_counter_formatter_spec,
+                counter_formatter_id=env_name,
+            )
 
         self.allowed_ref_label_prefixes = list(
             allowed_ref_label_prefixes if allowed_ref_label_prefixes is not None else []
@@ -726,19 +736,15 @@ class FeatureTheorems(Feature):
         return thm_spec
 
 
-    def _make_counter_formatter_prefix_for_thm(self, env_name, thm_spec, prefix_prefix):
+    def _make_counter_formatter_prefix_for_thm(self, env_name, thm_spec):
         prefix = {}
-
-        keylowercase = prefix_prefix + 'lowercase'
-        keycapital = prefix_prefix + 'capital'
-        keyabbreviated = prefix_prefix + 'abbreviated'
 
         def _add_space_values(x):
             return { k: v + '~' for (k,v) in x.items() }
 
-        prefix[keylowercase] = _add_space_values(thm_spec['title']['lowercase'])
-        prefix[keycapital] = _add_space_values(thm_spec['title']['capital'])
-        prefix[keyabbreviated] = _add_space_values(thm_spec['title']['abbreviated'])
+        prefix['lowercase'] = _add_space_values(thm_spec['title']['lowercase'])
+        prefix['capital'] = _add_space_values(thm_spec['title']['capital'])
+        prefix['abbreviated'] = _add_space_values(thm_spec['title']['abbreviated'])
 
         return prefix
 

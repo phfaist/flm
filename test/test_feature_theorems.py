@@ -128,7 +128,7 @@ The square root of four is rational.
                 },
                 'lemmaandproplike': {
                     'shared_numbering': True,
-                    'counter_formatter': 'Alph',
+                    #'counter_formatter': 'alph',
                 },
             },
             environments={

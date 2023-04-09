@@ -43,6 +43,7 @@ class EndnoteCategory:
         counter_formatter = build_counter_formatter(
             counter_formatter,
             _default_endnote_counter_formatter_spec,
+            counter_formatter_id='endnote',
         )
         self.counter_formatter = counter_formatter
         self.heading_title = heading_title

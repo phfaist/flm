@@ -335,6 +335,7 @@ class FeatureExternalPrefixedCitations(Feature):
         self.counter_formatter = build_counter_formatter(
             counter_formatter,
             dflt,
+            counter_formatter_id='citation',
         )
         #self.citation_delimiters = citation_delimiters
         self.citation_optional_text_separator = citation_optional_text_separator

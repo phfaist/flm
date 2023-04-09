@@ -213,7 +213,8 @@ _default_formatter_join_spec = {
 parse_counter_format_num = parse_counter_formatter
 
 
-def build_counter_formatter(counter_formatter, default_counter_formatter_spec):
+def build_counter_formatter(counter_formatter, default_counter_formatter_spec, *,
+                            counter_formatter_id):
     r"""
     Build a CounterFormatter() instance from the given configuration
     counter_formatter.  It can be a string (e.g. 'arabic'), a 
@@ -222,22 +223,25 @@ def build_counter_formatter(counter_formatter, default_counter_formatter_spec):
     if isinstance(counter_formatter, CounterFormatter):
         return counter_formatter
 
-    default_counter_formatter_spec = dict(default_counter_formatter_spec)
-
     if counter_formatter is None:
         return CounterFormatter(**default_counter_formatter_spec)
 
+    default_counter_formatter_spec = dict(default_counter_formatter_spec)
+
     if isinstance(counter_formatter, str):
-        d = dict(default_counter_formatter_spec)
+        d = default_counter_formatter_spec
         d['format_num'] = counter_formatter
+        d['counter_formatter_id'] = counter_formatter_id
         return CounterFormatter(**d)
 
     if isinstance(counter_formatter, dict):
         if 'template' in counter_formatter:
-            d = dict(default_counter_formatter_spec)
+            d = default_counter_formatter_spec
             d['format_num'] = counter_formatter
+            d['counter_formatter_id'] = counter_formatter_id
             return CounterFormatter(**d)
-        d = dict(default_counter_formatter_spec)
+        d = default_counter_formatter_spec
+        d['counter_formatter_id'] = counter_formatter_id
         d.update(counter_formatter)
         return CounterFormatter(**d)
         
@@ -246,7 +250,8 @@ def build_counter_formatter(counter_formatter, default_counter_formatter_spec):
 
 class CounterFormatter:
     def __init__(self, format_num, prefix_display=None, 
-                 delimiters=None, join_spec=None, name_in_link=True):
+                 delimiters=None, join_spec=None, name_in_link=True,
+                 counter_formatter_id=None):
         self.format_num = parse_counter_formatter(format_num)
         if prefix_display is None:
             prefix_display = {
@@ -271,6 +276,21 @@ class CounterFormatter:
             for (k,v) in jd.items()
         }
         self.name_in_link = name_in_link
+
+        self.counter_formatter_id = counter_formatter_id
+
+        self._fields = ('format_num', 'prefix_display', 'delimiters', 'join_spec',
+                        'name_in_link', 'counter_formatter_id',)
+
+    def asdict(self):
+        return {k: getattr(self, k) for k in self._fields}
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            + ", ".join(f"{k}={repr(getattr(self,k))}" for k in self._fields)
+            + ")"
+        )
 
     def format_llm(self, value, prefix_variant=None, with_delimiters=True, with_prefix=True,
                    wrap_format_num=None, wrap_link_fn=None):
@@ -502,6 +522,33 @@ class Counter:
     def reset(self):
         self.value = self.initial_value
         return self.value
+
+    def format_llm(self, value=None, **kwargs):
+        if value is None:
+            value = self.value
+        kwargs2 = {'with_prefix': False}
+        kwargs2.update(kwargs)
+        return self.formatter.format_llm(value, **kwargs2)
+
+    def step_and_format_llm(self):
+        val = self.step()
+        return val, self.format_llm(val)
+
+
+class CounterAlias:
+    def __init__(self, counter_formatter, alias_counter):
+        self.formatter = counter_formatter
+        self.alias_counter = alias_counter
+
+    @property
+    def value(self):
+        return self.alias_counter.value
+        
+    def step(self):
+        return self.alias_counter.step()
+
+    def reset(self):
+        return self.alias_counter.reset()
 
     def format_llm(self, value=None, **kwargs):
         if value is None:

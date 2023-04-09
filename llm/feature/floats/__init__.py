@@ -430,6 +430,7 @@ class FloatType:
         self.counter_formatter = build_counter_formatter(
             counter_formatter,
             _float_default_counter_formatter_spec(float_type),
+            counter_formatter_id=float_type,
         )
 
         self.content_handlers = content_handlers
@@ -515,8 +516,7 @@ class FeatureFloats(Feature):
                 refs_mgr = self.render_context.feature_render_manager('refs')
                 for float_type, ftinfo in self.feature.float_types.items():
                     refs_mgr.register_counter_formatter(
-                        float_type,
-                        ftinfo.counter_formatter,
+                        counter_formatter=ftinfo.counter_formatter,
                     )
 
         def register_float(

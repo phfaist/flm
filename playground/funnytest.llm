@@ -137,7 +137,7 @@ We can add references to a section by topic, like this section:
 \ref{topic:qudit}.
 
 Let's try references to multiple targets:
-\ref{eq:my-equation,eq:my-equation-2,figure:my-figure,eq:pauli-ac,eq:pauli-c}.
+\ref{eq:my-equation,eq:my-equation-2,figure:my-figure,thm:sqrt4-rational,thm:sqrt2-irrational,eq:pauli-ac,eq:pauli-c}.
 
 
 \section{Let's try some theorems}
@@ -146,6 +146,17 @@ Let's try references to multiple targets:
   \label{thm:sqrt2-irrational}
   The square root of two is irrational.
 \end{theorem}
+
+
+\begin{theorem}[Rationality of \(\sqrt{4}\)]
+  \label{thm:sqrt4-rational}
+  The square root of four is definitely rational.
+\end{theorem}
+
+\begin{proof}[**thm:sqrt4-rational]
+  Ask your kid(s) to compute \(2\times 2\).
+\end{proof}
+
 
 \begin{proof}[*thm:sqrt2-irrational]
   You can just google this one if you don't remember it.

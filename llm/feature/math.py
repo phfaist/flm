@@ -87,6 +87,7 @@ class FeatureMath(Feature):
         self.counter_formatter = build_counter_formatter(
             counter_formatter,
             eq_default_counter_formatter_spec,
+            counter_formatter_id='eq',
         )
 
         if math_environment_names is None:
@@ -109,8 +110,7 @@ class FeatureMath(Feature):
             if self.render_context.supports_feature('refs'):
                 refs_mgr = self.render_context.feature_render_manager('refs')
                 refs_mgr.register_counter_formatter(
-                    self.feature.eqref_ref_type,
-                    self.feature.counter_formatter,
+                    counter_formatter=self.feature.counter_formatter
                 )
 
         def new_numbered_display_math(self, node, lineno, custom_tag_llm_text=None):
