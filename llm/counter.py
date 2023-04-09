@@ -344,7 +344,9 @@ class CounterFormatter:
             return join_spec['empty']
 
         for v in values:
-            if not isinstance(v, int):
+            try:
+                v = int(v)
+            except TypeError:
                 raise ValueError("Invalid value, expected integer: " + repr(v))
 
         # key= appears to be required for Transcrypt(), otherwise JavaScript's
