@@ -53,6 +53,8 @@ _base:
 
       graphics: {}
 
+      theorems: {}
+
     workflow: {}
 
     default_workflow: 'templatebasedworkflow'
