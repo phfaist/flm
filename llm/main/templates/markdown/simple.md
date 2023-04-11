@@ -1,0 +1,5 @@
+${if:render_header}# ${metadata.title}
+${if:metadata.author}*${metadata.author}*  
+${endif}${if:metadata.date}*${metadata.date}*  
+${endif}
+${endif}${content}

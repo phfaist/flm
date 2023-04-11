@@ -2,7 +2,11 @@
 $import:
   - pkg:llm_citations
 
-title: 'Kitaev surface code (test)'
+title: 'Kitaev surface code (test document)'
+#author: 'Me'
+#date: 'April 31, 2032'
+llm:
+  template: 'simple'
 ---
 
 Introduced in Refs.~\cite{doi:10.1070/RM1997v052n06ABEH002155,doi:10.1007/978-1-4615-5923-8_19,arXiv:quant-ph/9707021}
@@ -18,4 +22,12 @@ with boundaries is often called the \textit{planar code}
 Codewords correspond to ground states of the surface code Hamiltonian, and error
 operators create or annihilate pairs of anyonic charges or vortices.
 
-An encoder: A depth-\(L^2\) circuit that grows the code out of a small patch on an \(L\times L\) square lattice using CNOT gates (i.e., "local moves") \cite{arxiv:quant-ph/0110143,arxiv:0712.0348}.
+An encoder: A depth-\(L^2\) circuit that grows the code out of a small patch on
+an \(L\times L\) square lattice using CNOT gates (i.e., "local moves")
+\cite{arxiv:quant-ph/0110143,arxiv:0712.0348}.
+
+We can add an optional argument to the cite command
+\cite[p.~54]{arxiv:quant-ph/0110143}.  It combines with other citations, too:
+\cite{arXiv:quant-ph/9707021} 
+\cite[p.~54]{arxiv:quant-ph/0110143}
+\cite{doi:10.1070/RM1997v052n06ABEH002155,doi:10.1007/978-1-4615-5923-8_19}.
