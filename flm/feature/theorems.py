@@ -700,7 +700,7 @@ class FeatureTheorems(Feature):
                 new_title_spec['lowercase'] = lowercase
         else:
             # ??? fallback ???
-            new_title_spec['lowercase'] = { 'singular': '??', 'singular': '???' }
+            new_title_spec['lowercase'] = { 'singular': '??', 'plural': '???' }
 
         if 'capital' in title:
             capital = title['capital']

@@ -343,14 +343,11 @@ class CounterFormatter:
         if len(values) == 0:
             return join_spec['empty']
 
-        for v in values:
-            try:
-                v = int(v)
-            except TypeError:
-                raise ValueError("Invalid value, expected integer: " + repr(v))
+        values = [ _expect_int(v) for v in values ]
 
-        # key= appears to be required for Transcrypt(), otherwise JavaScript's
-        # sort() converts to string and sorts alphabetically ... :/
+        # key= appears to be required for Transcrypt(), so that a comparison
+        # function is provided in the JS code, otherwise JavaScript's sort()
+        # converts to string and sorts alphabetically ... :/
         values = sorted(values, key=lambda x: int(x))
 
         num_values = len(values)
@@ -503,6 +500,13 @@ class CounterFormatter:
 
         return s
 
+
+
+def _expect_int(v):
+    try:
+        return int(v)
+    except TypeError:
+        raise ValueError("Invalid value, expected integer: " + repr(v))
 
 
 # --------------------------------------
