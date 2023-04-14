@@ -3,9 +3,9 @@ flm-js
 test-flm-js
 
 # so I can install 'debug' locally with 'npm i debug'
-package.json
+#package.json
 package-lock.json
-yarn.lock
+#yarn.lock
 node_modules
 
 .yarn/*
