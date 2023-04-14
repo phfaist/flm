@@ -1,4 +1,4 @@
-# A simple Latex-Like Markup (FLM) language
+# A Flexible Latex-Like Markup (FLM) language
 
 This package provides a simple parser and formatter for a custom markup language
 that is inspired by LaTeX syntax.
