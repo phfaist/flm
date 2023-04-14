@@ -429,16 +429,22 @@ class CounterFormatter:
         )
 
         first_n = None
-        for si in s_items:
-            nn = si.get('n', None)
-            if nn is not None and nn is not False:
-                first_n = nn
-                break
+        if not name_in_link:
+            first_n = False
+        else:
+            for si in s_items:
+                nn = si.get('n', None)
+                if nn is not None and nn is not False:
+                    first_n = nn
+                    break
 
         s_pre_items = []
         if len(s_prefix):
             s_pre_items.append( { 's': s_prefix, 'n': first_n } )
-        s_pre_items.append( { 's': s_pre, 'n': None if only_one_value else False } )
+        s_pre_items.append(
+            { 's': s_pre,
+              'n': None if (name_in_link and only_one_value) else False }
+        )
 
         # add pre/post text
         s_items = (

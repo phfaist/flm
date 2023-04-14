@@ -137,7 +137,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
 
             title_heading_formatted_flm = ref_instance.formatted_ref_flm_text
 
-            target_id = f'{self.environmentname}-{counter.value}'
+            target_id = f'{self.environmentname}-{counter_value}'
 
             title_heading_formatted_flm_frag = render_context.make_standalone_fragment(
                 title_heading_formatted_flm,
@@ -152,7 +152,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
                     node=node,
                     formatted_ref_flm_text=title_heading_formatted_flm_frag,
                     target_href='#' + target_id,
-                    counter_value=counter.value,
+                    counter_value=counter_value,
                     counter_formatter_id=counter.formatter.counter_formatter_id
                 )
 
@@ -161,7 +161,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             theorem_name = self.theorem_spec['title']['capital']['singular']
 
             target_id = None
-            counter = None
+            # counter = None
 
             title_heading_formatted_flm_frag_nodes = node.latex_walker.make_nodelist(
                 [

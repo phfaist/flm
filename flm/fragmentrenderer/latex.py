@@ -582,8 +582,6 @@ class LatexFragmentRenderer(FragmentRenderer):
 
                     if 'H' in cell.styles or 'rH' in cell.styles:
                         thiscellstyles += r', font={\flmCellsHeaderFont}'
-                    # else:
-                    #     row_has_any_non_header_element = True
 
                     if 'H' in cell.styles:
                         if coljend == colj+1:
@@ -619,8 +617,6 @@ class LatexFragmentRenderer(FragmentRenderer):
                 stab_rowitems.append(cell_content)
 
             stab_contents += '&'.join(stab_rowitems) + '\\\\' + '\n'
-            # if not row_has_any_non_header_element:
-            #     stab_contents += r'\midrule' + '\n'
 
         s = (
             r'\begin{center}' + '\n'

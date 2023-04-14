@@ -594,8 +594,6 @@ class FeatureFloats(Feature):
 
                     formatted_ref_flm_text = self.get_formatted_ref_flm_text(float_instance)
 
-                    counter_formatter = self.feature.float_types[float_type].counter_formatter
-
                     refs_mgr.register_reference(
                         ref_label_prefix,
                         ref_label,

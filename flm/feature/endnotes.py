@@ -276,13 +276,7 @@ class FeatureEndnotes(Feature):
             # ### Already added as annotation to the link; should save DOM size
             # ### etc. and shouldn't really be needed for anything else than
             # ### HTML output
-            #
-            # if wrap_with_semantic_span:
-            #     return self.render_context.fragment_renderer.render_semantic_span(
-            #         contents,
-            #         wrap_with_semantic_span,
-            #         self.render_context,
-            #     )
+            # ... render_semantic_span( ... )
             return contents
 
         def render_endnote_mark_many(self, endnote_list, *,
