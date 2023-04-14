@@ -102,8 +102,8 @@ standard_counter_formatters = {
     'Alph': lambda n: alphacounter(n, lower=False),
     'roman': lambda n: romancounter(n, lower=True),
     'Roman': lambda n: romancounter(n, lower=False),
-    'arabic': lambda n: str(n),
-    'fnsymbol': lambda n: fnsymbolcounter(n),
+    'arabic': str,
+    'fnsymbol': fnsymbolcounter,
     'unicodesuperscript': unicodesuperscriptcounter,
     'unicodesubscript': unicodesubscriptcounter,
 }
@@ -348,7 +348,7 @@ class CounterFormatter:
         # key= appears to be required for Transcrypt(), so that a comparison
         # function is provided in the JS code, otherwise JavaScript's sort()
         # converts to string and sorts alphabetically ... :/
-        values = sorted(values, key=lambda x: int(x))
+        values = sorted(values, key=int) #lambda x: int(x))
 
         num_values = len(values)
 

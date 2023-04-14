@@ -317,14 +317,6 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             parsing_state=node.parsing_state
         )
 
-        # body_text_formats = self.theorem_type_spec['body_text_formats']
-        # if len(body_text_formats):
-        #     body_contents = fragment_renderer.render_text_format(
-        #         body_text_formats,
-        #         body_nodelist,
-        #         render_context,
-        #     )
-        # else:
         rendered_contents = fragment_renderer.render_nodelist(
             body_nodelist,
             render_context,
