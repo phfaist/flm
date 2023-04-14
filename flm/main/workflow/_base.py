@@ -9,12 +9,12 @@ class RenderWorkflow:
     binary_output = False
 
     @staticmethod
-    def get_workflow_default_config(llm_run_info, config):
+    def get_workflow_default_config(flm_run_info, config):
         return {}
 
 
     @staticmethod
-    def get_fragment_renderer_name(outputformat, llm_run_info, run_config):
+    def get_fragment_renderer_name(outputformat, flm_run_info, run_config):
         r"""
         The workflow has a say about which fragment renderer class will be
         used.  Return the fragment render name here, where the fragment renderer
@@ -24,7 +24,7 @@ class RenderWorkflow:
         return None
 
     @staticmethod
-    def get_default_main_config(llm_run_info, run_config):
+    def get_default_main_config(flm_run_info, run_config):
         return None
 
 
@@ -32,15 +32,15 @@ class RenderWorkflow:
     # ---
 
 
-    def __init__(self, workflow_config, llm_run_info,
+    def __init__(self, workflow_config, flm_run_info,
                  fragment_renderer_information, fragment_renderer):
 
         self.config = workflow_config
-        self.llm_run_info = llm_run_info
+        self.flm_run_info = flm_run_info
         self.fragment_renderer_information = fragment_renderer_information
         self.fragment_renderer = fragment_renderer
 
-        self.main_config = self.llm_run_info['main_config']
+        self.main_config = self.flm_run_info['main_config']
 
         for k, v in self.config.items():
             setattr(self, k, v)

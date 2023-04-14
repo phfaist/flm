@@ -18,11 +18,11 @@ from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 
 from ..flmenvironment import (
-    LLMArgumentSpec,
+    FLMArgumentSpec,
 )
 from ..flmspecinfo import (
-    LLMEnvironmentSpecBase,
-    LLMMacroSpecError
+    FLMEnvironmentSpecBase,
+    FLMMacroSpecError
 )
 
 from ._base import Feature
@@ -66,7 +66,7 @@ _macro_args = {
         ),
         argname='styles_mapping'
     ),
-    'cellcontents': LLMArgumentSpec(
+    'cellcontents': FLMArgumentSpec(
         '{',
         argname='cellcontents',
         is_block_level=True,
@@ -105,7 +105,7 @@ _macro_args['placement_mapping'] = LatexArgumentSpec(
     ),
 )
 
-class CellMacro(LLMMacroSpecError):
+class CellMacro(FLMMacroSpecError):
     def __init__(self, macroname='cell',):
         super().__init__(macroname=macroname, arguments_spec_list=[
             _macro_args['styles'],
@@ -795,7 +795,7 @@ class CellsModel:
 # ------------------------------------------------------------------------------
 
 
-class CellsEnvironment(LLMEnvironmentSpecBase):
+class CellsEnvironment(FLMEnvironmentSpecBase):
     
     is_block_level = True
 

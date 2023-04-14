@@ -1,9 +1,9 @@
-# A simple Latex-Like Markup (LLM) language
+# A simple Latex-Like Markup (FLM) language
 
 This package provides a simple parser and formatter for a custom markup language
 that is inspired by LaTeX syntax.
 
-The syntax of LLM is essentially a subset of standard LaTeX commands, including
+The syntax of FLM is essentially a subset of standard LaTeX commands, including
 macros, environments, and some characters that have a special meaning; these
 features are parsed in a loosely similar fashion to usual LaTeX code.
 
@@ -11,17 +11,17 @@ The framework is meant to be very easily extendible and customizable.  The
 parser is based on [*pylatexenc 3*](https://github.com/phfaist/pylatexenc)
 (which is currently still in development).
 
-LLM is used to write the contents of the [Error Correction
+FLM is used to write the contents of the [Error Correction
 Zoo](https://errorcorrectionzoo.org/) in a way that is intuitive for scientists,
 flexible, and robust.  It is easily extensible and closely resembles the LaTeX
-langauge that many scientists are familiar with.  LLM pushes further one of the
+langauge that many scientists are familiar with.  FLM pushes further one of the
 core insights of LaTeX, namely, that the code should *describe* document
 contents in an intuitive way, as a markup language, while disregarding as much
 as possible the details of how that contents will be typeset.  The final
 typesetting is fully customizable, e.g., through CSS styling of its HTML output
 (including the use of templates).
 
-You can install LLM with pip:
+You can install FLM with pip:
 ```bash
 $ pip install git+https://github.com/phfaist/flm.git@main
 ```
@@ -109,7 +109,7 @@ if your system has a standard LaTeX distribution such as TeXLive installed)
   ```
   > pip install git+https://github.com/phfaist/flm-citations
   ```
-  And then try to compile, e.g., the following LLM document:
+  And then try to compile, e.g., the following FLM document:
   ```yaml
   ---
   $import:
@@ -140,12 +140,12 @@ if your system has a standard LaTeX distribution such as TeXLive installed)
 
 ## Document Front Matter
 
-LLM Documents can contain YAML front matter that specify (i) options for the LLM
+FLM Documents can contain YAML front matter that specify (i) options for the FLM
 parser, (ii) which features to enable, and (iii) additional document metadata such
 as a title.
 ```yaml
 ---
-title: 'My LLM document'
+title: 'My FLM document'
 flm:
    parsing:
      enable_dollar_math_mode: True
@@ -184,13 +184,13 @@ item can be a absolute or relative file path (`$import: 'my-flm-config.yaml'` or
 https://example.com/my/flm-config.yaml`), or a fully qualified python package
 name introduced with ``pkg:package_name`` (e.g., `$import: pkg:flm_citations`).
 If a package name is specified to the `$import` directive, the package is loaded
-and the default LLM configuration is extracted from it and included (the
+and the default FLM configuration is extracted from it and included (the
 `flm_default_import_config` attribute of the module is read; it is assumed to be
 a dictionary or a callable that returns a dictionary).  You can optionally
 follow the package name by a path to specify submodules/attributes to read
 instead of `flm_default_import_config`; e.g., ``pkg:mypackage/foo/bar`` will
 import the module `mypackage` and import the configuration dictionary stored in
-``mypackage.foo.bar``.  LLM extention plugin/package authors can use this
+``mypackage.foo.bar``.  FLM extention plugin/package authors can use this
 feature to offer preset customization configurations that can easily be included
 with ``pkg:some_flm_extension_package/some/preset/name``.
 
@@ -273,7 +273,7 @@ flm:
 
 ### Features and their configuration
 
-Many LLM features are organized explicitly into feature classes which can be
+Many FLM features are organized explicitly into feature classes which can be
 enabled or disabled at wish.  Features include:
 
 - enumeration (`\begin{enumerate}...\end{enumerate}`) and itemization
@@ -285,9 +285,9 @@ enabled or disabled at wish.  Features include:
 
 - etc.
 
-Features can be selected and configured directly in the LLM config metadata.  For instance
+Features can be selected and configured directly in the FLM config metadata.  For instance
 the following configuration is extracted from the default feature configuration when you run
-LLM:
+FLM:
 ```yaml
 flm:
   features:
@@ -362,20 +362,20 @@ hopefully come soon.
 
 Needs doc.
 
-## Example. Converting LLM to HTML
+## Example. Converting FLM to HTML
 
 Note: Math is simply marked with `<span class=...>` tags for use with
 [MathJax](https://www.mathjax.org/).
 
 Example:
 ```py
-from flm.llmenvironment import make_standard_environment
+from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
 from flm.fragmentrenderer.html import HtmlFragmentRenderer
 
 environ = make_standard_environment(features=standard_features())
 
-# suppose we have fragments of LLM text
+# suppose we have fragments of FLM text
 fragment_1 = environ.make_fragment(r'Hello, \emph{world}.')
 fragment_2 = environ.make_fragment(
     r'''Here's a question: \(1+2=?\)
@@ -415,7 +415,7 @@ print(result_html)
 ```
 
 
-# A Javascript LLM library
+# A Javascript FLM library
 
 You can transpile the core part of this library to Javascript using Transcrypt.
 See [the `flm-js` subfolder](flm-js/README.md) for more details.

@@ -4,8 +4,8 @@ logger = logging.getLogger(__name__)
 from pylatexenc.latexnodes import LatexWalkerParseError, ParsedArgumentsInfo
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 
-from ..flmspecinfo import LLMMacroSpecBase
-from ..flmenvironment import LLMArgumentSpec
+from ..flmspecinfo import FLMMacroSpecBase
+from ..flmenvironment import FLMArgumentSpec
 from ._base import Feature
 
 
@@ -46,7 +46,7 @@ class GraphicsResource:
 # ------------------------------------------------------------------------------
 
 
-class SimpleIncludeGraphicsMacro(LLMMacroSpecBase):
+class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
 
     is_block_level = True
 
@@ -60,14 +60,14 @@ class SimpleIncludeGraphicsMacro(LLMMacroSpecBase):
         super().__init__(
             macroname='includegraphics',
             arguments_spec_list=[
-                LLMArgumentSpec(
+                FLMArgumentSpec(
                     parser=latexnodes_parsers.LatexCharsGroupParser(
                         delimiters=('[',']'),
                         optional=True
                     ),
                     argname='graphics_options',
                 ),
-                LLMArgumentSpec(
+                FLMArgumentSpec(
                     parser=latexnodes_parsers.LatexCharsGroupParser(
                         delimiters=('{','}'),
                     ),
@@ -110,7 +110,7 @@ class SimpleIncludeGraphicsMacro(LLMMacroSpecBase):
 
         if not render_context.supports_feature('graphics_resource_provider'):
             raise RuntimeError(
-                "LLM's ‘SimpleIncludeGraphicsSpecInfo’ (‘\\includegraphics’) requires a "
+                "FLM's ‘SimpleIncludeGraphicsSpecInfo’ (‘\\includegraphics’) requires a "
                 "‘graphics_resource_provider’ feature to be installed in the render context"
             )
         

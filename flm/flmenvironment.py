@@ -8,8 +8,8 @@ from pylatexenc.latexnodes import LatexWalkerParseError, LatexWalkerParseErrorFo
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc import latexwalker
 
-from .flmfragment import LLMFragment
-from .flmdocument import LLMDocument
+from .flmfragment import FLMFragment
+from .flmdocument import FLMDocument
 
 
 
@@ -21,7 +21,7 @@ fn_unique_object_id = id
 # ------------------------------------------------------------------------------
 
 
-class LLMParsingState(latexnodes.ParsingState):
+class FLMParsingState(latexnodes.ParsingState):
 
     # transcrypt seems to behave funny with tuple([*list, new_item]) ...
     _fields = tuple(list(latexnodes.ParsingState._fields)+['is_block_level'])
@@ -31,7 +31,7 @@ class LLMParsingState(latexnodes.ParsingState):
         self.is_block_level = is_block_level
 
 
-class LLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
+class FLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
     def __init__(self, is_block_level=None):
         super().__init__(
             set_attributes=dict(is_block_level=is_block_level)
@@ -41,7 +41,7 @@ class LLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
 # ------------------------------------------------------------------------------
 
 
-def LLMArgumentSpec(parser, argname, is_block_level=False, flm_doc=None):
+def FLMArgumentSpec(parser, argname, is_block_level=False, flm_doc=None):
     r"""
     ..........
 
@@ -50,7 +50,7 @@ def LLMArgumentSpec(parser, argname, is_block_level=False, flm_doc=None):
     """
     parsing_state_delta = None
     if is_block_level is not None:
-        parsing_state_delta = LLMParsingStateDeltaSetBlockLevel(
+        parsing_state_delta = FLMParsingStateDeltaSetBlockLevel(
             is_block_level=is_block_level
         )
     arg = latexnodes.LatexArgumentSpec(
@@ -294,12 +294,12 @@ class NodeListFinalizer:
 
 
 
-class LLMLatexWalker(latexwalker.LatexWalker):
+class FLMLatexWalker(latexwalker.LatexWalker):
     r"""
-    A LatexWalker class that is meant to parse LLM code.
+    A LatexWalker class that is meant to parse FLM code.
 
     This walker class takes care to add additional information to node lists
-    that is then needed by the code that renders LLM fragments into output
+    that is then needed by the code that renders FLM fragments into output
     formats (e.g. HTML).  For instance, node lists need to be split into
     "blocks" (paragraphs or block-level content) as they are parsed (see
     :py:meth:`make_nodelist()`).
@@ -545,11 +545,11 @@ def features_sorted_by_dependencies(features):
 # ------------------------------------------------------------------------------
 
 
-class LLMEnvironment:
+class FLMEnvironment:
     r"""
     ....
 
-    - `parsing_state`: please provide a `LLMParsingState` object instance to
+    - `parsing_state`: please provide a `FLMParsingState` object instance to
       serve as the default parsing state.  You should keep the `latex_context`
       field of the `parsing_state` object to `None`.  Only then will we add the
       relevant features' definitions etc.  You can still specify a base latex
@@ -575,7 +575,7 @@ class LLMEnvironment:
     ):
         super().__init__()
 
-        logger.debug("LLMEnvironment constructor")
+        logger.debug("FLMEnvironment constructor")
 
         self.latex_context = latex_context
         self.parsing_state = parsing_state
@@ -628,7 +628,7 @@ class LLMEnvironment:
     r"""
     There is no parsing state event handler by default.  If you want to
     allow unknown macros etc. in math mode, set this property to a
-    LLMLatexWalkerParsingStateEventHandler() instance.
+    FLMLatexWalkerParsingStateEventHandler() instance.
     """
 
     def make_latex_walker(self, flm_text, *,
@@ -655,7 +655,7 @@ class LLMEnvironment:
         if input_lineno_colno_offsets is None:
             input_lineno_colno_offsets = {}
 
-        latex_walker = LLMLatexWalker(
+        latex_walker = FLMLatexWalker(
             flm_text=flm_text,
             default_parsing_state=default_parsing_state,
             tolerant_parsing=tolerant_parsing,
@@ -701,21 +701,21 @@ class LLMEnvironment:
 
     def make_fragment(self, flm_text, **kwargs):
 
-        if isinstance(flm_text, LLMFragment):
+        if isinstance(flm_text, FLMFragment):
             frag = flm_text
             for fld in ('is_block_level', 'standalone_mode', ):
                 if (fld in kwargs and kwargs[fld] is not None
                     and kwargs[fld] != getattr(frag, fld)):
                     # error
                     raise ValueError(
-                        "make_fragment(): LLMFragment instance specified but "
+                        "make_fragment(): FLMFragment instance specified but "
                         f"its ‘{fld}’ ({repr(getattr(frag, fld))}) "
                         f"differs with requested ‘{fld}’ ({kwargs[fld]})"
                     )
             return frag
 
         try:
-            fragment = LLMFragment(flm_text, environment=self, **kwargs)
+            fragment = FLMFragment(flm_text, environment=self, **kwargs)
             return fragment
         except: # Exception as e: --- catch anything in JS (for Transcrypt)
             if not kwargs.get('silent', False):
@@ -733,13 +733,13 @@ class LLMEnvironment:
 
     def make_document(self, render_callback, **kwargs):
         r"""
-        Instantiates a :py:class:`LLMDocument` object with the relevant arguments
+        Instantiates a :py:class:`FLMDocument` object with the relevant arguments
         (environment instance, feature objects).  This method also calls the
         document's `initialize()` method.
 
         Returns the instantiated document object.
         """
-        doc = LLMDocument(
+        doc = FLMDocument(
             render_callback,
             environment=self,
             **kwargs
@@ -788,7 +788,7 @@ def standard_parsing_state(*,
                            extra_forbidden_characters='',
                            dollar_inline_math_mode=False):
     r"""
-    Return a `ParsingState` configured in a standard way for parsing LLM
+    Return a `ParsingState` configured in a standard way for parsing FLM
     content.  E.g., we typically disable commands and $-math mode, unless you
     specify keyword arguments to override this behavior.
 
@@ -809,7 +809,7 @@ def standard_parsing_state(*,
     if dollar_inline_math_mode:
         latex_inline_math_delimiters.append( ('$', '$') )
 
-    return LLMParsingState(
+    return FLMParsingState(
         is_block_level=force_block_level,
         latex_context=None,
         enable_comments=enable_comments,
@@ -821,7 +821,7 @@ def standard_parsing_state(*,
 
 # ------------------------------------------------------------------------------
 
-class LLMLatexWalkerMathContextParsingStateEventHandler(
+class FLMLatexWalkerMathContextParsingStateEventHandler(
         latexnodes.LatexWalkerParsingStateEventHandler
 ):
     math_mode_extend_context = {
@@ -835,7 +835,7 @@ class LLMLatexWalkerMathContextParsingStateEventHandler(
             in_math_mode=True,
             math_mode_delimiter=math_mode_delimiter,
         )
-        logger.debug("LLMWalkerEventsParsingStateDeltasProvider.enter_math_mode ! "
+        logger.debug("FLMWalkerEventsParsingStateDeltasProvider.enter_math_mode ! "
                      "math_mode_delimiter=%r, trigger_token=%r, set_attributes=%r",
                      math_mode_delimiter, trigger_token, set_attributes)
         return macrospec.ParsingStateDeltaExtendLatexContextDb(
@@ -844,7 +844,7 @@ class LLMLatexWalkerMathContextParsingStateEventHandler(
         )
 
     def leave_math_mode(self, trigger_token=None):
-        #logger.debug("LLMWalkerEventsParsingStateDeltasProvider.leave_math_mode !")
+        #logger.debug("FLMWalkerEventsParsingStateDeltasProvider.leave_math_mode !")
         return macrospec.ParsingStateDeltaExtendLatexContextDb(
             set_attributes=dict(
                 in_math_mode=False,
@@ -906,13 +906,13 @@ def make_standard_environment(features, parsing_state=None, latex_context=None,
 
         parsing_state = standard_parsing_state(**parsing_state_options_2)
 
-    parsing_state_event_handler = LLMLatexWalkerMathContextParsingStateEventHandler()
+    parsing_state_event_handler = FLMLatexWalkerMathContextParsingStateEventHandler()
 
     flm_environment_options_2 = {}
     if flm_environment_options is not None:
         flm_environment_options_2 = flm_environment_options
 
-    environment = LLMEnvironment(
+    environment = FLMEnvironment(
         features,
         parsing_state,
         latex_context,

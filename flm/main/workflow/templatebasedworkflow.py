@@ -31,11 +31,11 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
     """
 
     @staticmethod
-    def get_workflow_default_config(llm_run_info, config):
+    def get_workflow_default_config(flm_run_info, config):
         return _default_config
 
     @staticmethod
-    def get_fragment_renderer_name(outputformat, llm_run_info, run_config):
+    def get_fragment_renderer_name(outputformat, flm_run_info, run_config):
 
         if outputformat == 'pdf':
             raise ValueError(
@@ -55,18 +55,18 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         r"""
         Take the raw rendered document content `rendered_content` and place
         it in a document based on a suitable template.  The argument `document`
-        is the `LLMDocument` instance that was rendered with the
+        is the `FLMDocument` instance that was rendered with the
         render context `render_context`.
         """
 
         use_output_format_name = \
-            self.use_output_format_name or self.llm_run_info['fragment_renderer_name']
+            self.use_output_format_name or self.flm_run_info['fragment_renderer_name']
 
         use_template_name = None
-        if self.llm_run_info.get('template', None) is not None:
-            use_template_name = self.llm_run_info['template']
+        if self.flm_run_info.get('template', None) is not None:
+            use_template_name = self.flm_run_info['template']
         if use_template_name is None:
-            use_template_name = self.main_config['llm'].get('template', {})
+            use_template_name = self.main_config['flm'].get('template', {})
             if isinstance(use_template_name, Mapping):
                 use_template_name = use_template_name.get(use_output_format_name, None)
 
@@ -78,7 +78,7 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
             logger.debug("No template specified, returning raw content")
             return rendered_content
 
-        template_config = self.main_config['llm'].get('template_config', {}) \
+        template_config = self.main_config['flm'].get('template_config', {}) \
             .get(use_output_format_name, {}).get(use_template_name, {})
 
         if not use_template_name:
@@ -109,13 +109,13 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         template = DocumentTemplate(use_template_name,
                                     template_prefix,
                                     template_config_wdefaults,
-                                    self.llm_run_info)
+                                    self.flm_run_info)
 
         metadata = document.metadata
         if metadata is None:
             metadata = {}
         else:
-            metadata = {k: v for (k, v) in metadata.items() if k != "_llm_config"}
+            metadata = {k: v for (k, v) in metadata.items() if k != "_flm_config"}
 
         rendered_template = template.render_template([
             {

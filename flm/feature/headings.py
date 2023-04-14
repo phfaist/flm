@@ -16,7 +16,7 @@ from . import refs
 
 
 
-class HeadingMacro(flmspecinfo.LLMMacroSpecBase):
+class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
 
     is_block_level = True
 
@@ -30,7 +30,7 @@ class HeadingMacro(flmspecinfo.LLMMacroSpecBase):
 
     def __init__(self, macroname, *, heading_level=1, inline_heading=False):
         r"""
-        Heading level is to be coordinated with fragment renderer and LLM
+        Heading level is to be coordinated with fragment renderer and FLM
         environment/context commands; for example `heading_level=1..6` with
         commands ``\section`` ... ``\subsubparagraph``
         """

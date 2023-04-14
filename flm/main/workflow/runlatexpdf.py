@@ -10,8 +10,8 @@ import glob
 import subprocess
 import shutil
 
-from llm.main.configmerger import ConfigMerger
-from llm.fragmentrenderer.latex import (
+from flm.main.configmerger import ConfigMerger
+from flm.fragmentrenderer.latex import (
     LatexFragmentRenderer,
     FragmentRendererInformation as LatexFragmentRendererInformation
 )
@@ -58,8 +58,8 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
     graphics_resource_counter = 0
     graphics_resource_data_name_prefix = 'gr'
 
-    use_endnote_latex_command = 'llmEndnoteMark'
-    use_citation_latex_command = 'llmCitationMark'
+    use_endnote_latex_command = 'flmEndnoteMark'
+    use_citation_latex_command = 'flmCitationMark'
 
 
     def collect_graphics_resource(self, graphics_resource, render_context):
@@ -129,7 +129,7 @@ class RunPdfLatexRenderWorkflow(RenderWorkflow):
     binary_output = True
 
     @staticmethod
-    def get_fragment_renderer_name(req_outputformat, llm_run_info, run_config):
+    def get_fragment_renderer_name(req_outputformat, flm_run_info, run_config):
 
         if req_outputformat and req_outputformat not in ('latex', 'pdf', ):
             raise ValueError(
@@ -137,12 +137,12 @@ class RunPdfLatexRenderWorkflow(RenderWorkflow):
             )
 
         # Always use our own 'latex'-derived fragment renderer.
-        return 'llm.main.workflow.runlatexpdf.CollectGraphicsLatexFragmentRendererInformation'
+        return 'flm.main.workflow.runlatexpdf.CollectGraphicsLatexFragmentRendererInformation'
 
     @staticmethod
-    def get_default_main_config(llm_run_info, run_config):
+    def get_default_main_config(flm_run_info, run_config):
         return {
-            'llm': {
+            'flm': {
                 'template': {
                     'latex': 'simple',
                 },
@@ -170,8 +170,8 @@ class RunPdfLatexRenderWorkflow(RenderWorkflow):
                                 p
                                 for what, p in latex_preamble_collected.items()
                             ]) + '\n'
-                            + r"\providecommand\llmEndnoteMark{\textsuperscript}" + "\n"
-                            + r"\providecommand\llmCitationMark{}" + "\n"
+                            + r"\providecommand\flmEndnoteMark{\textsuperscript}" + "\n"
+                            + r"\providecommand\flmCitationMark{}" + "\n"
                         ),
                     },
                 }
@@ -181,7 +181,7 @@ class RunPdfLatexRenderWorkflow(RenderWorkflow):
 
         latex_template_workflow = TemplateBasedRenderWorkflow(
             latex_template_workflow_config,
-            self.llm_run_info,
+            self.flm_run_info,
             self.fragment_renderer_information,
             self.fragment_renderer,
         )
@@ -192,7 +192,7 @@ class RunPdfLatexRenderWorkflow(RenderWorkflow):
 
         # logger.debug('Full LaTeX:\n\n%s\n\n', result_latex)
 
-        if self.llm_run_info['requested_outputformat'] == 'latex':
+        if self.flm_run_info['requested_outputformat'] == 'latex':
             return result_latex.encode('utf-8')
 
         #
@@ -214,9 +214,9 @@ class RunPdfLatexRenderWorkflow(RenderWorkflow):
                 subprocess.run([latexmk_exe, '-f', '-silent', '-lualatex', 'main.tex'],
                                cwd=tempdirname, check=True)
             except subprocess.CalledProcessError as e:
-                logfn = '_llm_runlatexpdf_compile_log.latex.log'
+                logfn = '_flm_runlatexpdf_compile_log.latex.log'
                 shutil.copyfile(os.path.join(tempdirname, 'main.log'), logfn)
-                loctexfn = '_llm_runlatexpdf_compile_log.latex.tex'
+                loctexfn = '_flm_runlatexpdf_compile_log.latex.tex'
                 shutil.copyfile(latexfn, loctexfn)
                 logger.warning("latexmk exited with error code.  Copying tex file to %s "
                                "and log file to %s",

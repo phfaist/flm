@@ -7,9 +7,9 @@ from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc import macrospec
 
-from flm.flmenvironment import LLMArgumentSpec
+from flm.flmenvironment import FLMArgumentSpec
 from flm.flmspecinfo import (
-    LLMMacroSpecBase, LLMEnvironmentSpecBase, text_arg, make_verb_argument,
+    FLMMacroSpecBase, FLMEnvironmentSpecBase, text_arg, make_verb_argument,
     TextFormatMacro
 )
 from flm.feature import SimpleLatexDefinitionsFeature
@@ -18,10 +18,10 @@ from flm.feature import SimpleLatexDefinitionsFeature
 # ------------------------------------------------------------------------------
 
 
-class MacroDocArg(LLMMacroSpecBase):
+class MacroDocArg(FLMMacroSpecBase):
 
     def get_flm_doc(self):
-        return ("Produce documentation of a specific argument of a LLM callable "
+        return ("Produce documentation of a specific argument of a FLM callable "
                 "(macro, environment, specials).  Only use in {flmDocArguments} "
                 "environment.")
 
@@ -29,19 +29,19 @@ class MacroDocArg(LLMMacroSpecBase):
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[
-                LLMArgumentSpec(
+                FLMArgumentSpec(
                     parser=latexnodes_parsers.LatexDelimitedVerbatimParser(),
                     argname='parser_name',
                     flm_doc=('The name or shorthand notation for how this '
                              'argument is parsed (e.g., mandatory \{...\} '
                              'argument, optional [...] argument, etc.'),
                 ),
-                LLMArgumentSpec(
+                FLMArgumentSpec(
                     parser='{',
                     argname='argument_name',
                     flm_doc=('The argument name (argname property of the argument spec).'),
                 ),
-                LLMArgumentSpec(
+                FLMArgumentSpec(
                     parser='{',
                     argname='argument_doc',
                     flm_doc=("The documentation of this argument's function and use."),
@@ -63,10 +63,10 @@ class MacroDocArg(LLMMacroSpecBase):
         return node
 
 
-class EnvironmentDocArguments(LLMEnvironmentSpecBase):
+class EnvironmentDocArguments(FLMEnvironmentSpecBase):
 
     def get_flm_doc(self):
-        return ("Produce documentation of the arguments of a LLM callable "
+        return ("Produce documentation of the arguments of a FLM callable "
                 "(macro, environment, specials)")
 
     def postprocess_parsed_node(self, node):
@@ -145,7 +145,7 @@ class EnvironmentDocArguments(LLMEnvironmentSpecBase):
         )
 
 
-class MacroDocText(LLMMacroSpecBase):
+class MacroDocText(FLMMacroSpecBase):
     def __init__(self, macroname='flmDocText'):
         super().__init__(
             macroname=macroname,
@@ -166,13 +166,13 @@ class MacroDocText(LLMMacroSpecBase):
 
 
 
-class EnvironmentDocBlock(LLMEnvironmentSpecBase):
+class EnvironmentDocBlock(FLMEnvironmentSpecBase):
 
     def __init__(self, environmentname, thing_format_fn):
         super().__init__(
             environmentname=environmentname,
             arguments_spec_list=[
-                LLMArgumentSpec(
+                FLMArgumentSpec(
                     parser=latexnodes_parsers.LatexDelimitedVerbatimParser(),
                     argname='thing_name',
                     flm_doc=('The name of the thing (feature, macro, environment, specials) '
@@ -183,7 +183,7 @@ class EnvironmentDocBlock(LLMEnvironmentSpecBase):
         self.thing_format_fn = thing_format_fn
 
     def get_flm_doc(self):
-        return ("Produce a block of documentation for a given LLM thing "
+        return ("Produce a block of documentation for a given FLM thing "
                 "(feature, macro, environment, specials)")
 
 
@@ -270,7 +270,7 @@ def _render_thing_args_prototype(flm_doc_arguments_environment):
 
 # ----------------------------
 
-class FeatureLLMDocumentation(SimpleLatexDefinitionsFeature):
+class FeatureFLMDocumentation(SimpleLatexDefinitionsFeature):
 
     feature_name = 'flm_doc'
 
@@ -296,7 +296,7 @@ class FeatureLLMDocumentation(SimpleLatexDefinitionsFeature):
 
 
 
-class LLMEnvironmentDocumentationGenerator:
+class FLMEnvironmentDocumentationGenerator:
 
     def document_environment(self, environment):
 
@@ -313,13 +313,13 @@ class LLMEnvironmentDocumentationGenerator:
 \section{Definitions}
 
 \begin{defterm}{delimited content}
-  Delimited content can be any LLM content delimited by either one of the
+  Delimited content can be any FLM content delimited by either one of the
   characters '\{', '[', '(', or '<', up to a matching closing delimiter.
 \end{defterm}
 
 \begin{defterm}{verbatim delimited}
   \emph{Verbatim delimited content} is accepted by the \verbcode+\verbcode+
-  family of macro in the standard LLM environment.  The first character
+  family of macro in the standard FLM environment.  The first character
   read determines how the argument is delimited.  If the first character is
   one of '\{', '[', '(', or '<', then the verbatim content is read until the
   first matching closing delimiter.  If any other character is encountered,
@@ -329,7 +329,7 @@ class LLMEnvironmentDocumentationGenerator:
 \begin{defterm}{following macro}
   A special case of an argument is a \emph{following} or \emph{ensuing macro}
   that is placed immediately after the first macro call.  For instance, in the
-  standard LLM environment, the code
+  standard FLM environment, the code
   \verbcode+\section{My Section Title} \label{sec:xyz}+ is actually parsed
   in a way that \verbcode+\label{...}+ is seen as an optional argument to the
   \verbcode+\section+ macro call.  In this way, the label is immediately

@@ -5,7 +5,7 @@ template_engine_config:
 default_config:
 
   metadata:
-    title: 'LLM Document'
+    title: 'FLM Document'
 
   preamble:
     general: |

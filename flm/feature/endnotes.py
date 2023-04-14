@@ -4,9 +4,9 @@ logger = logging.getLogger(__name__)
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 #from pylatexenc import macrospec
 
-from ..flmspecinfo import LLMMacroSpecBase
-from ..flmenvironment import LLMArgumentSpec
-from ..flmfragment import LLMFragment
+from ..flmspecinfo import FLMMacroSpecBase
+from ..flmenvironment import FLMArgumentSpec
+from ..flmfragment import FLMFragment
 
 from ._base import Feature
 from ..counter import build_counter_formatter, Counter
@@ -26,7 +26,7 @@ class EndnoteCategory:
     r"""
     The `counter_formatter` can be one of the keys in
     `counter.standard_counter_formatters` for instance.  Or it can be a
-    callable.  It should return LLM text to use to represent the value of the
+    callable.  It should return FLM text to use to represent the value of the
     counter.
 
     The `endnote_command` provides a simple way of defining a macro that adds an
@@ -51,7 +51,7 @@ class EndnoteCategory:
 
 
 
-class EndnoteMacro(LLMMacroSpecBase):
+class EndnoteMacro(FLMMacroSpecBase):
 
     allowed_in_standalone_mode = False
 
@@ -59,7 +59,7 @@ class EndnoteMacro(LLMMacroSpecBase):
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[
-                LLMArgumentSpec(
+                FLMArgumentSpec(
                     parser='{',
                     argname='endnote_content',
                     flm_doc="The content of the endnote to place (e.g., the text of a footnote)",
@@ -78,7 +78,7 @@ class EndnoteMacro(LLMMacroSpecBase):
         mgr = render_context.feature_render_manager('endnotes')
         if mgr is None:
             raise RuntimeError(
-                "You did not set up the feature 'endnotes' in your LLM environment"
+                "You did not set up the feature 'endnotes' in your FLM environment"
             )
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
@@ -247,7 +247,7 @@ class FeatureEndnotes(Feature):
             r"""
             Render the endnote mark for the given `endnote`.  You can
             replace the mark's displayed content by specifying the `display_flm`
-            argument.  The latter must be a `LLMFragment` instance or a
+            argument.  The latter must be a `FLMFragment` instance or a
             `pylatexenc.latexnodes.nodes.LatexNodesList` instance.
             """
             endnote_link_href = f"#{endnote.category_name}-{endnote.number}"
@@ -257,7 +257,7 @@ class FeatureEndnotes(Feature):
             else:
                 fmtvalue_flm = display_flm
 
-            if isinstance(fmtvalue_flm, LLMFragment):
+            if isinstance(fmtvalue_flm, FLMFragment):
                 fmtvalue_nodelist = fmtvalue_flm.nodes
             else:
                 fmtvalue_nodelist = fmtvalue_flm

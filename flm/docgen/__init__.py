@@ -1,2 +1,2 @@
 
-from .docgen import FeatureLLMDocumentation, LLMEnvironmentDocumentationGenerator
+from .docgen import FeatureFLMDocumentation, FLMEnvironmentDocumentationGenerator

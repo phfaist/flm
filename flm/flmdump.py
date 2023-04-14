@@ -12,12 +12,12 @@ from pylatexenc.macrospec import (
 )
 
 from .flmenvironment import (
-    LLMLatexWalker,
-    LLMParsingState,
+    FLMLatexWalker,
+    FLMParsingState,
 )
 
 from .flmfragment import (
-    LLMFragment
+    FLMFragment
 )
 
 
@@ -30,7 +30,7 @@ fn_unique_object_id = id
 # ---------------------------------------------------------------------------------------
 
 
-class _FakeDataLoadedLLMLatexWalker:
+class _FakeDataLoadedFLMLatexWalker:
     def __init__(self, s):
         self.s = s
         self._fields = ('s',)
@@ -55,7 +55,7 @@ _skip_types = (
 )
 
 
-class LLMDataDumper:
+class FLMDataDumper:
     def __init__(self, *, environment):
         self.environment = environment
         self.clear()
@@ -107,17 +107,17 @@ class LLMDataDumper:
                 result.append(value)
             return result
 
-        if isinstance(x, LLMLatexWalker):
+        if isinstance(x, FLMLatexWalker):
             return self._make_resource(
-                'LLMLatexWalker',
+                'FLMLatexWalker',
                 x,
-                _FakeDataLoadedLLMLatexWalker(x.s),
+                _FakeDataLoadedFLMLatexWalker(x.s),
                 dumping_state=dumping_state,
             )
         
-        if isinstance(x, LLMParsingState):
+        if isinstance(x, FLMParsingState):
             return self._make_resource(
-                'LLMParsingState',
+                'FLMParsingState',
                 x, # actual object (used for id/references identification)
                 x, # object to dump (will pass through _make_object_dump())
                 dumping_state=dumping_state
@@ -154,7 +154,7 @@ class LLMDataDumper:
 
 # store this object in non-serializable properties (say latex_context=) rather
 # than `None` and having the user wondering why latex_context is `None`
-class LLMDataLoadNotSupported:
+class FLMDataLoadNotSupported:
     pass
 
 
@@ -166,12 +166,12 @@ latex_node_types_dict = {
 _objtypes = {
     c.__name__: c
     for c in [
-            LLMParsingState,
+            FLMParsingState,
             ParsedArguments,
     ]
 }
 
-class LLMDataLoader:
+class FLMDataLoader:
     def __init__(self, data, *, environment):
         self.data = data
         self.environment = environment
@@ -197,7 +197,7 @@ class LLMDataLoader:
 
         if isinstance(data, dict):
             if '$skip' in data and data['$skip'] is True:
-                return LLMDataLoadNotSupported
+                return FLMDataLoadNotSupported
             if '$restype' in data:
                 return self._load_resource(data['$restype'], data['$reskey'])
             if '$type' in data:
@@ -207,18 +207,18 @@ class LLMDataLoader:
 
     def _load_resource(self, restype, reskey):
         resdata = self.data['resources'][restype][reskey]
-        if restype == 'LLMLatexWalker':
-            return _FakeDataLoadedLLMLatexWalker(resdata['s'])
-        if restype == 'LLMParsingState':
+        if restype == 'FLMLatexWalker':
+            return _FakeDataLoadedFLMLatexWalker(resdata['s'])
+        if restype == 'FLMParsingState':
             return self._load_object(
                 restype,
-                dict(resdata, latex_context=LLMDataLoadNotSupported)
+                dict(resdata, latex_context=FLMDataLoadNotSupported)
             )
         raise ValueError(f"Unknown data resource type to load: {restype}")
 
     def _load_object(self, objtype, data):
 
-        if objtype == 'LLMFragment':
+        if objtype == 'FLMFragment':
             ObjTypeFn = self._make_fragment
         elif objtype in latex_node_types_dict or objtype == 'LatexNodeList':
             ObjTypeFn = lambda **kwargs: self._make_node_instance(objtype, kwargs)
@@ -260,7 +260,7 @@ class LLMDataLoader:
     def _make_fragment(self, **kwargs):
         nodelist = kwargs.pop('nodes')
         flm_text = kwargs.pop('flm_text')
-        return LLMFragment(
+        return FLMFragment(
             flm_text=nodelist,
             environment=self.environment,
             _flm_text_if_loading_nodes=flm_text,

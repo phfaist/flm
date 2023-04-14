@@ -15,8 +15,8 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from ..flmspecinfo import LLMMacroSpecBase, LLMEnvironmentSpecBase
-from ..flmenvironment import LLMArgumentSpec
+from ..flmspecinfo import FLMMacroSpecBase, FLMEnvironmentSpecBase
+from ..flmenvironment import FLMArgumentSpec
 
 from ._base import Feature
 
@@ -169,7 +169,7 @@ class _ProxyNodeWithLatexVerbatim:
         return self._verbatim
 
 
-class MathEnvironment(LLMEnvironmentSpecBase):
+class MathEnvironment(FLMEnvironmentSpecBase):
 
     # Nope! This environment adds reference labels in general
     #allowed_in_standalone_mode = True
@@ -201,7 +201,7 @@ class MathEnvironment(LLMEnvironmentSpecBase):
                 extend_latex_context=dict(
                     macros=[
                         MacroSpec('label', arguments_spec_list=[
-                            LLMArgumentSpec(
+                            FLMArgumentSpec(
                                 parser=latexnodes_parsers.LatexCharsGroupParser(
                                     delimiters=('{','}'),
                                 ),
@@ -209,11 +209,11 @@ class MathEnvironment(LLMEnvironmentSpecBase):
                             ),
                         ]),
                         MacroSpec('tag', arguments_spec_list=[
-                            LLMArgumentSpec(
+                            FLMArgumentSpec(
                                 parser='*',
                                 argname='tag_star',
                             ),
-                            LLMArgumentSpec(
+                            FLMArgumentSpec(
                                 parser=latexnodes_parsers.LatexCharsGroupParser(
                                     delimiters=('{','}'),
                                 ),
@@ -382,7 +382,7 @@ class MathEnvironment(LLMEnvironmentSpecBase):
 
 
 
-class MathEqrefMacro(LLMMacroSpecBase):
+class MathEqrefMacro(FLMMacroSpecBase):
 
     delayed_render = True
 
@@ -395,7 +395,7 @@ class MathEqrefMacro(LLMMacroSpecBase):
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[
-                LLMArgumentSpec(
+                FLMArgumentSpec(
                     latexnodes_parsers.LatexCharsGroupParser(),
                     argname='ref_label',
                     flm_doc=(r'Equation label.  Must begin with the prefix ‘\verbtext+'

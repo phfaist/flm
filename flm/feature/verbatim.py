@@ -4,15 +4,15 @@ from pylatexenc.latexnodes import ParsedArgumentsInfo
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 
-from ..flmspecinfo import LLMSpecInfo
-from ..flmenvironment import LLMArgumentSpec
+from ..flmspecinfo import FLMSpecInfo
+from ..flmenvironment import FLMArgumentSpec
 
 from ._base import SimpleLatexDefinitionsFeature
 
 
 
 
-class VerbatimSpecInfo(LLMSpecInfo):
+class VerbatimSpecInfo(FLMSpecInfo):
 
     allowed_in_standalone_mode = True
 
@@ -34,7 +34,7 @@ class VerbatimSpecInfo(LLMSpecInfo):
 
         self.include_environment_begin_end = include_environment_begin_end
 
-        # recognized LLMSpecInfo property
+        # recognized FLMSpecInfo property
         self.is_block_level = is_block_level
 
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
@@ -110,7 +110,7 @@ class VerbatimSpecInfo(LLMSpecInfo):
             annotations=annotations,
         )
 
-    # LLM-doc
+    # FLM-doc
 
     def get_flm_doc(self):
         return f"""Typeset verbatim content of type ‘{self.verbatimtype}’."""
@@ -128,7 +128,7 @@ def make_verbatim_args_spec_list(ismacro, verbatim_delimiters, optional_lang_arg
     a = []
     if optional_lang_arg:
         a.append(
-            LLMArgumentSpec(
+            FLMArgumentSpec(
                 parser=latexnodes_parsers.LatexCharsGroupParser(
                     delimiters=('[', ']'),
                     optional=True,
@@ -144,7 +144,7 @@ def make_verbatim_args_spec_list(ismacro, verbatim_delimiters, optional_lang_arg
         )
     if ismacro:
         a.append(
-            LLMArgumentSpec(
+            FLMArgumentSpec(
                 parser=latexnodes_parsers.LatexDelimitedVerbatimParser(
                     delimiters=verbatim_delimiters,
                 ),
@@ -200,7 +200,7 @@ class FeatureVerbatim(SimpleLatexDefinitionsFeature):
         s = r"""
         You can typeset verbatim content using the \verbcode+\verb...+ family of
         macros and environments.  When typesetting verbatim content, any special
-        meaning of characters in LLM is ignored.  E.g., the characters
+        meaning of characters in FLM is ignored.  E.g., the characters
         ‘\verbcode+\+’, ‘\verbcode+{+’, ‘\verbcode+}+’ are typeset as is, and
         braces don't have to be matched.
 

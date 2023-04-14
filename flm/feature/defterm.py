@@ -9,11 +9,11 @@ from pylatexenc.latexnodes import nodes as latexnodes_nodes
 
 from .. import flmspecinfo
 from ..flmspecinfo import (
-    LLMMacroSpecBase, LLMEnvironmentSpecBase, TextFormatMacro,
+    FLMMacroSpecBase, FLMEnvironmentSpecBase, TextFormatMacro,
 )
 from ..flmenvironment import (
-    LLMParsingStateDeltaSetBlockLevel,
-    LLMArgumentSpec,
+    FLMParsingStateDeltaSetBlockLevel,
+    FLMArgumentSpec,
 )
 from ._base import Feature
 from . import refs
@@ -32,7 +32,7 @@ def get_term_ref_label_verbatim(node_term_arg_nodelist):
 
 # ------------------------------------------------------------------------------
 
-class DefineTermEnvironment(LLMEnvironmentSpecBase):
+class DefineTermEnvironment(FLMEnvironmentSpecBase):
 
     is_block_level = True
 
@@ -47,11 +47,11 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
         super().__init__(
             environmentname=environmentname,
             arguments_spec_list=[
-                LLMArgumentSpec('{', argname='term'),
+                FLMArgumentSpec('{', argname='term'),
                 flmspecinfo.label_arg,
             ],
             body_parsing_state_delta=
-                LLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level),
+                FLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level),
             **kwargs
         )
         self.render_with_term = render_with_term
@@ -149,7 +149,7 @@ class DefineTermEnvironment(LLMEnvironmentSpecBase):
         )
 
 
-class RefTermMacro(LLMMacroSpecBase):
+class RefTermMacro(FLMMacroSpecBase):
 
     allowed_in_standalone_mode = False
     delayed_render = True
@@ -160,10 +160,10 @@ class RefTermMacro(LLMMacroSpecBase):
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[
-                LLMArgumentSpec('[', argname='ref_term',
+                FLMArgumentSpec('[', argname='ref_term',
                                 flm_doc=r'The term that is being referenced.  '
                                 r'May be omitted if it coincides with \verba{term}'),
-                LLMArgumentSpec('{', argname='term',
+                FLMArgumentSpec('{', argname='term',
                                 flm_doc=r'The term the exact way it should '
                                 r'be typeset at this point'),
             ],

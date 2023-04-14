@@ -33,20 +33,20 @@ def main_docgen():
 
     args_parser = argparse.ArgumentParser(
         prog='flm-doc-gen',
-        description='Documentation generator for a Latex-Like Markup (LLM) environment',
+        description='Documentation generator for a Latex-Like Markup (FLM) environment',
         epilog='Have a lot of flm fun!',
     )
 
     args_parser.add_argument('-C', '--config', action='store',
                              default=None,
-                             help="YAML Configuration file for LLM parse settings and "
+                             help="YAML Configuration file for FLM parse settings and "
                              "features.  By default, ‘flmconfig.yaml’ will used in the "
                              "current directory if it exists.  In all cases the input "
                              "YAML front matter takes precedence over this config.")
 
     args_parser.add_argument('--no-frontmatter', action='store_false', default=True,
                              dest='frontmatter',
-                             help='Do not include front matter in the output LLM content')
+                             help='Do not include front matter in the output FLM content')
 
     args_parser.add_argument('-o', '--output', action='store',
                              default=None,
@@ -55,11 +55,11 @@ def main_docgen():
     args_parser.add_argument('-f', '--format', action='store',
                              default='html',
                              help="Output format: either 'flm' or one format we our "
-                             "LLM engine can compile to (e.g. html or text)")
+                             "FLM engine can compile to (e.g. html or text)")
 
     args_parser.add_argument('-w', '--workflow', action='store',
                              default=None,
-                             help="Use custom a workflow to compile the LLM document.")
+                             help="Use custom a workflow to compile the FLM document.")
 
     args_parser.add_argument('-t', '--template', action='store',
                              default=None,
@@ -75,7 +75,7 @@ def main_docgen():
                              f"argument multiple times to give multiple paths.  "
                              f"Each path is either a relative or absolute "
                              f"folder, or of the form ‘pkg:flm_pkg_name’ to load the "
-                             f"template paths relevant to that LLM python extention package.")
+                             f"template paths relevant to that FLM python extention package.")
 
     args_parser.add_argument('-V', '--view', action='store_true',
                              default=False,
@@ -147,7 +147,7 @@ def main_docgen():
     # Now, generate the documentation for this environment
     #
 
-    docgen_obj = docgen.LLMEnvironmentDocumentationGenerator()
+    docgen_obj = docgen.FLMEnvironmentDocumentationGenerator()
 
     docgen_flm_content = ''
 
@@ -156,7 +156,7 @@ def main_docgen():
         docgen_flm_content += yaml.dump({
             'flm': {
                 'features': {
-                    'flm.docgen.FeatureLLMDocumentation': True,
+                    'flm.docgen.FeatureFLMDocumentation': True,
                     'enumeration': {
                         'enumeration_environments': {
                             'flmDocItemize': {'counter_formatter':['▸'],},

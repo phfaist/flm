@@ -6,9 +6,9 @@ from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 from pylatexenc import macrospec
 
-from ..flmspecinfo import LLMMacroSpecBase
-from ..flmfragment import LLMFragment
-from ..flmenvironment import LLMArgumentSpec
+from ..flmspecinfo import FLMMacroSpecBase
+from ..flmfragment import FLMFragment
+from ..flmenvironment import FLMArgumentSpec
 
 from ..counter import build_counter_formatter
 
@@ -84,7 +84,7 @@ class FeatureExternalPrefixedCitations(Feature):
             if citation_flm_text is None:
                 raise ValueError(f"Citation not found: ‘{cite_prefix}:{cite_key}’")
 
-            if isinstance(citation_flm_text, LLMFragment):
+            if isinstance(citation_flm_text, FLMFragment):
                 citation_flm = citation_flm_text
             else:
                 citation_flm = self.render_context.make_standalone_fragment(
@@ -93,7 +93,7 @@ class FeatureExternalPrefixedCitations(Feature):
                     what=f"Citation text for {cite_prefix}:{cite_key}",
                 )
 
-            #logger.debug("Got citation content LLM nodelist = %r", citation_flm.nodes)
+            #logger.debug("Got citation content FLM nodelist = %r", citation_flm.nodes)
 
             return citation_flm
             
@@ -371,11 +371,11 @@ class FeatureExternalPrefixedCitations(Feature):
 
 
 cite_macro_arguments = [
-    LLMArgumentSpec(
+    FLMArgumentSpec(
         '[',
         argname='cite_pre_text',
     ),
-    LLMArgumentSpec(
+    FLMArgumentSpec(
         latexnodes_parsers.LatexCharsCommaSeparatedListParser(
             enable_comments=False
         ),
@@ -408,13 +408,13 @@ class TackOnMultipleCiteCommandsMacroParser(
 
 
 
-class CiteMacro(LLMMacroSpecBase):
+class CiteMacro(FLMMacroSpecBase):
 
     allowed_in_standalone_mode = False
 
     def __init__(self, macroname):
         arguments_spec_list = [] + cite_macro_arguments + [
-            LLMArgumentSpec(
+            FLMArgumentSpec(
                 parser=TackOnMultipleCiteCommandsMacroParser(
                     ['cite'],
                 ),

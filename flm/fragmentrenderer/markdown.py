@@ -16,7 +16,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
 
     supports_delayed_render_markers = True
     """
-    We use the marker ``<LLM:DLYD:delayed_key/>`` for delayed content, which
+    We use the marker ``<FLM:DLYD:delayed_key/>`` for delayed content, which
     cannot be confused with the rest of the HTML code that can be generated from
     this code generator.
     """
@@ -223,7 +223,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
         return '[' + display_content + '](' + href + ')'
     
     def render_delayed_marker(self, node, delayed_key, render_context):
-        return f"<LLM:DLYD:{delayed_key}/>"
+        return f"<FLM:DLYD:{delayed_key}/>"
 
     def render_delayed_dummy_placeholder(self, node, delayed_key, render_context):
         return f'<!-- delayed:{delayed_key} -->'
@@ -333,7 +333,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
 # ------------------
 
 
-_rx_delayed_markers = re.compile(r'<LLM:DLYD:(?P<key>\d+)\s*/>')
+_rx_delayed_markers = re.compile(r'<FLM:DLYD:(?P<key>\d+)\s*/>')
 
 
 

@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import nodes
 
-from ..flmrendercontext import LLMRenderContext
+from ..flmrendercontext import FLMRenderContext
 
 
 class FragmentRenderer:
@@ -62,10 +62,10 @@ class FragmentRenderer:
             raise ValueError("render_nodelist(): nodelist should not be None")
 
         if not hasattr(nodelist, 'flm_is_block_level'):
-            logger.debug("The given node list was not parsed & produced by LLM; "
+            logger.debug("The given node list was not parsed & produced by FLM; "
                          "missing .flm_is_block_level attribute:\n"
                          f"{nodelist=}")
-            raise ValueError("The given node list was not parsed & produced by LLM; "
+            raise ValueError("The given node list was not parsed & produced by FLM; "
                              "missing .flm_is_block_level attribute")
 
         if is_block_level is None:
@@ -385,6 +385,6 @@ class FragmentRenderer:
     # helpers
 
     def ensure_render_context(self, render_context):
-        return render_context or LLMRenderContext(fragment_renderer=self)
+        return render_context or FLMRenderContext(fragment_renderer=self)
 
 

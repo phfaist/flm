@@ -5,28 +5,28 @@ from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 
-from ..flmspecinfo import LLMArgumentSpec, LLMMacroSpecBase
+from ..flmspecinfo import FLMArgumentSpec, FLMMacroSpecBase
 
 from ._base import SimpleLatexDefinitionsFeature
 
 
 _href_arg_specs = {
-    'target_href': LLMArgumentSpec(
+    'target_href': FLMArgumentSpec(
         parser=latexnodes_parsers.LatexDelimitedVerbatimParser( ('{','}') ),
         argname='target_href',
     ),
-    'target_email': LLMArgumentSpec(
+    'target_email': FLMArgumentSpec(
         parser=latexnodes_parsers.LatexDelimitedVerbatimParser( ('{','}') ),
         argname='target_email',
     ),
-    'display_text': LLMArgumentSpec(
+    'display_text': FLMArgumentSpec(
         parser='{',
         argname='display_text',
     ),
 }
 
 
-class HrefHyperlinkMacro(LLMMacroSpecBase):
+class HrefHyperlinkMacro(FLMMacroSpecBase):
 
     allowed_in_standalone_mode = True
 
@@ -82,7 +82,7 @@ class HrefHyperlinkMacro(LLMMacroSpecBase):
             target_href = "mailto:" + node_args['target_email'].get_content_as_chars()
         else:
             raise ValueError(
-                "LLM Internal Error: no URL or hyper reference provided to href-like macro"
+                "FLM Internal Error: no URL or hyper reference provided to href-like macro"
             )
 
         if 'display_text' in node_args:

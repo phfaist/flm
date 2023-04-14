@@ -18,7 +18,7 @@ def run_main(cmdargs=None):
     )
 
     args_parser.add_argument('-c', '--flm-content', action='store',
-                             help="LLM content to parse and convert")
+                             help="FLM content to parse and convert")
 
     args_parser.add_argument('-B', '--force-block-level', action='store_true',
                              default=None,
@@ -27,7 +27,7 @@ def run_main(cmdargs=None):
 
     args_parser.add_argument('-C', '--config', action='store',
                              default=None,
-                             help="YAML Configuration file for LLM parse settings and "
+                             help="YAML Configuration file for FLM parse settings and "
                              "features.  By default, ‘flmconfig.yaml’ will used in the "
                              "current directory if it exists.  In all cases the input "
                              "YAML front matter takes precedence over this config.")
@@ -39,14 +39,14 @@ def run_main(cmdargs=None):
 
     args_parser.add_argument('-f', '--format', action='store',
                              default=None,
-                             help=f"LLM content to parse and convert.  One of "
+                             help=f"FLM content to parse and convert.  One of "
                              f"html,text,markdown,latex or a "
                              "fully specified module or class name defining a "
                              "FragmentRenderer subclass.")
 
     args_parser.add_argument('-w', '--workflow', action='store',
                              default=None,
-                             help="Use custom a workflow to compile the LLM document.")
+                             help="Use custom a workflow to compile the FLM document.")
 
     args_parser.add_argument('-t', '--template', action='store',
                              default=None,
@@ -62,7 +62,7 @@ def run_main(cmdargs=None):
                              f"argument multiple times to give multiple paths.  "
                              f"Each path is either a relative or absolute "
                              f"folder, or of the form ‘pkg:flm_pkg_name’ to load the "
-                             f"template paths relevant to that LLM python extention package.")
+                             f"template paths relevant to that FLM python extention package.")
 
     args_parser.add_argument('-V', '--view', action='store_true',
                              default=False,

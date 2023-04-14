@@ -16,7 +16,7 @@ class FeatureBaseFormatting(SimpleLatexDefinitionsFeature):
     You can produce basic formatting, including emphasis/italics and
     boldface using the following macros.  Several macros also provide a way to
     typeset literal characters that would otherwise have a special meaning in
-    your LLM environment.
+    your FLM environment.
 
     Input accents, special characters, etc., directly as Unicode:
     \verbcode+éàààé😅Á+. Note that source files should always be encoded using

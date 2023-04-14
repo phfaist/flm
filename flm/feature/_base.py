@@ -12,7 +12,7 @@ class Feature:
     feature_dependencies = None
     r"""
     If non-`None`, then this is a list (or set) of feature names that must
-    also be used in a given :py:class:`~flm.flmenvironment.LLMEnvironment`
+    also be used in a given :py:class:`~flm.flmenvironment.FLMEnvironment`
     instance for the present feature to function as intended.  These dependency
     features will be initialized prior to the present feature.
     """
@@ -124,7 +124,7 @@ class SimpleLatexDefinitionsFeature(Feature):
     r"""
     Set to a dictionary with one or more of the keys ('macros',
     'environments', 'specials'), whose corresponding values are lists of
-    LLMMacroSpec, LLMEnvironmentSpec, and LLMSpecialsSpec instances.
+    FLMMacroSpec, FLMEnvironmentSpec, and FLMSpecialsSpec instances.
     """
 
     def add_latex_context_definitions(self):

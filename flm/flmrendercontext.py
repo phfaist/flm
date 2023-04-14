@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 
 
 
-class LLMRenderContext:
+class FLMRenderContext:
 
     is_standalone_mode = False
 
@@ -113,7 +113,7 @@ class _RenderContextPushLogicalState:
         
 
 
-class LLMStandaloneModeRenderContext(LLMRenderContext):
+class FLMStandaloneModeRenderContext(FLMRenderContext):
 
     is_standalone_mode = True
 
@@ -125,7 +125,7 @@ class LLMStandaloneModeRenderContext(LLMRenderContext):
 
     def feature_render_manager(self, feature_name):
         raise ValueError(
-            f"There are no document features when rendering LLM text in "
+            f"There are no document features when rendering FLM text in "
             f"standalone mode (reqested ‘{feature_name}’)"
         )
 

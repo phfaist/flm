@@ -10,8 +10,8 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from ...flmenvironment import LLMArgumentSpec
-from ...flmspecinfo import LLMEnvironmentSpecBase
+from ...flmenvironment import FLMArgumentSpec
+from ...flmspecinfo import FLMEnvironmentSpecBase
 from ...counter import build_counter_formatter, Counter
 
 from .._base import Feature
@@ -121,7 +121,7 @@ def _make_content_handler(c):
 # ------------------------------------------------------------------------------
 
 float_label_arg = MacroSpec('label', arguments_spec_list=[
-    LLMArgumentSpec(
+    FLMArgumentSpec(
         parser=latexnodes_parsers.LatexCharsGroupParser(
             delimiters=('{','}'),
         ),
@@ -130,14 +130,14 @@ float_label_arg = MacroSpec('label', arguments_spec_list=[
 ])
 
 float_caption_arg = MacroSpec('caption', arguments_spec_list=[
-    LLMArgumentSpec(
+    FLMArgumentSpec(
         '{',
         argname='captiontext',
     ),
 ])
 
 
-class FloatEnvironment(LLMEnvironmentSpecBase):
+class FloatEnvironment(FLMEnvironmentSpecBase):
 
     is_block_level = True
 

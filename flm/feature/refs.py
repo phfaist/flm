@@ -9,9 +9,9 @@ from pylatexenc.latexnodes import (
 )
 #from pylatexenc import macrospec
 
-from ..flmfragment import LLMFragment
-from ..flmspecinfo import LLMMacroSpecBase
-from ..flmenvironment import LLMArgumentSpec
+from ..flmfragment import FLMFragment
+from ..flmspecinfo import FLMMacroSpecBase
+from ..flmenvironment import FLMArgumentSpec
 
 from ._base import Feature
 
@@ -183,8 +183,8 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         additional arguments are ignored and the earlier registered reference
         refinstance is returned instead.
 
-        `formatted_ref_flm_text` is LLM code given as a string or as a
-        LLMFragment instance.
+        `formatted_ref_flm_text` is FLM code given as a string or as a
+        FLMFragment instance.
         """
 
         node_id = self.get_node_id(node)
@@ -261,7 +261,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         if display_content_flm is None:
             display_content_flm = ref_instance.formatted_ref_flm_text
 
-        if not isinstance(display_content_flm, LLMFragment):
+        if not isinstance(display_content_flm, FLMFragment):
             display_content_flm = render_context.doc.environment.make_fragment(
                 display_content_flm,
                 standalone_mode=True
@@ -417,19 +417,19 @@ class FeatureRefs(Feature):
 
 
 _ref_arg_specs = {
-    'ref_label': LLMArgumentSpec(latexnodes_parsers.LatexCharsGroupParser(),
+    'ref_label': FLMArgumentSpec(latexnodes_parsers.LatexCharsGroupParser(),
                                   argname='ref_label'),
-    '[]ref_label': LLMArgumentSpec(
+    '[]ref_label': FLMArgumentSpec(
         latexnodes_parsers.LatexCharsGroupParser(
             delimiters=('[', ']'),
         ),
         argname='ref_label'
     ),
-    'display_text': LLMArgumentSpec('{', argname='display_text',),
+    'display_text': FLMArgumentSpec('{', argname='display_text',),
 }
 
 
-class RefMacro(LLMMacroSpecBase):
+class RefMacro(FLMMacroSpecBase):
 
     delayed_render = True
 

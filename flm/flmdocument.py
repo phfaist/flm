@@ -1,10 +1,10 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from .flmrendercontext import LLMRenderContext
+from .flmrendercontext import FLMRenderContext
 
 
-class LLMDocumentRenderContext(LLMRenderContext):
+class FLMDocumentRenderContext(FLMRenderContext):
     def __init__(self, doc, fragment_renderer, feature_document_managers, **kwargs):
         super().__init__(doc=doc, fragment_renderer=fragment_renderer, **kwargs)
         self.feature_document_managers = feature_document_managers
@@ -58,7 +58,7 @@ class LLMDocumentRenderContext(LLMRenderContext):
 
 
 
-class LLMDocument:
+class FLMDocument:
 
     def __init__(
             self,
@@ -80,7 +80,7 @@ class LLMDocument:
         # set up features & feature document managers
         self.features = self.environment.get_features_selection(enable_features)
 
-        #logger.debug("LLMDocument constructor, features = %r", self.features)
+        #logger.debug("FLMDocument constructor, features = %r", self.features)
 
         if feature_document_options is None:
             feature_document_options = {}
@@ -94,11 +94,11 @@ class LLMDocument:
         ]
         self.feature_document_managers_by_name = dict(self.feature_document_managers)
 
-        #logger.debug("LLMDocument constructor, instantiated feature document managers = %r",
+        #logger.debug("FLMDocument constructor, instantiated feature document managers = %r",
         #             self.feature_document_managers)
 
     def initialize(self):
-        #logger.debug("LLMDocument's initialize() called")
+        #logger.debug("FLMDocument's initialize() called")
         # initialize our feature document managers
         for feature_name, feature_document_manager in self.feature_document_managers:
             if feature_document_manager is not None:
@@ -113,7 +113,7 @@ class LLMDocument:
 
     def make_render_context(self, fragment_renderer, feature_render_options=None):
         # create the render context
-        render_context = LLMDocumentRenderContext(
+        render_context = FLMDocumentRenderContext(
             self,
             fragment_renderer,
             self.feature_document_managers,
@@ -147,7 +147,7 @@ class LLMDocument:
         # first pass render or render w/o any delayed content
         value = self.render_callback(render_context)
         if value is None:
-            logger.warning("The LLM document render callback function returned `None`! Did "
+            logger.warning("The FLM document render callback function returned `None`! Did "
                            "you forget a ‘return ...’ instruction?")
 
         logger.debug("flm document render first pass done, will render delayed values")

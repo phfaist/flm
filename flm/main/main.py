@@ -21,7 +21,7 @@ from . import run
 class ResourceAccessor(run.ResourceAccessorBase):
 
     template_path = [
-        None, # we interpret `None` as relative to the LLM source file's folder
+        None, # we interpret `None` as relative to the FLM source file's folder
         os.path.realpath(os.path.join(os.path.dirname(__file__), 'templates')),
     ]
 
@@ -90,7 +90,7 @@ def main(**kwargs):
 
     logger.debug("Format is %r", arg_format)
 
-    # Get the LLM content
+    # Get the FLM content
 
     input_content = ''
     dirname = None
@@ -120,7 +120,7 @@ def main(**kwargs):
                            "for the first specified file is inspected.  The jobname is "
                            "set to the name of the first file.  Line numbers past the "
                            "end of the first file will refer to the total processed "
-                           "LLM content lines.")
+                           "FLM content lines.")
         for line in fileinput.input(files=arg_files, encoding='utf-8'):
             input_content += line
 

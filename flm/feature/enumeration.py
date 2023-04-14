@@ -12,10 +12,10 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from ..flmspecinfo import LLMEnvironmentSpecBase, LLMSpecInfoParagraphBreak
+from ..flmspecinfo import FLMEnvironmentSpecBase, FLMSpecInfoParagraphBreak
 from ..flmenvironment import (
-    LLMParsingStateDeltaSetBlockLevel,
-    LLMArgumentSpec,
+    FLMParsingStateDeltaSetBlockLevel,
+    FLMArgumentSpec,
 )
 
 from .. import counter
@@ -33,7 +33,7 @@ _default_enumeration_counter_formatter = [
 ]
 
 
-class Enumeration(LLMEnvironmentSpecBase):
+class Enumeration(FLMEnvironmentSpecBase):
     r"""
     ..............
 
@@ -65,7 +65,7 @@ class Enumeration(LLMEnvironmentSpecBase):
         super().__init__(
             environmentname=environmentname,
             arguments_spec_list=[
-                LLMArgumentSpec(
+                FLMArgumentSpec(
                     latexnodes_parsers.LatexCharsGroupParser(
                         delimiters=('[',']'),
                         optional=True
@@ -74,7 +74,7 @@ class Enumeration(LLMEnvironmentSpecBase):
                 )
             ],
             body_parsing_state_delta=
-                LLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level),
+                FLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level),
             **kwargs
         )
         if counter_formatter is None:
@@ -90,7 +90,7 @@ class Enumeration(LLMEnvironmentSpecBase):
                 extend_latex_context=dict(
                     macros=[
                         MacroSpec('item', arguments_spec_list=[
-                            LLMArgumentSpec('[', argname='custom_tag'),
+                            FLMArgumentSpec('[', argname='custom_tag'),
                         ])
                     ]
                 )
@@ -117,7 +117,7 @@ class Enumeration(LLMEnvironmentSpecBase):
                     (item_macro.isNodeType(latexnodes_nodes.LatexCharsNode)
                      and item_macro.chars.strip() == '')
                     or (item_macro.isNodeType(latexnodes_nodes.LatexSpecialsNode)
-                        and isinstance(item_macro.spec, LLMSpecInfoParagraphBreak))
+                        and isinstance(item_macro.spec, FLMSpecInfoParagraphBreak))
                 )):
                 # skip leading whitespace
                 continue

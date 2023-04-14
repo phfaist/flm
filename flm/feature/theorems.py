@@ -3,7 +3,7 @@ from pylatexenc.latexnodes import ParsedArgumentsInfo, ParsingStateDelta
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc import macrospec
 
-from ..flmenvironment import LLMArgumentSpec, make_invocable_node_instance
+from ..flmenvironment import FLMArgumentSpec, make_invocable_node_instance
 from .. import flmspecinfo
 
 from ..counter import Counter, CounterAlias, build_counter_formatter
@@ -14,7 +14,7 @@ from . import headings
 
 
 
-optional_text_arg = LLMArgumentSpec(
+optional_text_arg = FLMArgumentSpec(
     parser='[',
     argname='thmtitle',
     flm_doc='An optional theorem environment title',
@@ -22,7 +22,7 @@ optional_text_arg = LLMArgumentSpec(
 
 
 
-class TheoremEnvironment(flmspecinfo.LLMEnvironmentSpecBase):
+class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
     
     is_block_level = True
 
@@ -75,7 +75,7 @@ class TheoremEnvironment(flmspecinfo.LLMEnvironmentSpecBase):
                         raise LatexWalkerParseError(
                             "When specifying a proof-ref target as optional argument "
                             "(‘[*thm:xyz]’), the entire argument must consist of "
-                            "regular characters with no special meaning in LLM.  Got: "
+                            "regular characters with no special meaning in FLM.  Got: "
                             f"‘{thmtitle_nodelist.latex_verbatim()}’",
                             pos=chnode.pos
                         )

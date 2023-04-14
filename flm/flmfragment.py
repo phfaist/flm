@@ -5,7 +5,7 @@ from pylatexenc import latexnodes
 import pylatexenc.latexnodes.parsers as latexnodes_parsers
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
-from .flmrendercontext import LLMStandaloneModeRenderContext
+from .flmrendercontext import FLMStandaloneModeRenderContext
 
 
 
@@ -21,13 +21,13 @@ _flmfragment_attribute_fields = (
 )
 
 
-class LLMFragment:
+class FLMFragment:
     r"""
-    A fragment of LLM-formatted code.
+    A fragment of FLM-formatted code.
 
-    A LLM fragment is intended to later be inserted in a document so that it can
+    A FLM fragment is intended to later be inserted in a document so that it can
     be rendered into the desired output format (HTML, plain text).  If the
-    fragment is *standalone* (`standalone_mode=True`), then some LLM features
+    fragment is *standalone* (`standalone_mode=True`), then some FLM features
     are disabled (typically, for instance, cross-references) and the fragment
     can be rendered directly on its own without inserting it in a document, see
     :py:meth:`render_standalone()`.
@@ -35,10 +35,10 @@ class LLMFragment:
     .....................
 
     The argument `resource_info` can be set to any custom object that can help
-    locate resources called by LLM text.  For instance, a `\includegraphics{}`
+    locate resources called by FLM text.  For instance, a `\includegraphics{}`
     call might wish to look for graphics in the same filesystem folder as a file
-    that contained the LLM code; the `resource_info` object can be used to store
-    the filesystem folder of the LLM code forming this fragment.
+    that contained the FLM code; the `resource_info` object can be used to store
+    the filesystem folder of the FLM code forming this fragment.
     """
 
     def __init__(
@@ -52,7 +52,7 @@ class LLMFragment:
             tolerant_parsing=False,
             what='(unknown)',
             silent=False,
-            parsing_mode=None, # see LLMEnvironment.get_parsing_state(parsing_mode=)
+            parsing_mode=None, # see FLMEnvironment.get_parsing_state(parsing_mode=)
             input_lineno_colno_offsets=None,
             _flm_text_if_loading_nodes=None,
     ):
@@ -81,7 +81,7 @@ class LLMFragment:
 
         try:
             self.latex_walker, self.nodes = \
-                LLMFragment.parse(
+                FLMFragment.parse(
                     self.flm_text,
                     self.environment,
                     standalone_mode=self.standalone_mode,
@@ -141,9 +141,9 @@ class LLMFragment:
             raise ValueError(
                 "You can only use render_standalone() on a fragment that "
                 "was parsed in standalone mode (use `standalone_mode=True` "
-                "in the LLMFragment constructor)"
+                "in the FLMFragment constructor)"
             )
-        render_context = LLMStandaloneModeRenderContext(fragment_renderer=fragment_renderer)
+        render_context = FLMStandaloneModeRenderContext(fragment_renderer=fragment_renderer)
         return self.render(render_context)
 
     @classmethod
@@ -154,7 +154,7 @@ class LLMFragment:
               input_lineno_colno_offsets=None,
               ):
 
-        logger.debug("Parsing LLM content %r", flm_text)
+        logger.debug("Parsing FLM content %r", flm_text)
 
         latex_walker = environment.make_latex_walker(
             flm_text,
@@ -185,10 +185,10 @@ class LLMFragment:
         return not self.is_empty()
 
     def __repr__(self):
-        thellmtext = self.flm_text
-        if len(thellmtext) > 50:
-            thellmtext = thellmtext[:49]+'…'
-        return f"<{self.__class__.__name__} {thellmtext!r}>"
+        theflmtext = self.flm_text
+        if len(theflmtext) > 50:
+            theflmtext = theflmtext[:49]+'…'
+        return f"<{self.__class__.__name__} {theflmtext!r}>"
 
 
     def whitespace_stripped(self):
@@ -200,7 +200,7 @@ class LLMFragment:
 
     def get_first_paragraph(self):
         r"""
-        Returns a new :py:class:`LLMFragment` object that contains all material
+        Returns a new :py:class:`FLMFragment` object that contains all material
         comprising the first paragraph in the present fragment.
         """
         nodelists_paragraphs = self.nodes.split_at_node(

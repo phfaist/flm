@@ -76,7 +76,7 @@ class ResourceAccessorBase:
 #     'cwd': ..... # input CWD
 #     'input_lineno_colno_offsets': ..... # passed on to flmfragment, adjust line/col numbers
 #     'metadata': ..... # to be merged into the document's metadata. Can
-#                       # include information about the LLM source, etc.
+#                       # include information about the FLM source, etc.
 # }
 
 

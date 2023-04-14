@@ -33,7 +33,7 @@
 % cell in the given content.
 %
 % - {...cells content...} : cell contents, columns are separated by ‘&’ and rows
-%   are separated by ‘\\’.  Each cell contents is either simple LLM cell content,
+%   are separated by ‘\\’.  Each cell contents is either simple FLM cell content,
 %   or a single \cell command that can override style, merged columns, etc.
 %
 % - location-mapping: can be either:

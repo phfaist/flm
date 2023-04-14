@@ -9,14 +9,14 @@ from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
 
 from .flmenvironment import (
-    LLMArgumentSpec
+    FLMArgumentSpec
 )
 
 
 # ------------------------------------------------------------------------------
 
 
-class LLMSpecInfo:
+class FLMSpecInfo:
     r"""
     Class that specifies how to finalize a given parsed node and how to process
     it to render into primitives understood by
@@ -29,7 +29,7 @@ class LLMSpecInfo:
     after a first pass through the document.  This is the case, for instance,
     for ``\ref`` commands etc. for which the entire document needs to have been
     traversed at least once beforehand.  See the delayed render mechanism in the
-    documentation for the :py:class:`flmdocument.LLMDocument` class.
+    documentation for the :py:class:`flmdocument.FLMDocument` class.
     """
 
     is_block_level = False
@@ -161,17 +161,17 @@ def _dobaseconstructors2argslast(Me, self, args, kwargs, kwargs_to_1=None):
 ### ENDPATCH_MULTIPLE_BASE_CONSTRUCTORS
 
 
-class LLMMacroSpecBase(LLMSpecInfo, macrospec.MacroSpec):
+class FLMMacroSpecBase(FLMSpecInfo, macrospec.MacroSpec):
     def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(LLMMacroSpecBase, self, args, kwargs)
+        _dobaseconstructors2argslast(FLMMacroSpecBase, self, args, kwargs)
 
-class LLMEnvironmentSpecBase(LLMSpecInfo, macrospec.EnvironmentSpec):
+class FLMEnvironmentSpecBase(FLMSpecInfo, macrospec.EnvironmentSpec):
     def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(LLMEnvironmentSpecBase, self, args, kwargs)
+        _dobaseconstructors2argslast(FLMEnvironmentSpecBase, self, args, kwargs)
 
-class LLMSpecialsSpecBase(LLMSpecInfo, macrospec.SpecialsSpec):
+class FLMSpecialsSpecBase(FLMSpecInfo, macrospec.SpecialsSpec):
     def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(LLMSpecialsSpecBase, self, args, kwargs)
+        _dobaseconstructors2argslast(FLMSpecialsSpecBase, self, args, kwargs)
 
 
 
@@ -190,7 +190,7 @@ def make_verb_argument(value):
     return (delim0 + value + delim0)
 
 
-class LLMSpecInfoConstantValue(LLMSpecInfo):
+class FLMSpecInfoConstantValue(FLMSpecInfo):
 
     allowed_in_standalone_mode = True
 
@@ -205,22 +205,22 @@ class LLMSpecInfoConstantValue(LLMSpecInfo):
         return render_context.fragment_renderer.render_value(self.value, render_context)
 
 
-class ConstantValueMacro(LLMSpecInfoConstantValue, macrospec.MacroSpec):
+class ConstantValueMacro(FLMSpecInfoConstantValue, macrospec.MacroSpec):
     def __init__(self, *args, **kwargs):
         _dobaseconstructors2argslast(ConstantValueMacro, self, args, kwargs, ('value',))
 
-class ConstantValueSpecials(LLMSpecInfoConstantValue, macrospec.SpecialsSpec):
+class ConstantValueSpecials(FLMSpecInfoConstantValue, macrospec.SpecialsSpec):
     def __init__(self, *args, **kwargs):
         _dobaseconstructors2argslast(ConstantValueSpecials, self, args, kwargs, ('value',))
 
 
-text_arg = LLMArgumentSpec(
+text_arg = FLMArgumentSpec(
     parser='{',
     argname='text',
-    flm_doc='The text or LLM content to process',
+    flm_doc='The text or FLM content to process',
 )
 
-label_arg = LLMArgumentSpec(
+label_arg = FLMArgumentSpec(
     parser=latexnodes_parsers.LatexTackOnInformationFieldMacrosParser(
         ['label'],
         allow_multiple=True
@@ -270,7 +270,7 @@ def helper_collect_labels(node_arg_label, allowed_prefixes, allow_unknown_macros
 
 
 
-class TextFormatMacro(LLMMacroSpecBase):
+class TextFormatMacro(FLMMacroSpecBase):
     r"""
     The argument `text_formats` is a list of strings, each string is a format
     name to apply.  Format names are inspired from the corresponding canonical
@@ -315,7 +315,7 @@ class TextFormatMacro(LLMMacroSpecBase):
         )
 
 
-class LLMSpecInfoParagraphBreak(LLMSpecInfo):
+class FLMSpecInfoParagraphBreak(FLMSpecInfo):
 
     is_block_level = True
 
@@ -329,18 +329,18 @@ class LLMSpecInfoParagraphBreak(LLMSpecInfo):
     def get_flm_doc(self):
         return "Produce a paragraph break to begin a new paragraph"
 
-class ParagraphBreakSpecials(LLMSpecInfoParagraphBreak, macrospec.SpecialsSpec):
+class ParagraphBreakSpecials(FLMSpecInfoParagraphBreak, macrospec.SpecialsSpec):
     def __init__(self, *args, **kwargs):
         _dobaseconstructors2argslast(ParagraphBreakSpecials, self, args, kwargs)
 
-class ParagraphBreakMacro(LLMSpecInfoParagraphBreak, macrospec.MacroSpec):
+class ParagraphBreakMacro(FLMSpecInfoParagraphBreak, macrospec.MacroSpec):
     def __init__(self, *args, **kwargs):
         _dobaseconstructors2argslast(ParagraphBreakMacro, self, args, kwargs)
 
 
 
 
-class LLMSpecInfoError(LLMSpecInfo):
+class FLMSpecInfoError(FLMSpecInfo):
 
     allowed_in_standalone_mode = True
 
@@ -359,17 +359,17 @@ class LLMSpecInfoError(LLMSpecInfo):
         raise LatexWalkerParseError(msg, pos=node.pos)
 
 
-class LLMMacroSpecError(LLMSpecInfoError, macrospec.MacroSpec):
+class FLMMacroSpecError(FLMSpecInfoError, macrospec.MacroSpec):
     def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(LLMMacroSpecError, self, args, kwargs)
+        _dobaseconstructors2argslast(FLMMacroSpecError, self, args, kwargs)
 
-class LLMEnvironmentSpecError(LLMSpecInfoError, macrospec.EnvironmentSpec):
+class FLMEnvironmentSpecError(FLMSpecInfoError, macrospec.EnvironmentSpec):
     def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(LLMEnvironmentSpecError, self, args, kwargs)
+        _dobaseconstructors2argslast(FLMEnvironmentSpecError, self, args, kwargs)
 
-class LLMSpecialsSpecError(LLMSpecInfoError, macrospec.SpecialsSpec):
+class FLMSpecialsSpecError(FLMSpecInfoError, macrospec.SpecialsSpec):
     def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(LLMSpecialsSpecError, self, args, kwargs)
+        _dobaseconstructors2argslast(FLMSpecialsSpecError, self, args, kwargs)
 
 
 

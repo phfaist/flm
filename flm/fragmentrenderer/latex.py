@@ -21,7 +21,7 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     supports_delayed_render_markers = True
     r"""
-    We use the marker ``\LLMDLYD{delayed_key}`` for delayed content, which
+    We use the marker ``\FLMDLYD{delayed_key}`` for delayed content, which
     cannot be confused with the rest of the LaTeX code that can be generated
     from this code generator.
     """
@@ -376,7 +376,7 @@ class LatexFragmentRenderer(FragmentRenderer):
         return r'\href{' + href.replace(r'%',r'\%') + r'}{' + display_content + r'}'
     
     def render_delayed_marker(self, node, delayed_key, render_context):
-        return r"\LLMDLYD{" + str(delayed_key) + "}"
+        return r"\FLMDLYD{" + str(delayed_key) + "}"
 
     def render_delayed_dummy_placeholder(self, node, delayed_key, render_context):
         return f'% delayed:{delayed_key}\n' #+ r'\relax{}'
@@ -664,7 +664,7 @@ class LatexFragmentRenderer(FragmentRenderer):
 # ------------------
 
 
-_rx_delayed_markers = re.compile(r'\\LLMDLYD\{(?P<key>\d+)\}')
+_rx_delayed_markers = re.compile(r'\\FLMDLYD\{(?P<key>\d+)\}')
 
 
 
