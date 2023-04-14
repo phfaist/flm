@@ -1,11 +1,11 @@
 import unittest
 
-### BEGIN_TEST_LLM_SKIP
+### BEGIN_TEST_FLM_SKIP
 
 import toml
 from pathlib import Path
 
-import llm
+import flm
 
 
 # thanks https://github.com/python-poetry/poetry/issues/144#issuecomment-877835259
@@ -20,7 +20,7 @@ class TestHardcodedPackageVersion(unittest.TestCase):
             pyproject = toml.loads(fpp.read())
         pyproject_version = pyproject["tool"]["poetry"]["version"]
 
-        package_init_version = llm.__version__
+        package_init_version = flm.__version__
 
         self.assertEqual(package_init_version, pyproject_version)
 
@@ -28,4 +28,4 @@ class TestHardcodedPackageVersion(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
-### END_TEST_LLM_SKIP
+### END_TEST_FLM_SKIP

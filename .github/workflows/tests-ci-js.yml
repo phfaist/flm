@@ -51,13 +51,13 @@ jobs:
         run: 'poetry install --with buildjslib'
 
       - name: 'Check out pylatexenc v3 sources'
-        working-directory: 'llm-js'
+        working-directory: 'flm-js'
         run: 'git clone https://github.com/phfaist/pylatexenc.git pylatexenc-src -b devel --depth=1'
 
       - name: 'Generate LLM JS library'
-        working-directory: 'llm-js'
-        run: 'poetry run python ./generate_llm_js.py --pylatexenc-src-dir=./pylatexenc-src/ --compile-tests'
+        working-directory: 'flm-js'
+        run: 'poetry run python ./generate_flm_js.py --pylatexenc-src-dir=./pylatexenc-src/ --compile-tests'
 
       - name: 'Run JS tests'
-        working-directory: 'llm-js'
-        run: 'node test-llm-js/runtests.js'
+        working-directory: 'flm-js'
+        run: 'node test-flm-js/runtests.js'

@@ -1,23 +1,23 @@
 import unittest
 
 
-from llm.llmenvironment import make_standard_environment
-from llm.stdfeatures import standard_features
-from llm.fragmentrenderer.html import HtmlFragmentRenderer
+from flm.flmenvironment import make_standard_environment
+from flm.stdfeatures import standard_features
+from flm.fragmentrenderer.html import HtmlFragmentRenderer
 
-from llm.feature import cite as feature_cite
+from flm.feature import cite as feature_cite
 
 
-def mk_llm_environ(**kwargs):
+def mk_flm_environ(**kwargs):
     features = standard_features(**kwargs)
     return make_standard_environment(features)
 
 
 
 class MyCitationsProvider:
-    def get_citation_full_text_llm(self, cite_prefix, cite_key, resource_info):
+    def get_citation_full_text_flm(self, cite_prefix, cite_key, resource_info):
         if cite_prefix == 'arxiv':
-            # can return LLM text as a string
+            # can return FLM text as a string
             return r'\textit{arXiv} paper ' + f'arXiv:{cite_key}'
         if cite_prefix == 'manual':
             # can return a compiled fragment
@@ -37,7 +37,7 @@ class TestFeatureCite(unittest.TestCase):
 
     def test_citation_1(self):
 
-        environ = mk_llm_environ(
+        environ = mk_flm_environ(
             external_citations_providers=[ MyCitationsProvider() ]
         )
 
@@ -73,7 +73,7 @@ Citation <span class="citations"><a href="#citation-1" class="href-endnote endno
 
     def test_citation_2(self):
 
-        environ = mk_llm_environ(
+        environ = mk_flm_environ(
             external_citations_providers=[ MyCitationsProvider() ]
         )
 
@@ -110,7 +110,7 @@ Citation <span class="citations">[<a href="#citation-1" class="href-endnote endn
 
     def test_citation_multirng(self):
 
-        environ = mk_llm_environ(
+        environ = mk_flm_environ(
             external_citations_providers=[ MyCitationsProvider() ]
         )
 
@@ -156,7 +156,7 @@ Cite <span class="citations">[<a href="#citation-1" class="href-endnote endnote 
 
     def test_citation_w_extra(self):
 
-        environ = mk_llm_environ(
+        environ = mk_flm_environ(
             external_citations_providers=[ MyCitationsProvider() ]
         )
 
@@ -197,7 +197,7 @@ Citation <span class="citations"><a href="#citation-1" class="href-endnote endno
 
     def test_citation_multi_w_extra_error(self):
 
-        environ = mk_llm_environ(
+        environ = mk_flm_environ(
             external_citations_providers=[ MyCitationsProvider() ]
         )
 
@@ -215,7 +215,7 @@ Citation \cite[Theorem~45]{arxiv:1111.11111,arxiv:2222.22222}.
 
     def test_citation_chain_macros(self):
 
-        environ = mk_llm_environ(
+        environ = mk_flm_environ(
             external_citations_providers=[ MyCitationsProvider() ]
         )
 

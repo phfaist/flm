@@ -23,10 +23,10 @@ typesetting is fully customizable, e.g., through CSS styling of its HTML output
 
 You can install LLM with pip:
 ```bash
-$ pip install git+https://github.com/phfaist/llm.git@main
+$ pip install git+https://github.com/phfaist/flm.git@main
 ```
 
-Example `mydocument.llm`:
+Example `mydocument.flm`:
 ```latex
 ---
 title: Kitaev's Surface Code
@@ -55,7 +55,7 @@ the edges adjacent to a face, or plaquette, \(p\) of the lattice
 
 To compile your document into an HTML page, use:
 ```bash
-$ llm mydocument.llm -o mydocument.html --format=html --template=simple
+$ flm mydocument.flm -o mydocument.html --format=html --template=simple
 ```
 
 You can then open the `mydocument.html` file in your browser.
@@ -68,17 +68,17 @@ drastically.  Feel free to share ideas!
 
 # Use as a command-line tool
 
-You can use `llm` in command-line mode to compile your documents:
+You can use `flm` in command-line mode to compile your documents:
 ```bash
-$ llm mydocument.llm
+$ flm mydocument.flm
 ```
 
-Run `llm --help` to get a list of options. They should be fairly
+Run `flm --help` to get a list of options. They should be fairly
 standard and/or self-explanatory:
 ```bash
 # output to file mydocument.html, format HTML, including skeleton
 # HTML structure with minimal CSS.
-$ llm mydocument.llm -o mydocument.html --format=html --template=simple
+$ flm mydocument.flm -o mydocument.html --format=html --template=simple
 ```
 
 Available formats are `html`, `text`, `latex`, and `markdown`.  Formats
@@ -89,31 +89,31 @@ if your system has a standard LaTeX distribution such as TeXLive installed)
 - **Additional HTML Templates:**
   The `--template=` option can be used to change the template used to render the
   document.  See also the
-  [*llm-templates*](https://github.com/phfaist/llm-templates) extension package
+  [*flm-templates*](https://github.com/phfaist/flm-templates) extension package
   for some additional templates and template engines.  You can try:
   ```
-  > pip install git+https://github.com/phfaist/llm-templates.git
-  > pip install git+https://github.com/phfaist/llm-htmlplus.git
+  > pip install git+https://github.com/phfaist/flm-templates.git
+  > pip install git+https://github.com/phfaist/flm-htmlplus.git
   ```
   and then
   ```
-  > llm mydocument.llm -o output.html -w llm_htmlplus -P 'pkg:llm_templates' -t sunset
+  > flm mydocument.flm -o output.html -w flm_htmlplus -P 'pkg:flm_templates' -t sunset
   ```
   Or try the template `-t oldtextbook`.
 
 - **Citations from arXiv & DOI:**
   Automatically fetch citations from the arXiv, DOI x-references, or other
-  sources using the [*llm-citations*](https://github.com/phfaist/llm-citations)
+  sources using the [*flm-citations*](https://github.com/phfaist/flm-citations)
   extension package (see README file there).  Install the extension package
   using pip:
   ```
-  > pip install git+https://github.com/phfaist/llm-citations
+  > pip install git+https://github.com/phfaist/flm-citations
   ```
   And then try to compile, e.g., the following LLM document:
   ```yaml
   ---
   $import:
-    - pkg:llm_citations
+    - pkg:flm_citations
   ---
   \section{Introduction}
   Let's cite Kitaev's surface code~\cite{doi:10.1070/RM1997v052n06ABEH002155,doi:10.1007/978-1-4615-5923-8_19,arXiv:quant-ph/9707021}. ...
@@ -146,7 +146,7 @@ as a title.
 ```yaml
 ---
 title: 'My LLM document'
-llm:
+flm:
    parsing:
      enable_dollar_math_mode: True
    features:
@@ -170,36 +170,36 @@ You can use the `$import:` directive to import a configuration from an
 external file, URL, or extension package:
 ```yaml
 $import:
-  - my-llm-config.yaml # merge my-llm-config.yaml into this config.
+  - my-flm-config.yaml # merge my-flm-config.yaml into this config.
 
 # you can still specify configuration to merge with here ...
 ...
-llm:
+flm:
    ...
 ```
 
 The `$import:` target can specify multiple configurations to import.  Each list
-item can be a absolute or relative file path (`$import: 'my-llm-config.yaml'` or
-`$import: /path/to/my/llm-config.yaml`), a URL (`$import:
-https://example.com/my/llm-config.yaml`), or a fully qualified python package
-name introduced with ``pkg:package_name`` (e.g., `$import: pkg:llm_citations`).
+item can be a absolute or relative file path (`$import: 'my-flm-config.yaml'` or
+`$import: /path/to/my/flm-config.yaml`), a URL (`$import:
+https://example.com/my/flm-config.yaml`), or a fully qualified python package
+name introduced with ``pkg:package_name`` (e.g., `$import: pkg:flm_citations`).
 If a package name is specified to the `$import` directive, the package is loaded
 and the default LLM configuration is extracted from it and included (the
-`llm_default_import_config` attribute of the module is read; it is assumed to be
+`flm_default_import_config` attribute of the module is read; it is assumed to be
 a dictionary or a callable that returns a dictionary).  You can optionally
 follow the package name by a path to specify submodules/attributes to read
-instead of `llm_default_import_config`; e.g., ``pkg:mypackage/foo/bar`` will
+instead of `flm_default_import_config`; e.g., ``pkg:mypackage/foo/bar`` will
 import the module `mypackage` and import the configuration dictionary stored in
 ``mypackage.foo.bar``.  LLM extention plugin/package authors can use this
 feature to offer preset customization configurations that can easily be included
-with ``pkg:some_llm_extension_package/some/preset/name``.
+with ``pkg:some_flm_extension_package/some/preset/name``.
 
 
 ### Parser configuration
 
 Here's a basic parser configuration that you can adapt:
 ```yaml
-llm:
+flm:
   parsing:
     # Enable/Disable comments as in LaTeX, led by ‘%%’
     enable_comments: true
@@ -221,7 +221,7 @@ llm:
 Here's a basic renderer configuration that you can adapt **for HTML output**
 (`--format=html`):
 ```yaml
-llm:
+flm:
   renderer:
     html:
       use_link_target_blank: false
@@ -240,7 +240,7 @@ llm:
 Here's a basic renderer configuration that you can adapt **for text output**
 (`--format=text`):
 ```yaml
-llm:
+flm:
   renderer:
     text:
       display_href_urls: true
@@ -249,7 +249,7 @@ llm:
 Here's a basic renderer configuration that you can adapt **for LaTeX output**
 (`--format=latex`):
 ```yaml
-llm:
+flm:
   renderer:
     latex:
       heading_commands_by_level:
@@ -264,7 +264,7 @@ llm:
 Here's a basic renderer configuration that you can adapt **for Markdown output**
 (`--format=markdown`):
 ```yaml
-llm:
+flm:
   renderer:
     markdown:
       use_target_ids: 'github' # or 'anchor' or 'pandoc' or null
@@ -289,7 +289,7 @@ Features can be selected and configured directly in the LLM config metadata.  Fo
 the following configuration is extracted from the default feature configuration when you run
 LLM:
 ```yaml
-llm:
+flm:
   features:
     # list features that should be available here.
     enumeration:
@@ -330,17 +330,17 @@ llm:
 
 ## Additional Features such as *Citations*
 
-Additional features can be imported in the llm config.  They can reside in other
+Additional features can be imported in the flm config.  They can reside in other
 python packages.  Some day I'll properly document how to write new features.
-For now, check out the examples in `llm/feature/xxx.py` (and keep in mind that
+For now, check out the examples in `flm/feature/xxx.py` (and keep in mind that
 the APIs are still likely to change!).
 
 To include for instance the citations feature provided by the
-[llm-citations](https://github.com/phfaist/llm-citations) package, install that
+[flm-citations](https://github.com/phfaist/flm-citations) package, install that
 package and use the config:
 ```yaml
 $import:
-  - pkg:llm_citations
+  - pkg:flm_citations
 bibliography:
   - bibpreset.yaml
   - anotherbibtest.json
@@ -354,11 +354,11 @@ depending on the type of citation.  By default:
   bibliography files are expected to be CSL-JSON or CSL-YAML files. (Sorry, no bibtex for now.)
 
 You can of course configure all of that manually. Check out the code in the
-[`llm-citations`](https://github.com/phfaist/llm-citations) repo for more insight.  Doc will
+[`flm-citations`](https://github.com/phfaist/flm-citations) repo for more insight.  Doc will
 hopefully come soon.
 
 
-# Using the `llm` package
+# Using the `flm` package
 
 Needs doc.
 
@@ -369,9 +369,9 @@ Note: Math is simply marked with `<span class=...>` tags for use with
 
 Example:
 ```py
-from llm.llmenvironment import make_standard_environment
-from llm.stdfeatures import standard_features
-from llm.fragmentrenderer.html import HtmlFragmentRenderer
+from flm.llmenvironment import make_standard_environment
+from flm.stdfeatures import standard_features
+from flm.fragmentrenderer.html import HtmlFragmentRenderer
 
 environ = make_standard_environment(features=standard_features())
 
@@ -418,4 +418,4 @@ print(result_html)
 # A Javascript LLM library
 
 You can transpile the core part of this library to Javascript using Transcrypt.
-See [the `llm-js` subfolder](llm-js/README.md) for more details.
+See [the `flm-js` subfolder](flm-js/README.md) for more details.

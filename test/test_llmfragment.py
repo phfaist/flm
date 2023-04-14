@@ -1,30 +1,30 @@
 import unittest
 
-from llm.llmfragment import LLMFragment
-from llm.llmenvironment import make_standard_environment
-from llm.stdfeatures import standard_features
+from flm.flmfragment import FLMFragment
+from flm.flmenvironment import make_standard_environment
+from flm.stdfeatures import standard_features
 
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 from pylatexenc.latexnodes import LatexWalkerParseError
 
 
 
-def mk_llm_environ(**kwargs):
+def mk_flm_environ(**kwargs):
     features = standard_features(**kwargs)
     return make_standard_environment(features)
 
 
 
 
-class TestLLMFragment(unittest.TestCase):
+class TestFLMFragment(unittest.TestCase):
 
     def test_simple(self):
 
-        env = mk_llm_environ()
+        env = mk_flm_environ()
 
-        s = r'Hello, this is a LLM fragment of text with only simple characters.'
+        s = r'Hello, this is a FLM fragment of text with only simple characters.'
 
-        frag = LLMFragment(
+        frag = FLMFragment(
             s,
             env,
             what='example text fragment'
@@ -36,12 +36,12 @@ class TestLLMFragment(unittest.TestCase):
 
     def test_failure(self):
 
-        env = mk_llm_environ()
+        env = mk_flm_environ()
 
-        s = r'Hello, this is a LLM fragment of text with an \UnknownMacroThatRaisesAnError.'
+        s = r'Hello, this is a FLM fragment of text with an \UnknownMacroThatRaisesAnError.'
 
         with self.assertRaises(LatexWalkerParseError):
-            frag = LLMFragment(
+            frag = FLMFragment(
                 s,
                 env,
                 what='example text fragment'
@@ -49,10 +49,10 @@ class TestLLMFragment(unittest.TestCase):
 
     def test_get_first_paragraph(self):
 
-        env = mk_llm_environ()
+        env = mk_flm_environ()
 
         s = r'''
-Hello, this is a \textbf{LLM} fragment
+Hello, this is a \textbf{FLM} fragment
 of text with multiple paragraphs.
 
 Here is the \textit{second}
@@ -60,7 +60,7 @@ paragraph. It is separated from the
 first with two newline characters.
 '''.strip()
 
-        frag_full = LLMFragment(
+        frag_full = FLMFragment(
             s,
             env,
             what='example text fragment'
@@ -68,7 +68,7 @@ first with two newline characters.
 
         frag = frag_full.get_first_paragraph()
 
-        self.assertTrue(isinstance(frag, LLMFragment))
+        self.assertTrue(isinstance(frag, FLMFragment))
         self.assertEqual(len(frag.nodes), 3)
         self.assertTrue(frag.nodes[0].isNodeType(latexnodes_nodes.LatexCharsNode))
         self.assertEqual(frag.nodes[0].chars, 'Hello, this is a ')
@@ -76,7 +76,7 @@ first with two newline characters.
 
     def test_whitespace_stripped(self):
 
-        env = mk_llm_environ()
+        env = mk_flm_environ()
 
         s = r'''
   Hello, this has
@@ -84,7 +84,7 @@ whitespace
 
 '''
 
-        frag_full = LLMFragment(
+        frag_full = FLMFragment(
             s,
             env,
             what='example text fragment'
@@ -92,7 +92,7 @@ whitespace
 
         frag = frag_full.whitespace_stripped()
 
-        self.assertTrue(isinstance(frag, LLMFragment))
+        self.assertTrue(isinstance(frag, FLMFragment))
         self.assertEqual(len(frag.nodes), 1)
         self.assertTrue(frag.nodes[0].isNodeType(latexnodes_nodes.LatexCharsNode))
         self.assertEqual(frag.nodes[0].chars, 'Hello, this has\nwhitespace')
@@ -100,10 +100,10 @@ whitespace
 
     def test_truncate_content(self):
 
-        env = mk_llm_environ()
+        env = mk_flm_environ()
 
         s = r'''
-Here is \emph{an example of a \textbf{LLM} fragment}
+Here is \emph{an example of a \textbf{FLM} fragment}
 of text with multiple paragraphs.
 
 \begin{align}
@@ -116,7 +116,7 @@ Here is another \textit{paragraph}.
 with two newline characters.
 '''
 
-        frag_full = LLMFragment(
+        frag_full = FLMFragment(
             s,
             env,
             what='example text fragment'

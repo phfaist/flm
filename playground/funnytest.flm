@@ -1,0 +1,184 @@
+---
+title: 'A funny test of a LLM document'
+author: 'Ph. Faist'
+date: 'March 32, 2092'
+flm:
+   template:
+     html: 'simple'
+   template_config:
+     html:
+       simple:
+         render_header: true
+         font:
+           #family: 'Droid Sans Mono'
+           #family: 'Comic Sans MS'
+           family: 'EB Garamond' #'Harrington'
+           size: '18px'
+   features:
+     theorems: {}
+     # ### Will override format-specific LLM defaults
+     # endnotes:
+     #   categories:
+     #     - category_name: footnote
+     #       counter_formatter: roman #unicodesuperscript
+     #       heading_title: 'The Footnotes Are To Be Found Here'
+     #       endnote_command: 'footnote'
+     #   #render_options:
+     #     #include_headings_at_level: 2
+     #     #endnotes_heading_title: 'Endnotes'
+---
+Hello, world. \emph{Here I am.} What would you like
+to    see?
+
+    \begin{itemize}
+  \item cool things?
+  \item more stuff?
+  \item[!!!] Fun stuff??
+\item Do
+   \begin{itemize}
+   \item Nested
+   \item enumeration
+     \begin{enumerate}
+     \item lists
+     \item work?
+     \end{enumerate}
+   \end{itemize}
+\end{itemize}
+
+\section{First section}
+
+From there to here, funny things are everywhere.
+
+\begin{defterm}{Pauli matrices}
+  The \emph{Pauli matrices} are defined as
+  \begin{align}
+    \sigma_X = \begin{pmatrix} 0 & 1\\1 & 0\end{pmatrix}\ ;\quad
+    \sigma_Y = \begin{pmatrix} 0 & -i\\i & 0\end{pmatrix}\ ;\quad
+    \sigma_Z = \begin{pmatrix} 1 & 0\\0 & -1\end{pmatrix}\ .
+  \end{align}
+\end{defterm}
+
+\paragraph{Some properties}
+The Pauli matrices obey the following properties.
+\begin{align}
+  [\sigma_i,\sigma_j] &= \sum_k 2i\epsilon_{ijk}\sigma_k
+  \label{eq:pauli-c} \\
+  \{\sigma_i,\sigma_j\} &= 2\delta_{ij}
+  \label{eq:pauli-ac}
+\end{align}
+
+\begin{defterm}{qu\(d\)it}
+  \label{topic:qudit}
+  A \emph{qu\(d\)it} is a \(d\)-dimensional quantum system.
+\end{defterm}
+
+Here's a display equation:
+\begin{align}
+  a + b = c\ . \tag*{(111)}
+  \label{eq:my-equation}
+\end{align}
+
+Here's another display equation:
+\begin{align}
+  A + Z = 0\ .
+  \label{eq:my-equation-2}
+\end{align}
+
+\subsection{A subsection with an enumeration list}
+
+\begin{enumerate}[{(a.)}]
+\item First thing to see could be something nice.  This line might also be
+  pretty long, with lots of unnecessary text that I could have imagined cutting
+  off at some point.
+
+  \begin{enumerate}
+  \item Nested enumerations
+  \item also
+  \item work?
+  \end{enumerate}
+
+\item Second nice thing!  Check also \eqref{eq:my-equation} and \ref{figure:my-figure}.
+\end{enumerate}
+
+\paragraph{A paragraph-level sectioning command}
+Paragraph content goes here. How does this work?  I can add a
+figure, too; let's see how it works.
+\begin{figure}
+  \includegraphics{https://media.giphy.com/media/8Iv5lqKwKsZ2g/giphy.gif}
+  \caption{This figure has a caption.}
+  \label{figure:my-figure}
+\end{figure}
+\begin{figure}
+  \includegraphics{https://media.giphy.com/media/8Iv5lqKwKsZ2g/giphy.gif}
+  \caption{Another figure with a caption.}
+  \label{figure:my-figure-2}
+\end{figure}
+
+Don't forget how the \term{Pauli matrices} are defined.  Also, \(\sigma_X\) is a
+\hyperref[defterm:{Pauli matrices}]{Pauli matrix} (or a \term[Pauli
+matrices]{Pauli matrix}).  Recall the definition of a \term{qu\(d\)it}, noting
+that a qubit is also a \term[qu\(d\)it]{qu\((d=2)\)it}.
+
+
+
+\section{Another section}
+\label{sec:test-label-another-sec}
+\label{topic:test-labels}
+
+We can try to add some footnotes, too.\footnote{Like this! Does it work?}  Does it work?
+
+
+\paragraph{Yoo-hoo. Here's a paragraph!}
+Here is the content of the paragraph.
+\begin{itemize}
+\item This should NOT generate an error: \[ x\ . \]
+\item There\footnote{Do} are\footnote{Re} so\footnote{Mi} so\footnote{Fa}
+  so\footnote{Sol} so\footnote{La} many\footnote{Si} footnotes!\footnote{Do}
+  And\footnote{Re} here\footnote{Mi} are\footnote{Fa} more!\footnote{Sol}
+\end{itemize}
+
+We can add references to a section by topic, like this section:
+\ref{topic:test-labels}.  We can also refer to a defterm by topic, like so:
+\ref{topic:qudit}.
+
+Let's try references to multiple targets:
+\ref{eq:my-equation,eq:my-equation-2,figure:my-figure,thm:sqrt4-rational,figure:my-figure-2,thm:sqrt2-irrational,eq:pauli-ac,eq:pauli-c}.
+
+
+\section{Here's a table}
+
+\begin{table}
+  \begin{cells}
+    \celldata<H>{Brand & Type & Darkness}
+    \celldata{
+      \cell<green>{Frey} & \cell<blue>{Crémant} & \cell<yellow>{40\%} \\
+      Frey & Spécial & milk \\
+      Frey & \cell<red c>[\merge{+2}]{Noir Intense 90\% }
+    }
+  \end{cells}
+  \caption{Here is a table caption.}
+  \label{table:testtable}
+\end{table}
+
+
+\section{Let's try some theorems}
+
+\begin{theorem}[Irrationality of \(\sqrt{2}\)]
+  \label{thm:sqrt2-irrational}
+  The square root of two is irrational.
+\end{theorem}
+
+
+\begin{theorem}[Rationality of \(\sqrt{4}\)]
+  \label{thm:sqrt4-rational}
+  The square root of four is definitely rational.
+\end{theorem}
+
+\begin{proof}[**thm:sqrt4-rational]
+  Ask your kid(s) to compute \(2\times 2\).
+\end{proof}
+
+
+\begin{proof}[*thm:sqrt2-irrational]
+  You can just google this one if you don't remember it.
+\end{proof}

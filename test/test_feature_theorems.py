@@ -1,14 +1,14 @@
 import unittest
 
 
-from llm.llmenvironment import make_standard_environment
-from llm.stdfeatures import standard_features
-from llm.fragmentrenderer.html import HtmlFragmentRenderer
+from flm.flmenvironment import make_standard_environment
+from flm.stdfeatures import standard_features
+from flm.fragmentrenderer.html import HtmlFragmentRenderer
 
-from llm.feature import theorems as feature_theorems
+from flm.feature import theorems as feature_theorems
 
 
-def mk_llm_environ_wthms(**kwargs):
+def mk_flm_environ_wthms(**kwargs):
     features = standard_features()
     features.append( feature_theorems.FeatureTheorems(**kwargs) )
     return make_standard_environment(features)
@@ -21,7 +21,7 @@ class TestFeatureTheorems(unittest.TestCase):
 
     def test_simple_1(self):
 
-        environ = mk_llm_environ_wthms()
+        environ = mk_flm_environ_wthms()
 
         frag1 = environ.make_fragment(r"""
 \begin{theorem}The square root of two is irrational.\end{theorem}
@@ -41,7 +41,7 @@ class TestFeatureTheorems(unittest.TestCase):
 
     def test_simple_1b(self):
 
-        environ = mk_llm_environ_wthms()
+        environ = mk_flm_environ_wthms()
 
         frag1 = environ.make_fragment(r"""
 \begin{theorem}
@@ -64,7 +64,7 @@ The square root of two is irrational.
 
     def test_simple_2(self):
 
-        environ = mk_llm_environ_wthms()
+        environ = mk_flm_environ_wthms()
 
         frag1 = environ.make_fragment(r"""
 \begin{theorem}[Irrationality of the square root of two]
@@ -87,7 +87,7 @@ The square root of two is irrational.
 
     def test_shared_counter_simple(self):
 
-        environ = mk_llm_environ_wthms()
+        environ = mk_flm_environ_wthms()
 
         frag1 = environ.make_fragment(r"""
 \begin{theorem}
@@ -120,7 +120,7 @@ The square root of four is rational.
 
     def test_separate_counters_simple(self):
 
-        environ = mk_llm_environ_wthms(
+        environ = mk_flm_environ_wthms(
             theorem_types={
                 'theoremlike': {
                     'shared_numbering': False,
@@ -182,7 +182,7 @@ The square root of four is rational.
 
     def test_ref_multi(self):
 
-        environ = mk_llm_environ_wthms()
+        environ = mk_flm_environ_wthms()
 
         frag1 = environ.make_fragment(r"""
 \begin{theorem}

@@ -1,0 +1,11 @@
+template_engine: 'flm.main.template.SimpleStringTemplate'
+template_engine_config:
+  template_content_extension: '.md'
+
+default_config:
+
+  metadata:
+    title: '(Set title with "title: ...." in your front matter)'
+
+  render_header: true
+

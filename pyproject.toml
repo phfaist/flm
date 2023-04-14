@@ -1,13 +1,13 @@
 [tool.poetry]
-name = "llm"
-version = "0.3.0alpha000008" # ALSO BUMP IN llm/llm/__init__.py
-description = "Latex-Like Markup"
+name = "flm"
+version = "0.3.0alpha000008" # ALSO BUMP IN flm/flm/__init__.py
+description = "Flexible Latex-like Markup"
 authors = ["Philippe Faist"]
 license = "MIT"
-include = ["llm/main/templates/**/*"]
+include = ["flm/main/templates/**/*"]
 
 [tool.poetry.scripts]
-llm = 'llm.__main__:run_main'
+flm = 'flm.__main__:run_main'
 
 [tool.poetry.dependencies]
 python = "^3.8"

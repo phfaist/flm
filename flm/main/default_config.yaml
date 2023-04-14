@@ -1,0 +1,130 @@
+_base:
+  flm:
+    parsing:
+      enable_comments: True
+      comment_start: '%%'
+      dollar_inline_math_mode: False
+      force_block_level: null
+
+    renderer: {}
+
+    features:
+
+      baseformatting: {}
+
+      href: {}
+
+      verbatim: {}
+
+      math: {}
+
+      headings:
+        section_commands_by_level: null
+
+      enumeration:
+        enumeration_environments: {}            
+
+      refs: {}
+
+      endnotes:
+        categories:
+          - category_name: 'footnote'
+            counter_formatter: 'alph'
+            heading_title: 'Footnotes'
+            endnote_command: 'footnote'
+        render_options:
+          include_headings_at_level: 1
+          set_headings_target_ids: True
+          endnotes_heading_title: null
+          endnotes_heading_level: 1
+
+      floats:
+        float_types:
+          - float_type: 'figure'
+            float_caption_name: 'Fig.'
+            counter_formatter: 'Roman'
+            content_handlers: ['includegraphics']
+          - float_type: 'table'
+            float_caption_name: 'Tab.'
+            counter_formatter: 'Roman'
+            content_handlers: ['cells', 'includegraphics']
+
+      defterm: {}
+
+      graphics: {}
+
+      theorems: {}
+
+    workflow: {}
+
+    default_workflow: 'templatebasedworkflow'
+
+
+_byformat:
+
+    html:
+      flm:
+        renderer:
+          html:
+            use_link_target_blank: False
+            html_blocks_joiner: ''
+            # heading_tags_by_level:
+            #   1: "h1"
+            #   2: "h2"
+            #   3: "h3"
+            #   # we use <span> instead of <h4> because these paragraph headings might
+            #   # be rendered inline within the <p> element, and <h4> isn't allowed
+            #   # within <p>...</p>
+            #   4: "span"
+            #   5: "span"
+            #   6: "span"
+            inline_heading_add_space: True
+            render_nothing_as_comment_with_annotations: False
+
+    text:
+      flm:
+        renderer:
+          text:
+            display_href_urls: True
+
+        features:
+          endnotes:
+            categories:
+              - category_name: 'footnote'
+                counter_formatter: 'unicodesuperscript'
+                heading_title: 'Footnotes'
+                endnote_command: 'footnote'
+
+    latex:
+      flm:
+        renderer: {}
+          # latex:
+          #   heading_commands_by_level:
+          #     1: "section"
+          #     2: "subsection"
+          #     3: "subsubsection"
+          #     4: "paragraph"
+          #     5: "subparagraph"
+          #     6: null
+          #     theorem: 'flmTheoremHeading'
+        features:
+          endnotes:
+            categories:
+              - category_name: 'footnote'
+                counter_formatter:
+                  template: '\({}^{${arabic}}\)'
+                heading_title: 'Footnotes'
+                endnote_command: 'footnote'
+
+    markdown:
+      flm:
+        renderer:
+          markdown: {}
+
+        features:
+          endnotes:
+            categories:
+              - category_name: 'footnote'
+                counter_formatter: 'unicodesuperscript'
+                heading_title: 'Footnotes'
+                endnote_command: 'footnote'

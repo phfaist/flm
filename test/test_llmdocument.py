@@ -1,22 +1,22 @@
 import unittest
 
-from llm.llmdocument import LLMDocument
-from llm.fragmentrenderer.text import TextFragmentRenderer
-from llm.fragmentrenderer.html import HtmlFragmentRenderer
-from llm.llmenvironment import make_standard_environment, standard_parsing_state
-from llm.feature.baseformatting import FeatureBaseFormatting
-from llm.stdfeatures import standard_features
+from flm.flmdocument import FLMDocument
+from flm.fragmentrenderer.text import TextFragmentRenderer
+from flm.fragmentrenderer.html import HtmlFragmentRenderer
+from flm.flmenvironment import make_standard_environment, standard_parsing_state
+from flm.feature.baseformatting import FeatureBaseFormatting
+from flm.stdfeatures import standard_features
 
 # ------------------
 
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
-from llm.llmspecinfo import LLMMacroSpecBase
-from llm.feature import Feature
+from flm.flmspecinfo import FLMMacroSpecBase
+from flm.feature import Feature
 
 
 
-def mk_llm_environ(**kwargs):
+def mk_flm_environ(**kwargs):
     features = standard_features(**kwargs)
     return make_standard_environment(features)
 
@@ -76,7 +76,7 @@ class _MyFeature(Feature):
         )
 
 
-class _MyDocumentSizeMacro(LLMMacroSpecBase):
+class _MyDocumentSizeMacro(FLMMacroSpecBase):
 
     delayed_render = True
 
@@ -161,13 +161,13 @@ class _MyDocumentSizeMacro(LLMMacroSpecBase):
 
 
 
-class TestLLMDocument(unittest.TestCase):
+class TestFLMDocument(unittest.TestCase):
 
     maxDiff = None
 
     def test_simple_html(self):
     
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(r"\textbf{Hello} \textit{world}, we know that \(a+b=c\).")
         frag2 = environ.make_fragment(
@@ -191,7 +191,7 @@ we can also have an equation, like this:
             )
 
         fr = HtmlFragmentRenderer()
-        doc = LLMDocument(render_fn, environ, enable_features=['math'])
+        doc = FLMDocument(render_fn, environ, enable_features=['math'])
         doc.initialize()
 
         result, _ = doc.render(fr)
@@ -210,7 +210,7 @@ we can also have an equation, like this:
 
     def test_simple_text(self):
     
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(r"\textbf{Hello} \textit{world}, we know that \(a+b=c\).")
         frag2 = environ.make_fragment(
@@ -232,7 +232,7 @@ we can also have an equation, like this:
             )
 
         fr = TextFragmentRenderer()
-        doc = LLMDocument(render_fn, environ)
+        doc = FLMDocument(render_fn, environ)
         doc.initialize()
 
         result, _ = doc.render(fr)
@@ -289,7 +289,7 @@ we can also have an equation, like this: \begin{align}
         fr = HtmlFragmentRenderer()
         # could be environ.make_document(...) instead, avoids having to repeat
         # feature_managers
-        doc = LLMDocument(
+        doc = FLMDocument(
             render_fn,
             environ,
         )
@@ -318,7 +318,7 @@ we can also have an equation, like this: \begin{align}
 
     def test_more_basic_features_html(self):
     
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         # -- unknown macros in math --
         frag1 = environ.make_fragment(
@@ -345,7 +345,7 @@ we can also have an equation, like this:
             )
 
         fr = HtmlFragmentRenderer()
-        doc = LLMDocument(render_fn, environ)
+        doc = FLMDocument(render_fn, environ)
         doc.initialize()
 
         result, _ = doc.render(fr)

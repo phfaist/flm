@@ -146,4 +146,4 @@ playground/*.tex
 playground/*.aux
 playground/*.log
 
-playground/.llm-citations.cache.json
+playground/.flm-citations.cache.json

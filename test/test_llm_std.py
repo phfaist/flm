@@ -3,15 +3,15 @@ import re
 
 from pylatexenc.latexnodes import LatexWalkerParseError
 
-from llm.llmenvironment import make_standard_environment
-from llm.stdfeatures import standard_features
-from llm.fragmentrenderer.html import HtmlFragmentRenderer
+from flm.flmenvironment import make_standard_environment
+from flm.stdfeatures import standard_features
+from flm.fragmentrenderer.html import HtmlFragmentRenderer
 
-from llm.feature import refs as feature_refs
+from flm.feature import refs as feature_refs
 
 
 
-def mk_llm_environ(**kwargs):
+def mk_flm_environ(**kwargs):
     features = standard_features(**kwargs)
     return make_standard_environment(features)
 
@@ -23,7 +23,7 @@ class TestStandardFeatures(unittest.TestCase):
 
     def test_no_comments(self):
 
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         self.assertTrue(environ.parsing_state.enable_comments)
         self.assertEqual(environ.parsing_state.comment_start, '%%')
@@ -38,7 +38,7 @@ class TestStandardFeatures(unittest.TestCase):
 
     def test_make_document(self):
 
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(
             r"\textbf{Hello} \textit{world}, we know that \(a+b=c\)."
@@ -53,8 +53,8 @@ class TestStandardFeatures(unittest.TestCase):
 
         fr = HtmlFragmentRenderer()
 
-        # LLMEnvironment offers make_document to avoid having to import and
-        # instantiate LLMDocuments ourselves.
+        # FLMEnvironment offers make_document to avoid having to import and
+        # instantiate FLMDocuments ourselves.
         doc = environ.make_document(render_fn)
 
         result, _ = doc.render(fr)
@@ -70,7 +70,7 @@ class TestStandardFeatures(unittest.TestCase):
 
     def test_with_math_and_eqref(self):
 
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(
             r"""
@@ -108,7 +108,7 @@ Here is the equation:
 
     def test_multi_equation_and_eqref(self):
 
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(
             r"""
@@ -166,14 +166,14 @@ Here is the equation:
 
 
     def test_unknown_macros_in_math(self):
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
         frag1 = environ.make_fragment(
             r"We know that \(\alpha+\beta=\gamma\)."
         )
         self.assertEqual(frag1.nodes[1].nodelist[0].macroname, 'alpha')
 
     def test_no_unknown_macros_in_text(self):
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
         with self.assertRaises(LatexWalkerParseError):
             frag1 = environ.make_fragment(
                 r"We know that \unknownMacros can cause errors."
@@ -184,7 +184,7 @@ Here is the equation:
 
     def test_standalone_fragment_with_math(self):
 
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(
             r"""Variable \(x\)""",
@@ -213,7 +213,7 @@ Here is the equation:
 
     def test_provides_href(self):
 
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(
             r"\textbf{Hello} \href{https://github.com/}{\textit{world}}, check out our "
@@ -240,7 +240,7 @@ Here is the equation:
 
     def test_provides_itemize(self):
 
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(
 r"""
@@ -270,7 +270,7 @@ r"""
 
     def test_provides_itemize_custombullets(self):
 
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(
 r"""
@@ -300,7 +300,7 @@ r"""
 
     def test_provides_enumerate_custombullets(self):
 
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(
 r"""
@@ -332,7 +332,7 @@ r"""
 
     def test_provides_footnotes_by_default(self):
 
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(
             r"\textbf{Hello} \textit{world}, we know that \(a+b=c\).\footnote{It is "
@@ -378,9 +378,9 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
         environ = None
 
         class MyCitationsProvider:
-            def get_citation_full_text_llm(self, cite_prefix, cite_key, resource_info):
+            def get_citation_full_text_flm(self, cite_prefix, cite_key, resource_info):
                 if cite_prefix == 'arxiv':
-                    # can return LLM text as a string
+                    # can return FLM text as a string
                     return r'\textit{arXiv} paper ' + f'arXiv:{cite_key}'
                 if cite_prefix == 'manual':
                     # can return a compiled fragment
@@ -392,7 +392,7 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
                     )
                 raise ValueError(f"Invalid citation prefix: {cite_prefix!r}")
 
-        environ = mk_llm_environ(
+        environ = mk_flm_environ(
             external_citations_providers=[ MyCitationsProvider() ]
         )
 
@@ -453,7 +453,7 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
                         return feature_refs.RefInstance(
                             ref_type='code',
                             ref_label='surface',
-                            formatted_ref_llm_text=r'Kitaev \emph{surface} code',
+                            formatted_ref_flm_text=r'Kitaev \emph{surface} code',
                             target_href='https://errorcorrectionzoo.org/c/surface',
                             counter_value=None,
                             counter_formatter_id=None,
@@ -462,7 +462,7 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
                         return feature_refs.RefInstance(
                             ref_type='code',
                             ref_label='self',
-                            formatted_ref_llm_text=r'(\textbf{this} exact code)',
+                            formatted_ref_flm_text=r'(\textbf{this} exact code)',
                             target_href='#',
                             counter_value=None,
                             counter_formatter_id=None,
@@ -471,7 +471,7 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
                 raise ValueError(f"Invalid ref type: {ref_type!r}")
 
 
-        environ = mk_llm_environ(
+        environ = mk_flm_environ(
             external_ref_resolvers=[MyRefResolver()]
         )
 
@@ -500,7 +500,7 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
 
     def test_inner_math_mode_changes(self):
         
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(
             r"""
@@ -536,7 +536,7 @@ Here is a display equation:
 
     def test_larger_doc_does_this_work(self):
 
-        environ = mk_llm_environ()
+        environ = mk_flm_environ()
 
         frag1 = environ.make_fragment(
             r"""Hello, world. \emph{Here I am.}  What would you like

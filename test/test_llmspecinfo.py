@@ -1,11 +1,11 @@
 import unittest
 
-from llm import llmspecinfo 
+from flm import flmspecinfo 
 
 
-class TestLLMSpecInfo(unittest.TestCase):
+class TestFLMSpecInfo(unittest.TestCase):
     def test_no_delayed_render_by_default(self):
-        self.assertFalse(llmspecinfo.LLMSpecInfo().delayed_render)
+        self.assertFalse(flmspecinfo.FLMSpecInfo().delayed_render)
 
 
 

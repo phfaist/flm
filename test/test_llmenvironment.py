@@ -5,12 +5,12 @@ logger = logging.getLogger(__name__)
 from pylatexenc.latexnodes.nodes import *
 from pylatexenc.macrospec import LatexContextDb
 
-from llm import llmenvironment
-from llm.llmspecinfo import (
+from flm import flmenvironment
+from flm.flmspecinfo import (
     ConstantValueMacro, TextFormatMacro, ParagraphBreakSpecials,
 )
-from llm.feature.math import MathEnvironment
-from llm.feature.enumeration import Enumeration
+from flm.feature.math import MathEnvironment
+from flm.feature.enumeration import Enumeration
 
 
 def make_simple_context():
@@ -40,9 +40,9 @@ class TestBlocksBuilder(unittest.TestCase):
     def test_builds_blocks_single_para(self):
         n1 = LatexCharsNode(chars='\n  Hello  \tworld. \n ')
         n2 = LatexMacroNode(macroname='somemacro')
-        n2.llm_is_block_level = False
+        n2.flm_is_block_level = False
 
-        bb = llmenvironment.BlocksBuilder(LatexNodeList([ n1, n2 ]))
+        bb = flmenvironment.BlocksBuilder(LatexNodeList([ n1, n2 ]))
 
         blocks = bb.build_blocks()
 
@@ -58,14 +58,14 @@ class TestBlocksBuilder(unittest.TestCase):
     def test_builds_blocks_multiple_paras(self):
         n1 = LatexCharsNode(chars='\n  Hello  \tworld. \n ')
         n2 = LatexMacroNode(macroname='somemacro')
-        n2.llm_is_block_level = False
+        n2.flm_is_block_level = False
         n3 = LatexCharsNode(chars='.  That\'s it ')
         n4 = LatexSpecialsNode(specials_chars='\n\n')
-        n4.llm_is_block_level = True
-        n4.llm_is_paragraph_break_marker = True
+        n4.flm_is_block_level = True
+        n4.flm_is_paragraph_break_marker = True
         n5 = LatexCharsNode(chars='More  text content.  ')
 
-        bb = llmenvironment.BlocksBuilder(LatexNodeList([ n1, n2, n3, n4, n5 ]))
+        bb = flmenvironment.BlocksBuilder(LatexNodeList([ n1, n2, n3, n4, n5 ]))
 
         blocks = bb.build_blocks()
 
@@ -82,13 +82,13 @@ class TestBlocksBuilder(unittest.TestCase):
     def test_builds_blocks_multiple_paras_with_block_elements(self):
         n1 = LatexCharsNode(chars='\n  Hello  \tworld. \n ')
         n2 = LatexMacroNode(macroname='somemacro')
-        n2.llm_is_block_level = False
+        n2.flm_is_block_level = False
         n3 = LatexCharsNode(chars='.  That\'s it ')
         n4 = LatexEnvironmentNode(environmentname='enumerate', nodelist=None)
-        n4.llm_is_block_level = True
+        n4.flm_is_block_level = True
         n5 = LatexCharsNode(chars='More  text content.  ')
 
-        bb = llmenvironment.BlocksBuilder(LatexNodeList([ n1, n2, n3, n4, n5 ]))
+        bb = flmenvironment.BlocksBuilder(LatexNodeList([ n1, n2, n3, n4, n5 ]))
 
         blocks = bb.build_blocks()
 
@@ -107,29 +107,29 @@ class TestBlocksBuilder(unittest.TestCase):
     def test_handles_white_space_correctly(self):
         n1 = LatexCharsNode(chars='\n  Hello  \tworld. \n ')
         n2 = LatexMacroNode(macroname='somemacro')
-        n2.llm_is_block_level = False
+        n2.flm_is_block_level = False
         n3 = LatexCharsNode(chars='.  That\'s it!  ')
         n4 = LatexEnvironmentNode(environmentname='enumerate', nodelist=None)
-        n4.llm_is_block_level = True
+        n4.flm_is_block_level = True
         n5 = LatexCharsNode(chars='\r\tMore  text content.  ')
 
-        bb = llmenvironment.BlocksBuilder(LatexNodeList([ n1, n2, n3, n4, n5 ]))
+        bb = flmenvironment.BlocksBuilder(LatexNodeList([ n1, n2, n3, n4, n5 ]))
 
         blocks = bb.build_blocks()
 
-        self.assertEqual(n1.llm_chars_value, 'Hello world. ')
-        self.assertEqual(n3.llm_chars_value, '. That\'s it!')
-        self.assertEqual(n5.llm_chars_value, 'More text content.')
+        self.assertEqual(n1.flm_chars_value, 'Hello world. ')
+        self.assertEqual(n3.flm_chars_value, '. That\'s it!')
+        self.assertEqual(n5.flm_chars_value, 'More text content.')
 
 
-class TestLLMEnvironment(unittest.TestCase):
+class TestFLMEnvironment(unittest.TestCase):
 
     def test_blocks_paragraphs_correct_number(self):
 
         latex_context = make_simple_context()
-        environ = llmenvironment.LLMEnvironment(
+        environ = flmenvironment.FLMEnvironment(
             latex_context=latex_context,
-            parsing_state=llmenvironment.LLMParsingState(),
+            parsing_state=flmenvironment.FLMParsingState(),
             features=[],
         )
 
@@ -154,7 +154,7 @@ work?
       .
 """)
 
-        self.assertEqual(len(frag1.nodes.llm_blocks), 4)
+        self.assertEqual(len(frag1.nodes.flm_blocks), 4)
 
         
 
@@ -207,7 +207,7 @@ class Test_features_sorted_by_dependencies(unittest.TestCase):
 
     def test_get_sorted(self):
 
-        sorted_features, features_by_name = llmenvironment.features_sorted_by_dependencies([
+        sorted_features, features_by_name = flmenvironment.features_sorted_by_dependencies([
             Feat3(),
             Feat2(),
             Feat5(),
@@ -222,7 +222,7 @@ class Test_features_sorted_by_dependencies(unittest.TestCase):
 
     def test_get_sorted_2(self):
 
-        sorted_features, features_by_name = llmenvironment.features_sorted_by_dependencies([
+        sorted_features, features_by_name = flmenvironment.features_sorted_by_dependencies([
             Feat1(),
             Feat2(),
             Feat3(),
@@ -238,7 +238,7 @@ class Test_features_sorted_by_dependencies(unittest.TestCase):
 
     def test_get_sorted_woptional(self):
 
-        sorted_features, features_by_name = llmenvironment.features_sorted_by_dependencies([
+        sorted_features, features_by_name = flmenvironment.features_sorted_by_dependencies([
             Feat3(),
             Feat4(),
         ])
@@ -251,7 +251,7 @@ class Test_features_sorted_by_dependencies(unittest.TestCase):
 
     def test_get_sorted_woptional_2(self):
 
-        sorted_features, features_by_name = llmenvironment.features_sorted_by_dependencies([
+        sorted_features, features_by_name = flmenvironment.features_sorted_by_dependencies([
             Feat4(),
             Feat3(),
         ])
@@ -265,7 +265,7 @@ class Test_features_sorted_by_dependencies(unittest.TestCase):
     def test_get_sorted_wcycles(self):
 
         with self.assertRaises(ValueError):
-            sorted_features, features_by_name = llmenvironment.features_sorted_by_dependencies([
+            sorted_features, features_by_name = flmenvironment.features_sorted_by_dependencies([
                 Feat1(),
                 Feat2(),
                 Feat3(),

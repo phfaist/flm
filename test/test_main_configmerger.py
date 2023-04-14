@@ -1,8 +1,8 @@
 import unittest
 
-### BEGIN_TEST_LLM_SKIP
+### BEGIN_TEST_FLM_SKIP
 
-from llm.main.configmerger import ConfigMerger
+from flm.main.configmerger import ConfigMerger
 
 class TestRecursiveAssignDefaults(unittest.TestCase):
 
@@ -198,4 +198,4 @@ class TestRecursiveAssignDefaults(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
-### END_TEST_LLM_SKIP
+### END_TEST_FLM_SKIP

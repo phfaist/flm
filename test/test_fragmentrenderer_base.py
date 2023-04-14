@@ -1,11 +1,11 @@
 import unittest
 
-from llm.fragmentrenderer import FragmentRenderer
+from flm.fragmentrenderer import FragmentRenderer
 
-from llm.llmenvironment import make_standard_environment
-from llm.stdfeatures import standard_features
+from flm.flmenvironment import make_standard_environment
+from flm.stdfeatures import standard_features
 
-def mk_llm_environ():
+def mk_flm_environ():
     return make_standard_environment(features=standard_features())
 
 
@@ -88,7 +88,7 @@ class TestFragmentRenderer(unittest.TestCase):
 
     def test_renders_text_format(self):
 
-        env = mk_llm_environ()
+        env = mk_flm_environ()
         s = r'Hello \textbf{world}.'
         frag = env.make_fragment(s, what='example text fragment')
 
@@ -117,7 +117,7 @@ class TestFragmentRenderer(unittest.TestCase):
 
     def test_render_nodelist_with_block_level(self):
 
-        env = mk_llm_environ()
+        env = mk_flm_environ()
         s = r'''Hello.
 
 New paragraph.'''
@@ -152,7 +152,7 @@ New paragraph.""")
 
     def test_render_nodelist_no_block_level(self):
 
-        env = mk_llm_environ()
+        env = mk_flm_environ()
         s = r'Hello \textbf{world}.'
         frag = env.make_fragment(s, what='example text fragment')
 
@@ -180,7 +180,7 @@ New paragraph.""")
 
     def test_render_nodelist_autodetect_block_level(self):
 
-        env = mk_llm_environ()
+        env = mk_flm_environ()
         s = r'''Hello.
 
 New paragraph.'''
@@ -215,7 +215,7 @@ New paragraph.""")
 
     def test_render_nodelist_with_paragraphs(self):
 
-        env = mk_llm_environ()
+        env = mk_flm_environ()
         s = r'''
 
 Hello world.
@@ -245,7 +245,7 @@ another one.
 
     def test_render_nodelist_with_paragraphs_single_paragraph(self):
 
-        env = mk_llm_environ()
+        env = mk_flm_environ()
         s = r'''
 
 Hello \textbf{world}. There are no paragraphs here, but some nodes are
@@ -274,7 +274,7 @@ function.
 
     def test_render_nodelist_no_paragraphs(self):
 
-        env = mk_llm_environ()
+        env = mk_flm_environ()
         s = r'''
 
 Hello \textbf{world}. There are no paragraphs here, but some nodes are
