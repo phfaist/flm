@@ -1,0 +1,23 @@
+template_engine: 'flm.main.template.SimpleStringTemplate'
+template_engine_config:
+  template_content_extension: '.html'
+
+default_config:
+
+  metadata:
+    title: 'FLM Document'
+
+  render_header: true
+
+  font:
+    family: 'Source Serif Pro'
+    default_families: 'serif, sans-serif'
+    size: '16px'
+    line_height: '1.3em'
+
+  layout:
+    content_width: '640px'
+
+  style:
+    extra_css: ''
+    extra_js: ''

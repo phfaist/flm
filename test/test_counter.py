@@ -1,6 +1,6 @@
 import unittest
 
-from llm import counter
+from flm import counter
 
 class TestStandardCounterFormatters(unittest.TestCase):
     
@@ -68,31 +68,31 @@ class TestCounterFormatter(unittest.TestCase):
                                      join_spec='compact')
         
         self.assertEqual(
-            f.format_llm(1),
+            f.format_flm(1),
             "Eq.~[(1)]"
         )
         self.assertEqual(
-            f.format_llm(-992),
+            f.format_flm(-992),
             "Eq.~[(-992)]"
         )
         self.assertEqual(
-            f.format_many_llm([1]),
+            f.format_many_flm([1]),
             "Eq.~[(1)]"
         )
         self.assertEqual(
-            f.format_many_llm([2,3,1]),
+            f.format_many_flm([2,3,1]),
             "Eq.~[(1)–(3)]"
         )
         self.assertEqual(
-            f.format_many_llm([8,9,10,11]),
+            f.format_many_flm([8,9,10,11]),
             "Eq.~[(8)–(11)]"
         )
         self.assertEqual(
-            f.format_many_llm([2,1,99,3]),
+            f.format_many_flm([2,1,99,3]),
             "Eq.~[(1)–(3),(99)]"
         )
         self.assertEqual(
-            f.format_many_llm([1,3,99,2,98,54]),
+            f.format_many_flm([1,3,99,2,98,54]),
             "Eq.~[(1)–(3),(54),(98),(99)]"
         )
 
@@ -131,40 +131,40 @@ class TestCounterFormatter(unittest.TestCase):
         )
         
         self.assertEqual(
-            f.format_llm(1),
+            f.format_flm(1),
             "eq.~!<! I !>!"
         )
         self.assertEqual(
-            f.format_many_llm([1]),
+            f.format_many_flm([1]),
             "eq.~!<! <I> !>!"
         )
         self.assertEqual(
-            f.format_many_llm([2,1]),
+            f.format_many_flm([2,1]),
             "eqs.~!<! ((I||II)) !>!"
         )
         self.assertEqual(
-            f.format_many_llm([2,3,1]),
+            f.format_many_flm([2,3,1]),
             "eqs.~!<! <[[I--III]]> !>!"
         )
         self.assertEqual(
-            f.format_many_llm([2,1,99,3], prefix_variant='capital'),
+            f.format_many_flm([2,1,99,3], prefix_variant='capital'),
             "Quartet of Equations~!<! (([[I--III]]||XCIX)) !>!"
         )
         self.assertEqual(
-            f.format_many_llm([1,3,99,2,98,54], prefix_variant='capital'),
+            f.format_many_flm([1,3,99,2,98,54], prefix_variant='capital'),
             "Equations~!<! <<[[I--III]];LIV;&[[XCVIII|XCIX]]>> !>!"
         )
 
         self.assertEqual(
-            f.format_many_llm([2,3,1], prefix_variant='capital'),
+            f.format_many_flm([2,3,1], prefix_variant='capital'),
             "Equations~!<! <[[I--III]]> !>!"
         )
         self.assertEqual(
-            f.format_llm(1, prefix_variant='capital'),
+            f.format_flm(1, prefix_variant='capital'),
             "Equation~!<! I !>!"
         )
         self.assertEqual(
-            f.format_many_llm([1], prefix_variant='capital'),
+            f.format_many_flm([1], prefix_variant='capital'),
             "Equation~!<! <I> !>!"
         )
 
@@ -173,23 +173,23 @@ class TestCounterFormatter(unittest.TestCase):
             return r'\mylink{' + str(n) + '}{' + s + '}'
 
         self.assertEqual(
-            f.format_llm(1, wrap_link_fn=wrap_link_fn),
+            f.format_flm(1, wrap_link_fn=wrap_link_fn),
             r"\mylink{1}{eq.~!<! I !>!}"
         )
         self.assertEqual(
-            f.format_many_llm([1], wrap_link_fn=wrap_link_fn),
+            f.format_many_flm([1], wrap_link_fn=wrap_link_fn),
             r"\mylink{1}{eq.~!<! <I> !>!}"
         )
         self.assertEqual(
-            f.format_many_llm([2,3], wrap_link_fn=wrap_link_fn),
+            f.format_many_flm([2,3], wrap_link_fn=wrap_link_fn),
             r"\mylink{2}{eqs.~}!<! ((\mylink{2}{II}||\mylink{3}{III})) !>!"
         )
         self.assertEqual(
-            f.format_many_llm([2,3,1], wrap_link_fn=wrap_link_fn),
+            f.format_many_flm([2,3,1], wrap_link_fn=wrap_link_fn),
             r"\mylink{1}{eqs.~}!<! <[[\mylink{1}{I}--\mylink{3}{III}]]> !>!"
         )
         self.assertEqual(
-            f.format_many_llm(
+            f.format_many_flm(
                 [1,3,99,2,98,54], wrap_link_fn=wrap_link_fn,
                 prefix_variant='capital'
             ),
@@ -230,17 +230,17 @@ class TestCounterFormatter(unittest.TestCase):
             return r'\mylink{' + str(n) + '}{' + s + '}'
 
         self.assertEqual(
-            f.format_many_llm([1], wrap_link_fn=wrap_link_fn),
+            f.format_many_flm([1], wrap_link_fn=wrap_link_fn),
             r"\mylink{1}{[A]}"
         )
 
         self.assertEqual(
-            f.format_many_llm([2,3], wrap_link_fn=wrap_link_fn),
+            f.format_many_flm([2,3], wrap_link_fn=wrap_link_fn),
             r"[\mylink{2}{B}|\mylink{3}{C}]"
         )
 
         self.assertEqual(
-            f.format_many_llm([2,3,1], wrap_link_fn=wrap_link_fn),
+            f.format_many_flm([2,3,1], wrap_link_fn=wrap_link_fn),
             r"[\mylink{1}{A}--\mylink{3}{C}]"
         )
 

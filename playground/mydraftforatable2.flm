@@ -1,0 +1,126 @@
+%
+% 
+% \cell -- specify a single table cell.
+%
+% \cell<style>[location]{content}
+%
+% - style: A comma-separated style names to apply.  Standard cell types should
+%   be 'H' (header), 'l', 'c', 'r', (left-,centered-,right-aligned
+%   content).  Also 'green', 'yellow, 'red' (highlight cell in the given color).
+% 
+% - location: Where to place the new cell.  By default, cells take a 1x1 grid
+%   block and are placed in the next column of the current row.  Location can be:
+%
+%   - column -> place cell at this row (row number or row name via \vtemplate)
+%
+%   - row;column -> place the cell at this row/column number (numbers or names
+%     via \vtemplate/\htemplate)
+%
+%   either row or column may contain \merge{...} to merge columns/rows.
+%
+% Merge cell mappings:
+%
+% - \merge{ROWS} or \merge{COLS} -- merge the given rows specification and/or
+%   the given columns specification into a single cell.  COLS and ROWS are a
+%   cell span (see below) that specifies a contiguous cell range.
+%
+%
+% Multiple cells at once:
+%
+% \celldata<style>[location-mapping]{ cells content... ... }
+%
+% The \celldata command creates a \cell with the given options applied to each
+% cell in the given content.
+%
+% - {...cells content...} : cell contents, columns are separated by ‘&’ and rows
+%   are separated by ‘\\’.  Each cell contents is either simple FLM cell content,
+%   or a single \cell command that can override style, merged columns, etc.
+%
+% - location-mapping: can be either:
+%
+%   - COLUMNSPAN or ROWSPAN;COLUMNSPAN . Each ROWSPAN & COLUMNSPAN is a
+%     comma-separated list of column/row ranges as specified below in
+%     "COLUMN AND ROW SPANS".  The lists may also include \merge{} commands.
+%
+%   Each dimension (column dimension/row dimension) of location-mapping is
+%   decomposed into a list of column designations.  The data is expected to
+%   have exactly the same number of columns/rows as provided in the
+%   specification list (unless the specification list is only a single element,
+%   in which case the specification is applied to all cells of the given data)
+%
+% Basically, \celldata<style>[rows;columns]{ .... } will call
+% \cell<style>{...}  for each encountered cell in the data, iterating over its
+% rows and columns specification (with ranges unpacked).
+%  
+%
+%
+% COLUMN AND ROW SPANS
+%
+% The syntax is explained for columns but the same
+% applies to rows:
+%
+% - colrange1,colrange2, ... : these column ranges, appended together.  Each
+%   column range can be:
+%
+%   - col : a single column (by number or by name).  Cell numbers start at 1.
+%     Also the character '.' can be used to refer to the current column number.
+%
+%   - col1-col2 : all columns starting at col1 and ending at col2 (included).
+%     If either col1 or col2 are omitted, they are auto-detected from context;
+%     if both are omitted col1 defaults to the first column.
+%
+%   - col1+N  or  +N : N columns starting at col1.  If col1 is omitted, the
+%     current column is used
+%
+%
+% APPLY CELL STYLES ONLY
+%
+% \cellstyle<style>[cellspan]
+%
+\begin{cells}
+\htemplate{name,city,country,height}
+\cell<H>[\merge{city,country}]{Location}
+\\
+% all the same -- 
+\celldata<H>{Name & City & Country & Height}
+\celldata<H>[name,city,country,height]{Name & City & Country & Height}
+\celldata<H>[name,country,city,height]{Name & Country & City & Height}
+\celldata<H>[1-4]{Name & City & Country & Height}
+
+% same, but each cell is a 2-row merged cell
+\celldata<H>[\merge{+2};name,city,country,height]{Name & City & Country & Height}
+
+\celldata{
+Blabla & Berlin & Germany & 1m60 \\
+Johnny B. Goode & New York & USA & 6'3 \\
+Alien & \cell[\merge{+2}]{N/A} & 3m10 \\
+Another Alien & \cell[\merge{city,country}]{N/A} & 45cm
+}
+
+
+\end{cells}
+
+
+
+
+\begin{cells}
+\htemplate{ref,space,group,subgroup,relatedqecc}
+\celldata<H>[space-]{Space & Group & Subgroup & Related QECC}
+\celldata{
+[CLLZ21]
+    & \(n\) qubits & \(\mathbb{Z}_2^n\) & \(\mathbb{Z}_2^m\)
+    & qubit CSS code [...]
+\\
+\cell<green>[\merge{.-};]{ TBD }
+    & planar code  & \( U(1) \) & \( \mathbb{Z}_n \) 
+    & rotor GKP code [...]
+\\
+    & \(n\) modes  & \( \mathbb{R}^n \) & \( \mathbb{R}^m \) 
+    & analog CSS code [..]
+}
+\end{cells}
+
+
+
+
+

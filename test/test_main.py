@@ -1,10 +1,10 @@
 import unittest
 
-### BEGIN_TEST_LLM_SKIP
+### BEGIN_TEST_FLM_SKIP
 
 import io
 
-from llm.main.main import main
+from flm.main.main import main
 
 
 class TestRunMain(unittest.TestCase):
@@ -15,7 +15,7 @@ class TestRunMain(unittest.TestCase):
         sout = io.StringIO()
         main(
             output=sout,
-            llm_content=r"Hello \emph{world}!  Looking great today.",
+            flm_content=r"Hello \emph{world}!  Looking great today.",
             format='text'
         )
         self.assertEqual(sout.getvalue(), "Hello world! Looking great today.\n")
@@ -24,7 +24,7 @@ class TestRunMain(unittest.TestCase):
         sout = io.StringIO()
         main(
             output=sout,
-            llm_content=r"Hello \emph{world}!  Looking great today.",
+            flm_content=r"Hello \emph{world}!  Looking great today.",
             format='html',
             minimal_document=False,
         )
@@ -38,8 +38,8 @@ class TestRunMain(unittest.TestCase):
         sout = io.StringIO()
         main(
             output=sout,
-            llm_content=r"""---
-llm:
+            flm_content=r"""---
+flm:
   parsing:
     comment_start: '##'
     enable_comments: true
@@ -63,4 +63,4 @@ Hello \emph{world}!  Let $x$ and $y$ be real numbers. ## comments configured lik
 if __name__ == '__main__':
     unittest.main()
 
-### END_TEST_LLM_SKIP
+### END_TEST_FLM_SKIP

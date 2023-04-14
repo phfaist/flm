@@ -1,0 +1,22 @@
+template_engine: 'flm.main.template.SimpleStringTemplate'
+template_engine_config:
+  template_content_extension: '.tex'
+
+default_config:
+
+  metadata:
+    title: 'FLM Document'
+
+  preamble:
+    general: |
+      % Add additional general preamble definitions here
+    fonts: |
+      % LaTeX preamble to set up the document's fonts.  E.g.:
+      % \usepackage{sourceserifpro}
+
+  documentclass_options: 'reprint,pra,superscriptaddress'
+
+  render_title: true
+
+  enable_hyperref: true
+
