@@ -106,7 +106,7 @@ if your system has a standard LaTeX distribution such as TeXLive installed)
   extension package (see README file there).  Install the extension package
   using pip:
   ```
-  > pip install git+https://github.com/phfaist/flm-citations
+  > pip install flm-citations
   ```
   And then try to compile, e.g., the following FLM document:
   ```yaml
