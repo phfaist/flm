@@ -262,13 +262,7 @@ version = "3.0a13"
 description = "Simple LaTeX parser providing latex-to-unicode and unicode-to-latex conversion"
 category = "main"
 optional = false
-python-versions = "*"
-develop = false
-
-[package.source]
-type = "git"
-url = "https://github.com/phfaist/pylatexenc.git"
-reference = "8fa5cf218a634ad69c26b3f8b8369e513ee2f01a"
+python-versions = ">=3.7,<4.0"
 
 [[package]]
 name = "pytest"
@@ -394,7 +388,7 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "a2401c2f8a3781ea32119e1c88a53196f728988e65e1a05bc283b40401f752c0"
+content-hash = "39dd86247ba2ddfc5d9f41619710364d04bfabeb0566aca896c6de3b5f82a763"
 
 [metadata.files]
 appnope = [
@@ -509,7 +503,10 @@ pygments = [
     {file = "Pygments-2.15.0-py3-none-any.whl", hash = "sha256:77a3299119af881904cd5ecd1ac6a66214b6e9bed1f2db16993b54adede64094"},
     {file = "Pygments-2.15.0.tar.gz", hash = "sha256:f7e36cffc4c517fbc252861b9a6e4644ca0e5abadf9a113c72d1358ad09b9500"},
 ]
-pylatexenc = []
+pylatexenc = [
+    {file = "pylatexenc-3.0a13-py3-none-any.whl", hash = "sha256:3d01bcae6fe293b253575ba5b2efc78e6b042262b34704c9f05ca702b64622bc"},
+    {file = "pylatexenc-3.0a13.tar.gz", hash = "sha256:3b96dd51ac8d091719f31f904a825e004529d7d2c6d45b85218806e6cf01ade8"},
+]
 pytest = [
     {file = "pytest-7.3.1-py3-none-any.whl", hash = "sha256:3799fa815351fea3a5e96ac7e503a96fa51cc9942c3753cda7651b93c1cfa362"},
     {file = "pytest-7.3.1.tar.gz", hash = "sha256:434afafd78b1d78ed0addf160ad2b77a30d35d4bdf8af234fe621919d9ed15e3"},
