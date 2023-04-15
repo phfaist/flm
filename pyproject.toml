@@ -4,6 +4,7 @@ version = "0.3.0alpha000009" # ALSO BUMP IN flm/flm/__init__.py
 description = "Flexible Latex-like Markup"
 authors = ["Philippe Faist"]
 license = "MIT"
+readme = "README.md"
 include = ["flm/main/templates/**/*"]
 packages = [
     { include = "flm" },

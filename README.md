@@ -23,7 +23,7 @@ typesetting is fully customizable, e.g., through CSS styling of its HTML output
 
 You can install FLM with pip:
 ```bash
-$ pip install git+https://github.com/phfaist/flm.git@main
+$ pip install flm-core
 ```
 
 Example `mydocument.flm`:
