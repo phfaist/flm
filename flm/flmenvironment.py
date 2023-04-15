@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 from pylatexenc import latexnodes
 from pylatexenc import macrospec
 from pylatexenc.latexnodes import (
-    LatexWalkerError, #LatexWalkerLocatedError,
+    #LatexWalkerError, LatexWalkerLocatedError,
     LatexWalkerLocatedErrorFormatter,
     LatexWalkerParseError,
 )
