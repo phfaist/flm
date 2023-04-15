@@ -52,7 +52,7 @@ jobs:
 
       - name: 'Check out pylatexenc v3 sources'
         working-directory: 'flm-js'
-        run: 'git clone https://github.com/phfaist/pylatexenc.git pylatexenc-src -b devel --depth=1'
+        run: 'git clone https://github.com/phfaist/pylatexenc.git pylatexenc-src --depth=1'
 
       - name: 'Generate LLM JS library'
         working-directory: 'flm-js'
