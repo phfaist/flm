@@ -549,6 +549,9 @@ class FeatureTheorems(Feature):
     }
 
 
+    #feature_title = 'Theorems'
+
+
     class RenderManager(Feature.RenderManager):
 
         def initialize(self):

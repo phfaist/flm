@@ -203,8 +203,10 @@ class ConfigMerger:
             remaining_obj_list = obj_list[j+1:]
 
             if not isinstance(obj, Mapping):
-                logger.warning("Incompatible config merge, ignoring value %r for ‘%s’",
-                               obj, ".".join(property_path))
+                logger.warning(
+                    "Incompatible config merge, ignoring value %r for ‘%s’ in chain %r",
+                    obj, ".".join(property_path), obj_list
+                )
                 continue
 
             # process any "meta"/preset keys

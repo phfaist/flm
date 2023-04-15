@@ -551,7 +551,7 @@ def features_sorted_by_dependencies(features):
 
 class FLMEnvironment:
     r"""
-    ....
+    Doc ........
 
     - `parsing_state`: please provide a `FLMParsingState` object instance to
       serve as the default parsing state.  You should keep the `latex_context`

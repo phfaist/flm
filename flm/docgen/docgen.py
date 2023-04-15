@@ -356,7 +356,10 @@ class FLMEnvironmentDocumentationGenerator:
             for k, vlist in defs.items():
                 definitions[k].extend( vlist )
 
-        s = r"\section{" + feature.feature_title + "}\n"
+        feature_title = getattr(feature, 'feature_title', None)
+        if feature_title is None:
+            feature_title = feature.feature_name.capitalize()
+        s = r"\section{" + feature_title + "}\n"
 
         if hasattr(feature, 'feature_flm_doc'):
             try:

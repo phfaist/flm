@@ -111,12 +111,15 @@ def load_features(features_merge_configs, flm_run_info):
         # make sure we honor $defaults etc. properly
         
         feature_merge_configs = [
-            c.get(featurename, {})
+            _ensurefeatureconfig(c.get(featurename, True))
             for c in features_merge_configs
         ]
 
         if hasattr(FeatureClass, 'feature_default_config'):
             feature_merge_configs.append( FeatureClass.feature_default_config or {} )
+
+        logger.debug("Feature config chain for ‘%s’ is = %r",
+                     featurename, feature_merge_configs)
 
         featureconfig = configmerger.recursive_assign_defaults(feature_merge_configs)
 
@@ -128,7 +131,12 @@ def load_features(features_merge_configs, flm_run_info):
     return features
 
 
-
+def _ensurefeatureconfig(x):
+    if x is True:
+        return {}
+    if x is False:
+        raise ValueError("Got value ‘False’ in feature config that is being instantiated!")
+    return x
 
 #
 # config
