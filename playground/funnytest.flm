@@ -1,5 +1,5 @@
 ---
-title: 'A funny test of a LLM document'
+title: 'A funny test of a FLM document'
 author: 'Ph. Faist'
 date: 'March 32, 2092'
 flm:
@@ -16,7 +16,7 @@ flm:
            size: '18px'
    features:
      theorems: {}
-     # ### Will override format-specific LLM defaults
+     # ### Will override format-specific FLM defaults
      # endnotes:
      #   categories:
      #     - category_name: footnote
