@@ -92,8 +92,7 @@ if your system has a standard LaTeX distribution such as TeXLive installed)
   [*flm-templates*](https://github.com/phfaist/flm-templates) extension package
   for some additional templates and template engines.  You can try:
   ```
-  > pip install git+https://github.com/phfaist/flm-templates.git
-  > pip install git+https://github.com/phfaist/flm-htmlplus.git
+  > pip install flm-templates flm-htmlplus
   ```
   and then
   ```
