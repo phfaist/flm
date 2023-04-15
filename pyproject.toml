@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "flm"
-version = "0.3.0alpha000008" # ALSO BUMP IN flm/flm/__init__.py
+version = "0.3.0alpha000009" # ALSO BUMP IN flm/flm/__init__.py
 description = "Flexible Latex-like Markup"
 authors = ["Philippe Faist"]
 license = "MIT"
@@ -11,7 +11,7 @@ flm = 'flm.__main__:run_main'
 
 [tool.poetry.dependencies]
 python = "^3.8"
-pylatexenc = {'git' = "https://github.com/phfaist/pylatexenc.git", branch = "devel" }
+pylatexenc = ">=3.0a13"
 python-frontmatter = "^1.0.0"
 PyYAML = ">=5.0"
 
