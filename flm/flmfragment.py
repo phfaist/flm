@@ -32,7 +32,7 @@ class FLMFragment:
     can be rendered directly on its own without inserting it in a document, see
     :py:meth:`render_standalone()`.
 
-    .....................
+    Doc .....................
 
     The argument `resource_info` can be set to any custom object that can help
     locate resources called by FLM text.  For instance, a `\includegraphics{}`
@@ -92,9 +92,9 @@ class FLMFragment:
                     parsing_mode=self.parsing_mode,
                     input_lineno_colno_offsets=input_lineno_colno_offsets,
                 )
-        except latexnodes.LatexWalkerParseError as e:
+        except latexnodes.LatexWalkerLocatedError as e:
             if not self.silent:
-                error_message = self.environment.get_parse_error_message(e)
+                error_message = self.environment.get_located_error_message(e)
                 logger.error(
                     f"Parse error in latex-like markup ‘{self.what}’: {error_message}\n"
                     f"Given text was:\n‘{self.flm_text}’\n\n"

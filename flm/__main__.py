@@ -1,7 +1,7 @@
 import argparse
 import logging
 
-from pylatexenc.latexnodes import LatexWalkerParseError
+from pylatexenc.latexnodes import LatexWalkerError
 
 from .main.main import main as _main
 from .main import oshelper as flm_main_oshelper
@@ -127,9 +127,9 @@ def run_main(cmdargs=None):
 if __name__ == '__main__':
     try:
         run_main()
-    except LatexWalkerParseError as e:
+    except LatexWalkerError as e:
         logging.getLogger('flm').critical(
-            f"Parse Error\n{e}"
+            f"FLM Error\n{e}"
         )
     except Exception as e:
         logging.getLogger('flm').critical('Error.', exc_info=e)

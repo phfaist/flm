@@ -1,7 +1,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
+from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerLocatedError
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.macrospec import (
@@ -34,7 +34,7 @@ class FloatContentHandlerBase:
         #
         # Return a (possibly post-processed) node list to use in place of
         # content_nodes if the nodes were accepted; raise a
-        # LatexWalkerParseError if the nodes were not accepted (unacceptable
+        # LatexWalkerLocatedError if the nodes were not accepted (unacceptable
         # macros, etc.)
         raise RuntimeError(
             f"This method needs to be reimplemented in subclasses!"
@@ -68,7 +68,7 @@ class FloatContentIncludeGraphics(FloatContentHandlerBase):
                 # all good!
                 return content_nodes
 
-        raise LatexWalkerParseError(
+        raise LatexWalkerLocatedError(
             f"expected exactly one \\includegraphics command",
             pos=content_nodes.pos
         )
@@ -94,7 +94,7 @@ class FloatContentCells(FloatContentHandlerBase):
                 # all good!
                 return content_nodes
 
-        raise LatexWalkerParseError(
+        raise LatexWalkerLocatedError(
             f"expected exactly one "
             f"\\begin{'{'}cells{'}'}...\\end{'{'}cells{'}'} environment",
             pos=content_nodes.pos
@@ -216,7 +216,7 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
                         ref_label_prefix, ref_label = None, ref_label_full
 
                     if ref_label_prefix != self.float_type:
-                        raise LatexWalkerParseError(
+                        raise LatexWalkerLocatedError(
                             f"{self.float_type} label must start with the prefix "
                             f"‘{self.float_type}:...’ (got ‘{ref_label_full}’)",
                             pos=n.pos,
@@ -226,7 +226,7 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
                     node.flm_float_label['ref_label'] = ref_label
 
                     if ref_label_prefix != self.float_type:
-                        raise LatexWalkerParseError(
+                        raise LatexWalkerLocatedError(
                             f"Float's \\label{'{'}...{'}'} must have the "
                             f"prefix ‘{self.float_type}:’",
                             pos=n.pos,
@@ -262,13 +262,13 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
                 final_content_nodes = content_handler.float_handle_content_nodes(
                     node, float_content_nodes
                 )
-            except LatexWalkerParseError as e:
+            except LatexWalkerLocatedError as e:
                 errors.append(f"*** {content_handler.__class__.__name__} error: {str(e)}")
                 #pass # ignore error
 
         if final_content_nodes is None:
             # no content handler accepted this float's content node list
-            raise LatexWalkerParseError(
+            raise LatexWalkerLocatedError(
                 f"Invalid {self.float_type} contents! The following content handler(s) "
                 f"were unable to parse the float's content [other than possible "
                 f"\\caption and \\label commands]:\n"

@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import (
-    LatexWalkerParseError,
+    LatexWalkerLocatedError,
     ParsedArgumentsInfo
 )
 #from pylatexenc import macrospec
@@ -504,7 +504,7 @@ class RefMacro(FLMMacroSpecBase):
             except Exception as e:
                 logger.error(f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
                              f"in ‘{node.latex_verbatim()}’ @ {node.format_pos()}")
-                raise LatexWalkerParseError(
+                raise LatexWalkerLocatedError(
                     f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e}",
                     pos=node.pos,
                 )

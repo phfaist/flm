@@ -1,7 +1,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from pylatexenc.latexnodes import LatexWalkerParseError, ParsedArgumentsInfo
+from pylatexenc.latexnodes import LatexWalkerLocatedError, ParsedArgumentsInfo
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 
 from ..flmspecinfo import FLMMacroSpecBase
@@ -103,7 +103,7 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
         graphics_path = node.flmarg_graphics_path
         
         if graphics_options_value:
-            raise LatexWalkerParseError(
+            raise LatexWalkerLocatedError(
                 f"Graphics options are not supported here: ‘{graphics_options_value}’",
                 pos=node_args['graphics_options'].nodelist.pos,
             )

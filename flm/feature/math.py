@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import (
-    LatexWalkerParseError,
+    LatexWalkerLocatedError,
     ParsedArgumentsInfo,
     ParsingStateDeltaEnterMathMode,
 )
@@ -425,7 +425,7 @@ class MathEqrefMacro(FLMMacroSpecBase):
             ref_type, ref_label = ref_label.split(':', 1)
 
         if ref_type != self.ref_type:
-            raise LatexWalkerParseError(
+            raise LatexWalkerLocatedError(
                 f"Equation labels must begin with “{self.ref_type}:” "
                 f"(error in ‘\\{node.macroname}’)",
                 pos=node.pos
@@ -456,7 +456,7 @@ class MathEqrefMacro(FLMMacroSpecBase):
         except Exception as e:
             logger.error(f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
                          f"in ‘{node.latex_verbatim()}’ @ {node.format_pos()}")
-            raise LatexWalkerParseError(
+            raise LatexWalkerLocatedError(
                 f"Unable to resolve reference to ‘{ref_type}:{ref_label}’. {e}",
                 pos=node.pos,
             )

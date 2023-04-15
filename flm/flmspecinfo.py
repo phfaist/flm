@@ -5,7 +5,9 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc import macrospec
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
-from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
+from pylatexenc.latexnodes import (
+    LatexWalkerParseError, LatexWalkerLocatedError, ParsedArgumentsInfo
+)
 
 from .flmenvironment import (
     FLMArgumentSpec
@@ -113,14 +115,15 @@ class FLMSpecInfo:
         fragment_is_standalone_mode = node.latex_walker.standalone_mode
         if fragment_is_standalone_mode and not self.allowed_in_standalone_mode:
             raise LatexWalkerParseError(
-                f"‘{node.latex_verbatim()}’ is not allowed here (standalone mode)."
+                f"‘{node.latex_verbatim()}’ is not allowed here (standalone mode).",
+                pos=node.pos,
             )
 
         node.flm_specinfo = self
         try:
             self.postprocess_parsed_node(node)
 
-        except LatexWalkerParseError as e:
+        except LatexWalkerLocatedError as e:
             if not hasattr(e, 'pos') or e.pos is None:
                 e.pos = node.pos
             raise e

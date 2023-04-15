@@ -72,7 +72,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
                     and chnode.isNodeType(latexnodes_nodes.LatexCharsNode)
                     and chnode.chars.startswith('*')):
                     if len(thmtitle_nodelist) != 1:
-                        raise LatexWalkerParseError(
+                        raise LatexWalkerLocatedError(
                             "When specifying a proof-ref target as optional argument "
                             "(‘[*thm:xyz]’), the entire argument must consist of "
                             "regular characters with no special meaning in FLM.  Got: "
@@ -179,7 +179,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             # We're not generating target_id's for these elements, so don't pin
             # down labels here...
             if len(flmarg_labels):
-                raise LatexWalkerParseError(
+                raise LatexWalkerLocatedError(
                     r"You cannot use \label{} in unnumbered theorem environment ‘"
                     + self.environmentname + r"’",
                     pos=node.pos

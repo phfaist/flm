@@ -4,7 +4,11 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc import latexnodes
 from pylatexenc import macrospec
-from pylatexenc.latexnodes import LatexWalkerParseError, LatexWalkerParseErrorFormatter
+from pylatexenc.latexnodes import (
+    LatexWalkerError, #LatexWalkerLocatedError,
+    LatexWalkerLocatedErrorFormatter,
+    LatexWalkerParseError,
+)
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc import latexwalker
 
@@ -767,12 +771,12 @@ class FLMEnvironment:
 
 
 
-    environment_get_parse_error_message = None
+    environment_get_located_error_message = None
 
-    def get_parse_error_message(self, exception_object):
-        if self.environment_get_parse_error_message is not None:
-            return self.environment_get_parse_error_message(exception_object)
-        return LatexWalkerParseErrorFormatter(exception_object).to_display_string()
+    def get_located_error_message(self, exception_object):
+        if self.environment_get_located_error_message is not None:
+            return self.environment_get_located_error_message(exception_object)
+        return LatexWalkerLocatedErrorFormatter(exception_object).to_display_string()
 
 
 
@@ -861,7 +865,7 @@ class FLMLatexWalkerMathContextParsingStateEventHandler(
 # ------------------------------------------------------------------------------
 
 
-def standard_environment_get_parse_error_message(exception_object):
+def standard_environment_get_located_error_message(exception_object):
     msg = None
     error_type_info = exception_object.error_type_info
     if error_type_info:
@@ -881,7 +885,7 @@ def standard_environment_get_parse_error_message(exception_object):
     if not msg:
         msg = exception_object.msg
 
-    errfmt = latexnodes.LatexWalkerParseErrorFormatter(exception_object)
+    errfmt = latexnodes.LatexWalkerLocatedErrorFormatter(exception_object)
 
     msg += errfmt.format_full_traceback()
 
@@ -921,8 +925,8 @@ def make_standard_environment(features, parsing_state=None, latex_context=None,
 
     environment.parsing_state_event_handler = parsing_state_event_handler
 
-    environment.environment_get_parse_error_message = \
-        standard_environment_get_parse_error_message
+    environment.environment_get_located_error_message = \
+        standard_environment_get_located_error_message
 
     return environment
 

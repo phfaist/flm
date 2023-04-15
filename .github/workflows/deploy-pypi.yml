@@ -8,7 +8,14 @@ on:
 jobs:
   deploy-pypi:
 
-    environment: 'env-deploy-pypi'
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+        poetry-version: ["1.4"]
+
+    environment: env-deploy-pypi
 
     steps:
       - uses: actions/checkout@v3

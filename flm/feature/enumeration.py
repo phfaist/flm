@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerParseError
+from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerLocatedError
 import pylatexenc.latexnodes.parsers as latexnodes_parsers
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 from pylatexenc.macrospec import (
@@ -123,7 +123,7 @@ class Enumeration(FLMEnvironmentSpecBase):
                 continue
             if (not item_macro.isNodeType(latexnodes_nodes.LatexMacroNode)
                 or item_macro.macroname != 'item'):
-                raise LatexWalkerParseError(
+                raise LatexWalkerLocatedError(
                     msg=f"Expected ‘\\item’ in enumeration environment: {item_macro!r}",
                     pos=item_macro.pos,
                 )

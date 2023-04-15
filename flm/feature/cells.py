@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 from pylatexenc import macrospec
 from pylatexenc.latexnodes import (
     LatexArgumentSpec,
-    LatexWalkerParseError,
+    LatexWalkerLocatedError,
     ParsedArgumentsInfo,
     ParsingStateDelta,
 )
@@ -593,7 +593,7 @@ class CellsModel:
                 PLACEHOLDER = 'COL'
             else:
                 PLACEHOLDER = None
-            raise LatexWalkerParseError(
+            raise LatexWalkerLocatedError(
                 f"Bad cell index or merge range specification, expected ‘{PLACEHOLDER}’ or "
                 f"‘\\merge{'{'}{PLACEHOLDER}-RANGE{'}'}’, got {repr(placement_index_spec)} "
                 f"({len(nl)} nodes)",
@@ -660,7 +660,7 @@ class CellsModel:
 
             else:
 
-                raise LatexWalkerParseError(
+                raise LatexWalkerLocatedError(
                     f"Bad cell placement specification, expected ‘ROW;COL’ or "
                     f"‘COL’, got ‘{_splfysidews(placement_spec.latex_verbatim())}’",
                     pos=placement_spec.pos
@@ -703,7 +703,7 @@ class CellsModel:
                     PLACEHOLDER = 'COL-RANGE'
                 else:
                     PLACEHOLDER = None
-                raise LatexWalkerParseError(
+                raise LatexWalkerLocatedError(
                     f"Bad cell index or range or merge range specification, "
                     f"expected ‘{PLACEHOLDER}’ or "
                     f"‘\\merge{'{'}{PLACEHOLDER}-RANGE{'}'}’, got {repr(placement_index_spec)} "
@@ -772,7 +772,7 @@ class CellsModel:
 
         else:
 
-            raise LatexWalkerParseError(
+            raise LatexWalkerLocatedError(
                 f"Expected ‘ROWS;COLS’ or ‘COLS’ or ‘’ for placement argument, "
                 f"got ‘{_splfysidews(placement_mapping_spec.latex_verbatim())}’",
                 pos=placement_mapping_spec.pos
@@ -854,7 +854,7 @@ class CellsEnvironment(FLMEnvironmentSpecBase):
                 # okay, ignore pure whitespace
                 continue
 
-            raise LatexWalkerParseError(
+            raise LatexWalkerLocatedError(
                 f"You cannot place ‘{_splfysidews(n.latex_verbatim())}’ here.  Expected: "
                 f"\\cell, \\celldata, \\\\."
             )

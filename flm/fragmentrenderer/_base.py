@@ -96,22 +96,31 @@ class FragmentRenderer:
     def render_node(self, node, render_context):
         render_context = self.ensure_render_context(render_context)
 
-        if node.isNodeType(nodes.LatexCharsNode):
-            return self.render_node_chars(node, render_context)
-        if node.isNodeType(nodes.LatexCommentNode):
-            return self.render_node_comment(node, render_context)
-        if node.isNodeType(nodes.LatexGroupNode):
-            return self.render_node_group(node, render_context)
-        if node.isNodeType(nodes.LatexMacroNode):
-            return self.render_node_macro(node, render_context)
-        if node.isNodeType(nodes.LatexEnvironmentNode):
-            return self.render_node_environment(node, render_context)
-        if node.isNodeType(nodes.LatexSpecialsNode):
-            return self.render_node_specials(node, render_context)
-        if node.isNodeType(nodes.LatexMathNode):
-            return self.render_node_math(node, render_context)
+        try:
+            if node.isNodeType(nodes.LatexCharsNode):
+                return self.render_node_chars(node, render_context)
+            if node.isNodeType(nodes.LatexCommentNode):
+                return self.render_node_comment(node, render_context)
+            if node.isNodeType(nodes.LatexGroupNode):
+                return self.render_node_group(node, render_context)
+            if node.isNodeType(nodes.LatexMacroNode):
+                return self.render_node_macro(node, render_context)
+            if node.isNodeType(nodes.LatexEnvironmentNode):
+                return self.render_node_environment(node, render_context)
+            if node.isNodeType(nodes.LatexSpecialsNode):
+                return self.render_node_specials(node, render_context)
+            if node.isNodeType(nodes.LatexMathNode):
+                return self.render_node_math(node, render_context)
 
-        raise ValueError(f"Invalid node type: {node!r}")
+            raise ValueError(f"Invalid node type: {node!r}")
+
+        except LatexWalkerLocatedError as e:
+            if not hasattr(e, 'pos') or e.pos is None:
+                e.pos = node.pos
+            raise e
+
+        except Exception as e:
+            raise LatexWalkerLocatedError(str(e), pos=node.pos)
         
 
     def render_node_chars(self, node, render_context):
