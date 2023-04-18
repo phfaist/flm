@@ -8,8 +8,9 @@ macros, environments, and some characters that have a special meaning; these
 features are parsed in a loosely similar fashion to usual LaTeX code.
 
 The framework is meant to be very easily extendible and customizable.  The
-parser is based on [*pylatexenc 3*](https://github.com/phfaist/pylatexenc)
-(which is currently still in development).
+parser is based on the upcoming version 3 of
+[*pylatexenc*](https://github.com/phfaist/pylatexenc)
+(currently in pre-release on pypi).
 
 FLM is used to write the contents of the [Error Correction
 Zoo](https://errorcorrectionzoo.org/) in a way that is intuitive for scientists,
@@ -20,6 +21,9 @@ contents in an intuitive way, as a markup language, while disregarding as much
 as possible the details of how that contents will be typeset.  The final
 typesetting is fully customizable, e.g., through CSS styling of its HTML output
 (including the use of templates).
+
+I intended to call this project "LLM" as an acronym for Latex-Like Markup, but
+had to revise my choice after the astronomical growth of large language models.
 
 You can install FLM with pip:
 ```bash
