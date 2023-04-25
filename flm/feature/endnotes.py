@@ -195,7 +195,7 @@ class FeatureEndnotes(Feature):
 
     class RenderManager(Feature.RenderManager):
 
-        def initialize(self):
+        def initialize(self, inhibit_render_endnote_marks=False):
             self.endnotes = {
                 c.category_name: []
                 for c in self.feature_document_manager.categories
@@ -205,6 +205,7 @@ class FeatureEndnotes(Feature):
                 for c in self.feature_document_manager.categories
             }
             self.endnote_instances = {} # node_id -> endnote instance
+            self.inhibit_render_endnote_marks = inhibit_render_endnote_marks
 
         def add_endnote(self, category_name, content_nodelist, *,
                         node, ref_label_prefix=None, ref_label=None):
@@ -250,6 +251,10 @@ class FeatureEndnotes(Feature):
             argument.  The latter must be a `FLMFragment` instance or a
             `pylatexenc.latexnodes.nodes.LatexNodesList` instance.
             """
+
+            if self.inhibit_render_endnote_marks:
+                return self.render_context.fragment_renderer.render_nothing(self.render_context)
+
             endnote_link_href = f"#{endnote.category_name}-{endnote.number}"
 
             if display_flm is None:
@@ -287,6 +292,9 @@ class FeatureEndnotes(Feature):
 
             render_context = self.render_context
             fragment_renderer = render_context.fragment_renderer
+
+            if self.inhibit_render_endnote_marks:
+                return fragment_renderer.render_nothing(render_context)
 
             endnotes_by_category = {}
             for endnote in endnote_list:

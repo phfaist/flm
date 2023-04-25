@@ -143,6 +143,16 @@ class FeatureExternalPrefixedCitations(Feature):
             render_context = self.render_context
             fragment_renderer = render_context.fragment_renderer
 
+            endnotes_mgr = None
+            if render_context.supports_feature('endnotes'):
+                endnotes_mgr = render_context.feature_render_manager('endnotes')
+
+            if (self.use_endnotes and endnotes_mgr is not None
+                and endnotes_mgr.inhibit_render_endnote_marks):
+                #
+                return fragment_renderer.render_nothing(render_context)
+
+
             resource_info = node.latex_walker.resource_info
 
             #
@@ -178,10 +188,6 @@ class FeatureExternalPrefixedCitations(Feature):
             #
 
             s_items = []
-
-            endnotes_mgr = None
-            if render_context.supports_feature('endnotes'):
-                endnotes_mgr = render_context.feature_render_manager('endnotes')
 
             delimiters_part_of_link = True
 
