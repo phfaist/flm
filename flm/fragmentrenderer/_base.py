@@ -41,7 +41,10 @@ class FragmentRenderer:
                                         self.ensure_render_context(render_context),
                                         is_block_level=is_block_level)
         except Exception as e:
-            logger.debug(f"Exception while rendering fragment ‘{flm_fragment.what}’: {e}")
+            logger.debug(
+                f"Exception while rendering fragment ‘{flm_fragment.what}’: {e}",
+                exc_info=True
+            )
             raise
 
     def render_nodelist(self, nodelist, render_context, is_block_level=None):

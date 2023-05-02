@@ -647,10 +647,19 @@ class HtmlFragmentRenderer(FragmentRenderer):
                 if grid_cell_data is None or grid_cell_data['cell'] is None:
                     # no contents here, still need to render an empty cell for
                     # the HTML layout
+                    clsnames = []
+                    if row_j == 0:
+                        clsnames.append('celltbledge-top')
+                    if col_j == 0:
+                        clsnames.append('celltbledge-left')
+                    if row_j == tabheight - 1:
+                        clsnames.append('celltbledge-bottom')
+                    if col_j == tabwidth - 1:
+                        clsnames.append('celltbledge-right')
                     row_items.append(self.wrap_in_tag(
                         'td',
                         '',
-                        class_names=['cell-empty']
+                        class_names=['cell-empty'] + clsnames
                     ))
                     col_j += 1
                     continue
