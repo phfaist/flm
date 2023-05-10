@@ -1,6 +1,7 @@
 import re
 
 from pylatexenc.latexencode import UnicodeToLatexEncoder
+from pylatexenc.latexencode import get_builtin_rules as pyltxenc_lenc_get_builtin
 
 import logging
 logger = logging.getLogger(__name__)
@@ -56,7 +57,11 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.latex_encoder = UnicodeToLatexEncoder(unknown_char_policy='unihex')
+        self.latex_encoder = UnicodeToLatexEncoder(
+            conversion_rules=
+                pyltxenc_lenc_get_builtin.get_builtin_conversion_rules('defaults'),
+            unknown_char_policy='unihex',
+        )
 
     # ------------------
 

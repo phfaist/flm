@@ -15,7 +15,7 @@ flm = 'flm.__main__:run_main'
 
 [tool.poetry.dependencies]
 python = "^3.8"
-pylatexenc = { version = "^3.0a14", allow-prereleases = true }
+pylatexenc = { version = "^3.0a17", allow-prereleases = true }
 python-frontmatter = "^1.0.0"
 PyYAML = ">=5.0"
 

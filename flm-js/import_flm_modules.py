@@ -20,6 +20,8 @@ import flm.flmdocument
 import flm.flmfragment
 import flm.fragmentrenderer.html
 import flm.fragmentrenderer.text
+import flm.fragmentrenderer.latex
+import flm.fragmentrenderer.markdown
 import flm.flmdump
 
 

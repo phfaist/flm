@@ -14,6 +14,8 @@ module_list:
   - 'flm.fragmentrenderer'
   - 'flm.fragmentrenderer.html'
   - 'flm.fragmentrenderer.text'
+  - 'flm.fragmentrenderer.latex'
+  - 'flm.fragmentrenderer.markdown'
   - 'flm.flmdump'
 
 skip_relative_import_prefixes:
