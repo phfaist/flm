@@ -42,6 +42,39 @@ class TestLatexFragmentRenderer(unittest.TestCase):
 """ .strip()
         )
 
+
+    def test_delayed_rendering(self):
+        lfr = LatexFragmentRenderer()
+
+        environ = mk_flm_environ()
+
+        frag1 = environ.make_fragment(
+            r"""
+\section{My Section}
+\label{sec:mysec}
+Hello.
+
+See \ref{sec:mysec}.
+""" .strip()
+        )
+
+        def render_doc_fn(render_context):
+            return { 'content': frag1.render(render_context) }
+
+        doc = environ.make_document(render_doc_fn)
+        result, _ = doc.render(lfr)
+
+        self.assertEqual(
+            result['content'].replace('%\n', '').replace(r'\relax ', '') .strip(),
+            r"""
+\section{My Section}\label{x:sec-mysec}
+Hello.
+
+See \hyperref[{x:sec-mysec}]{My Section}.
+            """ .strip()
+        )
+
+        
         
     
     def test_simple_00(self):

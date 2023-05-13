@@ -490,7 +490,7 @@ class LatexFragmentRenderer(FragmentRenderer):
                 rendered_float_caption,
             ], render_context)
         else:
-            float_content_with_caption = float_content_block
+            float_content_with_caption = float_content_block_content
 
         return (
             r"\begin{" + float_instance.float_type + "}[h!]%\n"
