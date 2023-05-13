@@ -73,7 +73,7 @@ class LatexFragmentRenderer(FragmentRenderer):
         
         content = value
 
-        for txtfmt in list(text_formats)[::-1]:
+        for txtfmt in reversed(list(text_formats)):  # "[::-1]" is not good for Transcrypt
             # recursively wrap in text formatting commands
             txtfmtcmd = self.text_format_cmds.get(txtfmt,None)
             if txtfmtcmd:
@@ -82,19 +82,24 @@ class LatexFragmentRenderer(FragmentRenderer):
         return content
 
 
-    def wrap_in_latex_enumeration_environment(self, annotations, items_content, render_context):
+    def wrap_in_latex_enumeration_environment(self, ltx_environment, annotations,
+                                              items_content, render_context):
         return (
-            r'\begin{itemize}'
+            r'\begin{' + ltx_environment + r'}'
             + '% ' + ",".join([a.replace('\n',' ') for a in annotations]) + "\n" #"\\relax{}"
             + items_content.strip()
             + '%\n'
-            + r'\end{itemize}'
+            + r'\end{' + ltx_environment + r'}'
         )
 
     use_phantom_section = True
     latex_label_prefix = 'x:'
 
+    debug_disable_pin_labels = False
+
     def pin_label_here(self, target_id, display_latex, insert_phantom_section=True):
+        if self.debug_disable_pin_labels:
+            return ''
         s = ''
         if insert_phantom_section and self.use_phantom_section:
             s += r'\phantomsection '
@@ -314,7 +319,15 @@ class LatexFragmentRenderer(FragmentRenderer):
         else:
             annotations = [a.replace('\n', ' ') for a in annotations]
 
+        ltx_environment = 'itemize'
+        if (
+                len(annotations) >= 1
+                and annotations[0] in ('enumerate', 'description', 'itemize',)
+        ):
+            ltx_environment = annotations[0]
+
         return self.wrap_in_latex_enumeration_environment(
+            ltx_environment,
             ['enumeration']+annotations,
             self.render_join(s_items, render_context),
             render_context
@@ -371,7 +384,11 @@ class LatexFragmentRenderer(FragmentRenderer):
             href,
         )
 
+    debug_disable_link_hyperref = False
+
     def render_latex_link_hyperref(self, display_content, to_target_id):
+        if self.debug_disable_link_hyperref:
+            return display_content
         return (
             r'\hyperref[{' + self.latex_label_prefix + to_target_id + '}]{'
             + display_content + '}'

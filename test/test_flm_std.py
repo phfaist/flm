@@ -6,6 +6,7 @@ from pylatexenc.latexnodes import LatexWalkerParseError
 from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
 from flm.fragmentrenderer.html import HtmlFragmentRenderer
+from flm.fragmentrenderer.latex import LatexFragmentRenderer
 
 from flm.feature import refs as feature_refs
 
@@ -440,6 +441,138 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
 <dl class="enumeration citation-list"><dt id="citation-1">[1]</dt><dd><span class="textit">arXiv</span> paper arXiv:1234.56789</dd><dt id="citation-2">[2]</dt><dd><span class="textit">arXiv</span> paper arXiv:0000.11111</dd><dt id="citation-3">[3]</dt><dd>My custom <span class="textit">reference</span> (2022).</dd><dt id="citation-4">[4]</dt><dd><span class="textit">arXiv</span> paper arXiv:3333.99999</dd></dl></div>
             """.strip()
 )
+
+
+
+    def test_renders_latex_with_citations(self):
+
+        environ = None
+
+        class MyCitationsProvider:
+            def get_citation_full_text_flm(self, cite_prefix, cite_key, resource_info):
+                if cite_prefix == 'arxiv':
+                    # can return FLM text as a string
+                    return r'\textbf{arXiv:' + cite_key + '}'
+                raise ValueError(f"Invalid citation prefix: {cite_prefix!r}")
+
+        environ = mk_flm_environ(
+            external_citations_providers=[ MyCitationsProvider() ]
+        )
+
+        frag1 = environ.make_fragment(
+            r"""
+Hello world~\cite{arxiv:1234.56789}.
+""" .strip()
+        )
+
+        def render_fn(render_context):
+            r = frag1.render(render_context)
+            r += '\n'
+            r += render_context.feature_render_manager('endnotes').render_endnotes()
+            return r
+
+        doc = environ.make_document(render_fn)
+
+        fr = LatexFragmentRenderer()
+        fr.debug_disable_pin_labels = True
+        fr.debug_disable_link_hyperref = True
+
+        result, render_context = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result .replace('%\n', '')
+              .replace('% --- begin  ---\n', '')
+              .replace('% --- end  ---\n', '')
+              .strip(),
+            r"""
+Hello world~[1].
+\begin{itemize}% enumeration,citation-list
+\item[{[1]}]\textbf{arXiv:1234.56789}\end{itemize}
+""".strip()
+        )
+
+
+    def test_renders_latex_with_enumerate(self):
+
+        environ = mk_flm_environ()
+
+        frag1 = environ.make_fragment(
+            r"""
+\begin{enumerate}
+\item One
+\item Two
+\item[c] Three
+\end{enumerate}
+""" .strip()
+        )
+
+        def render_fn(render_context):
+            r = frag1.render(render_context)
+            return r
+
+        doc = environ.make_document(render_fn)
+
+        fr = LatexFragmentRenderer()
+        fr.debug_disable_pin_labels = True
+        fr.debug_disable_link_hyperref = True
+
+        result, render_context = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result .replace('%\n', '')
+              .replace('% --- begin  ---\n', '')
+              .replace('% --- end  ---\n', '')
+              .strip(),
+            r"""
+\begin{enumerate}% enumeration,enumerate
+\item[{1.}]One
+\item[{2.}]Two
+\item[{c}]Three\end{enumerate}
+""".strip()
+        )
+
+
+    def test_renders_html_with_citations(self):
+
+        environ = None
+
+        class MyCitationsProvider:
+            def get_citation_full_text_flm(self, cite_prefix, cite_key, resource_info):
+                if cite_prefix == 'arxiv':
+                    # can return FLM text as a string
+                    return r'arXiv:' + cite_key
+                raise ValueError(f"Invalid citation prefix: {cite_prefix!r}")
+
+        environ = mk_flm_environ(
+            external_citations_providers=[ MyCitationsProvider() ]
+        )
+
+        frag1 = environ.make_fragment(
+            r"""
+Hello world~\cite{arxiv:1234.56789}.
+""" .strip(),
+            is_block_level=True,
+        )
+
+        def render_fn(render_context):
+            r = frag1.render(render_context)
+            r += '\n'
+            r += render_context.feature_render_manager('endnotes').render_endnotes()
+            return r
+
+        doc = environ.make_document(render_fn)
+
+        fr = HtmlFragmentRenderer()
+
+        result, render_context = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result.strip(),
+            r"""
+<p>Hello world&nbsp;<span class="citations"><a href="#citation-1" class="href-endnote endnote citation">[1]</a></span>.</p>
+<div id="endnotes" class="endnotes"><dl class="enumeration citation-list"><dt id="citation-1">[1]</dt><dd>arXiv:1234.56789</dd></dl></div>
+""".strip()
+        )
 
 
 
