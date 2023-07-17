@@ -1,6 +1,10 @@
 
 
 class Feature:
+    r"""
+    Base class to implement a FLM feature (extension).
+    """
+
 
     # ---
 
@@ -40,6 +44,15 @@ class Feature:
     # ---
 
     class DocumentManager:
+        r"""
+        The feature instance runs globally for the environment.  A document
+        manager is created for each new document.  It can be used to store
+        document-related information.
+
+        Subclasses should reimplement `initialize()` instead of providing a
+        constructor.
+        """
+
         def __init__(self, feature, doc, **kwargs):
             super().__init__(**kwargs)
             self.feature = feature
@@ -48,14 +61,32 @@ class Feature:
             self.RenderManager = self.feature.RenderManager
 
         def initialize(self):
+            r"""
+            Called to initialize the object.  Better use this method
+            instead of providing a constructor in subclasses.
+            """
             pass
 
         def get_node_id(self, node):
+            r"""
+            Helper to obtain a unique ID associated with a node instance.
+            """
             return self.feature.get_node_id(node)
 
     # ---
 
     class RenderManager:
+        r"""
+        The feature instance runs globally for the environment.  A document
+        manager is created for each new document.  A render manager is created
+        for each rendering instance of the document.  It can be used to store
+        render-related information (for instance, an assignment of node objects
+        to equation/section/theorem numbers).
+
+        Subclasses should reimplement `initialize()` instead of providing a
+        constructor.
+        """
+
         def __init__(self, feature_document_manager, render_context, **kwargs):
             super().__init__(**kwargs)
             self.feature_document_manager = feature_document_manager
@@ -66,9 +97,11 @@ class Feature:
         def initialize(self):
             r"""
             Initialize the render manager.  You should subclass this
-            method, and avoid subclassing the constructor.  You'll get all the
-            `feature_render_options` for this feature (which you provided to the
-            document's render() method) as keyword arguments to this method.
+            method, and avoid subclassing the constructor.
+
+            You'll get all the `feature_render_options` for this feature (which
+            you provided to the document's render() method) as keyword arguments
+            to this method.
             """
             pass
 
@@ -79,6 +112,9 @@ class Feature:
             pass
 
         def get_node_id(self, node):
+            r"""
+            Helper to obtain a unique ID associated with a node instance.
+            """
             return self.feature.get_node_id(node)
 
 
@@ -115,7 +151,14 @@ class Feature:
 
 
 
+
+
 class SimpleLatexDefinitionsFeature(Feature):
+    r"""
+    A simple feature base class whose only purpose is to provide additional
+    LaTeX definitions to the latex context of the parser, without any document
+    or render managers.
+    """
     
     DocumentManager = None
     RenderManager = None

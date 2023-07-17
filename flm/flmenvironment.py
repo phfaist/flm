@@ -1,3 +1,8 @@
+r"""
+Module documentation here........
+"""
+
+
 import re
 import logging
 logger = logging.getLogger(__name__)
@@ -47,7 +52,7 @@ class FLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
 
 def FLMArgumentSpec(parser, argname, is_block_level=False, flm_doc=None):
     r"""
-    ..........
+    Doc..........
 
     I might turn this function into a proper subclass of `LatexArgumentSpec` in
     the future.

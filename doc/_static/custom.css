@@ -1,0 +1,178 @@
+/*@import url('https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;500&family=Fira+Sans:ital,wght@0,400;0,600;1,400;1,600&display=swap');*/
+@import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,300;0,500;1,300;1,500&family=Source+Serif+4:ital,wght@0,400;0,600;1,400;1,600&display=swap');
+
+
+div.document {
+    margin-top: 10px;
+}
+
+
+/* SIDEBAR */
+
+div.sphinxsidebar {
+    font-size: 0.9rem;
+    line-height: inherit;
+
+    /*background-color: rgba(120,80,50,0.1);*/
+    box-shadow: 3px 5px 10px rgba(0,0,0,0.1);
+    border-right: 2px solid rgba(120,80,50,0.1);
+    padding-right: 10px;
+    box-sizing: border-box;
+
+    border-radius: 12px;
+
+    background-color: rgba(255,255,255,0.8);
+}
+
+@media screen and (max-width: 875px) {
+    div.sphinxsidebar {
+        width: 100vw;
+        background-color: #333;
+    }
+}
+
+div.sphinxsidebar ul {
+    list-style: square;
+    margin-left: 10px;
+}
+div.sphinxsidebar ul > li {
+    margin-bottom: 0.2em;
+}
+div.sphinxsidebar ul ul {
+    list-style: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0nMS4wJyBlbmNvZGluZz0nVVRGLTgnPz4KPCEtLSBUaGlzIGZpbGUgd2FzIGdlbmVyYXRlZCBieSBkdmlzdmdtIDIuMS4zIC0tPgo8c3ZnIGhlaWdodD0nNC42MTQ2OXB0JyB2ZXJzaW9uPScxLjEnIHZpZXdCb3g9JzIzMC41MjQgNzcuOTk1NSA1LjUzMTI2IDQuNjE0NjknIHdpZHRoPSc1LjUzMTI2cHQnIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZycgeG1sbnM6eGxpbms9J2h0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsnPgo8ZGVmcz4KPHBhdGggZD0nTTUuMzcxODYgLTEuODA5MjJDNS40OTkzOCAtMS44NjUwMSA1LjUzMTI2IC0xLjkyMDggNS41MzEyNiAtMS45ODQ1NlM1LjUwNzM1IC0yLjEwNDExIDUuMzcxODYgLTIuMTY3ODdMMC45NjQzODQgLTQuMjQwMUMwLjg2MDc3MiAtNC4yOTU4OSAwLjg0NDgzMiAtNC4yOTU4OSAwLjgyODg5MiAtNC4yOTU4OUMwLjY2MTUxOSAtNC4yOTU4OSAwLjY2MTUxOSAtNC4xNTI0MyAwLjY2MTUxOSAtNC4wMDg5N1YwLjAzOTg1MDZDMC42NjE1MTkgMC4xNzUzNDIgMC42NjE1MTkgMC4zMTg4MDQgMC44MjA5MjIgMC4zMTg4MDRDMC44NDQ4MzIgMC4zMTg4MDQgMC44NjA3NzIgMC4zMTg4MDQgMC45NjQzODQgMC4yNjMwMTRMNS4zNzE4NiAtMS44MDkyMlonIGlkPSdnMC03MycvPgo8L2RlZnM+CjxnIGlkPSdwYWdlMSc+Cjx1c2UgeD0nMjMwLjUyNCcgeGxpbms6aHJlZj0nI2cwLTczJyB5PSc4Mi4yOTE0Jy8+CjwvZz4KPC9zdmc+');
+}
+
+
+/* BODY */
+
+div.body {
+    padding-left: 25px;
+    padding-right: 0px;
+    padding-top: 1em; /*0px;*/
+    padding-bottom: 0px;
+}
+
+div.body dl {
+    margin-bottom: 1em;
+}
+
+div.body li {
+    margin-bottom: 0.2em;
+}
+div.body li > ul {
+    margin-top: 0.2em;
+    margin-bottom: 0.2em;
+}
+
+div.body section > dl,
+div.body .section > dl {
+    background: rgba(120,80,50,0.05);
+    padding: 1.5rem 2rem;
+    border-radius: 1rem;
+    margin-bottom: 2rem;
+    box-shadow: 3px 3px 6px rgba(0,0,0,0.1);
+}
+div.body section > dl > dt,
+div.body .section > dl > dt {
+    margin-bottom: 1.5em;
+}
+div.body section > dl > dd,
+div.body .section > dl > dd {
+    margin-left: 0px;
+}
+
+div.body li > blockquote {
+    margin-left: 0px;
+}
+
+
+
+.sig {
+    /*font-family: 'Roboto', sans-serif;*/
+    font-family: inherit;
+    font-weight: 350;
+    color: rgb(100,100,100);
+    letter-spacing: 0.4px;
+}
+.sig pre {
+    font-family: inherit;
+}
+.sig > em.property:first-child {
+    font-style: normal;
+    font-variant: small-caps;
+    display: block;
+}
+.sig-prename {
+    font-size: 0.9em;
+}
+.sig-name {
+    color: #000;
+    font-weight: 550;
+    font-size: inherit;
+}
+.sig-param {
+    color: #000;
+    font-size: 0.95em;
+}
+
+
+pre, tt, code {
+    letter-spacing: -.2pt; /* condense mono/code font a bit */
+}
+pre {
+    padding: 7px;
+    background-color: rgba(120, 80, 50, 0.09);
+}
+tt, code {
+  background-color: #b7a48629;
+}
+
+code {
+    color: #000;
+    font-weight: 550;
+    padding: 2px 3px;
+    border-radius: 4px;
+}
+code.xref.py {
+    font-family: inherit;
+    letter-spacing: 0.2pt;
+    padding: 0px 0px;
+    border-radius: 0px;
+}
+code.xref, a code {
+    font-weight: 550;
+}
+
+/* link colors */
+a, a code.xref {
+    color: rgb(117, 63, 10);
+}
+
+
+/* when we have a local TOC, don't make headers into prominent links */
+a.toc-backref {
+    color: inherit;
+    text-decoration: inherit;
+}
+
+
+.versionmodified {
+    color: rgb(125, 42, 109);
+}
+
+
+
+/* --- */
+
+nav.contents, aside.topic, div.topic {
+    border: 0px none;
+    background-color: rgba(120,80,50,0.05);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 3px 3px 6px rgba(0,0,0,0.1);
+}
+
+
+div.admonition {
+    border-radius: 15px;
+}

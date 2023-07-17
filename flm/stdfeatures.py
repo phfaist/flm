@@ -44,6 +44,12 @@ def standard_features(
         defterm=True,
         theorems=False,
 ):
+    r"""
+    Build a standard set of features with reasonable defaults and with the
+    provided options.
+
+    Returns a list of feature instances (see :class:`flm.feature.Feature`).
+    """
 
     if footnote_counter_formatter is None:
         footnote_counter_formatter = 'alph'
