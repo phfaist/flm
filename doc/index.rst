@@ -6,6 +6,9 @@
 Welcome to FLM's documentation!
 ===============================
 
+The **Flexible Latex-Like Markup (FLM)** language resembles LaTeX code but is
+parsed as markup so it can be rendered in various formats (html, text, latex).
+
 
 .. toctree::
    :maxdepth: 2

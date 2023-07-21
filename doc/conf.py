@@ -76,10 +76,10 @@ html_static_path = ['_static']
 # documentation.
 #
 html_theme_options = {
-    'font_family': 'Fira Sans',
-    'font_size': '15px',
-    'head_font_family': 'Fira Sans',
-    'code_font_family': 'Fira Mono',
+    'font_family': 'Merriweather',
+    'font_size': '14px',
+    'head_font_family': 'Merriweather',
+    'code_font_family': 'Source Code Pro',
     # 'github_user': 'phfaist',
     # 'github_repo': 'flm',
     # 'github_button': True,

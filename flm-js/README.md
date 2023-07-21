@@ -7,7 +7,7 @@ Set up your poetry environment with the 'buildjslib' dependency group:
 Check out the pylatexenc sources. (If you've done this in the past, you might
 want to do `git pull` in that directory to get the latest version.)
 
-    > git clone https://github.com/phfaist/pylatexenc pylatexenc-src -b devel
+    > git clone https://github.com/phfaist/pylatexenc pylatexenc-src
     > # alternatively, make sure we have the lastest version:
     > (cd pylatexenc-src && git pull)
 

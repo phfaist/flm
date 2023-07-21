@@ -2,6 +2,13 @@ FLM Code Parsing
 ================
 
 
+FLM Definitions: ``flm.flmspecinfo``
+------------------------------------
+
+.. automodule:: flm.flmspecinfo
+   :members:
+
+
 FLM Environment: ``flm.flmenvironment``
 ---------------------------------------
 
