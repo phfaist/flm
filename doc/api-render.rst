@@ -1,10 +1,9 @@
 FLM Rendering
 =============
 
+.. toctree::
+   :maxdepth: 2
+   :caption: FLM Rendering Modules:
 
-.. automodule:: flm.flmrendercontext
-   :members:
-
-
-.. automodule:: flm.fragmentrenderer
-   :members:
+   flm.flmrendercontext
+   flm.fragmentrenderer

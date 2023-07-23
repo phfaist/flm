@@ -413,7 +413,7 @@ class FloatType:
         r"""
 
 
-        ..... float_caption_name can be a string ("Figure") or a callable
+        Doc ..... float_caption_name can be a string ("Figure") or a callable
         (`float_caption_name(number, fmt_value_flm_text)`) .......
         """
         super().__init__()

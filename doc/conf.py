@@ -136,7 +136,9 @@ latex_documents = [
 
 
 
-# Example configuration for intersphinx: refer to the Python standard library.
+# Configuration for intersphinx: where to link to documentation for the standard
+# python library and for pylatexenc.
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3', None)
+    'python': ('https://docs.python.org/3', None),
+    'pylatexenc': ('https://pylatexenc.readthedocs.io/en/latest/', None)
 }

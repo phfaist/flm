@@ -12,6 +12,9 @@ _rx_html_entity = re.compile(r'[&]([a-zA-Z]+|[#][0-9]+|[#]x[0-9a-fA-F]+);')
 
 
 class HtmlFragmentRenderer(FragmentRenderer):
+    r"""
+    HTML fragment renderer.
+    """
 
     supports_delayed_render_markers = True
     """
@@ -367,9 +370,9 @@ class HtmlFragmentRenderer(FragmentRenderer):
                            *, target_id_generator=None, annotations=None, nested_depth=None):
 
         r"""
-        ... remember, counter_formatter is given a number starting at 1.
+        Doc ............. ... remember, counter_formatter is given a number starting at 1.
 
-        ... target_id_generator is a callable, takes one argument (item #
+        Doc ........... ... target_id_generator is a callable, takes one argument (item #
         starting at 1, like counter_formatter), and returns the anchor name to
         use for the enumeration item (in HTML, the value of the
         id=... attribute)
@@ -1071,6 +1074,11 @@ def get_html_body_end_js_scripts(html_fragment_renderer):
 # ------------------------------------------------------------------------------
 
 class FragmentRendererInformation:
+    r"""
+    Fragment renderer information for the `flm.fragmentrenderer.html`
+    module.
+    """
+
     FragmentRendererClass = HtmlFragmentRenderer
 
     @staticmethod

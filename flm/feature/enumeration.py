@@ -35,7 +35,7 @@ _default_enumeration_counter_formatter = [
 
 class Enumeration(FLMEnvironmentSpecBase):
     r"""
-    ..............
+    Doc ..............
 
     `counter_formatter` can be either:
     

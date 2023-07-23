@@ -1,8 +1,3 @@
-r"""
-Module documentation here........
-"""
-
-
 import re
 import logging
 logger = logging.getLogger(__name__)
@@ -31,6 +26,20 @@ fn_unique_object_id = id
 
 
 class FLMParsingState(latexnodes.ParsingState):
+    r"""
+    Parsing state extends `pylatexenc`'s parsing state class to include
+    information about whether or not we are currently in "block level mode" or
+    not.  E.g., we should not accept contents such as tables and figures when
+    parsing the argument to a text format macro like ``\textbf``.
+
+    .. py:attribute:: is_block_level
+
+       Indicates whether or not we are parsing content in block-level mode.  If
+       `True`, then we are in block level mode.  If `False` then block-level
+       constructs such as enumeration lists, figures, paragraph breaks, etc. are
+       disallowed.  If `None`, then the parser should keep the ability to
+       auto-detect whether the contents is block-level mode or not.
+    """
 
     # transcrypt seems to behave funny with tuple([*list, new_item]) ...
     _fields = tuple(list(latexnodes.ParsingState._fields)+['is_block_level'])
@@ -41,6 +50,12 @@ class FLMParsingState(latexnodes.ParsingState):
 
 
 class FLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
+    r"""
+    Parsing state delta class (see
+    :py:class:`pylatexenc.latexnodes.ParsingStateDelta`) that updates the
+    parsing state to set the block level mode attribute (`is_block_level`).
+    """
+
     def __init__(self, is_block_level=None):
         super().__init__(
             set_attributes=dict(is_block_level=is_block_level)
@@ -743,8 +758,9 @@ class FLMEnvironment:
     def make_document(self, render_callback, **kwargs):
         r"""
         Instantiates a :py:class:`FLMDocument` object with the relevant arguments
-        (environment instance, feature objects).  This method also calls the
-        document's `initialize()` method.
+        (environment instance, feature objects).
+
+        This method also calls the document's `initialize()` method.
 
         Returns the instantiated document object.
         """
@@ -833,6 +849,31 @@ def standard_parsing_state(*,
 class FLMLatexWalkerMathContextParsingStateEventHandler(
         latexnodes.LatexWalkerParsingStateEventHandler
 ):
+    r"""
+    Handle enter/exit math mode to update the latex context database
+    appropriately.
+
+    Upon entering math mode, the latex context database (see
+    :py:class:`pylatexenc.macrospec.LatexContextDb`) is extended to allow any
+    unknown LaTeX macros and environments.
+    """
+
+    # r"""
+    # with the
+    # definitions given in the attribute `math_mode_extend_context`.
+    #
+    # .. py:attribute:: math_mode_extend_context
+    #
+    #    Additional definitions
+    # """
+
+    #
+    # FIXME: the leave_math_mode() does not actually restore the non-math-mode
+    # context, it simply re-sets unknown macro/environment handlers to raise an
+    # error.  Think about how to specify text/math contexts, and set them
+    # appropriately here.  Then we can document and publicly expose
+    # `math_mode_extend_context`.
+    #
     math_mode_extend_context = {
         'unknown_macro_spec': macrospec.MacroSpec(''),
         'unknown_environment_spec': macrospec.EnvironmentSpec(''),
@@ -840,6 +881,11 @@ class FLMLatexWalkerMathContextParsingStateEventHandler(
     }
 
     def enter_math_mode(self, math_mode_delimiter=None, trigger_token=None):
+        r"""
+        Callback is called upon entering math mode.  See
+        :py:class:`pylatexenc.latexnodes.LatexWalkerParsingStateEventHandler`.
+        """
+
         set_attributes = dict(
             in_math_mode=True,
             math_mode_delimiter=math_mode_delimiter,
@@ -853,6 +899,11 @@ class FLMLatexWalkerMathContextParsingStateEventHandler(
         )
 
     def leave_math_mode(self, trigger_token=None):
+        r"""
+        Callback is called upon entering math mode.  See
+        :py:class:`pylatexenc.latexnodes.LatexWalkerParsingStateEventHandler`.
+        """
+
         #logger.debug("FLMWalkerEventsParsingStateDeltasProvider.leave_math_mode !")
         return macrospec.ParsingStateDeltaExtendLatexContextDb(
             set_attributes=dict(
@@ -871,6 +922,29 @@ class FLMLatexWalkerMathContextParsingStateEventHandler(
 
 
 def standard_environment_get_located_error_message(exception_object):
+    r"""
+    Presents a more refined, and hopefully helpful, error message, assuming
+    a standard enough FLM environment, for the given error `exception_object`.
+    The latter is assumed to be a
+    :py:exc:`pylatexenc.latexnodes.LatexWalkerLocatedError` instance.
+
+    Some error messages are changed to make them more useful:
+
+    - If a forbidden '%' is encountered, you'd normally get an error message
+      like ``'%' is a forbidden character``.  To be more useful, a new error
+      message is provided pointing the user to either using ``\%`` to typeset a
+      literal percent sign or ``%%`` to start a comment.
+
+    - If a forbidden '$' is encountered, then pointers to the syntax
+      ``\(...\)``, ``\[...\]``, and ``\$`` are reported.
+
+    - We might add more error message transformations in the future.
+
+    If you'd like to write your own error message handler, you'll find
+    interesting information about the error in
+    `exception_object.error_type_info`.
+    """
+
     msg = None
     error_type_info = exception_object.error_type_info
     if error_type_info:
@@ -878,8 +952,8 @@ def standard_environment_get_located_error_message(exception_object):
         if what == 'token_forbidden_character':
             if error_type_info['forbidden_character'] == '%':
                 msg = (
-                    r"LaTeX comments are not allowed here. Use ‘\%’ to typeset a "
-                    r"literal percent sign."
+                    r"Single percent signs are not allowed here. Use ‘\%’ to typeset a "
+                    r"literal percent sign, and ‘%%’ to start a comment."
                 )
             elif error_type_info['forbidden_character'] == '$':
                 msg = (

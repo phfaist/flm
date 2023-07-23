@@ -25,12 +25,19 @@ class FLMFragment:
     r"""
     A fragment of FLM-formatted code.
 
+    Usually you should avoid manually creating `FLMFragment` instances.  Rather,
+    use the environment objects's
+    :py:meth:`flm.flmenvironment.FLMEnvironment.make_fragment()` method.
+
     A FLM fragment is intended to later be inserted in a document so that it can
     be rendered into the desired output format (HTML, plain text).  If the
     fragment is *standalone* (`standalone_mode=True`), then some FLM features
     are disabled (typically, for instance, cross-references) and the fragment
     can be rendered directly on its own without inserting it in a document, see
     :py:meth:`render_standalone()`.
+
+    The `environment` argument should be a :py:class:`FLMEnvironment` instance
+    used to parse this fragment.
 
     Doc .....................
 

@@ -122,7 +122,7 @@ class TextFragmentRenderer(FragmentRenderer):
     def render_link(self, ref_type, href, display_nodelist, render_context,
                     annotations=None):
         r"""
-        .....
+        Doc .....
 
         `href` can be:
 

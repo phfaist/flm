@@ -134,9 +134,9 @@ class MarkdownFragmentRenderer(FragmentRenderer):
                            *, target_id_generator=None, annotations=None, nested_depth=None):
 
         r"""
-        ... remember, counter_formatter is given a number starting at 1.
+        Doc ... remember, counter_formatter is given a number starting at 1.
 
-        ... target_id_generator is a callable, takes one argument (item #
+        Doc ... target_id_generator is a callable, takes one argument (item #
         starting at 1, like counter_formatter), and returns the anchor name to
         use for the enumeration item (in HTML, the value of the
         id=... attribute)

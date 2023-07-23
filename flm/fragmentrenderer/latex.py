@@ -10,9 +10,8 @@ from ._base import FragmentRenderer
 
 
 class LatexFragmentRenderer(FragmentRenderer):
-
     r"""
-    .............
+    Doc .............
 
     AN IMPORTANT ASSUMPTION MADE BY THIS RENDERER: (No stray comments
     assumption.) At no point in rendered content is there a comment without a
@@ -263,9 +262,9 @@ class LatexFragmentRenderer(FragmentRenderer):
                            *, target_id_generator=None, annotations=None, nested_depth=None):
 
         r"""
-        ... remember, counter_formatter is given a number starting at 1.
+        Doc.......... ... remember, counter_formatter is given a number starting at 1.
 
-        ... target_id_generator is a callable, takes one argument (item #
+        Doc........... ... target_id_generator is a callable, takes one argument (item #
         starting at 1, like counter_formatter), and returns the anchor name to
         use for the enumeration item (in LaTeX, will be used in \label{...})
         """

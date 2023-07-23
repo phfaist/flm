@@ -11,3 +11,4 @@ Doc.................
    api-features
    api-util
    api-main
+   api-docgen

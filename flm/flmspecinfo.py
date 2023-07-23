@@ -164,14 +164,23 @@ def _dobaseconstructors2argslast(Me, self, args, kwargs, kwargs_to_1=None):
 
 
 class FLMMacroSpecBase(FLMSpecInfo, macrospec.MacroSpec):
+    r"""
+    Convenience base class for a FLM LaTeX macro specification.
+    """
     def __init__(self, *args, **kwargs):
         _dobaseconstructors2argslast(FLMMacroSpecBase, self, args, kwargs)
 
 class FLMEnvironmentSpecBase(FLMSpecInfo, macrospec.EnvironmentSpec):
+    r"""
+    Convenience base class for a FLM LaTeX environment specification.
+    """
     def __init__(self, *args, **kwargs):
         _dobaseconstructors2argslast(FLMEnvironmentSpecBase, self, args, kwargs)
 
 class FLMSpecialsSpecBase(FLMSpecInfo, macrospec.SpecialsSpec):
+    r"""
+    Convenience base class for a FLM LaTeX specials specification.
+    """
     def __init__(self, *args, **kwargs):
         _dobaseconstructors2argslast(FLMSpecialsSpecBase, self, args, kwargs)
 
@@ -193,6 +202,9 @@ def make_verb_argument(value):
 
 
 class FLMSpecInfoConstantValue(FLMSpecInfo):
+    r"""
+    Render a constant, literal character string.
+    """
 
     allowed_in_standalone_mode = True
 
@@ -208,10 +220,16 @@ class FLMSpecInfoConstantValue(FLMSpecInfo):
 
 
 class ConstantValueMacro(FLMSpecInfoConstantValue, macrospec.MacroSpec):
+    r"""
+    LaTeX macro specification for the `FLMSpecInfoConstantValue` specinfo.
+    """
     def __init__(self, *args, **kwargs):
         _dobaseconstructors2argslast(ConstantValueMacro, self, args, kwargs, ('value',))
 
 class ConstantValueSpecials(FLMSpecInfoConstantValue, macrospec.SpecialsSpec):
+    r"""
+    LaTeX speicals specification for the `FLMSpecInfoConstantValue` specinfo.
+    """
     def __init__(self, *args, **kwargs):
         _dobaseconstructors2argslast(ConstantValueSpecials, self, args, kwargs, ('value',))
 
@@ -221,6 +239,12 @@ text_arg = FLMArgumentSpec(
     argname='text',
     flm_doc='The text or FLM content to process',
 )
+r"""
+A convenience :py:class:`~flm.flmenvironment.FLMArgumentSpec` instance to
+capture an argument to a macro that is meant to contain FLM text content.  The
+argument itself is parsed as a single LaTeX expression, i.e., a standard
+mandatory argument given in curly braces or a single LaTeX token.
+"""
 
 label_arg = FLMArgumentSpec(
     parser=latexnodes_parsers.LatexTackOnInformationFieldMacrosParser(
@@ -231,8 +255,22 @@ label_arg = FLMArgumentSpec(
     flm_doc=(r'A following \verbcode+\label{…}+ macro attaches a label to '
              r'this macro call')
 )
+r"""
+A convenience :py:class:`~flm.flmenvironment.FLMArgumentSpec` instance to
+capture any appended ``\label{}`` command(s).  This can be used, e.g., as the
+last "argument" of a sectioning command (``\section{}``), so that the labels are
+part of the macro call.  The argument parser is a
+:py:class:`pylatexenc.latexnodes.parsers.LatexTackOnInformationFieldMacrosParser`
+instance.
+"""
 
 def helper_collect_labels(node_arg_label, allowed_prefixes, allow_unknown_macros=False):
+    r"""
+    Helper function to collect all labels associated with an argument with
+    specification :py:data:`label_arg`.
+
+    Doc........................ 
+    """
 
     if not node_arg_label.was_provided():
         return None
@@ -315,6 +353,52 @@ class TextFormatMacro(FLMMacroSpecBase):
             node_args['text'].get_content_nodelist(),
             render_context,
         )
+
+
+class SemanticBlockEnvironment(FLMEnvironmentSpecBase):
+    r"""
+    The argument `role` and `annotations` are passed on to the fragment
+    renderer.
+    """
+
+    allowed_in_standalone_mode = True
+
+    is_block_level = True
+
+    def __init__(self, environmentname, *, role, annotations=None):
+        super().__init__(
+            environmentname=environmentname,
+        )
+        self.role = role
+        self.annotations = annotations
+
+    def get_flm_doc(self):
+        with_annotations_str = ""
+        if self.annotations is not None and len(self.annotations):
+            with_annotations_str = (
+                " and annotations ["
+                + ",".join(["‘"+a+"’" for a in self.annotations]) + "]"
+            )
+        return (
+            r"Formats its contents using a semantic block with role ‘"
+            + self.role + r"’" + with_annotations_str
+        )
+
+    def render(self, node, render_context):
+
+        content = render_context.fragment_renderer.render_nodelist(
+            node.nodelist,
+            render_context
+        )
+
+        return render_context.fragment_renderer.render_semantic_block(
+            content,
+            role=self.role,
+            render_context=render_context,
+            annotations=self.annotations
+        )
+
+
 
 
 class FLMSpecInfoParagraphBreak(FLMSpecInfo):

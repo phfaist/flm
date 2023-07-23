@@ -15,6 +15,11 @@ div.footer {
     font-size: inherit;
 }
 
+div.body p, div.body dd, div.body li, div.body blockquote {
+  -moz-hyphens: none;
+  hyphens: none;
+}
+
 
 div.document {
     margin-top: 10px;

@@ -10,7 +10,7 @@ from pylatexenc import macrospec
 from flm.flmenvironment import FLMArgumentSpec
 from flm.flmspecinfo import (
     FLMMacroSpecBase, FLMEnvironmentSpecBase, text_arg, make_verb_argument,
-    TextFormatMacro
+    TextFormatMacro, SemanticBlockEnvironment
 )
 from flm.feature import SimpleLatexDefinitionsFeature
 #from flm.feature.verbatim import VerbatimMacro
@@ -65,6 +65,8 @@ class MacroDocArg(FLMMacroSpecBase):
 
 class EnvironmentDocArguments(FLMEnvironmentSpecBase):
 
+    is_block_level = True
+
     def get_flm_doc(self):
         return ("Produce documentation of the arguments of a FLM callable "
                 "(macro, environment, specials)")
@@ -105,14 +107,16 @@ class EnvironmentDocArguments(FLMEnvironmentSpecBase):
 
             content = render_context.doc.environment.make_fragment(
                 (
-                    nargdoc.flm_doc_parser_name
+                    r'\begin{flmDocArgumentListItem}'
+                    + nargdoc.flm_doc_parser_name
                     + ': '
                     + r'\flmDocArgumentName{'
                     + nargdoc.flm_doc_argument_name
-                    + '} — '
+                    + '}'
+                    + r'\end{flmDocArgumentListItem}'
                 ),
                 #
-                is_block_level=False,
+                is_block_level=True,
                 what=f"Argument doc leading ...",
             )
 
@@ -125,7 +129,7 @@ class EnvironmentDocArguments(FLMEnvironmentSpecBase):
             )
             
         heading_fragment = render_context.doc.environment.make_fragment(
-            '\\textbf{Arguments:} ',
+            '\\flmFormatArgumentsCaption{Arguments:} ',
             is_block_level=False,
         )
 
@@ -138,7 +142,7 @@ class EnvironmentDocArguments(FLMEnvironmentSpecBase):
                     iter_items_nodelists=items_nodelists,
                     counter_formatter=lambda n: '•', #lambda n: items_tags[n-1],
                     render_context=render_context,
-                )
+                ),
             ], render_context),
             role='flm_doc_arguments',
             render_context=render_context
@@ -212,7 +216,7 @@ class EnvironmentDocBlock(FLMEnvironmentSpecBase):
             (self.thing_format_fn(thing_name, node.flm_doc_arguments_environment)
              if thing_name else ''),
             #
-            is_block_level=False,
+            is_block_level=True,
             what=f"heading for thing ‘{thing_name}’ ...",
         ).nodes
 
@@ -238,23 +242,36 @@ class EnvironmentDocBlock(FLMEnvironmentSpecBase):
 
 def _render_macro_doc_heading(macroname, flm_doc_arguments_environment):
     return (
-        r"\verbcode" + make_verb_argument(macroname)
+        r"\flmFormatThingMacro{"
+        + r"\verbcode" + make_verb_argument(macroname)
+        + "}"
         + _render_thing_args_prototype(flm_doc_arguments_environment)
-        + " —"
+        + '\n\n'
+        #+ " —"
     )
 
 def _render_environment_doc_heading(environmentname, flm_doc_arguments_environment):
     return (
-        r"\verbcode+\begin{"+environmentname+r"}+"
+        r"\flmFormatThingEnvironmentBegin{"
+        + r"\verbcode+\begin{"+environmentname+r"}+"
+        + "}"
         + _render_thing_args_prototype(flm_doc_arguments_environment)
-        + r"\verbcode+…\end{"+environmentname+r"}+ —"
+        + '…'
+        + r"\flmFormatThingEnvironmentEnd{"
+        + r"\verbcode+\end{"+environmentname+r"}+"
+        + "}"
+        + '\n\n'
+        #+ " —"
     )
 
 def _render_specials_doc_heading(specials_chars, flm_doc_arguments_environment):
     return (
-        f"\\verbcode" + make_verb_argument(specials_chars)
+        r"\flmFormatThingSpecialsChars{"
+        + f"\\verbcode" + make_verb_argument(specials_chars)
+        + "}"
         + _render_thing_args_prototype(flm_doc_arguments_environment)
-        + " —"
+        + '\n\n'
+        #+ " —"
     )
 
 def _render_thing_args_prototype(flm_doc_arguments_environment):
@@ -265,7 +282,7 @@ def _render_thing_args_prototype(flm_doc_arguments_environment):
         s_items.append(
             r"\textbf{" + nargdoc.flm_doc_parser_name + "}"
         )
-    return "".join(s_items)
+    return r"\flmFormatArgsSignature{" + "".join(s_items) + "}"
 
 
 # ----------------------------
@@ -279,6 +296,17 @@ class FeatureFLMDocumentation(SimpleLatexDefinitionsFeature):
             MacroDocArg(),
             MacroDocText(),
             TextFormatMacro('flmDocArgumentName', text_formats=['textbf', 'flm_doc_arg_name']),
+            TextFormatMacro('flmFormatArgsSignature', text_formats=['flm_doc_arg_signature']),
+            TextFormatMacro('flmFormatThingMacro',
+                            text_formats=['flm_doc_thing', 'flm_doc_thing_macro']),
+            TextFormatMacro('flmFormatThingEnvironmentBegin',
+                            text_formats=['flm_doc_thing', 'flm_doc_thing_environment_begin']),
+            TextFormatMacro('flmFormatThingEnvironmentEnd',
+                            text_formats=['flm_doc_thing', 'flm_doc_thing_environment_end']),
+            TextFormatMacro('flmFormatThingSpecialsChars',
+                            text_formats=['flm_doc_thing', 'flm_doc_thing_specials_chars']),
+            TextFormatMacro('flmFormatArgumentsCaption',
+                            text_formats=['textbf', 'flm_doc_arguments_caption']),
         ],
         'environments': [
             EnvironmentDocArguments('flmDocArguments'),
@@ -287,6 +315,8 @@ class FeatureFLMDocumentation(SimpleLatexDefinitionsFeature):
                                 thing_format_fn=_render_environment_doc_heading),
             EnvironmentDocBlock('flmDocSpecials',
                                 thing_format_fn=_render_specials_doc_heading),
+            SemanticBlockEnvironment('flmDocArgumentListItem',
+                                     role='flm_doc_arg_list_item'),
         ]
     }
     
@@ -302,11 +332,22 @@ class FLMEnvironmentDocumentationGenerator:
 
         s_items = []
 
+        s_items.append( self.document_environment_introduction(environment) )
+
         for feature in environment.features:
             s_items.append( self.document_feature(feature) )
 
         return '\n\n'.join(s_items)
 
+    def document_environment_introduction(self, environment):
+        env_features = r"""\begin{enumerate}""" + "\n" + "\n".join([
+            r"\item " + r"\ref{" + self._get_feature_label_id(feature) + r"}" + "\n"
+            #self._get_feature_title(feature) + "\n"
+            for feature in environment.features ]) + r"""\end{enumerate}""" + "\n"
+        return (r"""
+\section{Environment documentation}
+
+""" + env_features + "\n\n")
 
     def document_epilog(self):
         return r"""
@@ -339,6 +380,15 @@ class FLMEnvironmentDocumentationGenerator:
 
 """
 
+    def _get_feature_title(self, feature):
+        feature_title = getattr(feature, 'feature_title', None)
+        if feature_title is None:
+            feature_title = feature.feature_name.capitalize()
+        return feature_title
+
+    def _get_feature_label_id(self, feature):
+        return "sec:feature-" + feature.feature_name + '-' + str(id(feature))
+
     def document_feature(self, feature):
 
         definitions = {
@@ -356,10 +406,9 @@ class FLMEnvironmentDocumentationGenerator:
             for k, vlist in defs.items():
                 definitions[k].extend( vlist )
 
-        feature_title = getattr(feature, 'feature_title', None)
-        if feature_title is None:
-            feature_title = feature.feature_name.capitalize()
+        feature_title = self._get_feature_title(feature)
         s = r"\section{" + feature_title + "}\n"
+        s += r"\label{" + self._get_feature_label_id(feature) + "}\n"
 
         if hasattr(feature, 'feature_flm_doc'):
             try:

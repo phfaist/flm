@@ -10,7 +10,9 @@ from ..flmrendercontext import FLMRenderContext
 
 class FragmentRenderer:
     r"""
-    .................
+    Base class for defining how to render FLM content in a given output format.
+
+    Doc ..................
     """
 
     supports_delayed_render_markers = False
@@ -301,7 +303,7 @@ class FragmentRenderer:
         r"""
         Possibly mark the given inline text content as belonging to a
         single construct (e.g., a sequence of citations or endnotes).  This
-        might correspond to a `<span>` tag in HTML.
+        might correspond to a ``<span>`` tag in HTML.
         """
         return content
 
@@ -319,7 +321,7 @@ class FragmentRenderer:
 
     def replace_delayed_markers_with_final_values(self, content, delayed_values):
         r"""
-        Only used if the fragment renderer supports `markers' for items whose
+        Only used if the fragment renderer supports `markers` for items whose
         rendering is delayed.
 
         - `content` is the string result of the first pass rendering, which
@@ -365,7 +367,7 @@ class FragmentRenderer:
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
         r"""
-        .....
+        Doc .....
 
         `href` can be:
 

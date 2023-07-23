@@ -1,19 +1,26 @@
 import re
 
-#_alpha = 'abcdefghijklmnopqrstuvwxyz'
-
 def alphacounter(n, lower=True):
-    # a, b, c, d, ..., y, z, aa, bb, cc, ..., zz, aaa, ...
+    r"""
+    Returns a string representing the number `n` using a latin letter,
+    starting at `n=1`.  The sequence is 'a', 'b', 'c', ..., 'y', 'z', 'aa',
+    'bb', ..., 'zz', 'aaa', ...
+
+    If `lower=True` (the default), then lowercase letters are used.  Uppercase
+    letters are used if `lower=False`.
+    """
     n -= 1 # start counting at 1
     w = 1 + (n // 26)
     m = n % 26
-    #s = _alpha[m] * w
     s = chr(97+m) * w
     if lower:
         return s
     return s.upper()
     
 def Alphacounter(n):
+    r"""
+    Shorthand for ``alphacounter(n, lower=False)``.
+    """
     return alphacounter(n, lower=False)
 
 
@@ -34,6 +41,16 @@ _romancounterchars = (
 )
 
 def romancounter(n, lower=True, zero=''):
+    r"""
+    Returns a string representing the number `n` as a roman numeral (I, II,
+    III, IV, etc.).
+    
+    If `lower=True` (the defualt), then lowercase letters are used; uppercase
+    letters are used if `lower=False`.
+
+    The argument `zero` is a string to return in case `n` is equal to zero (by
+    default, an empty string).
+    """
     s = ''
     if n == 0:
         return zero
@@ -47,6 +64,9 @@ def romancounter(n, lower=True, zero=''):
     return s
 
 def Romancounter(n):
+    r"""
+    Shorthand for ``romancounter(n, lower=False)``.
+    """
     return romancounter(n, lower=False)
 
 _fnsymbols = [
@@ -59,6 +79,18 @@ _fnsymbols = [
 ]
 
 def fnsymbolcounter(n, symbols=_fnsymbols):
+    r"""
+    Return a symbol that is suitable for representing a footnote whose
+    internal numbering is given by `n`.  Numbering starts at `n=1`.
+
+    The argument `symbols` provides a sequence of symbols to go through.  By
+    default, the sequence is ``'*', '†', '‡', '§', '¶', '‖'``.
+
+    For `n` larger than the `symbols` sequence length, we begin returning the
+    symbol repeated multiple times.  I.e., with the default symbols sequence,
+    we'll get ``'*', '†', '‡', '§', '¶', '‖', '**', '††', ..., '‖‖', '***', ...``
+    """
+
     # *, †, ..., **, ††, ..., ***, †††, ... ...
     n -= 1 # start counting at 1
     N = len(symbols)
@@ -83,18 +115,39 @@ _unicodesubscriptdigits = [
 
 
 def customdigitscounter(n, digits='0123456789'):
+    r"""
+    Return a string representation of `n` using the digits `digits` (the
+    base is determined by the length of the `digits` list).
+
+    For example, to get a binary representation of `n` using 'F' and 'T' instead
+    of '0' and '1', you can use ``customdigitscounter(n, 'FT')``
+    """
     base = len(digits)
     s = ''
     while n:
         q, r = n // base, n % base
         s = digits[r] + s
         n = q
-    return ''.join(s)
+    return s #''.join(s)
 
 def unicodesuperscriptcounter(n):
+    r"""
+    Return a unicode string representation of the number `n`, in base 10,
+    using unicode superscript characters.
+    
+    For instance, ``unicodesuperscriptcounter(17) == "¹⁷"``.
+    """
     return customdigitscounter(n, digits=_unicodesuperscriptdigits)
+
 def unicodesubscriptcounter(n):
+    r"""
+    Return a unicode string representation of the number `n`, in base 10,
+    using unicode subscript characters.
+    
+    For instance, ``unicodesubscriptcounter(17) == "₁₇"``.
+    """
     return customdigitscounter(n, digits=_unicodesubscriptdigits)
+
 
 
 standard_counter_formatters = {
@@ -107,6 +160,14 @@ standard_counter_formatters = {
     'unicodesuperscript': unicodesuperscriptcounter,
     'unicodesubscript': unicodesubscriptcounter,
 }
+r"""
+Dictionary providing standard counter formatters by name.  Some names
+mirror their LaTeX counter formatter counterparts (e.g., 'arabic', 'Roman').
+
+The value of the dictionary is a callable (function or lambda) that takes a
+positional argument (the number) and returns a string representation of that
+number.
+"""
 
 _standard_tag_template_initials_formatters = {
     'a': alphacounter,
@@ -133,6 +194,11 @@ def parse_counter_formatter(
         str_use_tag_template=False,
         tag_template_initials_counters=_standard_tag_template_initials_formatters,
 ):
+    #
+    # TODO, deprecate this function by this name (see below) -- rename to
+    # `parse_counter_format_num()` & document it under that name below.
+    #
+
     if callable(counter_formatter):
         return counter_formatter
     if isinstance(counter_formatter, str):
@@ -211,13 +277,17 @@ _default_formatter_join_spec = {
 
 # TODO: deprecate parse_counter_formatter to avoid confusion with CounterFormatter
 parse_counter_format_num = parse_counter_formatter
+r"""
+Doc...............
+"""
 
 
 def build_counter_formatter(counter_formatter, default_counter_formatter_spec, *,
                             counter_formatter_id):
     r"""
-    Build a CounterFormatter() instance from the given configuration
-    counter_formatter.  It can be a string (e.g. 'arabic'), a 
+    Build a :py:class:`CounterFormatter` instance from the given
+    configuration counter_formatter.  It can be a string (e.g. 'arabic') or a
+    dictionary (doc......................)
     """
 
     if isinstance(counter_formatter, CounterFormatter):
@@ -249,6 +319,16 @@ def build_counter_formatter(counter_formatter, default_counter_formatter_spec, *
 
 
 class CounterFormatter:
+    r"""
+    Engine to format one or more counter values, including
+    prefixes/suffixes (with plural forms), hyperlinks, labels, ranges, and
+    conjuctions.
+
+    E.g. ``Equation (2)``, ``Equations (3)–(5)``.
+
+    FIXME: Document me!  Doc.......................
+    """
+
     def __init__(self, format_num, prefix_display=None, 
                  delimiters=None, join_spec=None, name_in_link=True,
                  counter_formatter_id=None):
@@ -519,6 +599,11 @@ def _expect_int(v):
 
 
 class Counter:
+    r"""
+    A basic counter that can be formatted using a
+    :py:class:`CounterFormatter`.
+    """
+
     def __init__(self, counter_formatter, initial_value=0):
         self.formatter = counter_formatter
         self.value = initial_value
@@ -548,6 +633,12 @@ class Counter:
 
 
 class CounterAlias:
+    r"""
+    Looks like a :py:class:`Counter`, but always reflects the value stored
+    in another given :py:class:`Counter` instance.  The formatter can be set
+    independently of the reference counter's formatter.
+    """
+
     def __init__(self, counter_formatter, alias_counter):
         self.formatter = counter_formatter
         self.alias_counter = alias_counter
