@@ -140,6 +140,7 @@ dmypy.json
 trydocgen.*
 tmp.*
 tmp2.*
+tmp3.*
 tmp*Notes.bib
 
 playground/*.pdf
