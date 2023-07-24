@@ -11,7 +11,7 @@ from pylatexenc.macrospec import (
 )
 
 from ...flmenvironment import FLMArgumentSpec
-from ...flmspecinfo import FLMEnvironmentSpecBase
+from ...flmspecinfo import FLMEnvironmentSpecBase, make_verb_argument
 from ...counter import build_counter_formatter, Counter
 
 from .._base import Feature
@@ -620,22 +620,95 @@ class FeatureFloats(Feature):
         return r"""Floating items, such as figures and tables, along with
         captions, are supported by the environments described here."""
 
-    def add_flm_doc_latex_context_definitions(self):
+    def add_flm_doc_latex_context_definitions(self, base_feature_definitions):
         r"""
         These definitions won't be used in the real world.  This method
         will only be queried by `flm.docgen` to generate comprehensive
         documentation that includes these commands.
         """
-        return {
+        
+        defs = {
             'macros': [
                 float_label_arg,
                 float_caption_arg,
-                SimpleIncludeGraphicsMacro(macroname='includegraphics'),
             ],
-            'environments': [
-                CellsEnvironment()
-            ],
+            'environments': [],
+            'specials': [],
         }
+
+        # include definitions provided by float content handlers.
+
+        ch_defs = {'macros': [],
+                   'environments': [],
+                   'specials': [],}
+
+        ch_defs_fts = {'macros': {}, # macroname -> [ ft1, ft2, ... ]
+                       'environments': {},
+                       'specials': {},}
+
+        #for ftname, ft in self.float_types.items():
+        for ft_env in base_feature_definitions['environments']:
+            ftname = ft_env.environmentname #float_type.float_type
+            ch_list = ft_env.content_handlers
+            for ch in ch_list:
+                d = {'macros': [], 'environments': [], 'specials': []}
+                ch.float_content_set_extra_definitions(d)
+                
+                for which in ('macros', 'environments', 'specials'):
+                    if len(d[which]):
+                        for m in d[which]:
+                            whatname, _ = _whatname(m, which)
+
+                            if whatname not in ch_defs_fts[which]:
+                                ch_defs[which].append(m)
+                                ch_defs_fts[which][whatname] = [ ftname ]
+                            else:
+                                ch_defs_fts[which][whatname].append(ftname)
+
+                
+        for which in ('macros', 'environments', 'specials'):
+            for mdef in ch_defs[which]:
+                whatname, whattext = _whatname(mdef, which)
+                _extend_mdef_flm_doc(
+                    mdef,
+                    r"""The """ + whattext + r""" is made available in the """
+                    + r"""following float environment(s): """
+                    + ", ".join([ r"‘\verbcode+"+ftname+r"+’"
+                                  for ftname in ch_defs_fts[which][whatname] ])
+                )
+                defs[which].append(mdef)
+
+        return defs
+
+
+
+def _whatname(m, which):
+    if which == 'macros':
+        whatname = m.macroname
+        whattext = r'\verbcode' + make_verb_argument(m.macroname) + r' macro'
+    elif which == 'environments':
+        whatname = m.environmentname
+        whattext = r'\verbcode|{' + m.environmentname + r'}| environment'
+    elif which == 'specials':
+        whatname = m.specials_chars
+        whattext = r'\verbcode' + make_verb_argument(m.specials_chars) + r' specials'
+    else:
+        raise ValueError("invalid which = " + repr(which))
+    return whatname, whattext
+
+def _extend_mdef_flm_doc(mdef, add_flm_doc):
+    if not hasattr(mdef, 'get_flm_doc'):
+        mdef.get_flm_doc = lambda: add_flm_doc
+        return mdef
+    _get_flm_doc_raw = mdef.get_flm_doc
+    mdef.get_flm_doc = lambda: (
+        _get_flm_doc_raw()
+        + "\n\n"
+        + add_flm_doc
+    ).strip()
+    return mdef
+                    
+
 
 
 # ------------------------------------------------

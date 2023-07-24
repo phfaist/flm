@@ -8,7 +8,7 @@ from pylatexenc.latexnodes.nodes import (
     LatexNodeList
 )
 from pylatexenc.macrospec import (
-    MacroSpec, EnvironmentSpec, SpecialsSpec, LatexContextDb
+    CallableSpec, LatexContextDb
 )
 
 from .flmenvironment import (
@@ -51,7 +51,7 @@ class _Skip:
 
 
 _skip_types = (
-    LatexArgumentSpec, MacroSpec, EnvironmentSpec, SpecialsSpec, LatexContextDb,
+    LatexArgumentSpec, CallableSpec, LatexContextDb,
 )
 
 

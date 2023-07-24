@@ -630,14 +630,14 @@ plugins = ["importlib-metadata"]
 
 [[package]]
 name = "pylatexenc"
-version = "3.0a17"
+version = "3.0a18"
 description = "Simple LaTeX parser providing latex-to-unicode and unicode-to-latex conversion"
 category = "main"
 optional = false
 python-versions = ">=3.7,<4.0"
 files = [
-    {file = "pylatexenc-3.0a17-py3-none-any.whl", hash = "sha256:c28020b74b0689d665be858b9ad399bee288610123e147b0667d520ebf3ba123"},
-    {file = "pylatexenc-3.0a17.tar.gz", hash = "sha256:80240a3c043f96d91540775edfc84082b810a3f6bc2aac4b38ca94c82dfd04fd"},
+    {file = "pylatexenc-3.0a18-py3-none-any.whl", hash = "sha256:2ae2a0aa73fc08b19ac552842c53a6c8a21fdc6667b6dd8d2113492f5ca057c4"},
+    {file = "pylatexenc-3.0a18.tar.gz", hash = "sha256:a3863880264a27768c6af85d24dedb80d7a30ed5834212ee8c619dee5fadcfe1"},
 ]
 
 [[package]]
@@ -1077,4 +1077,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "4a897ce73a2e92ac922ca003a9f163bfefa6616eaec5cde803e0fc1a4608f214"
+content-hash = "8476c3ff7a01c97c30db24c09d2e0ee63fb01f72200803d37890f81b7aa2d3e6"

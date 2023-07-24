@@ -22,13 +22,13 @@ class VerbatimSpecInfo(FLMSpecInfo):
     The `annotation` is basically a HTML class name to apply to the block of
     content.  Use this for instance to separate out math content, etc.
     """
-    def __init__(self, *args,
+    def __init__(self,
                  annotations=None,
                  verbatimtype='text',
                  is_block_level=False,
                  include_environment_begin_end=False,
                  **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
         self.annotations = annotations
         self.verbatimtype = verbatimtype
 
@@ -116,13 +116,6 @@ class VerbatimSpecInfo(FLMSpecInfo):
         return f"""Typeset verbatim content of type ‘{self.verbatimtype}’."""
 
 
-# transcrypt doesn't seem to like super().__init__() (or the default
-# constructor) with multiple inheritance
-### BEGINPATCH_MULTIPLE_BASE_CONSTRUCTORS
-def _dobaseconstructors2argslast(Me, self, args, kwargs, kwargs_to_1=None):
-    super(Me, self).__init__(*args, **kwargs)
-### ENDPATCH_MULTIPLE_BASE_CONSTRUCTORS
-
 
 def make_verbatim_args_spec_list(ismacro, verbatim_delimiters, optional_lang_arg):
     a = []
@@ -156,32 +149,34 @@ def make_verbatim_args_spec_list(ismacro, verbatim_delimiters, optional_lang_arg
         )
     return a
 
-class VerbatimMacro(VerbatimSpecInfo, macrospec.MacroSpec):
+
+class VerbatimMacro(VerbatimSpecInfo):
     def __init__(self, macroname,
                  verbatim_delimiters=None,
                  *,
                  optional_lang_arg=False,
                  **kwargs):
-        newkwargs = dict(
+        super().__init__(
             macroname=macroname,
+            spec_node_parser_type='macro',
             arguments_spec_list=make_verbatim_args_spec_list(
                 True, verbatim_delimiters, optional_lang_arg
             ),
             **kwargs
         )
-        _dobaseconstructors2argslast(VerbatimMacro, self, [], newkwargs)
 
 
-class VerbatimEnvironment(VerbatimSpecInfo, macrospec.EnvironmentSpec):
+class VerbatimEnvironment(VerbatimSpecInfo):
     def __init__(self, environmentname, *, optional_lang_arg=False, **kwargs):
-        newkwargs = dict(
+        super().__init__(
             environmentname=environmentname,
+            spec_node_parser_type='environment',
             arguments_spec_list=make_verbatim_args_spec_list(
                 False, None, optional_lang_arg
             ),
             **kwargs
         )
-        _dobaseconstructors2argslast(VerbatimEnvironment, self, [], newkwargs)
+
 
 
 

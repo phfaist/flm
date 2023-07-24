@@ -151,23 +151,41 @@ class EnvironmentDocArguments(FLMEnvironmentSpecBase):
         )
 
 
-class MacroDocText(FLMMacroSpecBase):
-    def __init__(self, macroname='flmDocText'):
+class EnvironmentDocText(FLMEnvironmentSpecBase):
+
+    is_block_level = True
+
+    def __init__(self, environmentname='flmDocText'):
         super().__init__(
-            macroname=macroname,
-            arguments_spec_list=[ text_arg ],
+            #macroname=macroname,
+            environmentname=environmentname,
+            #arguments_spec_list=[ text_arg ],
         )
 
     def render(self, node, render_context):
 
-        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-            ('text',) ,
-        )
+        # node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
+        #     ('text',) ,
+        # )
+        #nodelist = node_args['text'].get_content_nodelist()
 
-        return render_context.fragment_renderer.render_text_format(
-            [ 'flm_doc_text' ],
-            node_args['text'].get_content_nodelist(),
+        nodelist = node.nodelist
+
+        # return render_context.fragment_renderer.render_text_format(
+        #     [ 'flm_doc_text' ],
+        #     nodelist,
+        #     render_context,
+        # )
+
+        content = render_context.fragment_renderer.render_nodelist(
+            nodelist,
             render_context,
+        )
+        return render_context.fragment_renderer.render_semantic_block(
+            content,
+            role='flm_doc_text',
+            render_context=render_context,
+            annotations=[],
         )
 
 
@@ -303,7 +321,7 @@ class FeatureFLMDocumentation(SimpleLatexDefinitionsFeature):
     latex_definitions = {
         'macros': [
             MacroDocArg(),
-            MacroDocText(),
+            #MacroDocText(),
             TextFormatMacro('flmDocArgumentName', text_formats=['textbf', 'flm_doc_arg_name']),
             TextFormatMacro('flmFormatArgsSignature', text_formats=['flm_doc_arg_signature']),
             TextFormatMacro('flmFormatThingMacro',
@@ -322,6 +340,7 @@ class FeatureFLMDocumentation(SimpleLatexDefinitionsFeature):
                             text_formats=['flm_doc_arg_list_item_label'],),
         ],
         'environments': [
+            EnvironmentDocText(),
             EnvironmentDocArguments('flmDocArguments'),
             EnvironmentDocBlock('flmDocMacro', thing_format_fn=_render_macro_doc_heading),
             EnvironmentDocBlock('flmDocEnvironment',
@@ -342,6 +361,9 @@ class FeatureFLMDocumentation(SimpleLatexDefinitionsFeature):
 
 
 class FLMEnvironmentDocumentationGenerator:
+
+    include_feature_name = False
+    include_feature_dependencies = False
 
     def document_environment(self, environment):
 
@@ -417,7 +439,7 @@ class FLMEnvironmentDocumentationGenerator:
             for k, vlist in feature_defs.items():
                 definitions[k].extend( vlist )
         if hasattr(feature, 'add_flm_doc_latex_context_definitions'):
-            defs = feature.add_flm_doc_latex_context_definitions() or {}
+            defs = feature.add_flm_doc_latex_context_definitions(feature_defs) or {}
             for k, vlist in defs.items():
                 definitions[k].extend( vlist )
 
@@ -425,9 +447,10 @@ class FLMEnvironmentDocumentationGenerator:
         s = r"\section{" + feature_title + "}\n"
         s += r"\label{" + self._get_feature_label_id(feature) + "}\n"
         
-        s += (r"""\textit{Documentation of the ‘\verbcode+"""
-              + feature.feature_name
-              + r"""+’ feature.}""" + "\n\n")
+        if self.include_feature_name:
+            s += (r"""\textit{Documentation of the ‘\verbcode+"""
+                  + feature.feature_name
+                  + r"""+’ feature.}""" + "\n\n")
 
         if hasattr(feature, 'feature_flm_doc'):
             try:
@@ -436,10 +459,30 @@ class FLMEnvironmentDocumentationGenerator:
                 feature_flm_doc = feature.feature_flm_doc
             s += feature_flm_doc + "\n"
 
+        if self.include_feature_dependencies:
+            if feature.feature_dependencies is not None \
+               and len(feature.feature_dependencies):
+                s += (
+                    r"""\textit{This feature requires the following feature(s) to be loaded:}"""
+                    + ", ".join([ r"‘\verbcode+" + f + "+’"
+                                  for f in feature.feature_dependencies ])
+                    + "\n\n"
+                )
+
+            if feature.feature_optional_dependencies is not None \
+               and len(feature.feature_optional_dependencies):
+                s += (
+                    r"""\textit{This feature suggests loading the following feature(s) """
+                    + r"""for enhanced functionality:}  """
+                    + ", ".join([ r"‘\verbcode+" + f + "+’"
+                                  for f in feature.feature_optional_dependencies ])
+                    + "\n\n"
+                )
+
         if definitions['macros']:
             s += (
                 # macros
-                r"\subsection{Macros}" + "\n"
+                r"\subsection{Available Macros}" + "\n"
                 + r"\begin{flmDocItemize}" + "\n"
                 + "".join([
                     r"\item " + self.document_callable_specinfo(spec) + "\n"
@@ -450,7 +493,7 @@ class FLMEnvironmentDocumentationGenerator:
         if definitions['environments']:
             s += (
                 # environments
-                r"\subsection{Environments}" + "\n"
+                r"\subsection{Available Environments}" + "\n"
                 + r"\begin{flmDocItemize}" + "\n"
                 + "".join([
                     r"\item " + self.document_callable_specinfo(spec) + "\n"
@@ -486,7 +529,9 @@ class FLMEnvironmentDocumentationGenerator:
                 + r"\end{flmDocArguments}"
             )
 
-        if isinstance(specinfo, macrospec.MacroSpec):
+        callable_type = _get_callable_type(specinfo)
+
+        if callable_type == 'macro':
         
             macroname = specinfo.macroname
             
@@ -496,12 +541,12 @@ class FLMEnvironmentDocumentationGenerator:
 
             return (
                 r"\begin{flmDocMacro}" + verbargument + "\n"
-                + r"\flmDocText{" + flm_doc_text + "}\n"
+                + r"\begin{flmDocText}" + flm_doc_text + r"\end{flmDocText}" + "\n"
                 + arguments_doc
                 + r"\end{flmDocMacro}"
             )
 
-        if isinstance(specinfo, macrospec.EnvironmentSpec):
+        if callable_type == 'environment':
         
             environmentname = specinfo.environmentname
             
@@ -509,12 +554,12 @@ class FLMEnvironmentDocumentationGenerator:
 
             return (
                 r"\begin{flmDocEnvironment}{" + environmentname + "}\n"
-                + r"\flmDocText{" + flm_doc_text + "}\n"
+                + r"\begin{flmDocText}" + flm_doc_text + r"\end{flmDocText}" + "\n"
                 + arguments_doc
                 + r"\end{flmDocEnvironment}"
             )
 
-        if isinstance(specinfo, macrospec.SpecialsSpec):
+        if callable_type == 'specials':
         
             specials_chars = specinfo.specials_chars
             
@@ -527,7 +572,7 @@ class FLMEnvironmentDocumentationGenerator:
 
             return (
                 r"\begin{flmDocSpecials}" + verbargument + "\n"
-                + r"\flmDocText{" + flm_doc_text + "}\n"
+                + r"\begin{flmDocText}" + flm_doc_text + r"\end{flmDocText}" + "\n"
                 + arguments_doc
                 + r"\end{flmDocSpecials}"
             )
@@ -589,3 +634,19 @@ class FLMEnvironmentDocumentationGenerator:
         )
             
             
+
+
+
+def _get_callable_type(spec):
+    r"""
+    Return one of 'macro', 'environment' or 'specials'.
+    """
+    if spec.spec_node_parser_type is macrospec.LatexMacroCallParser:
+        return 'macro'
+    if spec.spec_node_parser_type is macrospec.LatexEnvironmentCallParser:
+        return 'environment'
+    if spec.spec_node_parser_type is macrospec.LatexSpecialsCallParser:
+        return 'specials'
+
+    raise ValueError("Unknown spec_node_parser_type: " + repr(self.spec_node_parser_type))
+

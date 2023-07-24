@@ -77,6 +77,9 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
             **kwargs
         )
         
+    def get_flm_doc(self):
+        return r"""Insert an external graphics object."""
+
     def postprocess_parsed_node(self, node):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(

@@ -896,7 +896,7 @@ class FeatureProvideCells(Feature):
 
     # ---
 
-    def add_flm_doc_latex_context_definitions(self):
+    def add_flm_doc_latex_context_definitions(self, base_feature_definitions):
         r"""
         These definitions won't be used in the real world.  This method
         will only be queried by `flm.docgen` to generate comprehensive

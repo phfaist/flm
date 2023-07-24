@@ -12,9 +12,8 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from ..flmspecinfo import FLMEnvironmentSpecBase, FLMSpecInfoParagraphBreak
+from ..flmspecinfo import FLMEnvironmentSpecBase # , FLMSpecInfoParagraphBreak
 from ..flmenvironment import (
-    FLMParsingStateDeltaSetBlockLevel,
     FLMArgumentSpec,
 )
 
@@ -73,8 +72,6 @@ class Enumeration(FLMEnvironmentSpecBase):
                     argname='tag_template',
                 )
             ],
-            body_parsing_state_delta=
-                FLMParsingStateDeltaSetBlockLevel(is_block_level=self.is_block_level),
             **kwargs
         )
         if counter_formatter is None:
@@ -116,8 +113,11 @@ class Enumeration(FLMEnvironmentSpecBase):
                 and (
                     (item_macro.isNodeType(latexnodes_nodes.LatexCharsNode)
                      and item_macro.chars.strip() == '')
-                    or (item_macro.isNodeType(latexnodes_nodes.LatexSpecialsNode)
-                        and isinstance(item_macro.spec, FLMSpecInfoParagraphBreak))
+                    or (
+                        item_macro.isNodeType(latexnodes_nodes.LatexSpecialsNode)
+                        #and isinstance(item_macro.spec, FLMSpecInfoParagraphBreak)
+                        and item_macro.spec.is_paragraph_break_marker
+                    )
                 )):
                 # skip leading whitespace
                 continue

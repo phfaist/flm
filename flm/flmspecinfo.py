@@ -6,18 +6,20 @@ logger = logging.getLogger(__name__)
 from pylatexenc import macrospec
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import (
-    LatexWalkerParseError, LatexWalkerLocatedError, ParsedArgumentsInfo
+    LatexWalkerParseError, LatexWalkerLocatedError,
+    ParsedArgumentsInfo, ParsingStateDeltaChained
 )
 
 from .flmenvironment import (
-    FLMArgumentSpec
+    FLMArgumentSpec,
+    FLMParsingStateDeltaSetBlockLevel
 )
 
 
 # ------------------------------------------------------------------------------
 
 
-class FLMSpecInfo:
+class FLMSpecInfo(macrospec.CallableSpec):
     r"""
     Class that specifies how to finalize a given parsed node and how to process
     it to render into primitives understood by
@@ -73,6 +75,28 @@ class FLMSpecInfo:
     # amount of whitespace on that side of this macro/env/specials call.
     # """
 
+    body_contents_is_block_level = None
+    r"""
+    Applicable only to environment specifications.  Specifies whether or
+    not the body contents of the body should be parsed as block-level code or
+    not.  By default, environment contents are parsed in the same mode as the
+    surrounding content.
+    """
+
+
+    # ---------------
+
+    def __init__(self, *, spec_node_parser_type, arguments_spec_list=None, **kwargs):
+
+        # enforce keyword-only arguments at this point to avoid bugs because
+        # it's likely the wrong arguments get assigned to the positional
+        # arguments to pylatexenc.macrospec.CallableSpec().
+
+        super().__init__(arguments_spec_list=arguments_spec_list,
+                         spec_node_parser_type=spec_node_parser_type,
+                         **kwargs)
+
+    # ---------------
 
     def postprocess_parsed_node(self, node):
         r"""
@@ -103,7 +127,7 @@ class FLMSpecInfo:
         )
 
 
-    # ---
+    # ---------------
 
     # the following method(s) are not meant to be overridden
 
@@ -150,39 +174,67 @@ class FLMSpecInfo:
         return node
     
 
+    def make_body_parsing_state_delta(self,
+                                      token,
+                                      nodeargd,
+                                      arg_parsing_state_delta,
+                                      latex_walker):
+
+        delta_base = super().make_body_parsing_state_delta(
+            token,
+            nodeargd,
+            arg_parsing_state_delta,
+            latex_walker
+        )
+
+        if self.body_contents_is_block_level is None:
+            return delta_base
+
+        delta_block_level = FLMParsingStateDeltaSetBlockLevel(
+            is_block_level=self.body_contents_is_block_level
+        )
+
+        return ParsingStateDeltaChained([delta_base, delta_block_level])
 
 
 # ------------------------------------------------------------------------------
 
 
-# transcrypt doesn't seem to like super().__init__() (or the default
-# constructor) with multiple inheritance
-### BEGINPATCH_MULTIPLE_BASE_CONSTRUCTORS
-def _dobaseconstructors2argslast(Me, self, args, kwargs, kwargs_to_1=None):
-    super(Me, self).__init__(*args, **kwargs)
-### ENDPATCH_MULTIPLE_BASE_CONSTRUCTORS
-
-
-class FLMMacroSpecBase(FLMSpecInfo, macrospec.MacroSpec):
+class FLMMacroSpecBase(FLMSpecInfo):
     r"""
     Convenience base class for a FLM LaTeX macro specification.
     """
-    def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(FLMMacroSpecBase, self, args, kwargs)
+    def __init__(self, macroname, arguments_spec_list=None, **kwargs):
+        super().__init__(
+            arguments_spec_list=arguments_spec_list,
+            spec_node_parser_type=macrospec.LatexMacroCallParser, # or simply 'macro'
+            macroname=macroname,
+            **kwargs
+        )
 
-class FLMEnvironmentSpecBase(FLMSpecInfo, macrospec.EnvironmentSpec):
+class FLMEnvironmentSpecBase(FLMSpecInfo):
     r"""
     Convenience base class for a FLM LaTeX environment specification.
     """
-    def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(FLMEnvironmentSpecBase, self, args, kwargs)
+    def __init__(self, environmentname, arguments_spec_list=None, **kwargs):
+        super().__init__(
+            arguments_spec_list=arguments_spec_list,
+            spec_node_parser_type=macrospec.LatexEnvironmentCallParser, # or simply 'environment'
+            environmentname=environmentname,
+            **kwargs
+        )
 
-class FLMSpecialsSpecBase(FLMSpecInfo, macrospec.SpecialsSpec):
+class FLMSpecialsSpecBase(FLMSpecInfo):
     r"""
     Convenience base class for a FLM LaTeX specials specification.
     """
-    def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(FLMSpecialsSpecBase, self, args, kwargs)
+    def __init__(self, specials_chars, arguments_spec_list=None, **kwargs):
+        super(SpecialsSpec, self).__init__(
+            arguments_spec_list=arguments_spec_list,
+            spec_node_parser_type=macrospec.LatexSpecialsCallParser, # or simply 'specials'
+            specials_chars=specials_chars,
+            **kwargs
+        )
 
 
 
@@ -214,27 +266,29 @@ class FLMSpecInfoConstantValue(FLMSpecInfo):
             s += f' (U+{ord(self.value):04x})'
         return s
 
-    def __init__(self, *args, value, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, value, **kwargs):
+        super().__init__(**kwargs)
         self.value = value
 
     def render(self, node, render_context):
         return render_context.fragment_renderer.render_value(self.value, render_context)
 
 
-class ConstantValueMacro(FLMSpecInfoConstantValue, macrospec.MacroSpec):
+class ConstantValueMacro(FLMSpecInfoConstantValue):
     r"""
-    LaTeX macro specification for the `FLMSpecInfoConstantValue` specinfo.
+    LaTeX macro specification for a constant/literal value.
     """
-    def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(ConstantValueMacro, self, args, kwargs, ('value',))
+    def __init__(self, macroname, **kwargs):
+        super().__init__(macroname=macroname, spec_node_parser_type='macro', **kwargs)
 
-class ConstantValueSpecials(FLMSpecInfoConstantValue, macrospec.SpecialsSpec):
+class ConstantValueSpecials(FLMSpecInfoConstantValue):
     r"""
     LaTeX speicals specification for the `FLMSpecInfoConstantValue` specinfo.
     """
-    def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(ConstantValueSpecials, self, args, kwargs, ('value',))
+    def __init__(self, specials_chars, **kwargs):
+        super().__init__(specials_chars=specials_chars,
+                         spec_node_parser_type='specials', **kwargs)
+
 
 
 text_arg = FLMArgumentSpec(
@@ -418,13 +472,15 @@ class FLMSpecInfoParagraphBreak(FLMSpecInfo):
     def get_flm_doc(self):
         return "Produce a paragraph break to begin a new paragraph"
 
-class ParagraphBreakSpecials(FLMSpecInfoParagraphBreak, macrospec.SpecialsSpec):
-    def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(ParagraphBreakSpecials, self, args, kwargs)
 
-class ParagraphBreakMacro(FLMSpecInfoParagraphBreak, macrospec.MacroSpec):
-    def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(ParagraphBreakMacro, self, args, kwargs)
+class ParagraphBreakSpecials(FLMSpecInfoParagraphBreak):
+    def __init__(self, specials_chars, **kwargs):
+        super().__init__(specials_chars=specials_chars,
+                         spec_node_parser_type='specials', **kwargs)
+
+class ParagraphBreakMacro(FLMSpecInfoParagraphBreak):
+    def __init__(self, macroname, **kwargs):
+        super().__init__(macroname=macroname, spec_node_parser_type='macro', **kwargs)
 
 
 
@@ -433,8 +489,8 @@ class FLMSpecInfoError(FLMSpecInfo):
 
     allowed_in_standalone_mode = True
 
-    def __init__(self, *args, error_msg=None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, error_msg=None, **kwargs):
+        super().__init__(**kwargs)
         self.error_msg = error_msg
     
     def render(self, node, render_context):
@@ -448,18 +504,21 @@ class FLMSpecInfoError(FLMSpecInfo):
         raise LatexWalkerParseError(msg, pos=node.pos)
 
 
-class FLMMacroSpecError(FLMSpecInfoError, macrospec.MacroSpec):
-    def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(FLMMacroSpecError, self, args, kwargs)
+class FLMMacroSpecError(FLMSpecInfoError):
+    def __init__(self, macroname, **kwargs):
+        super().__init__(macroname=macroname, spec_node_parser_type='macro', **kwargs)
 
-class FLMEnvironmentSpecError(FLMSpecInfoError, macrospec.EnvironmentSpec):
-    def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(FLMEnvironmentSpecError, self, args, kwargs)
+class FLMEnvironmentSpecError(FLMSpecInfoError):
+    def __init__(self, environmentname, **kwargs):
+        super().__init__(environmentname=environmentname,
+                         spec_node_parser_type='environment',
+                         **kwargs)
 
-class FLMSpecialsSpecError(FLMSpecInfoError, macrospec.SpecialsSpec):
-    def __init__(self, *args, **kwargs):
-        _dobaseconstructors2argslast(FLMSpecialsSpecError, self, args, kwargs)
-
+class FLMSpecialsSpecError(FLMSpecInfoError):
+    def __init__(self, specials_chars, **kwargs):
+        super().__init__(specials_chars=specials_chars,
+                         spec_node_parser_type='specials',
+                         **kwargs)
 
 
 
