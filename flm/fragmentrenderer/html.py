@@ -308,8 +308,6 @@ class HtmlFragmentRenderer(FragmentRenderer):
         )
 
     def render_text_format(self, text_formats, nodelist, render_context):
-        r"""
-        """
 
         content = self.render_nodelist(
             nodelist,

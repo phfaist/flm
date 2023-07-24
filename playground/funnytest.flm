@@ -37,7 +37,9 @@ to    see?
 \item Do
    \begin{itemize}
    \item Nested
-   \item enumeration
+   \item multiple-paragraph containing
+
+     enumeration 
      \begin{enumerate}
      \item lists
      \item work?

@@ -21,9 +21,9 @@ from flm.feature import SimpleLatexDefinitionsFeature
 class MacroDocArg(FLMMacroSpecBase):
 
     def get_flm_doc(self):
-        return ("Produce documentation of a specific argument of a FLM callable "
-                "(macro, environment, specials).  Only use in {flmDocArguments} "
-                "environment.")
+        return (r"Produce documentation of a specific argument of a FLM callable "
+                r"(macro, environment, specials).  Only use in "
+                r"\verbcode+{flmDocArguments}+ environment.")
 
     def __init__(self, macroname='flmDocArg',):
         super().__init__(
@@ -88,24 +88,21 @@ class EnvironmentDocArguments(FLMEnvironmentSpecBase):
 
             raise ValueError("Invalid contents in {flmDocArguments} environment: " + repr(n))
 
-        return node
 
-    def render(self, node, render_context):
+        #
+        # Prepare the node list that we'll have to render here.  Remember, don't
+        # create nodes in render(), because we need stable node_ids for delayed
+        # renders (e.g. references to defterms).
+        #
 
+        flm_environment = node.latex_walker.flm_environment
+        
         # items_tags = []
         items_nodelists = []
 
         for nargdoc in node.flm_doc_arguments_nodes:
 
-            # node_args = ParsedArgumentsInfo(node=nargdoc).get_all_arguments_info(
-            #     ('parser_name', 'argument_name', 'argument_doc',) ,
-            # )
-
-            # items_tags.append(
-            #     node_args['argument_name'].get_content_nodelist(),
-            # )
-
-            content = render_context.doc.environment.make_fragment(
+            content = flm_environment.make_fragment(
                 (
                     r'\begin{flmDocArgumentListItem}'
                     + r'\flmDocArgumentListItemLabel{'
@@ -130,18 +127,25 @@ class EnvironmentDocArguments(FLMEnvironmentSpecBase):
                 )
             )
             
-        heading_fragment = render_context.doc.environment.make_fragment(
+        heading_fragment = flm_environment.make_fragment(
             '\\flmFormatArgumentsCaption{Arguments:} ',
             is_block_level=False,
         )
+        
+        node.flm_compiled_items_nodelists = items_nodelists
+        node.flm_compiled_heading_fragment = heading_fragment
+
+        return node
+
+    def render(self, node, render_context):
 
         return render_context.fragment_renderer.render_semantic_block(
             render_context.fragment_renderer.render_join_blocks([
                 render_context.fragment_renderer.render_nodelist(
-                    heading_fragment.nodes, render_context
+                    node.flm_compiled_heading_fragment.nodes, render_context
                 ),
                 render_context.fragment_renderer.render_enumeration(
-                    iter_items_nodelists=items_nodelists,
+                    iter_items_nodelists=node.flm_compiled_items_nodelists,
                     counter_formatter=lambda n: '•', #lambda n: items_tags[n-1],
                     render_context=render_context,
                 ),
@@ -221,11 +225,12 @@ class EnvironmentDocBlock(FLMEnvironmentSpecBase):
                 #
                 node.flm_doc_arguments_environment = n
 
-        return node
-
-    def render(self, node, render_context):
-
-        s_items = []
+        #
+        # Prepare the node list that we'll have to render here.  Remember, don't
+        # create nodes in render(), because we need stable node_ids for delayed
+        # renders (e.g. references to defterms).
+        #
+        flm_environment = node.latex_walker.flm_environment
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             ('thing_name',) ,
@@ -240,12 +245,22 @@ class EnvironmentDocBlock(FLMEnvironmentSpecBase):
                 + r"}"
             )
 
-        heading_nodelist = render_context.doc.environment.make_fragment(
+        heading_nodelist = flm_environment.make_fragment(
             thing_fmt_flm,
             #
             is_block_level=True,
             what=f"heading for thing ‘{thing_name}’ ...",
         ).nodes
+
+        node.flmdoc_compiled_heading_nodelist = heading_nodelist
+
+        return node
+
+    def render(self, node, render_context):
+
+        s_items = []
+
+        heading_nodelist = node.flmdoc_compiled_heading_nodelist
 
         # s_items.append(render_context.fragment_renderer.render_heading(
         #     heading_nodelist, render_context,
