@@ -209,7 +209,10 @@ class FLMSpecInfoConstantValue(FLMSpecInfo):
     allowed_in_standalone_mode = True
 
     def get_flm_doc(self):
-        return r'The literal character(s) \verbcode' + make_verb_argument(self.value)
+        s = r'The literal character(s) \verbcode' + make_verb_argument(self.value)
+        if len(self.value) == 1:
+            s += f' (U+{ord(self.value):04x})'
+        return s
 
     def __init__(self, *args, value, **kwargs):
         super().__init__(*args, **kwargs)

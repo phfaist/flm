@@ -108,7 +108,9 @@ class EnvironmentDocArguments(FLMEnvironmentSpecBase):
             content = render_context.doc.environment.make_fragment(
                 (
                     r'\begin{flmDocArgumentListItem}'
+                    + r'\flmDocArgumentListItemLabel{'
                     + nargdoc.flm_doc_parser_name
+                    + '}'
                     + ': '
                     + r'\flmDocArgumentName{'
                     + nargdoc.flm_doc_argument_name
@@ -212,9 +214,16 @@ class EnvironmentDocBlock(FLMEnvironmentSpecBase):
         )
         thing_name = node_args['thing_name'].get_content_as_chars()
 
+        thing_fmt_flm = ''
+        if thing_name:
+            thing_fmt_flm = (
+                r"\flmFormatFullThingCall{"
+                + self.thing_format_fn(thing_name, node.flm_doc_arguments_environment)
+                + r"}"
+            )
+
         heading_nodelist = render_context.doc.environment.make_fragment(
-            (self.thing_format_fn(thing_name, node.flm_doc_arguments_environment)
-             if thing_name else ''),
+            thing_fmt_flm,
             #
             is_block_level=True,
             what=f"heading for thing ‘{thing_name}’ ...",
@@ -246,7 +255,7 @@ def _render_macro_doc_heading(macroname, flm_doc_arguments_environment):
         + r"\verbcode" + make_verb_argument(macroname)
         + "}"
         + _render_thing_args_prototype(flm_doc_arguments_environment)
-        + '\n\n'
+        #+ '\n\n'
         #+ " —"
     )
 
@@ -260,7 +269,7 @@ def _render_environment_doc_heading(environmentname, flm_doc_arguments_environme
         + r"\flmFormatThingEnvironmentEnd{"
         + r"\verbcode+\end{"+environmentname+r"}+"
         + "}"
-        + '\n\n'
+        #+ '\n\n'
         #+ " —"
     )
 
@@ -270,7 +279,7 @@ def _render_specials_doc_heading(specials_chars, flm_doc_arguments_environment):
         + f"\\verbcode" + make_verb_argument(specials_chars)
         + "}"
         + _render_thing_args_prototype(flm_doc_arguments_environment)
-        + '\n\n'
+        #+ '\n\n'
         #+ " —"
     )
 
@@ -307,6 +316,10 @@ class FeatureFLMDocumentation(SimpleLatexDefinitionsFeature):
                             text_formats=['flm_doc_thing', 'flm_doc_thing_specials_chars']),
             TextFormatMacro('flmFormatArgumentsCaption',
                             text_formats=['textbf', 'flm_doc_arguments_caption']),
+            TextFormatMacro('flmFormatFullThingCall',
+                            text_formats=['flm_doc_full_thing_call'],),
+            TextFormatMacro('flmDocArgumentListItemLabel',
+                            text_formats=['flm_doc_arg_list_item_label'],),
         ],
         'environments': [
             EnvironmentDocArguments('flmDocArguments'),
@@ -315,6 +328,8 @@ class FeatureFLMDocumentation(SimpleLatexDefinitionsFeature):
                                 thing_format_fn=_render_environment_doc_heading),
             EnvironmentDocBlock('flmDocSpecials',
                                 thing_format_fn=_render_specials_doc_heading),
+            # SemanticBlockEnvironment('flmFormatFullThingCall',
+            #                          role='flm_doc_full_thing_call',)
             SemanticBlockEnvironment('flmDocArgumentListItem',
                                      role='flm_doc_arg_list_item'),
         ]
@@ -409,6 +424,10 @@ class FLMEnvironmentDocumentationGenerator:
         feature_title = self._get_feature_title(feature)
         s = r"\section{" + feature_title + "}\n"
         s += r"\label{" + self._get_feature_label_id(feature) + "}\n"
+        
+        s += (r"""\textit{Documentation of the ‘\verbcode+"""
+              + feature.feature_name
+              + r"""+’ feature.}""" + "\n\n")
 
         if hasattr(feature, 'feature_flm_doc'):
             try:
