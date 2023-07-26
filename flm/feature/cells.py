@@ -809,6 +809,8 @@ class CellsEnvironment(FLMEnvironmentSpecBase):
             environmentname=environmentname,
         )
 
+    _fields = ('environmentname', )
+
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
         return macrospec.LatexEnvironmentBodyContentsParser(
             environmentname=token.arg,

@@ -49,6 +49,9 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
             # characters (see fragment.truncate_to())
              self._flm_main_text_argument = 'display_text'
 
+    _fields = ('macroname', 'command_arguments', 'ref_type', )
+
+
     @classmethod
     def _get_arguments_spec_list(cls, command_arguments):
         return [

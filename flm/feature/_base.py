@@ -147,7 +147,7 @@ class Feature:
             # In this case, the tuple directly provides a unique identifying
             # data; return it as is
             return node
-        return node.node_id
+        return node.flm_node_id
 
 
 

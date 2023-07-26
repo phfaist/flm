@@ -1,1 +1,758 @@
-{"objects": {"my_fragment": {"$type": "FLMFragment", "is_block_level": null, "flm_text": "Hello, \\emph{world}!\n\n\\begin{enumerate}\n\\item Hi again.\n\\item And hello again.\n\\end{enumerate}\n", "nodes": {"$type": "LatexNodeList", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_blocks": [{"$type": "LatexNodeList", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "nodelist": [{"$type": "LatexCharsNode", "chars": "Hello, ", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "Hello, ", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069152"}, "pos": 0, "pos_end": 7}, {"$type": "LatexMacroNode", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_is_block_heading": false, "flm_is_block_level": false, "flm_is_paragraph_break_marker": false, "flm_specinfo": {"$skip": true}, "macro_post_space": "", "macroname": "emph", "nodeargd": {"$type": "ParsedArguments", "argnlist": [{"$type": "LatexGroupNode", "delimiters": ["{", "}"], "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "nodelist": {"$type": "LatexNodeList", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_is_block_level": false, "nodelist": [{"$type": "LatexCharsNode", "chars": "world", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "world", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069968"}, "pos": 13, "pos_end": 18}], "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069968"}, "pos": 13, "pos_end": 18}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069968"}, "pos": 12, "pos_end": 19}], "arguments_spec_list": [null]}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069152"}, "pos": 7, "pos_end": 19, "spec": {"$skip": true}}, {"$type": "LatexCharsNode", "chars": "!", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "!", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069152"}, "pos": 19, "pos_end": 20}], "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069152"}, "pos": 0, "pos_end": 20}, {"$type": "LatexEnvironmentNode", "environmentname": "enumerate", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_is_block_heading": false, "flm_is_block_level": true, "flm_is_paragraph_break_marker": false, "flm_specinfo": {"$skip": true}, "nodeargd": {"$type": "ParsedArguments", "argnlist": [null], "arguments_spec_list": [null]}, "nodelist": {"$type": "LatexNodeList", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_blocks": [{"$type": "LatexNodeList", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "nodelist": [{"$type": "LatexMacroNode", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "macro_post_space": " ", "macroname": "item", "nodeargd": {"$type": "ParsedArguments", "argnlist": [null], "arguments_spec_list": [null]}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 40, "pos_end": 46, "spec": {"$skip": true}}, {"$type": "LatexCharsNode", "chars": "Hi again.\n", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "Hi again.", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 46, "pos_end": 56}, {"$type": "LatexMacroNode", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "macro_post_space": " ", "macroname": "item", "nodeargd": {"$type": "ParsedArguments", "argnlist": [null], "arguments_spec_list": [null]}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 56, "pos_end": 62, "spec": {"$skip": true}}, {"$type": "LatexCharsNode", "chars": "And hello again.\n", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "And hello again.", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 62, "pos_end": 79}], "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 40, "pos_end": 79}], "flm_is_block_level": true, "nodelist": [{"$type": "LatexCharsNode", "chars": "\n", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 39, "pos_end": 40}, {"$type": "LatexMacroNode", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "macro_post_space": " ", "macroname": "item", "nodeargd": {"$type": "ParsedArguments", "argnlist": [null], "arguments_spec_list": [null]}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 40, "pos_end": 46, "spec": {"$skip": true}}, {"$type": "LatexCharsNode", "chars": "Hi again.\n", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "Hi again.", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 46, "pos_end": 56}, {"$type": "LatexMacroNode", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "macro_post_space": " ", "macroname": "item", "nodeargd": {"$type": "ParsedArguments", "argnlist": [null], "arguments_spec_list": [null]}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 56, "pos_end": 62, "spec": {"$skip": true}}, {"$type": "LatexCharsNode", "chars": "And hello again.\n", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "And hello again.", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 62, "pos_end": 79}], "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 39, "pos_end": 79}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069152"}, "pos": 22, "pos_end": 94, "spec": {"$skip": true}}], "flm_is_block_level": true, "nodelist": [{"$type": "LatexCharsNode", "chars": "Hello, ", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "Hello, ", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069152"}, "pos": 0, "pos_end": 7}, {"$type": "LatexMacroNode", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_is_block_heading": false, "flm_is_block_level": false, "flm_is_paragraph_break_marker": false, "flm_specinfo": {"$skip": true}, "macro_post_space": "", "macroname": "emph", "nodeargd": {"$type": "ParsedArguments", "argnlist": [{"$type": "LatexGroupNode", "delimiters": ["{", "}"], "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "nodelist": {"$type": "LatexNodeList", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_is_block_level": false, "nodelist": [{"$type": "LatexCharsNode", "chars": "world", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "world", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069968"}, "pos": 13, "pos_end": 18}], "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069968"}, "pos": 13, "pos_end": 18}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069968"}, "pos": 12, "pos_end": 19}], "arguments_spec_list": [null]}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069152"}, "pos": 7, "pos_end": 19, "spec": {"$skip": true}}, {"$type": "LatexCharsNode", "chars": "!", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "!", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069152"}, "pos": 19, "pos_end": 20}, {"$type": "LatexSpecialsNode", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_is_block_heading": false, "flm_is_block_level": true, "flm_is_paragraph_break_marker": true, "flm_specinfo": {"$skip": true}, "nodeargd": {"$type": "ParsedArguments", "argnlist": [], "arguments_spec_list": []}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069152"}, "pos": 20, "pos_end": 22, "spec": {"$skip": true}, "specials_chars": "\n\n"}, {"$type": "LatexEnvironmentNode", "environmentname": "enumerate", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_is_block_heading": false, "flm_is_block_level": true, "flm_is_paragraph_break_marker": false, "flm_specinfo": {"$skip": true}, "nodeargd": {"$type": "ParsedArguments", "argnlist": [null], "arguments_spec_list": [null]}, "nodelist": {"$type": "LatexNodeList", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_blocks": [{"$type": "LatexNodeList", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "nodelist": [{"$type": "LatexMacroNode", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "macro_post_space": " ", "macroname": "item", "nodeargd": {"$type": "ParsedArguments", "argnlist": [null], "arguments_spec_list": [null]}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 40, "pos_end": 46, "spec": {"$skip": true}}, {"$type": "LatexCharsNode", "chars": "Hi again.\n", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "Hi again.", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 46, "pos_end": 56}, {"$type": "LatexMacroNode", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "macro_post_space": " ", "macroname": "item", "nodeargd": {"$type": "ParsedArguments", "argnlist": [null], "arguments_spec_list": [null]}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 56, "pos_end": 62, "spec": {"$skip": true}}, {"$type": "LatexCharsNode", "chars": "And hello again.\n", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "And hello again.", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 62, "pos_end": 79}], "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 40, "pos_end": 79}], "flm_is_block_level": true, "nodelist": [{"$type": "LatexCharsNode", "chars": "\n", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 39, "pos_end": 40}, {"$type": "LatexMacroNode", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "macro_post_space": " ", "macroname": "item", "nodeargd": {"$type": "ParsedArguments", "argnlist": [null], "arguments_spec_list": [null]}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 40, "pos_end": 46, "spec": {"$skip": true}}, {"$type": "LatexCharsNode", "chars": "Hi again.\n", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "Hi again.", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 46, "pos_end": 56}, {"$type": "LatexMacroNode", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "macro_post_space": " ", "macroname": "item", "nodeargd": {"$type": "ParsedArguments", "argnlist": [null], "arguments_spec_list": [null]}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 56, "pos_end": 62, "spec": {"$skip": true}}, {"$type": "LatexCharsNode", "chars": "And hello again.\n", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "flm_chars_value": "And hello again.", "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 62, "pos_end": 79}], "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453071408"}, "pos": 39, "pos_end": 79}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069152"}, "pos": 22, "pos_end": 94, "spec": {"$skip": true}}, {"$type": "LatexCharsNode", "chars": "\n", "latex_walker": {"$restype": "FLMLatexWalker", "$reskey": "4453068240"}, "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069152"}, "pos": 94, "pos_end": 95}], "parsing_state": {"$restype": "FLMParsingState", "$reskey": "4453069152"}, "pos": 0, "pos_end": 95}, "parsing_mode": null, "resource_info": null, "silent": false, "standalone_mode": false, "what": "(unknown)"}}, "resources": {"FLMLatexWalker": {"4453068240": {"$type": "FLMLatexWalker", "s": "Hello, \\emph{world}!\n\n\\begin{enumerate}\n\\item Hi again.\n\\item And hello again.\n\\end{enumerate}\n"}}, "FLMParsingState": {"4453069152": {"$type": "FLMParsingState", "comment_start": "%%", "enable_comments": true, "enable_double_newline_paragraphs": true, "enable_environments": true, "enable_groups": true, "enable_macros": true, "enable_math": true, "enable_specials": true, "forbidden_characters": "$%", "in_math_mode": false, "is_block_level": null, "latex_context": {"$skip": true}, "latex_display_math_delimiters": [["\\[", "\\]"]], "latex_group_delimiters": [["{", "}"]], "latex_inline_math_delimiters": [["\\(", "\\)"]], "macro_alpha_chars": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", "macro_escape_char": "\\", "math_mode_delimiter": null, "s": null}, "4453069968": {"$type": "FLMParsingState", "comment_start": "%%", "enable_comments": true, "enable_double_newline_paragraphs": true, "enable_environments": true, "enable_groups": true, "enable_macros": true, "enable_math": true, "enable_specials": true, "forbidden_characters": "$%", "in_math_mode": false, "is_block_level": false, "latex_context": {"$skip": true}, "latex_display_math_delimiters": [["\\[", "\\]"]], "latex_group_delimiters": [["{", "}"]], "latex_inline_math_delimiters": [["\\(", "\\)"]], "macro_alpha_chars": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", "macro_escape_char": "\\", "math_mode_delimiter": null, "s": null}, "4453071408": {"$type": "FLMParsingState", "comment_start": "%%", "enable_comments": true, "enable_double_newline_paragraphs": true, "enable_environments": true, "enable_groups": true, "enable_macros": true, "enable_math": true, "enable_specials": true, "forbidden_characters": "$%", "in_math_mode": false, "is_block_level": true, "latex_context": {"$skip": true}, "latex_display_math_delimiters": [["\\[", "\\]"]], "latex_group_delimiters": [["{", "}"]], "latex_inline_math_delimiters": [["\\(", "\\)"]], "macro_alpha_chars": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", "macro_escape_char": "\\", "math_mode_delimiter": null, "s": null}}}, "_dump": {"version": 1}}
+{
+    "dumps": {
+        "my_fragment": {
+            "$type": "FLMFragment",
+            "flm_text": "Hello, \\emph{world}!\n\n\\begin{enumerate}\n\\item Hi again.\n\\item And hello again.\n\\end{enumerate}\n",
+            "is_block_level": null,
+            "nodes": {
+                "$type": "LatexNodeList",
+                "flm_blocks": [
+                    {
+                        "$type": "LatexNodeList",
+                        "latex_walker": {
+                            "$restype": "FLMLatexWalker",
+                            "$reskey": "4352838240"
+                        },
+                        "nodelist": [
+                            {
+                                "$restype": "LatexNode",
+                                "$reskey": "4352838960"
+                            },
+                            {
+                                "$restype": "LatexNode",
+                                "$reskey": "4352840832"
+                            },
+                            {
+                                "$restype": "LatexNode",
+                                "$reskey": "4352841072"
+                            }
+                        ],
+                        "parsing_state": {
+                            "$restype": "FLMParsingState",
+                            "$reskey": "4352838672"
+                        },
+                        "pos": 0,
+                        "pos_end": 20
+                    },
+                    {
+                        "$restype": "LatexNode",
+                        "$reskey": "4352841264"
+                    }
+                ],
+                "flm_is_block_level": true,
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "nodelist": [
+                    {
+                        "$restype": "LatexNode",
+                        "$reskey": "4352838960"
+                    },
+                    {
+                        "$restype": "LatexNode",
+                        "$reskey": "4352840832"
+                    },
+                    {
+                        "$restype": "LatexNode",
+                        "$reskey": "4352841072"
+                    },
+                    {
+                        "$restype": "LatexNode",
+                        "$reskey": "4352841168"
+                    },
+                    {
+                        "$restype": "LatexNode",
+                        "$reskey": "4352841264"
+                    },
+                    {
+                        "$restype": "LatexNode",
+                        "$reskey": "4352839728"
+                    }
+                ],
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352838672"
+                },
+                "pos": 0,
+                "pos_end": 95
+            },
+            "parsing_mode": null,
+            "resource_info": null,
+            "silent": false,
+            "standalone_mode": false,
+            "what": "(unknown)"
+        }
+    },
+    "resources": {
+        "FLMLatexWalker": {
+            "4352838240": {
+                "$type": "FLMLatexWalker",
+                "s": "Hello, \\emph{world}!\n\n\\begin{enumerate}\n\\item Hi again.\n\\item And hello again.\n\\end{enumerate}\n"
+            }
+        },
+        "LatexNode": {
+            "4352838960": {
+                "$type": "LatexCharsNode",
+                "chars": "Hello, ",
+                "flm_chars_value": "Hello, ",
+                "flm_node_id": 4352838960,
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352838672"
+                },
+                "pos": 0,
+                "pos_end": 7
+            },
+            "4352840832": {
+                "$type": "LatexMacroNode",
+                "flm_is_block_heading": false,
+                "flm_is_block_level": false,
+                "flm_is_paragraph_break_marker": false,
+                "flm_node_id": 4352840832,
+                "flm_specinfo": {
+                    "$restype": "FLMSpecInfo",
+                    "$reskey": "4351982752"
+                },
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "macro_post_space": "",
+                "macroname": "emph",
+                "nodeargd": {
+                    "$type": "ParsedArguments",
+                    "argnlist": [
+                        {
+                            "$restype": "LatexNode",
+                            "$reskey": "4352840880"
+                        }
+                    ],
+                    "arguments_spec_list": [
+                        {
+                            "$type": "LatexArgumentSpec",
+                            "argname": "text",
+                            "parser": "{",
+                            "parsing_state_delta": {
+                                "$type": "FLMParsingStateDeltaSetBlockLevel",
+                                "is_block_level": false
+                            }
+                        }
+                    ]
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352838672"
+                },
+                "pos": 7,
+                "pos_end": 19,
+                "spec": {
+                    "$restype": "FLMSpecInfo",
+                    "$reskey": "4351982752"
+                }
+            },
+            "4352840880": {
+                "$type": "LatexGroupNode",
+                "delimiters": [
+                    "{",
+                    "}"
+                ],
+                "flm_node_id": 4352840880,
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "nodelist": {
+                    "$type": "LatexNodeList",
+                    "flm_is_block_level": false,
+                    "latex_walker": {
+                        "$restype": "FLMLatexWalker",
+                        "$reskey": "4352838240"
+                    },
+                    "nodelist": [
+                        {
+                            "$restype": "LatexNode",
+                            "$reskey": "4352840736"
+                        }
+                    ],
+                    "parsing_state": {
+                        "$restype": "FLMParsingState",
+                        "$reskey": "4352839488"
+                    },
+                    "pos": 13,
+                    "pos_end": 18
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352839488"
+                },
+                "pos": 12,
+                "pos_end": 19
+            },
+            "4352840736": {
+                "$type": "LatexCharsNode",
+                "chars": "world",
+                "flm_chars_value": "world",
+                "flm_node_id": 4352840736,
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352839488"
+                },
+                "pos": 13,
+                "pos_end": 18
+            },
+            "4352841072": {
+                "$type": "LatexCharsNode",
+                "chars": "!",
+                "flm_chars_value": "!",
+                "flm_node_id": 4352841072,
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352838672"
+                },
+                "pos": 19,
+                "pos_end": 20
+            },
+            "4352841264": {
+                "$type": "LatexEnvironmentNode",
+                "environmentname": "enumerate",
+                "flm_enumeration_items": [
+                    [
+                        {
+                            "$restype": "LatexNode",
+                            "$reskey": "4352839872"
+                        },
+                        {
+                            "$type": "LatexNodeList",
+                            "flm_blocks": [
+                                {
+                                    "$type": "LatexNodeList",
+                                    "latex_walker": {
+                                        "$restype": "FLMLatexWalker",
+                                        "$reskey": "4352838240"
+                                    },
+                                    "nodelist": [
+                                        {
+                                            "$restype": "LatexNode",
+                                            "$reskey": "4352839824"
+                                        }
+                                    ],
+                                    "parsing_state": {
+                                        "$restype": "FLMParsingState",
+                                        "$reskey": "4352842464"
+                                    },
+                                    "pos": 46,
+                                    "pos_end": 56
+                                }
+                            ],
+                            "flm_is_block_level": true,
+                            "latex_walker": {
+                                "$restype": "FLMLatexWalker",
+                                "$reskey": "4352838240"
+                            },
+                            "nodelist": [
+                                {
+                                    "$restype": "LatexNode",
+                                    "$reskey": "4352839824"
+                                }
+                            ],
+                            "parsing_state": {
+                                "$restype": "FLMParsingState",
+                                "$reskey": "4352842464"
+                            },
+                            "pos": 46,
+                            "pos_end": 56
+                        }
+                    ],
+                    [
+                        {
+                            "$restype": "LatexNode",
+                            "$reskey": "4352839968"
+                        },
+                        {
+                            "$type": "LatexNodeList",
+                            "flm_blocks": [
+                                {
+                                    "$type": "LatexNodeList",
+                                    "latex_walker": {
+                                        "$restype": "FLMLatexWalker",
+                                        "$reskey": "4352838240"
+                                    },
+                                    "nodelist": [
+                                        {
+                                            "$restype": "LatexNode",
+                                            "$reskey": "4352840640"
+                                        }
+                                    ],
+                                    "parsing_state": {
+                                        "$restype": "FLMParsingState",
+                                        "$reskey": "4352842464"
+                                    },
+                                    "pos": 62,
+                                    "pos_end": 79
+                                }
+                            ],
+                            "flm_is_block_level": true,
+                            "latex_walker": {
+                                "$restype": "FLMLatexWalker",
+                                "$reskey": "4352838240"
+                            },
+                            "nodelist": [
+                                {
+                                    "$restype": "LatexNode",
+                                    "$reskey": "4352840640"
+                                }
+                            ],
+                            "parsing_state": {
+                                "$restype": "FLMParsingState",
+                                "$reskey": "4352842464"
+                            },
+                            "pos": 62,
+                            "pos_end": 79
+                        }
+                    ]
+                ],
+                "flm_is_block_heading": false,
+                "flm_is_block_level": true,
+                "flm_is_paragraph_break_marker": false,
+                "flm_node_id": 4352841264,
+                "flm_specinfo": {
+                    "$restype": "FLMSpecInfo",
+                    "$reskey": "4352537840"
+                },
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "nodeargd": {
+                    "$type": "ParsedArguments",
+                    "argnlist": [
+                        null
+                    ],
+                    "arguments_spec_list": [
+                        {
+                            "$type": "LatexArgumentSpec",
+                            "argname": "tag_template",
+                            "parser": {
+                                "$skip": true
+                            },
+                            "parsing_state_delta": {
+                                "$type": "FLMParsingStateDeltaSetBlockLevel",
+                                "is_block_level": false
+                            }
+                        }
+                    ]
+                },
+                "nodelist": {
+                    "$type": "LatexNodeList",
+                    "flm_blocks": [
+                        {
+                            "$type": "LatexNodeList",
+                            "latex_walker": {
+                                "$restype": "FLMLatexWalker",
+                                "$reskey": "4352838240"
+                            },
+                            "nodelist": [
+                                {
+                                    "$restype": "LatexNode",
+                                    "$reskey": "4352839872"
+                                },
+                                {
+                                    "$restype": "LatexNode",
+                                    "$reskey": "4352839824"
+                                },
+                                {
+                                    "$restype": "LatexNode",
+                                    "$reskey": "4352839968"
+                                },
+                                {
+                                    "$restype": "LatexNode",
+                                    "$reskey": "4352840640"
+                                }
+                            ],
+                            "parsing_state": {
+                                "$restype": "FLMParsingState",
+                                "$reskey": "4352842464"
+                            },
+                            "pos": 40,
+                            "pos_end": 79
+                        }
+                    ],
+                    "flm_is_block_level": true,
+                    "latex_walker": {
+                        "$restype": "FLMLatexWalker",
+                        "$reskey": "4352838240"
+                    },
+                    "nodelist": [
+                        {
+                            "$restype": "LatexNode",
+                            "$reskey": "4352839776"
+                        },
+                        {
+                            "$restype": "LatexNode",
+                            "$reskey": "4352839872"
+                        },
+                        {
+                            "$restype": "LatexNode",
+                            "$reskey": "4352839824"
+                        },
+                        {
+                            "$restype": "LatexNode",
+                            "$reskey": "4352839968"
+                        },
+                        {
+                            "$restype": "LatexNode",
+                            "$reskey": "4352840640"
+                        }
+                    ],
+                    "parsing_state": {
+                        "$restype": "FLMParsingState",
+                        "$reskey": "4352842464"
+                    },
+                    "pos": 39,
+                    "pos_end": 79
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352838672"
+                },
+                "pos": 22,
+                "pos_end": 94,
+                "spec": {
+                    "$restype": "FLMSpecInfo",
+                    "$reskey": "4352537840"
+                }
+            },
+            "4352839872": {
+                "$type": "LatexMacroNode",
+                "flm_node_id": 4352839872,
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "macro_post_space": " ",
+                "macroname": "item",
+                "nodeargd": {
+                    "$type": "ParsedArguments",
+                    "argnlist": [
+                        null
+                    ],
+                    "arguments_spec_list": [
+                        {
+                            "$type": "LatexArgumentSpec",
+                            "argname": "custom_tag",
+                            "parser": "[",
+                            "parsing_state_delta": {
+                                "$type": "FLMParsingStateDeltaSetBlockLevel",
+                                "is_block_level": false
+                            }
+                        }
+                    ]
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352842464"
+                },
+                "pos": 40,
+                "pos_end": 46,
+                "spec": {
+                    "$skip": true
+                }
+            },
+            "4352839824": {
+                "$type": "LatexCharsNode",
+                "chars": "Hi again.\n",
+                "flm_chars_value": "Hi again.",
+                "flm_node_id": 4352839824,
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352842464"
+                },
+                "pos": 46,
+                "pos_end": 56
+            },
+            "4352839968": {
+                "$type": "LatexMacroNode",
+                "flm_node_id": 4352839968,
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "macro_post_space": " ",
+                "macroname": "item",
+                "nodeargd": {
+                    "$type": "ParsedArguments",
+                    "argnlist": [
+                        null
+                    ],
+                    "arguments_spec_list": [
+                        {
+                            "$type": "LatexArgumentSpec",
+                            "argname": "custom_tag",
+                            "parser": "[",
+                            "parsing_state_delta": {
+                                "$type": "FLMParsingStateDeltaSetBlockLevel",
+                                "is_block_level": false
+                            }
+                        }
+                    ]
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352842464"
+                },
+                "pos": 56,
+                "pos_end": 62,
+                "spec": {
+                    "$skip": true
+                }
+            },
+            "4352840640": {
+                "$type": "LatexCharsNode",
+                "chars": "And hello again.\n",
+                "flm_chars_value": "And hello again.",
+                "flm_node_id": 4352840640,
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352842464"
+                },
+                "pos": 62,
+                "pos_end": 79
+            },
+            "4352839776": {
+                "$type": "LatexCharsNode",
+                "chars": "\n",
+                "flm_node_id": 4352839776,
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352842464"
+                },
+                "pos": 39,
+                "pos_end": 40
+            },
+            "4352841168": {
+                "$type": "LatexSpecialsNode",
+                "flm_is_block_heading": false,
+                "flm_is_block_level": true,
+                "flm_is_paragraph_break_marker": true,
+                "flm_node_id": 4352841168,
+                "flm_specinfo": {
+                    "$restype": "FLMSpecInfo",
+                    "$reskey": "4351983232"
+                },
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "nodeargd": {
+                    "$type": "ParsedArguments",
+                    "argnlist": [],
+                    "arguments_spec_list": []
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352838672"
+                },
+                "pos": 20,
+                "pos_end": 22,
+                "spec": {
+                    "$restype": "FLMSpecInfo",
+                    "$reskey": "4351983232"
+                },
+                "specials_chars": "\n\n"
+            },
+            "4352839728": {
+                "$type": "LatexCharsNode",
+                "chars": "\n",
+                "flm_node_id": 4352839728,
+                "latex_walker": {
+                    "$restype": "FLMLatexWalker",
+                    "$reskey": "4352838240"
+                },
+                "parsing_state": {
+                    "$restype": "FLMParsingState",
+                    "$reskey": "4352838672"
+                },
+                "pos": 94,
+                "pos_end": 95
+            }
+        },
+        "FLMParsingState": {
+            "4352838672": {
+                "$type": "FLMParsingState",
+                "comment_start": "%%",
+                "enable_comments": true,
+                "enable_double_newline_paragraphs": true,
+                "enable_environments": true,
+                "enable_groups": true,
+                "enable_macros": true,
+                "enable_math": true,
+                "enable_specials": true,
+                "forbidden_characters": "$%",
+                "in_math_mode": false,
+                "is_block_level": null,
+                "latex_context": {
+                    "$skip": true
+                },
+                "latex_display_math_delimiters": [
+                    [
+                        "\\[",
+                        "\\]"
+                    ]
+                ],
+                "latex_group_delimiters": [
+                    [
+                        "{",
+                        "}"
+                    ]
+                ],
+                "latex_inline_math_delimiters": [
+                    [
+                        "\\(",
+                        "\\)"
+                    ]
+                ],
+                "macro_alpha_chars": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                "macro_escape_char": "\\",
+                "math_mode_delimiter": null,
+                "s": null
+            },
+            "4352839488": {
+                "$type": "FLMParsingState",
+                "comment_start": "%%",
+                "enable_comments": true,
+                "enable_double_newline_paragraphs": true,
+                "enable_environments": true,
+                "enable_groups": true,
+                "enable_macros": true,
+                "enable_math": true,
+                "enable_specials": true,
+                "forbidden_characters": "$%",
+                "in_math_mode": false,
+                "is_block_level": false,
+                "latex_context": {
+                    "$skip": true
+                },
+                "latex_display_math_delimiters": [
+                    [
+                        "\\[",
+                        "\\]"
+                    ]
+                ],
+                "latex_group_delimiters": [
+                    [
+                        "{",
+                        "}"
+                    ]
+                ],
+                "latex_inline_math_delimiters": [
+                    [
+                        "\\(",
+                        "\\)"
+                    ]
+                ],
+                "macro_alpha_chars": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                "macro_escape_char": "\\",
+                "math_mode_delimiter": null,
+                "s": null
+            },
+            "4352842464": {
+                "$type": "FLMParsingState",
+                "comment_start": "%%",
+                "enable_comments": true,
+                "enable_double_newline_paragraphs": true,
+                "enable_environments": true,
+                "enable_groups": true,
+                "enable_macros": true,
+                "enable_math": true,
+                "enable_specials": true,
+                "forbidden_characters": "$%",
+                "in_math_mode": false,
+                "is_block_level": true,
+                "latex_context": {
+                    "$skip": true
+                },
+                "latex_display_math_delimiters": [
+                    [
+                        "\\[",
+                        "\\]"
+                    ]
+                ],
+                "latex_group_delimiters": [
+                    [
+                        "{",
+                        "}"
+                    ]
+                ],
+                "latex_inline_math_delimiters": [
+                    [
+                        "\\(",
+                        "\\)"
+                    ]
+                ],
+                "macro_alpha_chars": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                "macro_escape_char": "\\",
+                "math_mode_delimiter": null,
+                "s": null
+            }
+        },
+        "FLMSpecInfo": {
+            "4351982752": {
+                "$type": "flm.flmspecinfo:TextFormatMacro",
+                "macroname": "emph",
+                "text_formats": [
+                    "textit"
+                ]
+            },
+            "4352537840": {
+                "$type": "flm.feature.enumeration:Enumeration",
+                "annotations": [
+                    "enumerate"
+                ],
+                "counter_formatter": [
+                    {
+                        "template": "${arabic}."
+                    },
+                    {
+                        "template": "(${roman})"
+                    },
+                    {
+                        "template": "${alph}-"
+                    }
+                ],
+                "environmentname": "enumerate"
+            },
+            "4351983232": {
+                "$type": "flm.flmspecinfo:ParagraphBreakSpecials",
+                "specials_chars": "\n\n"
+            }
+        }
+    },
+    "_dump": {
+        "version": 2
+    }
+}

@@ -40,6 +40,20 @@ enabled_features:
     UNIQUE_OBJECT_ID: |
       import unique_object_id
       fn_unique_object_id = unique_object_id.fn_unique_object_id
+
+    IMPORT_FLMSPECINFO_CLASS: |
+      import flm_all_builtin_class_resources
+      def _import_class(fullclsname, restype):
+          resources = flm_all_builtin_class_resources.resources
+          if restype not in resources:
+              raise ValueError("Invalid restype: " + repr(restype))
+          rcls = resources[restype]
+          if fullclsname not in rcls:
+              raise ValueError("Invalid class name: " + repr(fullclsname)
+                               + " ["+repr(restype)+"]")
+          return rcls[fullclsname]
+
+
     # MULTIPLE_BASE_CONSTRUCTORS: |
     #   def _dobaseconstructors2argslast(Me, self, args, kwargs,
     #                                    kwargs_to_first_constructor=None):

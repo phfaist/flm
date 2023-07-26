@@ -281,6 +281,8 @@ class ConstantValueMacro(FLMSpecInfoConstantValue):
     def __init__(self, macroname, **kwargs):
         super().__init__(macroname=macroname, spec_node_parser_type='macro', **kwargs)
 
+    _fields = ('macroname', 'value',)
+
 class ConstantValueSpecials(FLMSpecInfoConstantValue):
     r"""
     LaTeX speicals specification for the `FLMSpecInfoConstantValue` specinfo.
@@ -288,6 +290,8 @@ class ConstantValueSpecials(FLMSpecInfoConstantValue):
     def __init__(self, specials_chars, **kwargs):
         super().__init__(specials_chars=specials_chars,
                          spec_node_parser_type='specials', **kwargs)
+
+    _fields = ('specials_chars', 'value',)
 
 
 
@@ -393,6 +397,8 @@ class TextFormatMacro(FLMMacroSpecBase):
         )
         self.text_formats = text_formats
 
+    _fields = ('macroname', 'text_formats',)
+
     def get_flm_doc(self):
         return (
             r"Formats its argument using the text format(s) "
@@ -428,6 +434,8 @@ class SemanticBlockEnvironment(FLMEnvironmentSpecBase):
         )
         self.role = role
         self.annotations = annotations
+
+    _fields = ('environmentname', 'role', 'annotations',)
 
     def get_flm_doc(self):
         with_annotations_str = ""
@@ -478,9 +486,13 @@ class ParagraphBreakSpecials(FLMSpecInfoParagraphBreak):
         super().__init__(specials_chars=specials_chars,
                          spec_node_parser_type='specials', **kwargs)
 
+    _fields = ('specials_chars',)
+
 class ParagraphBreakMacro(FLMSpecInfoParagraphBreak):
     def __init__(self, macroname, **kwargs):
         super().__init__(macroname=macroname, spec_node_parser_type='macro', **kwargs)
+
+    _fields = ('macroname',)
 
 
 
@@ -508,11 +520,15 @@ class FLMMacroSpecError(FLMSpecInfoError):
     def __init__(self, macroname, **kwargs):
         super().__init__(macroname=macroname, spec_node_parser_type='macro', **kwargs)
 
+    _fields = ('macroname', 'error_msg', )
+
 class FLMEnvironmentSpecError(FLMSpecInfoError):
     def __init__(self, environmentname, **kwargs):
         super().__init__(environmentname=environmentname,
                          spec_node_parser_type='environment',
                          **kwargs)
+
+    _fields = ('environmentname', 'error_msg', )
 
 class FLMSpecialsSpecError(FLMSpecInfoError):
     def __init__(self, specials_chars, **kwargs):
@@ -520,6 +536,6 @@ class FLMSpecialsSpecError(FLMSpecInfoError):
                          spec_node_parser_type='specials',
                          **kwargs)
 
-
+    _fields = ('specials_chars', 'error_msg', )
 
 

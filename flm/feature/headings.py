@@ -43,6 +43,8 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
         # reimplemented from flmspecinfo -
         self.is_block_heading = self.inline_heading
 
+    _fields = ('macroname', 'heading_level', 'inline_heading', )
+
     def get_flm_doc(self):
         return (
             f"Create a{ 'n inline' if self.inline_heading else '' } heading at "
@@ -110,8 +112,6 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
 
 
 
-
-
 class FeatureHeadings(Feature):
     r"""
     Add support for headings via LaTeX commands, including ``\section``,
@@ -158,11 +158,12 @@ class FeatureHeadings(Feature):
             return tgtid
 
 
-    class SectionCommandSpec:
+    class SectionCommandInfo:
         def __init__(self, cmdname, inline=False):
             super().__init__()
             self.cmdname = cmdname
             self.inline = inline
+
         def __repr__(self):
             return (
                 f"{self.__class__.__name__}(cmdname={self.cmdname!r}, "
@@ -173,27 +174,32 @@ class FeatureHeadings(Feature):
         super().__init__()
         if section_commands_by_level is None:
             section_commands_by_level = {
-                1: self.SectionCommandSpec(r"section"),
-                2: self.SectionCommandSpec(r"subsection"),
-                3: self.SectionCommandSpec(r"subsubsection"),
-                4: self.SectionCommandSpec(r"paragraph", inline=True),
-                5: self.SectionCommandSpec(r"subparagraph", inline=True),
-                6: self.SectionCommandSpec(r"subsubparagraph", inline=True),
+                1: self.SectionCommandInfo(r"section"),
+                2: self.SectionCommandInfo(r"subsection"),
+                3: self.SectionCommandInfo(r"subsubsection"),
+                4: self.SectionCommandInfo(r"paragraph", inline=True),
+                5: self.SectionCommandInfo(r"subparagraph", inline=True),
+                6: self.SectionCommandInfo(r"subsubparagraph", inline=True),
             }
-
-        def _mkspecobj(x):
-            if isinstance(x, self.SectionCommandSpec):
-                return x
-            if isinstance(x, str):
-                return self.SectionCommandSpec(x)
-            return self.SectionCommandSpec(**x)
 
         # below, dict(...) seems to be needed to force a python-style dict
         # object when using Transcrypt.
         self.section_commands_by_level = {
-            level: _mkspecobj(x)
+            level: self._make_section_command_info(x)
             for level, x in dict(section_commands_by_level).items()
         }
+
+    def _make_section_command_info(self, x):
+        r"""
+        Ensure the macro spec info object for a sectioning command.
+        
+        The object `x` might already be a `SectionCommandInfo` instance.
+        """
+        if isinstance(x, self.SectionCommandInfo):
+            return x
+        if isinstance(x, str):
+            return self.SectionCommandInfo(x)
+        return self.SectionCommandInfo(**x)
 
     def add_latex_context_definitions(self):
         return dict(

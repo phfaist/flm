@@ -209,19 +209,20 @@ def parse_counter_formatter(
                 counter_formatter,
                 tag_template_initials_counters
             )
-    if isinstance(counter_formatter, dict):
-        if 'template' in counter_formatter:
-            tmpl = counter_formatter['template']
-            # simple template parsing ${arabic}
-            return _replace_dollar_template_delayed(tmpl, named_counter_formatters)
-            # pat = "|".join(re.escape(k) for k in named_counter_formatters.keys())
-            # _rx_counter = re.compile(r'\$\{(' + pat + r')\}')
-            # return lambda n: (
-            #     _rx_counter.sub(
-            #         lambda m:  named_counter_formatters[m.group(1)] (n),
-            #         tmpl,
-            #     )
-            # )
+
+    # avoid isinstance(counter_formatter, dict) in case counter_formatter is a
+    # raw JS object in Transcrypt...
+    #if isinstance(counter_formatter, dict):
+    #    if 'template' in counter_formatter:
+    counter_formatter_template = None
+    try:
+        counter_formatter_template = counter_formatter['template']
+    except Exception: pass
+    if counter_formatter_template:
+        tmpl = counter_formatter['template']
+        # simple template parsing ${arabic}
+        return _replace_dollar_template_delayed(tmpl, named_counter_formatters)
+
     raise ValueError(f"Invalid counter_formatter: ‘{repr(counter_formatter)}’")
             
 def _parse_counter_formatter_from_tag_template(

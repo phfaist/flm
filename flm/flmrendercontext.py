@@ -33,13 +33,13 @@ class FLMRenderContext:
         raise RuntimeError("This render context does not support delayed rendering")
 
     def get_is_delayed_render(self, node):
-        if node.node_id in self._nodes_determined_as_delayed:
-            return self._nodes_determined_as_delayed[node.node_id]
+        if node.flm_node_id in self._nodes_determined_as_delayed:
+            return self._nodes_determined_as_delayed[node.flm_node_id]
 
         yn = node.flm_specinfo.delayed_render
         if callable(yn):
             yn = yn(node, render_context)
-            self._nodes_determined_as_delayed[node.node_id] = yn
+            self._nodes_determined_as_delayed[node.flm_node_id] = yn
 
         return yn
 

@@ -80,7 +80,7 @@ class FLMFragment:
             # This is for internal use only!
             self.nodes = self.flm_text
             self.latex_walker = self.nodes.latex_walker
-            if _flm_text_if_loading_nodes:
+            if _flm_text_if_loading_nodes is not None:
                 self.flm_text = _flm_text_if_loading_nodes
             else:
                 self.flm_text = self.nodes.latex_verbatim()
@@ -125,14 +125,6 @@ class FLMFragment:
             k: getattr(self, k)
             for k in self._attribute_fields
         }
-        # dict(
-        #     is_block_level=self.is_block_level,
-        #     resource_info=self.resource_info,
-        #     standalone_mode=self.standalone_mode,
-        #     silent=self.silent,
-        #     what=self.what,
-        #     parsing_mode=self.parsing_mode,
-        # )
         d.update(kwargs)
         return d
 
@@ -195,7 +187,7 @@ class FLMFragment:
         theflmtext = self.flm_text
         if len(theflmtext) > 50:
             theflmtext = theflmtext[:49]+'…'
-        return f"<{self.__class__.__name__} {theflmtext!r}>"
+        return f"<{self.__class__.__name__} {repr(theflmtext)}>"
 
 
     def whitespace_stripped(self):

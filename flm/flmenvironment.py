@@ -58,8 +58,10 @@ class FLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
 
     def __init__(self, is_block_level=None):
         super().__init__(
-            set_attributes=dict(is_block_level=is_block_level)
+            set_attributes=dict(is_block_level=is_block_level),
+            _fields=('is_block_level', )
         )
+        self.is_block_level = is_block_level # for serialization
 
 
 # ------------------------------------------------------------------------------
@@ -378,7 +380,7 @@ class FLMLatexWalker(latexwalker.LatexWalker):
     def make_node(self, node_class, **kwargs):
         node = super().make_node(node_class, **kwargs)
         # attach a node ID, given by the object ID of the node
-        node.node_id = fn_unique_object_id(node)
+        node.flm_node_id = fn_unique_object_id(node)
         return node
 
     # ---
@@ -619,7 +621,9 @@ class FLMEnvironment:
             # set the parsing_state's latex_context appropriately.
             for f in self.features:
                 moredefs = f.add_latex_context_definitions()
-                logger.debug(f"add_latex_context_definitions of “{f.feature_name}” -> {repr(moredefs)}")
+                logger.debug(
+                    f"add_latex_context_definitions of “{f.feature_name}” -> {repr(moredefs)}"
+                )
                 if moredefs is not None:
                     moredefs = dict(moredefs)
                     if len(moredefs):

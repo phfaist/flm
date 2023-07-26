@@ -165,6 +165,11 @@ class VerbatimMacro(VerbatimSpecInfo):
             **kwargs
         )
 
+    _fields = ('macroname',
+               'verbatim_delimiters', 'optional_lang_arg',
+               'annotations', 'verbatimtype', 'is_block_level',
+               'include_environment_begin_end', )
+
 
 class VerbatimEnvironment(VerbatimSpecInfo):
     def __init__(self, environmentname, *, optional_lang_arg=False, **kwargs):
@@ -177,6 +182,10 @@ class VerbatimEnvironment(VerbatimSpecInfo):
             **kwargs
         )
 
+    _fields = ('environmentname',
+               'optional_lang_arg',
+               'annotations', 'verbatimtype', 'is_block_level',
+               'include_environment_begin_end', )
 
 
 

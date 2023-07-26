@@ -79,6 +79,7 @@ class Enumeration(FLMEnvironmentSpecBase):
         self.counter_formatter = counter_formatter
         self.annotations = annotations
         
+    _fields = ('environmentname', 'counter_formatter', 'annotations', )
 
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
         return LatexEnvironmentBodyContentsParser(
@@ -139,7 +140,7 @@ class Enumeration(FLMEnvironmentSpecBase):
                 (item_macro, item_content_nodelist)
             )
 
-        node.enumeration_items = enumeration_items
+        node.flm_enumeration_items = enumeration_items
         return node
 
 
@@ -173,7 +174,7 @@ class Enumeration(FLMEnvironmentSpecBase):
 
         items_custom_tags = {}
         items_nodelists = []
-        for j, iteminfo in enumerate(node.enumeration_items):
+        for j, iteminfo in enumerate(node.flm_enumeration_items):
             item_macro, item_content_nodelist = iteminfo
             items_nodelists.append( item_content_nodelist )
 
