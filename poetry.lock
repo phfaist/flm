@@ -630,14 +630,14 @@ plugins = ["importlib-metadata"]
 
 [[package]]
 name = "pylatexenc"
-version = "3.0a18"
+version = "3.0a19"
 description = "Simple LaTeX parser providing latex-to-unicode and unicode-to-latex conversion"
 category = "main"
 optional = false
 python-versions = ">=3.7,<4.0"
 files = [
-    {file = "pylatexenc-3.0a18-py3-none-any.whl", hash = "sha256:2ae2a0aa73fc08b19ac552842c53a6c8a21fdc6667b6dd8d2113492f5ca057c4"},
-    {file = "pylatexenc-3.0a18.tar.gz", hash = "sha256:a3863880264a27768c6af85d24dedb80d7a30ed5834212ee8c619dee5fadcfe1"},
+    {file = "pylatexenc-3.0a19-py3-none-any.whl", hash = "sha256:36e8623197d14ad19a62302f275048d2e0c8e8eb38de04180da4115768692d7c"},
+    {file = "pylatexenc-3.0a19.tar.gz", hash = "sha256:404052485185e0ab2193d4a53536f0f91f57337373a8673d631d514519631e1b"},
 ]
 
 [[package]]
