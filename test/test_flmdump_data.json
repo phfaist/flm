@@ -9,70 +9,72 @@
                 "flm_blocks": [
                     {
                         "$type": "LatexNodeList",
+                        "flm_nodelist_finalized": true,
                         "latex_walker": {
                             "$restype": "FLMLatexWalker",
-                            "$reskey": "4352838240"
+                            "$reskey": "4329703888"
                         },
                         "nodelist": [
                             {
                                 "$restype": "LatexNode",
-                                "$reskey": "4352838960"
+                                "$reskey": "4329704608"
                             },
                             {
                                 "$restype": "LatexNode",
-                                "$reskey": "4352840832"
+                                "$reskey": "4329706480"
                             },
                             {
                                 "$restype": "LatexNode",
-                                "$reskey": "4352841072"
+                                "$reskey": "4329706720"
                             }
                         ],
                         "parsing_state": {
                             "$restype": "FLMParsingState",
-                            "$reskey": "4352838672"
+                            "$reskey": "4329704320"
                         },
                         "pos": 0,
                         "pos_end": 20
                     },
                     {
                         "$restype": "LatexNode",
-                        "$reskey": "4352841264"
+                        "$reskey": "4329706912"
                     }
                 ],
                 "flm_is_block_level": true,
+                "flm_nodelist_finalized": true,
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "nodelist": [
                     {
                         "$restype": "LatexNode",
-                        "$reskey": "4352838960"
+                        "$reskey": "4329704608"
                     },
                     {
                         "$restype": "LatexNode",
-                        "$reskey": "4352840832"
+                        "$reskey": "4329706480"
                     },
                     {
                         "$restype": "LatexNode",
-                        "$reskey": "4352841072"
+                        "$reskey": "4329706720"
                     },
                     {
                         "$restype": "LatexNode",
-                        "$reskey": "4352841168"
+                        "$reskey": "4329706816"
                     },
                     {
                         "$restype": "LatexNode",
-                        "$reskey": "4352841264"
+                        "$reskey": "4329706912"
                     },
                     {
                         "$restype": "LatexNode",
-                        "$reskey": "4352839728"
+                        "$reskey": "4329705184"
                     }
                 ],
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352838672"
+                    "$reskey": "4329704320"
                 },
                 "pos": 0,
                 "pos_end": 95
@@ -86,41 +88,39 @@
     },
     "resources": {
         "FLMLatexWalker": {
-            "4352838240": {
+            "4329703888": {
                 "$type": "FLMLatexWalker",
                 "s": "Hello, \\emph{world}!\n\n\\begin{enumerate}\n\\item Hi again.\n\\item And hello again.\n\\end{enumerate}\n"
             }
         },
         "LatexNode": {
-            "4352838960": {
+            "4329704608": {
                 "$type": "LatexCharsNode",
                 "chars": "Hello, ",
                 "flm_chars_value": "Hello, ",
-                "flm_node_id": 4352838960,
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352838672"
+                    "$reskey": "4329704320"
                 },
                 "pos": 0,
                 "pos_end": 7
             },
-            "4352840832": {
+            "4329706480": {
                 "$type": "LatexMacroNode",
                 "flm_is_block_heading": false,
                 "flm_is_block_level": false,
                 "flm_is_paragraph_break_marker": false,
-                "flm_node_id": 4352840832,
                 "flm_specinfo": {
                     "$restype": "FLMSpecInfo",
-                    "$reskey": "4351982752"
+                    "$reskey": "4328864784"
                 },
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "macro_post_space": "",
                 "macroname": "emph",
@@ -129,7 +129,7 @@
                     "argnlist": [
                         {
                             "$restype": "LatexNode",
-                            "$reskey": "4352840880"
+                            "$reskey": "4329706528"
                         }
                     ],
                     "arguments_spec_list": [
@@ -146,131 +146,131 @@
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352838672"
+                    "$reskey": "4329704320"
                 },
                 "pos": 7,
                 "pos_end": 19,
                 "spec": {
                     "$restype": "FLMSpecInfo",
-                    "$reskey": "4351982752"
+                    "$reskey": "4328864784"
                 }
             },
-            "4352840880": {
+            "4329706528": {
                 "$type": "LatexGroupNode",
                 "delimiters": [
                     "{",
                     "}"
                 ],
-                "flm_node_id": 4352840880,
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "nodelist": {
                     "$type": "LatexNodeList",
                     "flm_is_block_level": false,
+                    "flm_nodelist_finalized": true,
                     "latex_walker": {
                         "$restype": "FLMLatexWalker",
-                        "$reskey": "4352838240"
+                        "$reskey": "4329703888"
                     },
                     "nodelist": [
                         {
                             "$restype": "LatexNode",
-                            "$reskey": "4352840736"
+                            "$reskey": "4329706384"
                         }
                     ],
                     "parsing_state": {
                         "$restype": "FLMParsingState",
-                        "$reskey": "4352839488"
+                        "$reskey": "4329705136"
                     },
                     "pos": 13,
                     "pos_end": 18
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352839488"
+                    "$reskey": "4329705136"
                 },
                 "pos": 12,
                 "pos_end": 19
             },
-            "4352840736": {
+            "4329706384": {
                 "$type": "LatexCharsNode",
                 "chars": "world",
                 "flm_chars_value": "world",
-                "flm_node_id": 4352840736,
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352839488"
+                    "$reskey": "4329705136"
                 },
                 "pos": 13,
                 "pos_end": 18
             },
-            "4352841072": {
+            "4329706720": {
                 "$type": "LatexCharsNode",
                 "chars": "!",
                 "flm_chars_value": "!",
-                "flm_node_id": 4352841072,
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352838672"
+                    "$reskey": "4329704320"
                 },
                 "pos": 19,
                 "pos_end": 20
             },
-            "4352841264": {
+            "4329706912": {
                 "$type": "LatexEnvironmentNode",
                 "environmentname": "enumerate",
                 "flm_enumeration_items": [
                     [
                         {
                             "$restype": "LatexNode",
-                            "$reskey": "4352839872"
+                            "$reskey": "4329705712"
                         },
                         {
                             "$type": "LatexNodeList",
                             "flm_blocks": [
                                 {
                                     "$type": "LatexNodeList",
+                                    "flm_nodelist_finalized": true,
                                     "latex_walker": {
                                         "$restype": "FLMLatexWalker",
-                                        "$reskey": "4352838240"
+                                        "$reskey": "4329703888"
                                     },
                                     "nodelist": [
                                         {
                                             "$restype": "LatexNode",
-                                            "$reskey": "4352839824"
+                                            "$reskey": "4329705520"
                                         }
                                     ],
                                     "parsing_state": {
                                         "$restype": "FLMParsingState",
-                                        "$reskey": "4352842464"
+                                        "$reskey": "4329708112"
                                     },
                                     "pos": 46,
                                     "pos_end": 56
                                 }
                             ],
                             "flm_is_block_level": true,
+                            "flm_nodelist_finalized": true,
                             "latex_walker": {
                                 "$restype": "FLMLatexWalker",
-                                "$reskey": "4352838240"
+                                "$reskey": "4329703888"
                             },
                             "nodelist": [
                                 {
                                     "$restype": "LatexNode",
-                                    "$reskey": "4352839824"
+                                    "$reskey": "4329705520"
                                 }
                             ],
                             "parsing_state": {
                                 "$restype": "FLMParsingState",
-                                "$reskey": "4352842464"
+                                "$reskey": "4329708112"
                             },
                             "pos": 46,
                             "pos_end": 56
@@ -279,45 +279,47 @@
                     [
                         {
                             "$restype": "LatexNode",
-                            "$reskey": "4352839968"
+                            "$reskey": "4329705952"
                         },
                         {
                             "$type": "LatexNodeList",
                             "flm_blocks": [
                                 {
                                     "$type": "LatexNodeList",
+                                    "flm_nodelist_finalized": true,
                                     "latex_walker": {
                                         "$restype": "FLMLatexWalker",
-                                        "$reskey": "4352838240"
+                                        "$reskey": "4329703888"
                                     },
                                     "nodelist": [
                                         {
                                             "$restype": "LatexNode",
-                                            "$reskey": "4352840640"
+                                            "$reskey": "4329706192"
                                         }
                                     ],
                                     "parsing_state": {
                                         "$restype": "FLMParsingState",
-                                        "$reskey": "4352842464"
+                                        "$reskey": "4329708112"
                                     },
                                     "pos": 62,
                                     "pos_end": 79
                                 }
                             ],
                             "flm_is_block_level": true,
+                            "flm_nodelist_finalized": true,
                             "latex_walker": {
                                 "$restype": "FLMLatexWalker",
-                                "$reskey": "4352838240"
+                                "$reskey": "4329703888"
                             },
                             "nodelist": [
                                 {
                                     "$restype": "LatexNode",
-                                    "$reskey": "4352840640"
+                                    "$reskey": "4329706192"
                                 }
                             ],
                             "parsing_state": {
                                 "$restype": "FLMParsingState",
-                                "$reskey": "4352842464"
+                                "$reskey": "4329708112"
                             },
                             "pos": 62,
                             "pos_end": 79
@@ -327,14 +329,13 @@
                 "flm_is_block_heading": false,
                 "flm_is_block_level": true,
                 "flm_is_paragraph_break_marker": false,
-                "flm_node_id": 4352841264,
                 "flm_specinfo": {
                     "$restype": "FLMSpecInfo",
-                    "$reskey": "4352537840"
+                    "$reskey": "4329436256"
                 },
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "nodeargd": {
                     "$type": "ParsedArguments",
@@ -360,87 +361,88 @@
                     "flm_blocks": [
                         {
                             "$type": "LatexNodeList",
+                            "flm_nodelist_finalized": true,
                             "latex_walker": {
                                 "$restype": "FLMLatexWalker",
-                                "$reskey": "4352838240"
+                                "$reskey": "4329703888"
                             },
                             "nodelist": [
                                 {
                                     "$restype": "LatexNode",
-                                    "$reskey": "4352839872"
+                                    "$reskey": "4329705712"
                                 },
                                 {
                                     "$restype": "LatexNode",
-                                    "$reskey": "4352839824"
+                                    "$reskey": "4329705520"
                                 },
                                 {
                                     "$restype": "LatexNode",
-                                    "$reskey": "4352839968"
+                                    "$reskey": "4329705952"
                                 },
                                 {
                                     "$restype": "LatexNode",
-                                    "$reskey": "4352840640"
+                                    "$reskey": "4329706192"
                                 }
                             ],
                             "parsing_state": {
                                 "$restype": "FLMParsingState",
-                                "$reskey": "4352842464"
+                                "$reskey": "4329708112"
                             },
                             "pos": 40,
                             "pos_end": 79
                         }
                     ],
                     "flm_is_block_level": true,
+                    "flm_nodelist_finalized": true,
                     "latex_walker": {
                         "$restype": "FLMLatexWalker",
-                        "$reskey": "4352838240"
+                        "$reskey": "4329703888"
                     },
                     "nodelist": [
                         {
                             "$restype": "LatexNode",
-                            "$reskey": "4352839776"
+                            "$reskey": "4329705472"
                         },
                         {
                             "$restype": "LatexNode",
-                            "$reskey": "4352839872"
+                            "$reskey": "4329705712"
                         },
                         {
                             "$restype": "LatexNode",
-                            "$reskey": "4352839824"
+                            "$reskey": "4329705520"
                         },
                         {
                             "$restype": "LatexNode",
-                            "$reskey": "4352839968"
+                            "$reskey": "4329705952"
                         },
                         {
                             "$restype": "LatexNode",
-                            "$reskey": "4352840640"
+                            "$reskey": "4329706192"
                         }
                     ],
                     "parsing_state": {
                         "$restype": "FLMParsingState",
-                        "$reskey": "4352842464"
+                        "$reskey": "4329708112"
                     },
                     "pos": 39,
                     "pos_end": 79
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352838672"
+                    "$reskey": "4329704320"
                 },
                 "pos": 22,
                 "pos_end": 94,
                 "spec": {
                     "$restype": "FLMSpecInfo",
-                    "$reskey": "4352537840"
+                    "$reskey": "4329436256"
                 }
             },
-            "4352839872": {
+            "4329705712": {
                 "$type": "LatexMacroNode",
-                "flm_node_id": 4352839872,
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "macro_post_space": " ",
                 "macroname": "item",
@@ -463,7 +465,7 @@
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352842464"
+                    "$reskey": "4329708112"
                 },
                 "pos": 40,
                 "pos_end": 46,
@@ -471,28 +473,26 @@
                     "$skip": true
                 }
             },
-            "4352839824": {
+            "4329705520": {
                 "$type": "LatexCharsNode",
                 "chars": "Hi again.\n",
                 "flm_chars_value": "Hi again.",
-                "flm_node_id": 4352839824,
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352842464"
+                    "$reskey": "4329708112"
                 },
                 "pos": 46,
                 "pos_end": 56
             },
-            "4352839968": {
+            "4329705952": {
                 "$type": "LatexMacroNode",
-                "flm_node_id": 4352839968,
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "macro_post_space": " ",
                 "macroname": "item",
@@ -515,7 +515,7 @@
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352842464"
+                    "$reskey": "4329708112"
                 },
                 "pos": 56,
                 "pos_end": 62,
@@ -523,50 +523,47 @@
                     "$skip": true
                 }
             },
-            "4352840640": {
+            "4329706192": {
                 "$type": "LatexCharsNode",
                 "chars": "And hello again.\n",
                 "flm_chars_value": "And hello again.",
-                "flm_node_id": 4352840640,
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352842464"
+                    "$reskey": "4329708112"
                 },
                 "pos": 62,
                 "pos_end": 79
             },
-            "4352839776": {
+            "4329705472": {
                 "$type": "LatexCharsNode",
                 "chars": "\n",
-                "flm_node_id": 4352839776,
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352842464"
+                    "$reskey": "4329708112"
                 },
                 "pos": 39,
                 "pos_end": 40
             },
-            "4352841168": {
+            "4329706816": {
                 "$type": "LatexSpecialsNode",
                 "flm_is_block_heading": false,
                 "flm_is_block_level": true,
                 "flm_is_paragraph_break_marker": true,
-                "flm_node_id": 4352841168,
                 "flm_specinfo": {
                     "$restype": "FLMSpecInfo",
-                    "$reskey": "4351983232"
+                    "$reskey": "4328865264"
                 },
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "nodeargd": {
                     "$type": "ParsedArguments",
@@ -575,34 +572,33 @@
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352838672"
+                    "$reskey": "4329704320"
                 },
                 "pos": 20,
                 "pos_end": 22,
                 "spec": {
                     "$restype": "FLMSpecInfo",
-                    "$reskey": "4351983232"
+                    "$reskey": "4328865264"
                 },
                 "specials_chars": "\n\n"
             },
-            "4352839728": {
+            "4329705184": {
                 "$type": "LatexCharsNode",
                 "chars": "\n",
-                "flm_node_id": 4352839728,
                 "latex_walker": {
                     "$restype": "FLMLatexWalker",
-                    "$reskey": "4352838240"
+                    "$reskey": "4329703888"
                 },
                 "parsing_state": {
                     "$restype": "FLMParsingState",
-                    "$reskey": "4352838672"
+                    "$reskey": "4329704320"
                 },
                 "pos": 94,
                 "pos_end": 95
             }
         },
         "FLMParsingState": {
-            "4352838672": {
+            "4329704320": {
                 "$type": "FLMParsingState",
                 "comment_start": "%%",
                 "enable_comments": true,
@@ -641,7 +637,7 @@
                 "math_mode_delimiter": null,
                 "s": null
             },
-            "4352839488": {
+            "4329705136": {
                 "$type": "FLMParsingState",
                 "comment_start": "%%",
                 "enable_comments": true,
@@ -680,7 +676,7 @@
                 "math_mode_delimiter": null,
                 "s": null
             },
-            "4352842464": {
+            "4329708112": {
                 "$type": "FLMParsingState",
                 "comment_start": "%%",
                 "enable_comments": true,
@@ -721,14 +717,14 @@
             }
         },
         "FLMSpecInfo": {
-            "4351982752": {
+            "4328864784": {
                 "$type": "flm.flmspecinfo:TextFormatMacro",
                 "macroname": "emph",
                 "text_formats": [
                     "textit"
                 ]
             },
-            "4352537840": {
+            "4329436256": {
                 "$type": "flm.feature.enumeration:Enumeration",
                 "annotations": [
                     "enumerate"
@@ -746,7 +742,7 @@
                 ],
                 "environmentname": "enumerate"
             },
-            "4351983232": {
+            "4328865264": {
                 "$type": "flm.flmspecinfo:ParagraphBreakSpecials",
                 "specials_chars": "\n\n"
             }

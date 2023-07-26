@@ -40,12 +40,12 @@ class FLMDocumentRenderContext(FLMRenderContext):
 
     def register_delayed_render(self, node, fragment_renderer):
         # register the node for delayed render
-        key = node.flm_node_id
+        key = node._flm_node_id
         self._delayed_render_nodes[key] = node
         return key
 
     def get_delayed_render_content(self, node):
-        key = node.flm_node_id
+        key = node._flm_node_id
         return self._delayed_render_content[key]
 
     def make_standalone_fragment(self, flm_text, **kwargs):

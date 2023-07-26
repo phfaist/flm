@@ -444,12 +444,16 @@ class FLMDataLoader:
 
         if nodetype == 'LatexNodeList':
             ObjTypeFn = LatexNodeList
+            finalize_fn = self.environment.finalize_nodelist
         else:
             ObjTypeFn = latex_node_types_dict[nodetype]
+            finalize_fn = self.environment.finalize_node
 
         node = ObjTypeFn(**base_kwargs)
         for k, v in attrib_kwargs.items():
             setattr(node, k, v)
+
+        node = finalize_fn(node)
 
         return node
         

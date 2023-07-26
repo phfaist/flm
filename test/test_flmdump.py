@@ -62,7 +62,6 @@ class TestFLMDataDumper(unittest.TestCase):
                     'flm_is_paragraph_break_marker': False,
                     'flm_specinfo': {'$reskey': _AlwaysEqual(),
                                      '$restype': 'FLMSpecInfo'},
-                    'flm_node_id': _AlwaysEqual(),
                     'spec': {'$reskey': _AlwaysEqual(),
                              '$restype': 'FLMSpecInfo'},
                     'macro_post_space': '',
@@ -145,11 +144,11 @@ class TestFLMDataDumper(unittest.TestCase):
 
         dumped_data = dumper.get_data()
 
-        # # JSON test data was generated in this way
-        # print(json.dumps(dumped_data, indent=4))
-        # with open(os.path.join(os.path.dirname(__file__), 'test_flmdump_data_NEW.json'),
-        #           'w') as fw:
-        #     json.dump(dumped_data, fw, indent=4)
+        # JSON test data was generated in this way
+        print(json.dumps(dumped_data, indent=4))
+        with open(os.path.join(os.path.dirname(__file__), 'test_flmdump_data_NEW.json'),
+                  'w') as fw:
+            json.dump(dumped_data, fw, indent=4)
 
         with open(os.path.join(os.path.dirname(__file__), 'test_flmdump_data.json')) as f:
 
@@ -158,8 +157,6 @@ class TestFLMDataDumper(unittest.TestCase):
             def object_hook(x):
                 if '$reskey' in x:
                     x['$reskey'] = _AlwaysEqual(x['$reskey'])
-                if 'flm_node_id' in x:
-                    x['flm_node_id'] = _AlwaysEqual(x['flm_node_id'])
                 return x
 
             loaded_data = json.load(f, object_hook=object_hook)
@@ -274,13 +271,16 @@ Hello, \emph{world}!
 
         result_1 = new_fragment.render_standalone(text_renderer)
         
-        self.assertEqual(result_1, r"""
+        self.assertEqual(
+            r"""
 Hello, world!
 
   1. Hi again.
 
   2. And hello again.
-""".strip())
+""".strip(),
+            result_1
+        )
 
 
 

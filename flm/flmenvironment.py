@@ -109,13 +109,15 @@ class BlocksBuilder:
         paragraph_nodes = self.pending_paragraph_nodes
         paragraph_nodes = self.finalize_paragraph(paragraph_nodes)
         #logger.debug("Flushing paragraph: %r", paragraph_nodes)
-        self.blocks.append(
-            latexnodes_nodes.LatexNodeList(
-                paragraph_nodes,
-                parsing_state=self.latexnodelist.parsing_state,
-                latex_walker=self.latexnodelist.latex_walker
-            )
+        nlblock = latexnodes_nodes.LatexNodeList(
+            paragraph_nodes,
+            parsing_state=self.latexnodelist.parsing_state,
+            latex_walker=self.latexnodelist.latex_walker
         )
+        # make sure no one is tempted to call again finalize_nodelist() for this
+        # node list instance again. (Eg. during serialization)
+        nlblock.flm_nodelist_finalized = True
+        self.blocks.append( nlblock )
         self.pending_paragraph_nodes = []
 
     def simplify_whitespace_chars(self, chars, is_head=False, is_tail=False):
@@ -263,6 +265,13 @@ class NodeListFinalizer:
         * In all cases, inspect how the node list is split into blocks, and
           store the relevant information in a property `flm_blocks_info`
         """
+        
+        if hasattr(latexnodelist, 'flm_nodelist_finalized') \
+           and getattr(latexnodelist, 'flm_nodelist_finalized'):
+            return latexnodelist
+
+        latexnodelist.flm_nodelist_finalized = True
+
         is_block_level = latexnodelist.parsing_state.is_block_level
         if is_block_level is None:
             # need to infer block level
@@ -270,7 +279,8 @@ class NodeListFinalizer:
 
         latexnodelist.flm_is_block_level = is_block_level
 
-        # consistency checks
+        # ---
+        # consistency check
         if not is_block_level:
             # make sure there are no block-level nodes in the list
             for n in latexnodelist:
@@ -286,9 +296,7 @@ class NodeListFinalizer:
                     n.flm_chars_value = self.simplify_whitespace_chars_inline(
                         n.chars
                     )
-
-            # all set -- return the node list
-            return latexnodelist
+        # ---
 
         # prepare the node list into blocks (e.g., paragraphs or other
         # block-level items like enumeration lists)
@@ -298,6 +306,7 @@ class NodeListFinalizer:
             latexnodelist.flm_blocks = flm_blocks
 
         return latexnodelist
+
 
     def infer_is_block_level_nodelist(self, latexnodelist):
         for n in latexnodelist:
@@ -374,14 +383,18 @@ class FLMLatexWalker(latexwalker.LatexWalker):
     def make_nodelist(self, nodelist, parsing_state, **kwargs):
         nl = super().make_nodelist(nodelist=nodelist, parsing_state=parsing_state, **kwargs)
         # check & see if the block level is consistent
-        nl = self.flm_environment.node_list_finalizer().finalize_nodelist(nl)
-        return nl
+        nl2 = self.flm_environment.finalize_nodelist(nl)
+        if nl2 is None:
+            raise ValueError("Environment's finalize_nodelist() returned None")
+        return nl2
 
     def make_node(self, node_class, **kwargs):
         node = super().make_node(node_class, **kwargs)
-        # attach a node ID, given by the object ID of the node
-        node.flm_node_id = fn_unique_object_id(node)
-        return node
+        node2 = self.flm_environment.finalize_node(node)
+        if node2 is None:
+            raise ValueError("Environment's finalize_node() returned None")
+        return node2
+
 
     # ---
 
@@ -754,8 +767,8 @@ class FLMEnvironment:
                 )
             raise
 
-    def node_list_finalizer(self):
-        return self._node_list_finalizer
+    # def node_list_finalizer(self):
+    #     return self._node_list_finalizer
 
     # ---
 
@@ -803,6 +816,19 @@ class FLMEnvironment:
             return self.environment_get_located_error_message(exception_object)
         return LatexWalkerLocatedErrorFormatter(exception_object).to_display_string()
 
+
+
+    def finalize_nodelist(self, nodelist):
+        nl = self._node_list_finalizer.finalize_nodelist(nodelist)
+        return nl
+
+    def finalize_node(self, node):
+        # attach a node ID, given by the object ID of the node use
+        # _flm_... prefix with leading underscore, not flm_..., because we don't
+        # want this value serialized.  It should be recalculated upon load after
+        # serialization to make sure they don't clash with new node ids.
+        node._flm_node_id = fn_unique_object_id(node)
+        return node
 
 
 
