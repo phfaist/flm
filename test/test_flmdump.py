@@ -144,11 +144,11 @@ class TestFLMDataDumper(unittest.TestCase):
 
         dumped_data = dumper.get_data()
 
-        # JSON test data was generated in this way
-        print(json.dumps(dumped_data, indent=4))
-        with open(os.path.join(os.path.dirname(__file__), 'test_flmdump_data_NEW.json'),
-                  'w') as fw:
-            json.dump(dumped_data, fw, indent=4)
+        # # JSON test data was generated in this way
+        # print(json.dumps(dumped_data, indent=4))
+        # with open(os.path.join(os.path.dirname(__file__), 'test_flmdump_data_NEW.json'),
+        #           'w') as fw:
+        #     json.dump(dumped_data, fw, indent=4)
 
         with open(os.path.join(os.path.dirname(__file__), 'test_flmdump_data.json')) as f:
 
