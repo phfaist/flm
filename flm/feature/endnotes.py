@@ -68,6 +68,8 @@ class EndnoteMacro(FLMMacroSpecBase):
             **kwargs
         )
         self.endnote_category_name = endnote_category_name
+
+    _fields = ('macroname', 'endnote_category_name', )
         
     def get_flm_doc(self):
         return (f"Place an end note in the category ‘{self.endnote_category_name}’ with"

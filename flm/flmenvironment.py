@@ -352,11 +352,19 @@ class FLMLatexWalker(latexwalker.LatexWalker):
                  resource_info=None,
                  parsing_mode=None,
                  what=None,
+                 input_lineno_colno_offsets=None,
                  **kwargs):
+
+        if input_lineno_colno_offsets is None:
+            input_lineno_colno_offsets = {}
 
         super().__init__(
             s=flm_text,
             default_parsing_state=default_parsing_state,
+            line_number_offset=input_lineno_colno_offsets.get('line_number_offset', None),
+            first_line_column_offset=
+                input_lineno_colno_offsets.get('first_line_column_offset', None),
+            column_offset=input_lineno_colno_offsets.get('column_offset', None),
             **kwargs
         )
 
@@ -374,6 +382,8 @@ class FLMLatexWalker(latexwalker.LatexWalker):
         self.parsing_mode = parsing_mode
 
         self._parsing_state_event_handler = parsing_state_event_handler
+
+        self.input_lineno_colno_offsets = input_lineno_colno_offsets # keep for serialization
 
     def parsing_state_event_handler(self):
         if self._parsing_state_event_handler:
@@ -693,9 +703,6 @@ class FLMEnvironment:
         if tolerant_parsing is None:
             tolerant_parsing = self.tolerant_parsing
 
-        if input_lineno_colno_offsets is None:
-            input_lineno_colno_offsets = {}
-
         latex_walker = FLMLatexWalker(
             flm_text=flm_text,
             default_parsing_state=default_parsing_state,
@@ -707,10 +714,7 @@ class FLMEnvironment:
             what=what,
             parsing_state_event_handler=self.parsing_state_event_handler,
             #
-            line_number_offset=input_lineno_colno_offsets.get('line_number_offset', None),
-            first_line_column_offset=
-                input_lineno_colno_offsets.get('first_line_column_offset', None),
-            column_offset=input_lineno_colno_offsets.get('column_offset', None),
+            input_lineno_colno_offsets=input_lineno_colno_offsets,
         )
 
         return latex_walker

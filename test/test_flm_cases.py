@@ -27,52 +27,67 @@ class TestFlmCases(unittest.TestCase):
     maxDiff = None
 
     def test_case_frag1(self):
-        self._run_test_case(frag1.case_info)
+        run_test_case(self, frag1.case_info)
 
     def test_case_frag2(self):
-        self._run_test_case(frag2.case_info)
+        run_test_case(self, frag2.case_info)
 
 
 
-    def _run_test_case(self, case_info):
-
-        environ = mk_flm_environ( **dict( case_info.get('standard_features', {}) ) )
-
-        frag1 = environ.make_fragment( case_info['source'] () )
-
-        def render_fn(render_context):
-            return frag1.render(render_context, is_block_level=True)
-
-        doc = environ.make_document(render_fn)
-
-        if case_info['render_to'] == 'html':
-
-            fr = HtmlFragmentRenderer()
-            fr.html_blocks_joiner = "\n"
-            result, render_context = doc.render(fr)
-
-        else:
-
-            raise ValueError("Invalid render_to: " + repr(case_info))
 
 
-        if case_info.get('endnotes', False):
+def run_test_case(test_case_obj, case_info):
 
-            # add footnotes
-            endnotes_mgr = render_context.feature_render_manager('endnotes')
-            result = render_context.fragment_renderer.render_join_blocks([
-                result,
-                render_context.fragment_renderer.render_heading(
-                    environ.make_fragment('Footnotes').nodes,
-                    heading_level=1,
-                    render_context=render_context,
-                ),
-                endnotes_mgr.render_endnotes_category('footnote'),
-            ], render_context)
+    environ = mk_flm_environ( **dict( case_info.get('standard_features', {}) ) )
+
+    fragment = environ.make_fragment( case_info['source'] () )
+
+    result = render_fragment(
+        environ,
+        fragment,
+        **{ k: v
+            for k,v in case_info.items()
+            if k in ('render_to', 'endnotes',) }
+    )
+
+    print(result)
+    test_case_obj.assertEqual(
+        result,
+        case_info['render_result'] ()
+    )
 
 
-        print(result)
-        self.assertEqual(
+def render_fragment(environment, fragment, *, render_to='html', endnotes=False):
+
+    def render_fn(render_context):
+        return fragment.render(render_context, is_block_level=True)
+
+    doc = environment.make_document(render_fn)
+
+    if render_to == 'html':
+
+        fr = HtmlFragmentRenderer()
+        fr.html_blocks_joiner = "\n"
+        result, render_context = doc.render(fr)
+
+    else:
+
+        raise ValueError("Invalid render_to: " + repr(render_to))
+
+
+    if endnotes:
+
+        # add footnotes
+        endnotes_mgr = render_context.feature_render_manager('endnotes')
+        result = render_context.fragment_renderer.render_join_blocks([
             result,
-            case_info['render_result'] ()
-        )
+            render_context.fragment_renderer.render_heading(
+                environment.make_fragment('Footnotes').nodes,
+                heading_level=1,
+                render_context=render_context,
+            ),
+            endnotes_mgr.render_endnotes_category('footnote'),
+        ], render_context)
+
+
+    return result

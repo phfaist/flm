@@ -61,6 +61,9 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
             mspec.is_block_heading = True
             self.render_term_text_format_spec = mspec
         
+    _fields = (
+        'environmentname', 'render_with_term', 'render_with_term_suffix',
+    )
 
     def postprocess_parsed_node(self, node):
         node_args = \
@@ -169,6 +172,8 @@ class RefTermMacro(FLMMacroSpecBase):
             ],
             **kwargs
         )
+
+    _fields = ( 'macroname', )
 
     def get_flm_doc(self):
         return r""" Reference a term defined somewhere else in a

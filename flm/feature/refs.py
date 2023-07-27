@@ -449,6 +449,8 @@ class RefMacro(FLMMacroSpecBase):
         self.command_arguments = [ c.replace('[]','') for c in command_arguments ]
         self.counter_prefix_variant = counter_prefix_variant
         
+    _fields = ('macroname', 'ref_type', 'command_arguments', 'counter_prefix_variant',)
+
     @classmethod
     def _get_arguments_spec_list(cls, command_arguments):
         return [ _ref_arg_specs[argname]

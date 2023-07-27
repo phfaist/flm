@@ -43,12 +43,16 @@ class FloatContentHandlerBase:
 
 class FloatContentAnyContent(FloatContentHandlerBase):
 
+    _fields = ()
+
     def float_handle_content_nodes(self, float_node, content_nodes):
         # allow all content --
         return content_nodes
 
 
 class FloatContentIncludeGraphics(FloatContentHandlerBase):
+
+    _fields = ()
 
     def float_content_set_extra_definitions(self, extend_latex_context):
         extend_latex_context['macros'].append( 
@@ -75,6 +79,8 @@ class FloatContentIncludeGraphics(FloatContentHandlerBase):
 
 
 class FloatContentCells(FloatContentHandlerBase):
+
+    _fields = ()
 
     def float_content_set_extra_definitions(self, extend_latex_context):
         extend_latex_context['environments'].append( 
@@ -148,7 +154,8 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
     By default (`True`), the float will be rendered exactly where the float
     environment was positioned (making it actually not a float).  If you set
     `False` here, the float is not rendered, and it is up to you (a custom float
-    feature manager, for instance), to actually render the float somewhere.
+    feature render manager, for instance), to actually render the float
+    somewhere.
     """
 
     allowed_in_standalone_mode = False
@@ -166,6 +173,8 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
         ]
         self.float_type = float_type
         self.content_handlers = content_handlers
+
+    _fields = ('float_type', 'content_handlers')
 
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
         extend_latex_context = dict(

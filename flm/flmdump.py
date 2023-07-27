@@ -60,12 +60,22 @@ def _fullclassname(clsobj):
 
 
 class _FakeDataLoadedFLMLatexWalker:
-    def __init__(self, s):
-        self.s = s
-        self._fields = ('s',)
+    def __init__(self, latex_walker):
+        self.flm_text = latex_walker.s
+        self.standalone_mode = latex_walker.standalone_mode
+        self.is_block_level = latex_walker.default_parsing_state.is_block_level
+        self.parsing_mode = latex_walker.parsing_mode
+        self.resource_info = latex_walker.resource_info
+        self.tolerant_parsing = latex_walker.tolerant_parsing
+        self.what = latex_walker.what
+        self.input_lineno_colno_offsets = latex_walker.input_lineno_colno_offsets
+        
+    _fields = ('flm_text', 'standalone_mode', 'is_block_level', 'parsing_mode',
+               'resource_info', 'tolerant_parsing', 'what',
+               'input_lineno_colno_offsets', )
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(s={repr(self.s)})"
+        return f"{self.__class__.__name__}(**{repr(self.__dict__)})"
 
 
 
@@ -79,6 +89,7 @@ latex_node_types_dict = {
 _objtypes = {
     c.__name__: c
     for c in [
+            FLMFragment,
             FLMParsingState,
             ParsedArguments,
             LatexArgumentSpec,
@@ -87,17 +98,13 @@ _objtypes = {
     ]
 }
 
+_known_serializable_object_type_names = (
+    list(latex_node_types_dict.keys()) + 
+    list(_objtypes.keys()) +
+    [ 'LatexNodeList' ]
+)
 
 
-
-# ------------------------------------------------------------------------------
-
-
-# class _FakeDataFLMSpecInfoDumper:
-#     def __init__(self, x):
-#         self._proxy_object = x
-#         self.flmspecinfo_type = x.__class__.__name__
-#         self._fields = tuple(list(x._fields) + ['flmspecinfo_type'])
 
 
 # ------------------------------------------------------------------------------
@@ -155,8 +162,15 @@ class FLMDataDumper:
             if fieldname.startswith('flm'):
                 fieldnames.add(fieldname)
 
+        if type_name is None:
+            clsname = obj.__class__.__name__
+            if clsname in _known_serializable_object_type_names:
+                type_name = clsname
+            else:
+                type_name = _fullclassname(obj.__class__)
+        
         objdata = {
-            '$type': type_name if type_name is not None else obj.__class__.__name__,
+            '$type': type_name,
         }
         
         def get_obj_attr(fieldname):
@@ -165,6 +179,7 @@ class FLMDataDumper:
             if hasattr(obj, '_proxy_object') and hasattr(obj._proxy_object, fieldname):
                 return getattr(obj._proxy_object, fieldname)
             raise ValueError("Invalid object field: " + repr(fieldname) + " in " + repr(obj))
+
         for field in sorted(fieldnames):
             val = self._make_dump(get_obj_attr(field), dumping_state=dumping_state)
             if val is _Skip:
@@ -198,7 +213,7 @@ class FLMDataDumper:
             return self._make_resource(
                 'FLMLatexWalker',
                 x,
-                _FakeDataLoadedFLMLatexWalker(x.s),
+                _FakeDataLoadedFLMLatexWalker(x),
                 dumping_state=dumping_state,
             )
         
@@ -345,7 +360,17 @@ class FLMDataLoader:
             thetype = datad.pop('$type')
             return self._load_object( thetype, datad )
 
-        return data # should be a simple scalar -- string, int, bool, etc.
+        if isinstance(data, (str, int, bool)):
+            return data
+
+        if data is FLMDataLoadNotSupported:
+            return None
+
+        # assume it's a dictionary
+        return { k: self._load_from_data(v)
+                 for k, v in dict(data).items() }
+
+        # return data # should be a simple scalar -- string, int, bool, etc.
 
 
     def _flmenv_object(self, flmenv_what, data):
@@ -379,7 +404,15 @@ class FLMDataLoader:
         resdata = self.data['resources'][restype][reskey]
 
         if restype == 'FLMLatexWalker':
-            return _FakeDataLoadedFLMLatexWalker(resdata['s'])
+            resdata2 = dict(resdata)
+            the_type = resdata2.pop('$type')
+            if the_type != 'FLMLatexWalker':
+                raise ValueError(
+                    "flmdump: Can't create LatexWalker instances other than FLMLatexWalker"
+                )
+            return self.environment.make_latex_walker(
+                **resdata2
+            )
 
         if restype == 'FLMParsingState':
             return self._load_object(
@@ -390,10 +423,11 @@ class FLMDataLoader:
         if restype == 'FLMSpecInfo':
             resdata2 = dict(resdata)
             the_type = resdata2.pop('$type')
-            # import the correct class
-            the_class = _import_class(the_type, restype=restype)
-            # fields
-            return the_class(**resdata2)
+            return self._load_object(
+                the_type,
+                resdata2,
+                restype=restype,
+            )
 
         if restype == 'LatexNode':
             resdata2 = dict(resdata)
@@ -402,19 +436,11 @@ class FLMDataLoader:
                 the_type,
                 resdata2,
             )
+
         raise ValueError(f"Unknown data resource type to load: {restype}")
 
 
-    def _load_object(self, objtype, data):
-
-        if objtype == 'FLMFragment':
-            ObjTypeFn = self._make_fragment
-        elif objtype in latex_node_types_dict or objtype == 'LatexNodeList':
-            ObjTypeFn = lambda **kwargs: self._make_node_instance(objtype, kwargs)
-        elif objtype in _objtypes:
-            ObjTypeFn = _objtypes[objtype]
-        else:
-            raise ValueError(f"Unknown object type ‘{objtype}’ for data loading")
+    def _load_object(self, objtype, data, *, restype=None):
 
         data = dict(data) # for Transcrypt, in case this is a raw JS object
 
@@ -423,6 +449,18 @@ class FLMDataLoader:
             for (k, v) in data.items()
             if not k.startswith('$')
         }
+
+        if objtype == 'FLMFragment':
+            ObjTypeFn = self._make_fragment
+        elif objtype in latex_node_types_dict or objtype == 'LatexNodeList':
+            ObjTypeFn = lambda **kwargs: self._make_node_instance(objtype, kwargs)
+        elif objtype in _objtypes:
+            ObjTypeFn = _objtypes[objtype]
+        elif ':' in objtype: # fully qualified class name, try to import it
+            #print(f"**** DEBUG will attempt to import {objtype} for loading ...")
+            ObjTypeFn = _import_class(objtype, restype=restype)
+        else:
+            raise ValueError(f"Unknown object type ‘{objtype}’ for data loading")
 
         # print(f"DEBUG: flmdump: Loading ‘{objtype}’ object with args = {repr(args)}")
         obj = ObjTypeFn(**args)

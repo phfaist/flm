@@ -71,8 +71,11 @@ class FragmentRenderer:
             logger.debug("The given node list was not parsed & produced by FLM; "
                          "missing .flm_is_block_level attribute:\n"
                          f"{nodelist=}")
-            raise ValueError("The given node list was not parsed & produced by FLM; "
-                             "missing .flm_is_block_level attribute")
+            raise LatexWalkerLocatedError(
+                f"The given node list was not parsed & produced by FLM; "
+                f"missing .flm_is_block_level attribute: {repr(nodelist)[0:100]}",
+                pos=getattr(nodelist, 'pos', None),
+            )
 
         if is_block_level is None:
             is_block_level = nodelist.flm_is_block_level

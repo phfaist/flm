@@ -164,6 +164,8 @@ class VerbatimMacro(VerbatimSpecInfo):
             ),
             **kwargs
         )
+        self.verbatim_delimiters = verbatim_delimiters # for serialization/flmdump
+        self.optional_lang_arg = optional_lang_arg # for serialization/flmdump
 
     _fields = ('macroname',
                'verbatim_delimiters', 'optional_lang_arg',
@@ -181,6 +183,7 @@ class VerbatimEnvironment(VerbatimSpecInfo):
             ),
             **kwargs
         )
+        self.optional_lang_arg = optional_lang_arg # for serialization/flmdump
 
     _fields = ('environmentname',
                'optional_lang_arg',

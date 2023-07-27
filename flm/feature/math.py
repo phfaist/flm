@@ -190,6 +190,8 @@ class MathEnvironment(FLMEnvironmentSpecBase):
             # Okay, equation is not numbered; it can appear in standalone mode.
             self.allowed_in_standalone_mode = True
 
+    _fields = ('environmentname', 'is_numbered', )
+
     def make_body_parsing_state_delta(self, token, nodeargd, arg_parsing_state_delta,
                                       latex_walker, **kwargs):
         return ParsingStateDeltaEnterMathMode()
@@ -404,6 +406,8 @@ class MathEqrefMacro(FLMMacroSpecBase):
             ],
         )
         self.ref_type = ref_type
+
+    _fields = ('macroname', 'ref_type', )
 
     def get_flm_doc(self):
         return (

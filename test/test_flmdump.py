@@ -9,12 +9,16 @@ from flm import flmdump
 from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
 from flm.fragmentrenderer import text as fragmentrenderer_text
+from flm.fragmentrenderer import html as fragmentrenderer_html
+
+
 
 # ------------------
 
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 
-
+from .cases import frag2
+from .test_flm_cases import render_fragment
 
 
 def mk_flm_environ(**kwargs):
@@ -86,7 +90,14 @@ class TestFLMDataDumper(unittest.TestCase):
                 'FLMLatexWalker': {
                     lw_reskey: {
                         '$type': 'FLMLatexWalker',
-                        's': r'\%',
+                        'flm_text': r'\%',
+                        'input_lineno_colno_offsets': {},
+                        'is_block_level': None,
+                        'parsing_mode': None,
+                        'resource_info': None,
+                        'standalone_mode': False,
+                        'tolerant_parsing': False,
+                        'what': '(unknown)',
                     },
                 },
                 'FLMParsingState': {
@@ -281,6 +292,61 @@ Hello, world!
 """.strip(),
             result_1
         )
+
+
+
+
+    def test_render_after_dump_and_load_cases_frag2(self):
+
+        case_info = frag2.case_info
+
+        flm_text = case_info['source'] ()
+
+        environment = mk_flm_environ( **dict( case_info.get('standard_features', {}) ) )
+        fragment = environment.make_fragment(flm_text)
+
+        dumper = flmdump.FLMDataDumper(environment=environment)
+        dumper.add_object_dump('frag2', fragment)
+
+        # even test via JSON
+        dumped_data = dumper.get_data()
+        dumped_data_json = json.dumps( dumped_data, indent=4 )
+
+        # # Help debug JSON output
+        # print(dumped_data_json)
+        # with open(os.path.join(os.path.dirname(__file__), '_test_dumped_data.json'),
+        #           'w') as fw:
+        #     fw.write(dumped_data_json)
+        #     print("Wrote dump to _test_dumped_data.json")
+
+
+        # reload data, in a new environment
+
+        env2 = mk_flm_environ( **dict( case_info.get('standard_features', {}) ) )
+
+        loader = flmdump.FLMDataLoader(json.loads(dumped_data_json),
+                                       environment=env2)
+        new_fragment = loader.get_object_dump('frag2')
+
+        # print('re-loaded fragment = ', repr(new_fragment))
+
+        self.assertEqual(fragment.flm_text, new_fragment.flm_text)
+        
+        # now, render the content to e.g. text
+        
+        html_renderer = fragmentrenderer_html.HtmlFragmentRenderer()
+
+        result_1 = render_fragment(env2, new_fragment,
+                                   render_to=case_info['render_to'],
+                                   endnotes=case_info['endnotes'])
+        
+        self.assertEqual(
+            case_info['render_result'] (),
+            result_1
+        )
+
+
+
 
 
 

@@ -76,6 +76,8 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
             ],
             **kwargs
         )
+
+    _fields = ('macroname', )
         
     def get_flm_doc(self):
         return r"""Insert an external graphics object."""

@@ -42,6 +42,9 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
         self.theorem_type_spec = theorem_type_spec
         self.allowed_ref_label_prefixes = allowed_ref_label_prefixes
 
+    _fields = ('environmentname', 'theorem_spec', 'theorem_type_spec',
+               'allowed_ref_label_prefixes', )
+
     def make_body_parser(self, token, nodeargd, arg_parsing_state_delta):
         return macrospec.LatexEnvironmentBodyContentsParser(
             environmentname=token.arg,
@@ -548,8 +551,6 @@ class FeatureTheorems(Feature):
         'allowed_ref_label_prefixes': default_allowed_ref_label_prefixes,
     }
 
-
-    #feature_title = 'Theorems'
 
 
     class RenderManager(Feature.RenderManager):
