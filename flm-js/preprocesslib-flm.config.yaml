@@ -42,9 +42,11 @@ enabled_features:
       fn_unique_object_id = unique_object_id.fn_unique_object_id
 
     IMPORT_FLMSPECINFO_CLASS: |
-      import flm_all_builtin_class_resources
+      import flm_all_serializable_classes
       def _import_class(fullclsname, restype):
-          resources = flm_all_builtin_class_resources.resources
+          resources = flm_all_serializable_classes.serializable
+          if restype is None:
+            restype = ''
           if restype not in resources:
               raise ValueError("Invalid restype: " + repr(restype))
           rcls = resources[restype]

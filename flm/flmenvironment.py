@@ -355,7 +355,7 @@ class FLMLatexWalker(latexwalker.LatexWalker):
                  input_lineno_colno_offsets=None,
                  **kwargs):
 
-        if input_lineno_colno_offsets is None:
+        if not input_lineno_colno_offsets: # is None: 
             input_lineno_colno_offsets = {}
 
         super().__init__(

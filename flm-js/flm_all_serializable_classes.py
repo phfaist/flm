@@ -1,3 +1,5 @@
+import flm.counter
+
 import flm.flmspecinfo
 import flm.feature.cells
 import flm.feature.cite
@@ -15,8 +17,39 @@ import flm.feature.verbatim
 
 #import flm.docgen.docgen
 
-resources = {
+serializable = {
+
+    # non-resource objects
+    '': {
+
+        'flm.counter:CounterFormatter': flm.counter.CounterFormatter,
+
+        'flm.feature.cells:CellIndexRangeModel': flm.feature.cells.CellIndexRangeModel,
+        'flm.feature.cells:CellPlacementModel': flm.feature.cells.CellPlacementModel,
+        'flm.feature.cells:CellModel': flm.feature.cells.CellModel,
+        'flm.feature.cells:CellPlacementsMappingModel':
+            flm.feature.cells.CellPlacementsMappingModel,
+        'flm.feature.cells:CellsModel': flm.feature.cells.CellsModel,
+
+        'flm.feature.endnotes:EndnoteInstance': flm.feature.endnotes.EndnoteInstance,
+
+        'flm.feature.floats:FloatContentAnyContent': flm.feature.floats.FloatContentAnyContent,
+        'flm.feature.floats:FloatContentIncludeGraphics':
+            flm.feature.floats.FloatContentIncludeGraphics,
+        'flm.feature.floats:FloatContentCells': flm.feature.floats.FloatContentCells,
+        'flm.feature.floats:FloatInstance': flm.feature.floats.FloatInstance,
+        'flm.feature.floats:FloatType': flm.feature.floats.FloatType,
+
+        'flm.feature.graphics:GraphicsResource': flm.feature.graphics.GraphicsResource,
+
+        'flm.feature.refs:ReferenceableInfo': flm.feature.refs.ReferenceableInfo,
+        'flm.feature.refs:RefInstance': flm.feature.refs.RefInstance,
+    },
+
+
+    # resource 'FLMSpecInfo'
     'FLMSpecInfo': {
+
         # flm.flmspecinfo
         'flm.flmspecinfo:ConstantValueMacro': flm.flmspecinfo.ConstantValueMacro,
         'flm.flmspecinfo:ConstantValueSpecials': flm.flmspecinfo.ConstantValueSpecials,
@@ -88,5 +121,7 @@ resources = {
         # 'flm.docgen.docgen:EnvironmentDocBlock': flm.docgen.docgen.EnvironmentDocBlock,
     },
 
-    
 }
+
+
+
