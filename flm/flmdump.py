@@ -251,11 +251,15 @@ class FLMDataDumper:
         if hasattr(x, '_fields'):
             return self._make_object_dump(x, dumping_state=dumping_state)
 
+        if isinstance(x, (str, bool, int, float)):
+            return x
+
         if x is None:
             return None
 
-        if isinstance(x, (str, bool, int, float)):
-            return x
+        if not x:
+            # catch undefined in Transcrypt
+            return None
 
         raise ValueError(f"Cannot dump value {repr(x)} of unsupported type")
 
