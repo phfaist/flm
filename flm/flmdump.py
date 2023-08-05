@@ -86,7 +86,7 @@ latex_node_types_dict = {
     for c in latex_node_types
 }
 
-_objtypes = {
+known_object_types = {
     c.__name__: c
     for c in [
             FLMFragment,
@@ -98,11 +98,12 @@ _objtypes = {
     ]
 }
 
-_known_serializable_object_type_names = (
-    list(latex_node_types_dict.keys()) + 
-    list(_objtypes.keys()) +
-    [ 'LatexNodeList' ]
-)
+def _is_known_serializable_object_type_names(typename):
+    return (
+        (typename in latex_node_types_dict)
+        or (typename in known_object_types)
+        or (typename == 'LatexNodeList')
+    )
 
 
 
@@ -163,11 +164,12 @@ class FLMDataDumper:
                 fieldnames.add(fieldname)
 
         if type_name is None:
-            clsname = obj.__class__.__name__
-            if clsname in _known_serializable_object_type_names:
+            cls = obj.__class__
+            clsname = cls.__name__
+            if _is_known_serializable_object_type_names(clsname):
                 type_name = clsname
             else:
-                type_name = _fullclassname(obj.__class__)
+                type_name = _fullclassname(cls)
         
         objdata = {
             '$type': type_name,
@@ -454,8 +456,8 @@ class FLMDataLoader:
             ObjTypeFn = self._make_fragment
         elif objtype in latex_node_types_dict or objtype == 'LatexNodeList':
             ObjTypeFn = lambda **kwargs: self._make_node_instance(objtype, kwargs)
-        elif objtype in _objtypes:
-            ObjTypeFn = _objtypes[objtype]
+        elif objtype in known_object_types:
+            ObjTypeFn = known_object_types[objtype]
         elif ':' in objtype: # fully qualified class name, try to import it
             #print(f"**** DEBUG will attempt to import {objtype} for loading ...")
             ObjTypeFn = _import_class(objtype, restype=restype)
