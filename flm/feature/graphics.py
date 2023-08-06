@@ -10,15 +10,90 @@ from ._base import Feature
 
 
 class GraphicsResource:
+    r"""
+    Collects information about a graphics resource, i.e., an external image.
+
+    Attributes:
+
+    .. py:attr:: src_url
+
+       A string containing the path or full URL at which the graphics resource
+       should be found.  This is the path or URL that should be included in the
+       rendered output.
+
+       This path might differ from the path the original graphics source was
+       found, if you're using the FLM routines as part of a processing pipeline
+       that produces FLM output along with e.g. optimized graphics (e.g., if
+       you're producing a page on a website).
+
+    .. py:attr:: graphics_type
+
+       One of 'raster' or 'vector'.
+
+    .. py:attr:: dpi
+
+       The dots per inch (or pixels per inch) resolution of the source image.
+
+       This property is only used if the `graphics_type` is 'raster'.
+
+    .. py:attr:: pixel_dimensions
+
+       A tuple `(width_px, height_px)` storing the pixel dimensions of the
+       raster source image.
+
+       This property is only used if the `graphics_type` is 'raster'.
+
+    .. py:attr:: physical_dimensions
+
+       A tuple `(width_pt, height_pt)` storing the dimensions at which the image
+       is meant to be produced on a physical display.  A dimension of `1 pt` is
+       defined to be `1/72 in`, i.e., `72pt = 1in`.
+
+       This property is used both for 'raster' and 'vector' graphics types.  For
+       'raster' graphics types, this property can normally be deduced from the
+       'pixel_dimensions' and the 'dpi' attributes.
+
+       In case the image actually has different dpi resolutions along the `X`
+       and `Y` directions, the `physical_dimensions` can incorporate this
+       difference while the 'dpi' field might be unreliable or incomplete.  In
+       such a case, the relation is ``physical_dimensions = (
+       pixel_dimensions[0]*72/x_dpi, pixel_dimensions[1]*72/y_dpi )``
+
+    .. py:attr:: srcset
+
+       Possible alternative source URL to retrieve the final image resource
+       (URLs to be included in rendered result), meant for use in <img
+       srcset=... >.
+
+       This attribute is a LIST of DICTs of the form ``[ { 'source':
+       <source-url-1>, 'pixel_density': <pixel_density-1> }, { 'source':
+       <source-url-2>, 'pixel_density': <pixel-density-2> }, ... ]``.  The
+       `<pixel-density>` should be a number (integer or floating point), e.g.,
+       ``2`` for a pixel density of `2x`.  For a source item, you may omit the
+       'pixel_density', in which case browsers will interpret this the same way
+       as `'pixel_density': 1`.
+    
+       See also:
+       `https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement/srcset`_.
+
+    .. py:attr:: source_info
+
+       This attribute can be set to a dictionary to store any additional
+       information about where this graphics resource was resolved/found.
+
+       This attribute is not set or used by the core FLM routines.  By default,
+       this attribute is `None`.
+    """
     def __init__(
             self,
-            src_url, # a string, e.g., path or full URL to image location
+            src_url, # 
             *,
-            srcset=None, # possible alternative images for <img srcset=...>
-            graphics_type=None, # 'raster' or 'vector'
+            srcset=None,
+            graphics_type=None,
             dpi=None,
             pixel_dimensions=None, # (width_px, height_px) # in pixels
             physical_dimensions=None, # (width_pt, height_pt) #  1 pt = 1/72 inch
+            source_info=None,
     ):
         super().__init__()
         self.src_url = src_url
@@ -27,8 +102,10 @@ class GraphicsResource:
         self.dpi = dpi
         self.pixel_dimensions = pixel_dimensions
         self.physical_dimensions = physical_dimensions
+        self.source_info = source_info
         self._fields = ('src_url', 'srcset', 'graphics_type', 'dpi',
-                        'pixel_dimensions', 'physical_dimensions',)
+                        'pixel_dimensions', 'physical_dimensions',
+                        'source_info',)
 
     def asdict(self):
         return {k: getattr(self, k) for k in self._fields}

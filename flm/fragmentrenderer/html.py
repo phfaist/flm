@@ -625,8 +625,19 @@ class HtmlFragmentRenderer(FragmentRenderer):
         src_url = graphics_resource.src_url
         imgattrs['src'] = src_url
 
-        if graphics_resource.srcset is not None and len(graphics_resource.srcset):
-            imgattrs['srcset'] = graphics_resource.srcset
+        if graphics_resource.srcset is not None and graphics_resource.srcset \
+           and len(graphics_resource.srcset):
+            # compile the srcset
+            srcset_items = []
+            for srcset_info in graphics_resource.srcset:
+                ss = srcset_info['source']
+                if 'pixel_density' in srcset_info:
+                    pixel_density = srcset_info["pixel_density"]
+                    ss += f' {pixel_density}x'
+
+                srcset_items.append(ss)
+            
+            imgattrs['srcset'] = ", ".join(srcset_items)
 
         # HTML does not require any closing tag
         return self.generate_open_tag('img', attrs=imgattrs)
