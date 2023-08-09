@@ -1,4 +1,5 @@
 import importlib
+import os.path
 
 from collections.abc import Mapping
 
@@ -18,6 +19,17 @@ class ListProperty:
 
 
 
+class PresetKeepMarker:
+    def __init__(self, marker):
+        super().__init__()
+        self.marker = marker
+
+    def process_property(self, configmerger, presetarg, result, obj, remaining_obj_list,
+                         property_path, top_level_obj):
+
+        obj[self.marker] = presetarg
+
+
 # $defaults
 class PresetDefaults:
     def __init__(self, defaults_additional_sources=None):
@@ -28,7 +40,7 @@ class PresetDefaults:
 
     def process_list_item(self, configmerger,
                           presetarg, list_result, list_obj, j, list_obj_remaining,
-                          property_path):
+                          property_path, top_level_obj):
         logger.debug(f"defaults! {list_result=} {list_obj=} {j=} {list_obj_remaining=}")
 
         defaults_sources = list_obj_remaining + [
@@ -38,7 +50,8 @@ class PresetDefaults:
 
         defaults = configmerger.recursive_assign_defaults_list(
             defaults_sources,
-            property_path
+            property_path,
+            top_level_obj=top_level_obj
         )
         list_result.extend( defaults )
 
@@ -47,7 +60,7 @@ class PresetDefaults:
 class PresetMergeConfig:
     def process_list_item(self, configmerger,
                           presetarg, list_result, list_obj, j, list_obj_remaining,
-                          property_path):
+                          property_path, top_level_obj):
         logger.debug(f"merge-config, process_list_item, {list_result=}, {repr(list_obj)=} "
                      f"{j=} {repr(list_obj_remaining)=}")
         featurename = presetarg.get('name', None)
@@ -72,14 +85,15 @@ class PresetMergeConfig:
         list_result[featurespecj0]['config'] = \
             configmerger.recursive_assign_defaults_dict(
                 [newconfig, list_result[featurespecj0]['config']],
-                property_path
+                property_path,
+                top_level_obj=top_level_obj
             )
 
 
 class PresetRemoveItem:
     def process_list_item(self, configmerger,
                           presetarg, list_result, list_obj, j, list_obj_remaining,
-                          property_path):
+                          property_path, top_level_obj):
         featurename = presetarg
         if featurename is None:
             raise ValueError(
@@ -100,11 +114,13 @@ class PresetRemoveItem:
 
 
 class PresetImport:
-    def _fetch_import(self, remote):
+    def _fetch_import(self, remote, cwd):
         u = urlparse(remote)
 
         if not u.scheme or u.scheme == 'file':
-            with open(u.path) as f:
+            fname = os.path.join(cwd, u.path)
+            logger.debug('$import: opening file %r', fname)
+            with open(fname, encoding='utf-8') as f:
                 return yaml.safe_load(f)
 
         if u.scheme == 'pkg':
@@ -123,32 +139,37 @@ class PresetImport:
                 raise ValueError("Invalid preset $import target: ‘{}’".format(remote))
 
         with urlopen(remote) as response:
-            # also works for JSON, since YAML is a superset of JSON
-            return yaml.safe_load( response.read() )
+            # this should also work for JSON, since YAML 1.2 is a superset of JSON
+            data = yaml.safe_load( response.read() )
+            #data['$_cwd'] = .... ???
+            return data
 
     def process_property(self, configmerger, presetarg, result, obj, remaining_obj_list,
-                         property_path):
+                         property_path, top_level_obj):
         import_targets = presetarg
+        # logger.debug("DEBUG! Processing $import into object properties ... %r\n    %r",
+        #              obj, import_targets)
         if isinstance(import_targets, str):
             import_targets = [ import_targets ]
         for import_target in import_targets:
-            target_data = self._fetch_import(import_target)
+            target_data = self._fetch_import(import_target, top_level_obj.get('$_cwd', '.'))
             result.update(configmerger.recursive_assign_defaults_dict(
                 [ result, obj, target_data ] + remaining_obj_list,
-                property_path
+                property_path,
+                top_level_obj=top_level_obj
             ))
         logger.debug(f"processed property $import -> {result=} {obj=}")
         
 
     def process_list_item(self, configmerger,
                           presetarg, list_result, list_obj, j, list_obj_remaining,
-                          property_path):
+                          property_path, top_level_obj):
         import_targets = presetarg
         if isinstance(import_targets, str):
             import_targets = [ import_targets ]
 
         for import_target in import_targets:
-            target_data = self._fetch_import(import_target)
+            target_data = self._fetch_import(import_target, top_level_obj.get('$_cwd', '.'))
             if not isinstance(target_data, list):
                 target_data = [ target_data ]
 
@@ -156,7 +177,8 @@ class PresetImport:
             # process $<preset>'s in target data
             new_items = configmerger.recursive_assign_defaults_list(
                 [ target_data ],
-                property_path
+                property_path,
+                top_level_obj=top_level_obj
             )
 
             list_result.extend( new_items )
@@ -170,6 +192,9 @@ def get_default_presets():
         '$merge-config': PresetMergeConfig(),
         '$remove-item': PresetRemoveItem(),
         '$import': PresetImport(),
+
+        # simple internal marker for the current object file's CWD
+        '$_cwd': PresetKeepMarker('$_cwd'),
     }
 
 
@@ -190,9 +215,9 @@ class ConfigMerger:
     def recursive_assign_defaults(self, obj_list):
         return self.recursive_assign_defaults_dict(obj_list, [])
 
-    def recursive_assign_defaults_dict(self, obj_list, property_path):
+    def recursive_assign_defaults_dict(self, obj_list, property_path, *, top_level_obj=None):
 
-        #logger.debug(f"recursive_assign_defaults_dict({obj_list=}, {property_path=})")
+        # logger.debug(f"recursive_assign_defaults_dict({obj_list=}, {property_path=})")
 
         if len(obj_list) == 0:
             return {}
@@ -209,12 +234,22 @@ class ConfigMerger:
                 )
                 continue
 
+            if top_level_obj is None:
+                this_top_level_obj = obj
+            else:
+                this_top_level_obj = top_level_obj
+
+            #print("DEBUG: ** config merger, considering obj = ", obj)
+
             # process any "meta"/preset keys
             for presetname, presetarg in _get_preset_keyvals(obj):
                 del obj[presetname]
+                #print("DEBUG: ** got preset in object ", obj, ", handling ", presetname,
+                #      " with arg = ", presetarg)
                 self.presets[presetname].process_property(
                     self, presetarg, result, obj, remaining_obj_list,
-                    property_path
+                    property_path,
+                    top_level_obj=this_top_level_obj
                 )
 
             for k in obj:
@@ -232,7 +267,8 @@ class ConfigMerger:
                             (o.get(k,{}) if isinstance(o,dict) else {})
                             for o in remaining_obj_list
                         ],
-                        property_path + [k]
+                        property_path + [k],
+                        top_level_obj=this_top_level_obj
                     )
 
                     #logger.debug(f"Assigning default for property ‘{k}’ → {repr(sub_result)}")
@@ -245,7 +281,8 @@ class ConfigMerger:
                             (o.get(k,None) if isinstance(o,dict) else None)
                             for o in remaining_obj_list
                         ],
-                        property_path + [k]
+                        property_path + [k],
+                        top_level_obj=this_top_level_obj
                     )
 
                     #logger.debug(f"Assigning default for property ‘{k}’ → {repr(list_result)}")
@@ -258,7 +295,7 @@ class ConfigMerger:
         return result
 
 
-    def recursive_assign_defaults_list(self, obj_list, property_path):
+    def recursive_assign_defaults_list(self, obj_list, property_path, *, top_level_obj=None):
 
         # ignore None's in argument list
         obj_list = [ o for o in obj_list if o is not None ]
@@ -274,6 +311,11 @@ class ConfigMerger:
         while j < len(obj):
             item = obj[j]
 
+            if top_level_obj is None:
+                this_top_level_obj = item
+            else:
+                this_top_level_obj = top_level_obj
+
             if isinstance(item, dict):
                 item_presets = _get_preset_keyvals(item)
 
@@ -281,7 +323,8 @@ class ConfigMerger:
                     presetname, presetarg = item_presets[0]
                     self.presets[presetname].process_list_item(
                         self, presetarg, list_result, obj, j, remaining_obj_list,
-                        property_path + [ ListProperty ]
+                        property_path + [ ListProperty ],
+                        top_level_obj=this_top_level_obj
                     )
                     #logger.debug(f"process_list_item, new list is "
                     #             f"{list_result=} ({j=} {obj=})")

@@ -246,7 +246,7 @@ class FeatureEndnotes(Feature):
             return endnote
 
         def render_endnote_mark(self, endnote, display_flm=None,
-                                wrap_with_semantic_span='endnotes'):
+                                wrap_with_semantic_span='endnote-marks'):
             r"""
             Render the endnote mark for the given `endnote`.  You can
             replace the mark's displayed content by specifying the `display_flm`
@@ -290,7 +290,7 @@ class FeatureEndnotes(Feature):
                                      counter_prefix_variant=None,
                                      counter_with_delimiters=True,
                                      counter_with_prefix=False,
-                                     wrap_with_semantic_span='endnotes'):
+                                     wrap_with_semantic_span='endnote-marks'):
 
             render_context = self.render_context
             fragment_renderer = render_context.fragment_renderer

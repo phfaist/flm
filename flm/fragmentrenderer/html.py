@@ -1005,16 +1005,16 @@ th {
 }
 
 .endnote {
-  font-size: 0.8em;
-  display: inline-block;
-  vertical-align: 0.3em;
-  margin-top: -0.3em;
 }
 .citation {
 }
 .footnote {
 }
-.endnotes, .citations {
+.endnote-marks, .citation-marks {
+  font-size: 0.8em;
+  display: inline-block;
+  vertical-align: 0.3em;
+  margin-top: -0.3em;
 }
 dl.citation-list > dt, dl.footnote-list > dt {
   font-size: 0.8em;

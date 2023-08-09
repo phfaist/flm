@@ -165,9 +165,11 @@ def _ensurefeatureconfig(x):
 #
 
 
-_builtin_default_config_yaml = os.path.join(os.path.dirname(__file__), 'default_config.yaml')
+_dirname_here = os.path.dirname(__file__)
+_builtin_default_config_yaml = os.path.join(_dirname_here, 'default_config.yaml')
 with open(_builtin_default_config_yaml, encoding='utf-8') as f:
     _builtin_default_config = yaml.safe_load(f)
+    _builtin_default_config['$_cwd'] = _dirname_here
 
 
 
@@ -247,10 +249,15 @@ def load_workflow_environment(*,
             _builtin_default_config['_base'],
         ])
 
-    override_config = { 'flm': { 'parsing': {} } }
+    override_config = {}
     if flm_run_info.get('force_block_level', None) is not None:
-        override_config['flm']['parsing']['force_block_level'] = \
-            flm_run_info['force_block_level']
+        override_config = {
+            'flm': {
+                'parsing': {
+                    'force_block_level': flm_run_info['force_block_level']
+                }
+            }
+        }
 
     merge_configs = [
         override_config,
@@ -263,6 +270,9 @@ def load_workflow_environment(*,
         for x in merge_configs
     ]
 
+    # logger.debug('DEBUG! At this point, merge_configs = %s',
+    #              ",\n    ".join([f"{repr(m)}" for m in merge_configs]))
+
     # pull out feature-related config, don't merge these yet because we want to
     # pull in the defaults first.  See load_features()
     features_merge_configs = []
@@ -271,6 +281,11 @@ def load_workflow_environment(*,
         flmconfig = c.get('flm', {})
         if flmconfig and flmconfig.get('features', None):
             for featurename, featureconfig in flmconfig['features'].items():
+                if featurename.startswith('$'):
+                    raise ValueError(
+                        f"FIXME: presets not yet supported immediately inside "
+                        f"‘features:’ config, got {featurename}"
+                    )
                 feature_merge_configs[featurename] = featureconfig
                 if featureconfig is None or featureconfig is False:
                     c['flm']['features'][featurename] = False
@@ -287,6 +302,11 @@ def load_workflow_environment(*,
         flmconfig = c.get('flm', {})
         if flmconfig and flmconfig.get('workflow_config', None):
             for workflowname, workflowconfig in flmconfig['workflow_config'].items():
+                if workflowname.startswith('$'):
+                    raise ValueError(
+                        f"FIXME: presets not yet supported immediately inside "
+                        f"‘workflow_config:’ config, got {workflowname}"
+                    )
                 workflow_merge_configs[workflowname] = workflowconfig
                 if workflowconfig is None or workflowconfig is False:
                     c['flm']['workflow_config'][workflowname] = False

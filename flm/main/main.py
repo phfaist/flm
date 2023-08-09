@@ -50,23 +50,28 @@ class ResourceAccessor(run.ResourceAccessorBase):
 
 
 
-def load_external_config(arg_config):
+def load_external_config(arg_config, dirname):
     config_file = arg_config
     if isinstance(config_file, str) and config_file:
         # parse a YAML file
-        with open(config_file) as f:
-            return yaml.safe_load(f)
+        with open(config_file, encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            data['$_cwd'] = os.path.dirname(config_file)
+            return data
     elif isinstance(config_file, dict):
         return config_file
     else:
-        # see if there's a flmconfig.(yaml|yml) in the current directory, and
-        # load that one if applicable.
-        if os.path.exists('flmconfig.yaml'):
-            with open('flmconfig.yaml') as f:
-                return yaml.safe_load(f)
-        elif os.path.exists('flmconfig.yml'):
-            with open('flmconfig.yml') as f:
-                return yaml.safe_load(f)
+        # see if there's a flmconfig.(yaml|yml) in the same directory as the
+        # input file, and load that one if applicable.
+        cfgfnamesbase = [ 'flmconfig.yaml', 'flmconfig.yml' ]
+        for cfgfnamebase in cfgfnamesbase:
+            cfgfname = os.path.join(dirname, cfgfnamebase)
+            if os.path.exists(cfgfname):
+                with open(cfgfname, encoding='utf-8') as f:
+                    logger.debug(f"Found config file {cfgfname}, loading it.")
+                    data = yaml.safe_load(f)
+                    data['$_cwd'] = dirname
+                    return data
         
     return {}
 
@@ -104,6 +109,7 @@ def main(**kwargs):
                 "Type `flm --help` for more information."
             )
         input_content = arg_flm_content
+        primary_input_file_name = ''
     elif arg_files is None:
         # doesn't happen on the command line because arg_files is always a
         # list, possibly an empty one.  This trap is only useful for
@@ -138,12 +144,10 @@ def main(**kwargs):
 
     # load config & defaults
 
-    orig_config = load_external_config(arg_config)
-
+    orig_config = load_external_config(arg_config, dirname)
 
     logger.debug("Input frontmatter_metadata is\n%s",
                  json.dumps(frontmatter_metadata,indent=4))
-
 
     doc_metadata = {
         'filepath': {
@@ -156,6 +160,7 @@ def main(**kwargs):
 
 
     run_config = frontmatter_metadata or {}
+    run_config['$_cwd'] = dirname
 
     resource_accessor = ResourceAccessor()
 

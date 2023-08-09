@@ -320,7 +320,7 @@ class FeatureExternalPrefixedCitations(Feature):
 
             return fragment_renderer.render_semantic_span(
                 fragment_renderer.render_join(s_items, render_context),
-                'citations',
+                'citation-marks',
                 render_context,
             )
 
