@@ -1004,7 +1004,7 @@ th {
   overflow-x: auto;
 }
 
-.endnotes, .citations {
+.endnote {
   font-size: 0.8em;
   display: inline-block;
   vertical-align: 0.3em;
@@ -1013,6 +1013,8 @@ th {
 .citation {
 }
 .footnote {
+}
+.endnotes, .citations {
 }
 dl.citation-list > dt, dl.footnote-list > dt {
   font-size: 0.8em;
