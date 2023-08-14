@@ -107,7 +107,7 @@ as <span>\</span>{is.<span>\</span>end{verbatim<span>\</span> ha no, gotcha pars
   </span></p>
 <p><span class="textit">Vertaim macros like <span class="verbatimtext verbatimtext-inline">}</span> and <span class="verbatimtext verbatimtext-inline">{</span> should be parsed correctly, even as macro arguments!</span></p>
 <h1 id="sec-test-label-another-sec" class="heading-level-1">Another section</h1>
-<p>We can try to add some footnotes, too.<a href="#footnote-1" class="href-endnote endnote footnote endnotes">a</a> Does it work?</p>
+<p>We can try to add some footnotes, too.<a href="#footnote-1" class="href-endnote endnote footnote endnote-marks">a</a> Does it work?</p>
 <p>See also the topic <a href="#defterm-qu_5cX_28Xd_5cX_29Xit" class="href-ref ref-topic">qu<span class="inline-math">\(d\)</span>it</a>.</p>
 <h1 class="heading-level-1">Footnotes</h1>
 <dl class="enumeration footnote-list"><dt id="footnote-1">a</dt><dd>Like this! Does it work?</dd></dl>

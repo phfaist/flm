@@ -97,6 +97,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     render_nothing_as_comment_with_annotations = True
 
+    render_links_with_empty_href = False
 
     use_mathjax = True
 
@@ -468,6 +469,9 @@ class HtmlFragmentRenderer(FragmentRenderer):
             render_context=render_context,
             is_block_level=False,
         )
+        if not href and not self.render_links_with_empty_href:
+            return display_content
+
         return self.wrap_in_link(
             display_content,
             href,

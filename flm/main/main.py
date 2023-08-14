@@ -65,7 +65,7 @@ def load_external_config(arg_config, dirname):
         # input file, and load that one if applicable.
         cfgfnamesbase = [ 'flmconfig.yaml', 'flmconfig.yml' ]
         for cfgfnamebase in cfgfnamesbase:
-            cfgfname = os.path.join(dirname, cfgfnamebase)
+            cfgfname = os.path.join(dirname or '', cfgfnamebase)
             if os.path.exists(cfgfname):
                 with open(cfgfname, encoding='utf-8') as f:
                     logger.debug(f"Found config file {cfgfname}, loading it.")

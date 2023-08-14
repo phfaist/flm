@@ -59,7 +59,7 @@ class TestFeatureCite(unittest.TestCase):
         self.assertEqual(
             result['text'],
             r"""
-Citation <span class="citations"><a href="#citation-1" class="href-endnote endnote citation">[1]</a></span>.
+Citation <span class="citation-marks"><a href="#citation-1" class="href-endnote endnote citation">[1]</a></span>.
 """.strip()
         )
 
@@ -95,7 +95,7 @@ Citation <span class="citations"><a href="#citation-1" class="href-endnote endno
         self.assertEqual(
             result['text'],
             r"""
-Citation <span class="citations">[<a href="#citation-1" class="href-endnote endnote citation">1</a>,<a href="#citation-2" class="href-endnote endnote citation">2</a>]</span>.
+Citation <span class="citation-marks">[<a href="#citation-1" class="href-endnote endnote citation">1</a>,<a href="#citation-2" class="href-endnote endnote citation">2</a>]</span>.
 """.strip()
         )
 
@@ -138,9 +138,9 @@ Cite \cite{arxiv:3333.33333,arxiv:2222.22222,arxiv:5555.55555,arxiv:1111.11111,a
         self.assertEqual(
             result['text'],
             r"""
-Citation <span class="citations">[<a href="#citation-1" class="href-endnote endnote citation">1</a>,<a href="#citation-2" class="href-endnote endnote citation">2</a>]</span>.
-Cite <span class="citations">[<a href="#citation-3" class="href-endnote endnote citation">3</a>,<a href="#citation-4" class="href-endnote endnote citation">4</a>]</span>.
-Cite <span class="citations">[<a href="#citation-1" class="href-endnote endnote citation">1</a>–<a href="#citation-3" class="href-endnote endnote citation">3</a>,<a href="#citation-5" class="href-endnote endnote citation">5</a>,<a href="#citation-6" class="href-endnote endnote citation">6</a>]</span>.
+Citation <span class="citation-marks">[<a href="#citation-1" class="href-endnote endnote citation">1</a>,<a href="#citation-2" class="href-endnote endnote citation">2</a>]</span>.
+Cite <span class="citation-marks">[<a href="#citation-3" class="href-endnote endnote citation">3</a>,<a href="#citation-4" class="href-endnote endnote citation">4</a>]</span>.
+Cite <span class="citation-marks">[<a href="#citation-1" class="href-endnote endnote citation">1</a>–<a href="#citation-3" class="href-endnote endnote citation">3</a>,<a href="#citation-5" class="href-endnote endnote citation">5</a>,<a href="#citation-6" class="href-endnote endnote citation">6</a>]</span>.
 """.strip() .replace('\n', ' ')
         )
 
@@ -182,7 +182,7 @@ Citation \cite[Theorem~45]{arxiv:1111.11111}.
         self.assertEqual(
             result['text'],
             r"""
-Citation <span class="citations"><a href="#citation-1" class="href-endnote endnote citation">[1; Theorem&nbsp;45]</a></span>.
+Citation <span class="citation-marks"><a href="#citation-1" class="href-endnote endnote citation">[1; Theorem&nbsp;45]</a></span>.
 """.strip() .replace('\n', ' ')
         )
 
@@ -244,10 +244,10 @@ Citation \cite{arxiv:1111.11111,arxiv:3333.33333}\cite[Theorem~45]{arxiv:2222.22
         self.assertEqual(
             result['text'],
             r"""
-Citation <span class="citations">[<a href="#citation-1" class="href-endnote endnote citation">1</a>,<a href="#citation-2" class="href-endnote endnote citation">2</a>]</span>.
-Citation <span class="citations"><a href="#citation-2" class="href-endnote endnote citation">[2]</a><a href="#citation-1" class="href-endnote endnote citation">[1; Theorem&nbsp;45]</a></span>.
-Citation <span class="citations"><a href="#citation-1" class="href-endnote endnote citation">[1]</a><a href="#citation-2" class="href-endnote endnote citation">[2; Theorem&nbsp;45]</a></span>.
-Citation <span class="citations">[<a href="#citation-1" class="href-endnote endnote citation">1</a>,<a href="#citation-3" class="href-endnote endnote citation">3</a>][<a href="#citation-2" class="href-endnote endnote citation">2; Theorem&nbsp;45</a>]</span>.
+Citation <span class="citation-marks">[<a href="#citation-1" class="href-endnote endnote citation">1</a>,<a href="#citation-2" class="href-endnote endnote citation">2</a>]</span>.
+Citation <span class="citation-marks"><a href="#citation-2" class="href-endnote endnote citation">[2]</a><a href="#citation-1" class="href-endnote endnote citation">[1; Theorem&nbsp;45]</a></span>.
+Citation <span class="citation-marks"><a href="#citation-1" class="href-endnote endnote citation">[1]</a><a href="#citation-2" class="href-endnote endnote citation">[2; Theorem&nbsp;45]</a></span>.
+Citation <span class="citation-marks">[<a href="#citation-1" class="href-endnote endnote citation">1</a>,<a href="#citation-3" class="href-endnote endnote citation">3</a>][<a href="#citation-2" class="href-endnote endnote citation">2; Theorem&nbsp;45</a>]</span>.
 """.strip() .replace('\n', ' ')
         )
 

@@ -113,7 +113,7 @@ as <span>\</span>{is.<span>\</span>end{verbatim<span>\</span> ha no, gotcha pars
   </span></p>
 <p><span class="textit">Vertaim macros like <span class="verbatimtext verbatimtext-inline">}</span> and <span class="verbatimtext verbatimtext-inline">{</span> should be parsed correctly, even as macro arguments!</span></p>
 <h1 id="sec-test-label-another-sec" class="heading-level-1">Another section</h1>
-<p>We can try to add some footnotes, too.<a href="#footnote-1" class="href-endnote endnote footnote endnotes">a</a> Does it work?</p>
+<p>We can try to add some footnotes, too.<a href="#footnote-1" class="href-endnote endnote footnote endnote-marks">a</a> Does it work?</p>
 <p>See also the topic <a href="#defterm-qu_5cX_28Xd_5cX_29Xit" class="href-ref ref-topic">qu<span class="inline-math">\(d\)</span>it</a>.</p>
 <div class="theoremlike theorem"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1</span> In Euclidean geometry, the sides <span class="inline-math">\(a\)</span>, <span class="inline-math">\(b\)</span>, and <span class="inline-math">\(c\)</span> of a right triangle, <span class="inline-math">\(c\)</span> being the length of the hypothenuse, obey the equation <span class="inline-math">\(a^2 + b^2 = c^2\)</span>.</p></div>
 <h1 class="heading-level-1">Footnotes</h1>

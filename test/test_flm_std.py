@@ -358,7 +358,7 @@ r"""
             result,
             r"""
 <main>
-<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.<a href="#footnote-1" class="href-endnote endnote footnote endnotes">a</a> I checked it.</p></div>
+<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.<a href="#footnote-1" class="href-endnote endnote footnote endnote-marks">a</a> I checked it.</p></div>
 </main>""".strip()
         )
 
@@ -425,7 +425,7 @@ r'''<div id="my-endnotes" class="endnotes"><dl class="enumeration footnote-list"
             result,
             r"""
 <main>
-<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.<a href="#footnote-1" class="href-endnote endnote footnote endnotes">a</a> I checked it&nbsp;<span class="citations"><a href="#citation-1" class="href-endnote endnote citation">[1]</a></span>. And again and again&nbsp;<span class="citations"><a href="#citation-2" class="href-endnote endnote citation">[2]</a><a href="#citation-3" class="href-endnote endnote citation">[3]</a><a href="#citation-4" class="href-endnote endnote citation">[4]</a></span>. See also <span class="citations"><a href="#citation-2" class="href-endnote endnote citation">[2; Theorem&nbsp;3]</a></span>.</p></div>
+<div><p><span class="textbf">Hello</span> <span class="textit">world</span>, we know that <span class="inline-math">\(a+b=c\)</span>.<a href="#footnote-1" class="href-endnote endnote footnote endnote-marks">a</a> I checked it&nbsp;<span class="citation-marks"><a href="#citation-1" class="href-endnote endnote citation">[1]</a></span>. And again and again&nbsp;<span class="citation-marks"><a href="#citation-2" class="href-endnote endnote citation">[2]</a><a href="#citation-3" class="href-endnote endnote citation">[3]</a><a href="#citation-4" class="href-endnote endnote citation">[4]</a></span>. See also <span class="citation-marks"><a href="#citation-2" class="href-endnote endnote citation">[2; Theorem&nbsp;3]</a></span>.</p></div>
 </main>
 """.strip()
         )
@@ -569,7 +569,7 @@ Hello world~\cite{arxiv:1234.56789}.
         self.assertEqual(
             result.strip(),
             r"""
-<p>Hello world&nbsp;<span class="citations"><a href="#citation-1" class="href-endnote endnote citation">[1]</a></span>.</p>
+<p>Hello world&nbsp;<span class="citation-marks"><a href="#citation-1" class="href-endnote endnote citation">[1]</a></span>.</p>
 <div id="endnotes" class="endnotes"><dl class="enumeration citation-list"><dt id="citation-1">[1]</dt><dd>arXiv:1234.56789</dd></dl></div>
 """.strip()
         )
