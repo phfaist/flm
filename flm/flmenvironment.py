@@ -719,6 +719,11 @@ class FLMEnvironment:
 
         return latex_walker
 
+    def define_parsing_mode(self, parsing_mode, parsing_mode_delta):
+        if parsing_mode in self.parsing_mode_deltas:
+            raise ValueError(f"Parsing mode ‘{parsing_mode}’ already defined!")
+        self.parsing_mode_deltas[parsing_mode] = parsing_mode_delta
+
     def make_parsing_state(self, is_block_level, parsing_mode=None):
         # subclasses might do something interesting with parsing_mode, we ignore
         # it here
@@ -770,9 +775,6 @@ class FLMEnvironment:
                     exc_info=True
                 )
             raise
-
-    # def node_list_finalizer(self):
-    #     return self._node_list_finalizer
 
     # ---
 

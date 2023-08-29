@@ -101,6 +101,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     use_mathjax = True
 
+    use_standard_math_delimiters = True
+
     # ------------------
 
     
@@ -280,12 +282,27 @@ class HtmlFragmentRenderer(FragmentRenderer):
                 "will probably not render correctly."
             )
 
+        use_delims = ( delimiters[0], delimiters[1] )
+        if self.use_standard_math_delimiters:
+            if displaytype == 'inline':
+                use_delims = ( r'\(', r'\)' )
+            elif displaytype == 'display':
+                if environmentname:
+                    use_delims = (
+                        f"\\begin{'{'}{environmentname}{'}'}",
+                        f"\\end{'{'}{environmentname}{'}'}",
+                    )
+                else:
+                    use_delims = ( r'\[', r'\]' )
+            else:
+                raise ValueError(f"Invalid displaytype: {repr(displaytype)}")
+
         class_names = [ f"{displaytype}-math" ]
         if environmentname is not None:
             class_names.append(f"env-{environmentname.replace('*','-star')}")
 
         content_html = (
-            self.htmlescape( delimiters[0] + nodelist.latex_verbatim() + delimiters[1] )
+            self.htmlescape( use_delims[0] + nodelist.latex_verbatim() + use_delims[1] )
         )
 
         attrs = {}

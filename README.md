@@ -151,7 +151,7 @@ as a title.
 title: 'My FLM document'
 flm:
    parsing:
-     enable_dollar_math_mode: True
+     dollar_inline_math_mode: True
    features:
      endnotes:
        categories:

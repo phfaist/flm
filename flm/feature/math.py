@@ -373,7 +373,7 @@ class MathEnvironment(FLMEnvironmentSpecBase):
                     )
 
         return render_context.fragment_renderer.render_math_content(
-            (f"\\begin{'{'}{environmentname}{'}'}", f"\\end{'{'}{environmentname}{'}'}",),
+            ('', ''),
             latexnodes_nodes.LatexNodeList(nodelist),
             render_context,
             'display',
