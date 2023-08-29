@@ -239,8 +239,14 @@ class FragmentRenderer:
         # for our HTML implementation as well since we'll rely on MathJax.
         # Other implementations that don't want to render math in this type of
         # way will have to reimplement render_node_math().
+
+        begin_delim, end_delim = delimiters
+        if environmentname:
+            begin_delim = f"\\begin{'{'}{environmentname}{'}'}"
+            end_delim = f"\\end{'{'}{environmentname}{'}'}"
+
         rendered = self.render_verbatim(
-            delimiters[0] + nodelist.latex_verbatim() + delimiters[1],
+            begin_delim + nodelist.latex_verbatim() + end_delim,
             render_context=render_context,
             annotations=[f'{displaytype}-math'],
             target_id=target_id,

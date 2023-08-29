@@ -54,7 +54,7 @@ Hello \emph{world}!  Let $x$ and $y$ be real numbers. ## comments configured lik
         )
         self.assertEqual(
             sout.getvalue(),
-            """<p>Hello <span class="textit">world</span>! Let <span class="inline-math">$x$</span> and <span class="inline-math">$y$</span> be real numbers.</p>"""
+            r"""<p>Hello <span class="textit">world</span>! Let <span class="inline-math">\(x\)</span> and <span class="inline-math">\(y\)</span> be real numbers.</p>"""
         )
 
 
