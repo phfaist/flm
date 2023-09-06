@@ -331,7 +331,8 @@ class CounterFormatter:
     def __init__(self, format_num, prefix_display=None, 
                  delimiters=None, join_spec=None, name_in_link=True,
                  counter_formatter_id=None):
-        self.format_num = parse_counter_formatter(format_num)
+
+        self._format_num_fn = parse_counter_formatter(format_num)
         if prefix_display is None:
             prefix_display = {
                 'singular': '',
@@ -358,8 +359,15 @@ class CounterFormatter:
 
         self.counter_formatter_id = counter_formatter_id
 
-        self._fields = ('format_num', 'prefix_display', 'delimiters', 'join_spec',
-                        'name_in_link', 'counter_formatter_id',)
+        # FIXME: 'format_num' cannot be a field, it's a method .... :(
+        self._fields = (
+            #'format_num', 
+            'prefix_display', 'delimiters', 'join_spec',
+            'name_in_link', 'counter_formatter_id',
+        )
+
+    def format_num(n):
+        return self._format_num_fn(n)
 
     def asdict(self):
         return {k: getattr(self, k) for k in self._fields}
@@ -592,6 +600,26 @@ def _expect_int(v):
         return int(v)
     except TypeError:
         raise ValueError("Invalid value, expected integer: " + repr(v))
+
+
+# --------------------------------------
+
+
+# class SubCounterFormatter:
+#     r"""
+#     Counter formatter instance that can override certain aspects of an
+#     underlying counter formatter, e.g., change how it formats numbers.  Use a
+#     sub-counter-formatter for composed counters, e.g., sub-equation numbers, or
+#     per-section numbering, etc.
+#     """
+#     def __init__(self, counter_formatter, format_num_template):
+#         self.counter_formatter = counter_formatter
+#         self.format_num_template = format_num_template
+
+#     def format_num( .......... ) ?????????
+#         ...........
+
+
 
 
 # --------------------------------------

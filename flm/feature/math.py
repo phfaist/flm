@@ -239,20 +239,20 @@ class MathEnvironment(FLMEnvironmentSpecBase):
         if not self.is_numbered:
             return node
 
-        last_line_info = {
+        init_last_line_info = {
             'labels_info': [],
             'custom_tag_flm_text': None,
+            'nonumber': False,
         }
+        last_line_info = dict(**init_last_line_info)
         def _flush_last_equation_line_labels_infos(newline_node=None):
             node.flm_equation_lines_labels_infos.append({
                 'labels': list(last_line_info['labels_info']),
                 'custom_tag_flm_text': last_line_info['custom_tag_flm_text'],
+                'nonumber': last_line_info['nonumber'],
                 'newline_node': newline_node,
             })
-            last_line_info.update({
-                'labels_info': [],
-                'custom_tag_flm_text': None,
-            })
+            last_line_info.update(init_last_line_info)
 
         last_node_is_newline = False
         for n in node.nodelist:
@@ -292,6 +292,10 @@ class MathEnvironment(FLMEnvironmentSpecBase):
 
                 last_line_info['custom_tag_flm_text'] = custom_tag_flm_text
 
+            elif n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == 'nonumber':
+                # omit equation number on this line
+                last_line_info['nonumber'] = True
+
             elif n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == '\\':
                 _flush_last_equation_line_labels_infos(n)
                 last_node_is_newline = True
@@ -303,6 +307,29 @@ class MathEnvironment(FLMEnvironmentSpecBase):
                 
         if not last_node_is_newline:
             _flush_last_equation_line_labels_infos()
+
+        # a consistency check -- check that we don't have \label and \nonumber
+        # on the same line
+        for linej, lineinfo in enumerate(node.flm_equation_lines_labels_infos):
+            if lineinfo['nonumber'] and \
+               (len(lineinfo['labels']) or lineinfo['custom_tag_flm_text']):
+                found_stuff_list = []
+                if len(lineinfo['labels']):
+                    labels_text = [ lblinfo['label'] for lblinfo in lineinfo['labels'] ]
+                    labels_text_joined = ', '.join(['‘'+ln+'’' for ln in labels_text])
+                    found_stuff_list.append(
+                        f"\\label label(s) {labels_text_joined}"
+                    )
+                if lineinfo['custom_tag_flm_text']:
+                    found_stuff_list.append(
+                        f"custom \\tag “{lineinfo['custom_tag_flm_text']}”"
+                    )
+                found_stuff = " and ".join(found_stuff_list)
+                raise LatexWalkerParseError(
+                    f"You can't have \\nonumber and \\label/\\tag on the same equation line, "
+                    f"found {found_stuff}",
+                    pos=(lineinfo['newline_node'] or node).pos
+                )
 
         return node
 
@@ -326,7 +353,13 @@ class MathEnvironment(FLMEnvironmentSpecBase):
 
         target_id = None
 
-        for lineno, line_infos in enumerate(node.flm_equation_lines_labels_infos):
+        lineno = 0
+        for line_infos in node.flm_equation_lines_labels_infos:
+
+            nonumber = line_infos['nonumber']
+
+            if nonumber:
+                continue
 
             custom_tag_flm_text = line_infos['custom_tag_flm_text']
 
@@ -349,6 +382,8 @@ class MathEnvironment(FLMEnvironmentSpecBase):
                     i = len(nodelist)
                 nodelist.insert(
                     i,
+                    # note the "proxy node with latex_verbatim()" only works
+                    # because the node is top-level in the node list !
                     _ProxyNodeWithLatexVerbatim(
                         r'\tag*{' + formatted_ref_flm_text + r'}'
                     )
@@ -371,6 +406,9 @@ class MathEnvironment(FLMEnvironmentSpecBase):
                         counter_value=eq_counter_number,
                         counter_formatter_id=counter_formatter_id
                     )
+
+            lineno += 1
+
 
         return render_context.fragment_renderer.render_math_content(
             ('', ''),
