@@ -236,8 +236,11 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             if ref is not None:
                 return ref
 
-        raise ValueError(f"Ref target ‘{ref_type}:{ref_label}’ found neither within "
-                         f"database nor with any set external resolvers")
+        raise LatexWalkerLocatedError(
+            f"Ref target ‘{ref_type}:{ref_label}’ found neither within "
+            f"database nor with any set external resolvers",
+            pos=None # to be set by calling code
+        )
 
 
     def render_ref(self, ref_type, ref_label, display_content_flm,
@@ -354,6 +357,11 @@ class FeatureRefsRenderManager(Feature.RenderManager):
 
         try:
             return self.get_ref(ref_type, ref_label, resource_info)
+        except LatexWalkerLocatedError as e:
+            logger.debug(f"render_ref({ref_type}, {ref_label}): self.get_ref() "
+                         f"failed with LatexWalkerLocatedError: {e}",
+                         exc_info=True)
+            raise
         except Exception as e:
             logger.debug(f"render_ref({ref_type}, {ref_label}): self.get_ref() failed: {e}",
                          exc_info=True)
@@ -506,9 +514,16 @@ class RefMacro(FLMMacroSpecBase):
                                       display_content_nodelist,
                                       resource_info,
                                       counter_prefix_variant=self.counter_prefix_variant)
+            except LatexWalkerLocatedError as e:
+                logger.debug(
+                    f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
+                    f"in ‘{node.latex_verbatim()}’ {node.format_pos()}"
+                )
+                e.set_pos_or_add_open_context_from_node(node)
+                raise e
             except Exception as e:
                 logger.error(f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
-                             f"in ‘{node.latex_verbatim()}’ @ {node.format_pos()}")
+                             f"in ‘{node.latex_verbatim()}’ {node.format_pos()}")
                 raise LatexWalkerLocatedError(
                     f"Unable to resolve reference to ‘{ref_type}:{ref_label}’: {e}",
                     pos=node.pos,

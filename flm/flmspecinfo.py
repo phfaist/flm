@@ -152,8 +152,7 @@ class FLMSpecInfo(macrospec.CallableSpec):
             self.postprocess_parsed_node(node)
 
         except LatexWalkerLocatedError as e:
-            if not hasattr(e, 'pos') or e.pos is None:
-                e.pos = node.pos
+            e.set_pos_or_add_open_context_from_node(node)
             raise e
 
         except ValueError as e:
@@ -174,7 +173,7 @@ class FLMSpecInfo(macrospec.CallableSpec):
 
         # Don't overload the node with properties if they're not needed... 
         #node.flm_strip_preceding_whitespace = False
-        
+
         return node
     
 
@@ -541,5 +540,6 @@ class FLMSpecialsSpecError(FLMSpecInfoError):
                          **kwargs)
 
     _fields = ('specials_chars', 'error_msg', )
+
 
 

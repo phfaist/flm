@@ -446,10 +446,15 @@ def run(flm_content,
     #
     # Set up the fragment
     #
+    silent = True # we'll report errors ourselves
+    if logging.getLogger('flm').isEnabledFor(logging.DEBUG):
+        # verbose logging is enabled, so don't be silent
+        silent = False
+
     fragment = environment.make_fragment(
         flm_content,
         #is_block_level is already set in parsing_state
-        silent=True, # we'll report errors ourselves
+        silent=silent,
         input_lineno_colno_offsets=flm_run_info.get('input_lineno_colno_offsets', {}),
         what=flm_run_info.get('input_source', None)
     )

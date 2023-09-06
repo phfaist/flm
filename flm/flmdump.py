@@ -338,28 +338,32 @@ class FLMDataLoader:
         special = None
         try:
             special = data['$flmenv']
-        except Exception: pass
+        except:
+            pass
         if special:
             return self._flmenv_object(data['$flmenv'], data)
 
         special = None
         try:
             special = data['$skip']
-        except Exception: pass
+        except:
+            pass
         if special:
              return FLMDataLoadNotSupported
             
         special = None
         try:
             special = data['$restype']
-        except Exception: pass
+        except:
+            pass
         if special:
             return self._load_resource(special, data['$reskey'])
             
         special = None
         try:
             special = data['$type']
-        except Exception: pass
+        except:
+            pass
         if special:
             datad = dict(data)
             thetype = datad.pop('$type')

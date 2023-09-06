@@ -215,7 +215,8 @@ def parse_counter_formatter(
         # avoid isinstance(counter_formatter, dict) in case counter_formatter is a
         # raw JS object in Transcrypt...
         counter_formatter_template = counter_formatter['template']
-    except Exception: pass
+    except:
+        pass
     if counter_formatter_template:
         tmpl = counter_formatter['template']
         # simple template parsing ${arabic}

@@ -1,15 +1,62 @@
+import sys
 import argparse
 import logging
 
 from pylatexenc.latexnodes import LatexWalkerError
+
+import colorlog
 
 from .main.main import main as _main
 from .main import oshelper as flm_main_oshelper
 from flm import __version__ as flm_version
 
 
+def setup_logging(level):
+    # You should use colorlog >= 6.0.0a4
+    handler = colorlog.StreamHandler()
+    handler.setFormatter( colorlog.LevelFormatter(
+        log_colors={
+            "DEBUG": "white",
+            "INFO": "",
+            "WARNING": "red",
+            "ERROR": "bold_red",
+            "CRITICAL": "bold_red",
+        },
+        fmt={
+            # emojis we can use: 🐞 🐜 🚨 🚦 ⚙️ 🧨 🧹 ❗️❓‼️ ⁉️ ⚠️ ℹ️ ➡️ ✔️ 〰️
+            # 🎶 💭 📣 🔔 ⏳ 🔧 🔩 ✨ 💥 🔥 🐢 👉
+            "DEBUG":    "%(log_color)s〰️    %(message)s", #'  [%(name)s]'
+            "INFO":     "%(log_color)s✨  %(message)s",
+            "WARNING":  "%(log_color)s⚠️   %(message)s", # (%(module)s:%(lineno)d)",
+            "ERROR":    "%(log_color)s🚨  %(message)s", # (%(module)s:%(lineno)d)",
+            "CRITICAL": "%(log_color)s🚨  %(message)s", # (%(module)s:%(lineno)d)",
+        },
+        stream=sys.stderr
+    ) )
 
-def run_main(cmdargs=None):
+    root = colorlog.getLogger()
+    root.addHandler(handler)
+
+    root.setLevel(level)
+
+
+
+def run_main(cmdargs=None, enable_debug_pdb=False):
+    try:
+        _run_main_inner()
+    except LatexWalkerError as e:
+        logging.getLogger('flm').debug("Got LatexWalkerError, traceback = ", exc_info=True)
+        logging.getLogger('flm').critical(
+            f"FLM Error\n{e}",
+        )
+    except Exception as e:
+        logging.getLogger('flm').critical('Error.', exc_info=e)
+        if enable_debug_pdb:
+            import pdb
+            pdb.post_mortem()
+
+
+def _run_main_inner(cmdargs=None):
     
     args_parser = argparse.ArgumentParser(
         prog='flm',
@@ -101,7 +148,7 @@ def run_main(cmdargs=None):
     level = logging.INFO
     if args.verbose:
         level = logging.DEBUG
-    logging.basicConfig(level=level)
+    setup_logging(level=level)
     if args.verbose != 2:
         logging.getLogger('pylatexenc').setLevel(level=logging.INFO)
 
@@ -125,12 +172,4 @@ def run_main(cmdargs=None):
 
 
 if __name__ == '__main__':
-    try:
-        run_main()
-    except LatexWalkerError as e:
-        logging.getLogger('flm').critical(
-            f"FLM Error\n{e}"
-        )
-    except Exception as e:
-        logging.getLogger('flm').critical('Error.', exc_info=e)
-        import pdb; pdb.post_mortem()
+    run_main()

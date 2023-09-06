@@ -244,7 +244,7 @@ class MathEnvironment(FLMEnvironmentSpecBase):
             'custom_tag_flm_text': None,
             'nonumber': False,
         }
-        last_line_info = dict(**init_last_line_info)
+        last_line_info = dict(init_last_line_info)
         def _flush_last_equation_line_labels_infos(newline_node=None):
             node.flm_equation_lines_labels_infos.append({
                 'labels': list(last_line_info['labels_info']),

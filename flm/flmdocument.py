@@ -1,6 +1,8 @@
 import logging
 logger = logging.getLogger(__name__)
 
+from pylatexenc.latexnodes import LatexWalkerLocatedError
+
 from .flmrendercontext import FLMRenderContext
 
 
@@ -165,8 +167,17 @@ class FLMDocument:
             # render the content of these delayed-render nodes now.  We know
             # that the node's flm_specinfo must have a render() method because
             # it's a delayed render node.
-            render_context._delayed_render_content[key] = \
-                node.flm_specinfo.render(node, render_context)
+            try:
+                render_context._delayed_render_content[key] = \
+                    node.flm_specinfo.render(node, render_context)
+            except LatexWalkerLocatedError as e:
+                e.set_pos_or_add_open_context_from_node(
+                    node,
+                    what=f"{node.display_str()} (delayed render)"
+                )
+                raise e
+            except ValueError as e:
+                raise LatexWalkerLocatedError(str(e), pos=node.pos)
 
         # now produce the final, rendered result
 

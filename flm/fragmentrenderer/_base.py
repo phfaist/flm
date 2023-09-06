@@ -2,10 +2,12 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from pylatexenc.latexnodes import LatexWalkerLocatedError
+from pylatexenc.latexnodes import LatexWalkerLocatedError, LatexToken
 from pylatexenc.latexnodes import nodes
 
 from ..flmrendercontext import FLMRenderContext
+
+
 
 
 class FragmentRenderer:
@@ -106,6 +108,12 @@ class FragmentRenderer:
         render_context = self.ensure_render_context(render_context)
 
         try:
+
+            if hasattr(node, 'flm_replace_by_node') and node.flm_replace_by_node is not None:
+                # implement a form of pre-processing at render time.  Useful for
+                # custom macros, etc.
+                return self.render_node(node.flm_replace_by_node, render_context)
+
             if node.isNodeType(nodes.LatexCharsNode):
                 return self.render_node_chars(node, render_context)
             if node.isNodeType(nodes.LatexCommentNode):
@@ -124,8 +132,8 @@ class FragmentRenderer:
             raise ValueError(f"Invalid node type: {node!r}")
 
         except LatexWalkerLocatedError as e:
-            if not hasattr(e, 'pos') or e.pos is None:
-                e.pos = node.pos
+            # add open LaTeX context!
+            e.set_pos_or_add_open_context_from_node(node)
             raise e
 
         except Exception as e:

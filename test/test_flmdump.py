@@ -9,7 +9,7 @@ from flm import flmdump
 from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
 from flm.fragmentrenderer import text as fragmentrenderer_text
-from flm.fragmentrenderer import html as fragmentrenderer_html
+#from flm.fragmentrenderer import html as fragmentrenderer_html
 
 
 
