@@ -367,7 +367,11 @@ class FragmentRenderer:
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_heading(self, heading_nodelist, render_context, *,
-                       heading_level=1, inline_heading=False, target_id=None):
+                       heading_level=1,
+                       #heading_formatted_number=None,
+                       inline_heading=False,
+                       target_id=None,
+                       annotations=None):
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_verbatim(self, value, render_context, *,

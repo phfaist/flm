@@ -452,7 +452,10 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
 
     def render_heading(self, heading_nodelist, render_context, *,
-                       heading_level=1, target_id=None, inline_heading=False,
+                       heading_level=1,
+                       #heading_formatted_number=None,
+                       inline_heading=False,
+                       target_id=None,
                        annotations=None):
 
         if heading_level not in self.heading_tags_by_level:

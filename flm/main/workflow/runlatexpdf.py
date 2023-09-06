@@ -217,7 +217,7 @@ class RunPdfLatexRenderWorkflow(RenderWorkflow):
                 logfn = '_flm_runlatexpdf_compile_log.latex.log'
                 shutil.copyfile(os.path.join(tempdirname, 'main.log'), logfn)
                 loctexfn = '_flm_runlatexpdf_compile_log.latex.tex'
-                shutil.copyfile(latexfn, loctexfn)
+                shutil.copyfile(latexfname, loctexfn)
                 logger.warning("latexmk exited with error code.  Copying tex file to %s "
                                "and log file to %s",
                                loctexfn, logfn, exc_info=True)

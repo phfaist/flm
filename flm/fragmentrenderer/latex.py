@@ -194,8 +194,13 @@ class LatexFragmentRenderer(FragmentRenderer):
                             environmentname=None,
                             target_id=None):
 
+        begin_delim, end_delim = delimiters
+        if environmentname:
+            begin_delim = f"\\begin{'{'}{environmentname}{'}'}"
+            end_delim = f"\\end{'{'}{environmentname}{'}'}"
+
         # recycle latex content as is
-        return delimiters[0] + nodelist.latex_verbatim() + delimiters[1]
+        return begin_delim + nodelist.latex_verbatim() + end_delim
 
 
     def render_text_format(self, text_formats, nodelist, render_context):
@@ -334,7 +339,10 @@ class LatexFragmentRenderer(FragmentRenderer):
 
 
     def render_heading(self, heading_nodelist, render_context, *,
-                       heading_level=1, target_id=None, inline_heading=False,
+                       heading_level=1,
+                       #heading_formatted_number=None,
+                       inline_heading=False,
+                       target_id=None,
                        annotations=None):
 
         if heading_level not in self.heading_commands_by_level:
