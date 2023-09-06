@@ -9,7 +9,9 @@ from pylatexenc import macrospec
 
 from flm.flmenvironment import FLMArgumentSpec
 from flm.flmspecinfo import (
-    FLMMacroSpecBase, FLMEnvironmentSpecBase, text_arg, make_verb_argument,
+    FLMMacroSpecBase, FLMEnvironmentSpecBase,
+    #text_arg,
+    make_verb_argument,
     TextFormatMacro, SemanticBlockEnvironment
 )
 from flm.feature import SimpleLatexDefinitionsFeature
@@ -161,25 +163,12 @@ class EnvironmentDocText(FLMEnvironmentSpecBase):
 
     def __init__(self, environmentname='flmDocText'):
         super().__init__(
-            #macroname=macroname,
             environmentname=environmentname,
-            #arguments_spec_list=[ text_arg ],
         )
 
     def render(self, node, render_context):
 
-        # node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-        #     ('text',) ,
-        # )
-        #nodelist = node_args['text'].get_content_nodelist()
-
         nodelist = node.nodelist
-
-        # return render_context.fragment_renderer.render_text_format(
-        #     [ 'flm_doc_text' ],
-        #     nodelist,
-        #     render_context,
-        # )
 
         content = render_context.fragment_renderer.render_nodelist(
             nodelist,

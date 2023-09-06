@@ -1,5 +1,3 @@
-
-from pylatexenc import macrospec
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import nodes as latexnodes_nodes

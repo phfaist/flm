@@ -115,8 +115,10 @@ def main_docgen():
 
     run_config = frontmatter_metadata or {}
 
+    dirname = os.path.dirname(args.file) if args.file else os.getcwd()
+
     # load config & defaults
-    orig_config = flm_main_main.load_external_config(args.config)
+    orig_config = flm_main_main.load_external_config(args.config, dirname)
 
     logger.debug("Input frontmatter_metadata is\n%s",
                  json.dumps(frontmatter_metadata,indent=4))
@@ -128,7 +130,7 @@ def main_docgen():
         'template': None,
         'add_template_path': None,
         'force_block_level': None,
-        'cwd': os.path.dirname(args.file) if args.file else os.getcwd(),
+        'cwd': dirname,
         'input_source': args.file,
         'input_lineno_colno_offsets': None,
         'metadata': None,

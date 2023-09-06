@@ -1,14 +1,13 @@
 import unittest
-import re
 
-from pylatexenc.latexnodes import LatexWalkerParseError
+#from pylatexenc.latexnodes import LatexWalkerParseError
 
 from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
 from flm.fragmentrenderer.html import HtmlFragmentRenderer
 from flm.fragmentrenderer.latex import LatexFragmentRenderer
-
-from flm.feature import refs as feature_refs
+from flm.fragmentrenderer.text import TextFragmentRenderer
+from flm.fragmentrenderer.markdown import MarkdownFragmentRenderer
 
 
 
@@ -69,6 +68,21 @@ def render_fragment(environment, fragment, *, render_to='html', endnotes=False):
         fr = HtmlFragmentRenderer()
         fr.html_blocks_joiner = "\n"
         result, render_context = doc.render(fr)
+
+    elif render_to == 'latex':
+
+        fr = LatexFragmentRenderer()
+        raise ValueError("Not yet implemented: render latex [with instance " + repr(fr) + "]")
+
+    elif render_to == 'text':
+
+        fr = TextFragmentRenderer()
+        raise ValueError("Not yet implemented: render text [with instance " + repr(fr) + "]")
+
+    elif render_to == 'markdown':
+
+        fr = MarkdownFragmentRenderer()
+        raise ValueError("Not yet implemented: render markdown [with instance " + repr(fr) + "]")
 
     else:
 

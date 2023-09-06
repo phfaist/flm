@@ -188,15 +188,6 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
                     pos=node.pos
                 )
 
-            # for ref_type, ref_label in flmarg_labels:
-            #     # register references in refs
-            #     refs_mgr.register_reference(
-            #         ref_type, ref_label,
-            #         node,
-            #         theorem_name,
-            #         None,
-            #         counter_value=None,
-            #     )            
         
         # ---
 

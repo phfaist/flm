@@ -210,12 +210,10 @@ def parse_counter_formatter(
                 tag_template_initials_counters
             )
 
-    # avoid isinstance(counter_formatter, dict) in case counter_formatter is a
-    # raw JS object in Transcrypt...
-    #if isinstance(counter_formatter, dict):
-    #    if 'template' in counter_formatter:
     counter_formatter_template = None
     try:
+        # avoid isinstance(counter_formatter, dict) in case counter_formatter is a
+        # raw JS object in Transcrypt...
         counter_formatter_template = counter_formatter['template']
     except Exception: pass
     if counter_formatter_template:

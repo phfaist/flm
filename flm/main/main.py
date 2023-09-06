@@ -109,7 +109,6 @@ def main(**kwargs):
                 "Type `flm --help` for more information."
             )
         input_content = arg_flm_content
-        primary_input_file_name = ''
     elif arg_files is None:
         # doesn't happen on the command line because arg_files is always a
         # list, possibly an empty one.  This trap is only useful for

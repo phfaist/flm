@@ -334,8 +334,6 @@ Hello, world!
         
         # now, render the content to e.g. text
         
-        html_renderer = fragmentrenderer_html.HtmlFragmentRenderer()
-
         result_1 = render_fragment(env2, new_fragment,
                                    render_to=case_info['render_to'],
                                    endnotes=case_info['endnotes'])

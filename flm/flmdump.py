@@ -12,7 +12,6 @@ from pylatexenc.latexnodes.nodes import (
     LatexNodeList
 )
 from pylatexenc.macrospec import (
-    CallableSpec,
     LatexContextDb,
     MacroSpec, EnvironmentSpec, SpecialsSpec,
 )

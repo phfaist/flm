@@ -229,7 +229,7 @@ class FLMSpecialsSpecBase(FLMSpecInfo):
     Convenience base class for a FLM LaTeX specials specification.
     """
     def __init__(self, specials_chars, arguments_spec_list=None, **kwargs):
-        super(SpecialsSpec, self).__init__(
+        super().__init__(
             arguments_spec_list=arguments_spec_list,
             spec_node_parser_type=macrospec.LatexSpecialsCallParser, # or simply 'specials'
             specials_chars=specials_chars,
