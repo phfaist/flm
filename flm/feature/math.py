@@ -492,7 +492,6 @@ class MathEqrefMacro(FLMMacroSpecBase):
                 ref_type, ref_label,
                 None,
                 resource_info,
-                render_context,
                 counter_with_prefix=False, # no "Eq.~" prefix
             )
         except Exception as e:

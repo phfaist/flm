@@ -241,20 +241,22 @@ class FeatureRefsRenderManager(Feature.RenderManager):
 
 
     def render_ref(self, ref_type, ref_label, display_content_flm,
-                   resource_info, render_context,
+                   resource_info,
+                   *,
                    counter_prefix_variant=None,
                    counter_with_prefix=True, counter_with_delimiters=True):
 
         ref_instance = self._get_ref_instance(ref_type, ref_label, resource_info)
 
         return self.render_ref_instance(
-            ref_instance, display_content_flm, render_context,
+            ref_instance, display_content_flm,
             counter_prefix_variant=counter_prefix_variant,
             counter_with_prefix=counter_with_prefix,
             counter_with_delimiters=counter_with_delimiters,
         )
 
-    def render_ref_instance(self, ref_instance, display_content_flm, render_context,
+    def render_ref_instance(self, ref_instance, display_content_flm,
+                            *,
                             counter_prefix_variant=None,
                             counter_with_prefix=True, counter_with_delimiters=True):
 
@@ -262,20 +264,20 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             display_content_flm = ref_instance.formatted_ref_flm_text
 
         if not isinstance(display_content_flm, FLMFragment):
-            display_content_flm = render_context.doc.environment.make_fragment(
+            display_content_flm = self.render_context.doc.environment.make_fragment(
                 display_content_flm,
                 standalone_mode=True
             )
 
         display_content_nodelist = display_content_flm.nodes
 
-        fragment_renderer = render_context.fragment_renderer
+        fragment_renderer = self.render_context.fragment_renderer
 
         return fragment_renderer.render_link(
             'ref',
             ref_instance.target_href,
             display_content_nodelist,
-            render_context=render_context,
+            render_context=self.render_context,
             # TODO: add annotation for external links etc. ??
             annotations=[f'ref-{ref_instance.ref_type}',],
         )
@@ -283,10 +285,12 @@ class FeatureRefsRenderManager(Feature.RenderManager):
 
     ref_many_use_flm_hyperref = True
 
-    def render_ref_many(self, ref_type_label_list, resource_info, render_context, *,
+    def render_ref_many(self, ref_type_label_list, resource_info,
+                        *,
                         counter_prefix_variant=None, counter_with_delimiters=True,
                         counter_with_prefix=True):
 
+        render_context = self.render_context
         fragment_renderer = render_context.fragment_renderer
 
         ref_instances = [
@@ -340,7 +344,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
 
         if len(ref_instances_nocounter):
             for ri in ref_instances_nocounter:
-                s_final_blocks += [ self.render_ref_instance(ri, None, render_context) ]
+                s_final_blocks += [ self.render_ref_instance(ri, None) ]
 
         return ', '.join(s_final_blocks)
 
@@ -501,7 +505,6 @@ class RefMacro(FLMMacroSpecBase):
                 return mgr.render_ref(ref_type, ref_label,
                                       display_content_nodelist,
                                       resource_info,
-                                      render_context,
                                       counter_prefix_variant=self.counter_prefix_variant)
             except Exception as e:
                 logger.error(f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
@@ -519,7 +522,7 @@ class RefMacro(FLMMacroSpecBase):
             raise ValueError("Reference with custom display string cannot "
                              "have multiple ref targets: " + repr(ref_list))
 
-        return mgr.render_ref_many(ref_list, resource_info, render_context)
+        return mgr.render_ref_many(ref_list, resource_info)
 
 
 # ------------------------------------------------
