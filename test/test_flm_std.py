@@ -654,9 +654,9 @@ Here is a display equation:
             result,
             r"""
 <p>Here is a display equation: <span id="equation-1" class="display-math env-align">\begin{align}
-  S_1 &amp;= I\,Z\,X\,X\,Z\ ;  \nonumber\tag*{(1)}\\
+  S_1 &amp;= I\,Z\,X\,X\,Z\ ;  \nonumber\\
   S_2, \ldots, S_4 &amp;= \text{cyclical permutations of \(S_1\)}\ .
-\tag*{(2)}\end{align}</span></p>
+\tag*{(1)}\end{align}</span></p>
 """.strip()
         )
 

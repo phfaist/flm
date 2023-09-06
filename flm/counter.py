@@ -361,12 +361,12 @@ class CounterFormatter:
 
         # FIXME: 'format_num' cannot be a field, it's a method .... :(
         self._fields = (
-            #'format_num', 
+            'format_num', 
             'prefix_display', 'delimiters', 'join_spec',
             'name_in_link', 'counter_formatter_id',
         )
 
-    def format_num(n):
+    def format_num(self, n):
         return self._format_num_fn(n)
 
     def asdict(self):
