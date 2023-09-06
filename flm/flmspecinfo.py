@@ -102,8 +102,12 @@ class FLMSpecInfo(macrospec.CallableSpec):
         r"""
         Can be overridden to add additional information to node objects.
 
-        You shouldn't change the node object.  You don't have to return it,
-        either.
+        You shouldn't change the standard node structure (arguments/body
+        nodelist/etc), rather, you should add custom properties to store any
+        additional information that is relevant to this node.
+
+        You don't have to return the updated node.  The default implementation
+        does nothing.
         """
         pass
 
