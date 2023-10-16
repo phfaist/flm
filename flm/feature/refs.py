@@ -19,6 +19,15 @@ from ._base import Feature
 
 
 class ReferenceableInfo:
+    r"""
+    Arguments:
+
+    - `formatted_ref_flm_text` - should be a string (standalone FLM code) or an
+      `FLMFragment` instance
+
+    - `labels` - a list of pairs `(ref_type, ref_label)` to attach to this
+      referenceable object.
+    """
     def __init__(self, formatted_ref_flm_text, labels):
         super().__init__()
         self.formatted_ref_flm_text = formatted_ref_flm_text

@@ -64,9 +64,11 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
             self.allowed_ref_label_prefixes
         )
 
+        heading_flm_text = node.flmarg_heading_content_nodelist.latex_verbatim()
+
         node.flm_referenceable_infos = [
             refs.ReferenceableInfo(
-                formatted_ref_flm_text=node.flmarg_heading_content_nodelist,
+                formatted_ref_flm_text=heading_flm_text,
                 labels=node.flmarg_labels,
             )
         ]
