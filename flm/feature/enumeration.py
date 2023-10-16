@@ -246,7 +246,7 @@ class FeatureEnumeration(Feature):
                     counter_formatter=envinfo['counter_formatter'],
                     annotations=[envname],
                 )
-                for envname, envinfo in self.enumeration_environments.items()
+                for envname, envinfo in dict(self.enumeration_environments).items()
             ],
         )
 
