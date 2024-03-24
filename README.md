@@ -66,9 +66,9 @@ You can then open the `mydocument.html` file in your browser.
 
 # This is work in progress!
 
-This project is still early in an active development stage, and there might
-still be a few bugs around. You can expect the API to still change pretty
-drastically.  Feel free to share ideas!
+This project is still at a somewhat experimental stage, and there might
+still be a few bugs around. You can expect the API to still change a bit.
+Feel free to share ideas!
 
 # Use as a command-line tool
 
