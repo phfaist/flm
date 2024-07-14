@@ -15,3 +15,11 @@ Generate the relevant JavaScript FLM Sources by running the build script:
 
     > poetry run python generate_flm_js.py --pylatexenc-src-dir=./pylatexenc-src/
 
+
+## Advanced: compile & run tests
+
+To compile and run the tests, you can use the following command (WILL OVERWRITE
+TARGET DIRECTORY `test-flm-js`):
+
+    > poetry run python generate_flm_js.py --pylatexenc-src-dir=./pylatexenc-src/ --delete-target-dir --compile-tests
+    > node test-flm-js/runtests.js
