@@ -539,7 +539,11 @@ class FLMEnvironmentDocumentationGenerator:
         
             macroname = specinfo.macroname
             
-            flm_doc_text = getattr(specinfo, 'get_flm_doc', lambda: "")()
+            flm_doc_text = (
+                getattr(specinfo, 'get_flm_doc')()
+                if hasattr(specinfo, 'get_flm_doc')
+                else ""
+            )
 
             verbargument = make_verb_argument('\\'+macroname)
 
@@ -554,7 +558,11 @@ class FLMEnvironmentDocumentationGenerator:
         
             environmentname = specinfo.environmentname
             
-            flm_doc_text = getattr(specinfo, 'get_flm_doc', lambda: "")()
+            flm_doc_text = (
+                getattr(specinfo, 'get_flm_doc')()
+                if hasattr(specinfo, 'get_flm_doc')
+                else ""
+            )
 
             return (
                 r"\begin{flmDocEnvironment}{" + environmentname + "}\n"
@@ -567,7 +575,11 @@ class FLMEnvironmentDocumentationGenerator:
         
             specials_chars = specinfo.specials_chars
             
-            flm_doc_text = getattr(specinfo, 'get_flm_doc', lambda: "")()
+            flm_doc_text = (
+                getattr(specinfo, 'get_flm_doc')()
+                if hasattr(specinfo, 'get_flm_doc')
+                else ""
+            )
 
             show_specials_chars = specials_chars
             show_specials_chars = show_specials_chars.replace('\n', '\\n') # for \par (\n\n)

@@ -76,7 +76,10 @@ class FragmentRenderer:
             raise LatexWalkerLocatedError(
                 f"The given node list was not parsed & produced by FLM; "
                 f"missing .flm_is_block_level attribute: {repr(nodelist)[0:100]}",
-                pos=getattr(nodelist, 'pos', None),
+                pos=(
+                    #getattr(nodelist, 'pos', None)  # Transcrypt doesn't support 3-arg getattr
+                    getattr(nodelist, 'pos') if hasattr(nodelist, 'pos') else None
+                ),
             )
 
         if is_block_level is None:

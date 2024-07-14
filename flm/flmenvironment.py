@@ -141,13 +141,20 @@ class BlocksBuilder:
         char_nodes = []
         for j, node in enumerate(paragraph_nodes):
 
+            # careful, Transcrypt doesn't allow getattr() with third "default" arg.
+
             if len(char_nodes) == 0 and first_node is not None \
-               and getattr(first_node, 'flm_is_block_heading', False):
+               and (#getattr(first_node, 'flm_is_block_heading', False):
+                   hasattr(first_node, 'flm_is_block_heading')
+                   and getattr(first_node, 'flm_is_block_heading')
+               ):
                 # second item, but the first one was actually the paragraph
                 # run-in header -- this still counts as head
                 is_head = True
 
-            if getattr(node, 'flm_strip_preceding_whitespace', False):
+            #if getattr(node, 'flm_strip_preceding_whitespace', False):
+            if hasattr(node, 'flm_strip_preceding_whitespace') \
+               and getattr(node, 'flm_strip_preceding_whitespace'):
                 if tail_char_node_info is not None:
                     tail_char_node_info['is_tail'] = True
 
@@ -165,7 +172,9 @@ class BlocksBuilder:
                 tail_char_node_info = None
 
             next_node_should_strip_leading_whitespace = False
-            if getattr(node, 'flm_strip_following_whitespace', False):
+            #if getattr(node, 'flm_strip_following_whitespace', False):
+            if hasattr(node, 'flm_strip_following_whitespace') \
+               and getattr(node, 'flm_strip_following_whitespace'):
                 next_node_should_strip_leading_whitespace = True
 
         # find last char_node and mark it is_tail:
@@ -194,13 +203,24 @@ class BlocksBuilder:
         assert( len(self.blocks) == 0 )
 
         for n in latexnodelist:
-            n_is_block_level = getattr(n, 'flm_is_block_level', None)
-            n_is_block_heading = getattr(n, 'flm_is_block_heading', False)
+            # careful, Transcrypt doesn't allow getattr() with third "default" arg.
+            n_is_block_level = (
+                getattr(n, 'flm_is_block_level') 
+                if hasattr(n, 'flm_is_block_level')
+                else None
+            )
+            n_is_block_heading = (
+                getattr(n, 'flm_is_block_heading')
+                if hasattr(n, 'flm_is_block_heading')
+                else False
+            )
             if n_is_block_level:
                 # new block-level item -- causes paragraph break
                 self.flush_paragraph()
 
-                if getattr(n, 'flm_is_paragraph_break_marker', False):
+                #if getattr(n, 'flm_is_paragraph_break_marker', False):
+                if hasattr(n, 'flm_is_paragraph_break_marker') \
+                   and getattr(n, 'flm_is_paragraph_break_marker'):
                     # it's only a paragraph break marker '\n\n' -- don't include
                     # it as a block
                     continue
@@ -221,7 +241,9 @@ class BlocksBuilder:
             if not self.pending_paragraph_nodes:
                 paragraph_started_yet = False
             if len(self.pending_paragraph_nodes) == 1:
-                if getattr(self.pending_paragraph_nodes[0], 'flm_is_block_heading', False):
+                #if getattr(self.pending_paragraph_nodes[0], 'flm_is_block_heading', False):
+                if hasattr(self.pending_paragraph_nodes[0], 'flm_is_block_heading') \
+                   and getattr(self.pending_paragraph_nodes[0], 'flm_is_block_heading'):
                     # we've only seen it's a block lead-in heading so far
                     paragraph_started_yet = False
 
@@ -284,7 +306,8 @@ class NodeListFinalizer:
         if not is_block_level:
             # make sure there are no block-level nodes in the list
             for n in latexnodelist:
-                if getattr(n, 'flm_is_block_level', None):
+                #if getattr(n, 'flm_is_block_level', None):
+                if hasattr(n, 'flm_is_block_level') and getattr(n, 'flm_is_block_level'):
                     raise LatexWalkerParseError(
                         msg=
                           f"Content is not allowed in inline text "
@@ -310,7 +333,12 @@ class NodeListFinalizer:
 
     def infer_is_block_level_nodelist(self, latexnodelist):
         for n in latexnodelist:
-            n_is_block_level = getattr(n, 'flm_is_block_level', None)
+            #n_is_block_level = getattr(n, 'flm_is_block_level', None)
+            n_is_block_level = (
+                getattr(n, 'flm_is_block_level')
+                if hasattr(n, 'flm_is_block_level')
+                else None
+            )
             if n_is_block_level:
                 return True
         return False
@@ -421,7 +449,9 @@ class FLMLatexWalker(latexwalker.LatexWalker):
         )
 
     def _filter_whitespace_comments_nodes_predicate(self, node):
-        if getattr(node, 'flm_is_paragraph_break_marker', False):
+        #if getattr(node, 'flm_is_paragraph_break_marker', False):
+        if hasattr(node, 'flm_is_paragraph_break_marker') \
+           and getattr(node, 'flm_is_paragraph_break_marker'):
             return False
         return True
     
