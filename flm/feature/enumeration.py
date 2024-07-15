@@ -96,12 +96,19 @@ class Enumeration(FLMEnvironmentSpecBase):
         )
 
     def postprocess_parsed_node(self, node):
+        # don't postprocess the node twice (e.g. after dump/load cycle)
+        if hasattr(node, 'flm_enumeration_items'):
+            logger.debug("enumeration: postprocess_parsed_node() on already "
+                         "postprocessed node, skipping")
+            return node
+
         # parse the node structure right away when finializing then ode
         #logger.debug("finalizing node: node = %r", node)
         item_nodelists = node.nodelist.split_at_node(
             lambda n: (n.isNodeType(latexnodes_nodes.LatexMacroNode)
                        and n.macroname == 'item'),
             keep_separators=True,
+            call_make_nodelist=False,
         )
         enumeration_items = []
         for j, item_nodelist in enumerate(item_nodelists):

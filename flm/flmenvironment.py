@@ -215,7 +215,7 @@ class BlocksBuilder:
                 # avoid cloning object if flm_chars_value already happens to be
                 # correct
                 new_char_node = _clone_flm_node(char_node)
-                # see also NodeListFinalizer.finalize_node() for an important remark
+                # see also NodesFinalizer.finalize_node() for an important remark
                 # on flm_chars_value.
                 new_char_node.flm_chars_value = new_flm_chars_value
                 paragraph_nodes[char_node_j] = new_char_node
@@ -304,7 +304,7 @@ class BlocksBuilder:
 
 
 
-class NodeListFinalizer:
+class NodesFinalizer:
     r"""
     Responsible for adding additional meta-information to nodes to tell whether
     nodes and node lists are block-level or inline text.
@@ -370,7 +370,8 @@ class NodeListFinalizer:
 
     def finalize_node(self, node):
         # simplify any white space!
-        if node.isNodeType(latexnodes_nodes.LatexCharsNode):
+        if not hasattr(node, 'flm_chars_value') \
+           and node.isNodeType(latexnodes_nodes.LatexCharsNode):
             # NOTE: About the flm_chars_value attribute.  It might be that a
             # chars node in `latexNodeList.flm_blocks` has an updated
             # `flm_chars_value` attribute that differs from the
@@ -720,7 +721,7 @@ class FLMEnvironment:
 
         self.tolerant_parsing = tolerant_parsing
 
-        self._node_list_finalizer = NodeListFinalizer()
+        self._nodes_finalizer = NodesFinalizer()
 
         if self.parsing_state.latex_context is None:
 
@@ -908,16 +909,20 @@ class FLMEnvironment:
 
 
     def finalize_nodelist(self, nodelist):
-        nl = self._node_list_finalizer.finalize_nodelist(nodelist)
+        nl = self._nodes_finalizer.finalize_nodelist(nodelist)
         return nl
 
     def finalize_node(self, node):
+
+        # finalize node using nodes finalizer
+        node = self._nodes_finalizer.finalize_node(node)
+
         # attach a node ID, given by the object ID of the node use
         # _flm_... prefix with leading underscore, not flm_..., because we don't
         # want this value serialized.  It should be recalculated upon load after
         # serialization to make sure they don't clash with new node ids.
-        node = self._node_list_finalizer.finalize_node(node)
         node._flm_node_id = fn_unique_object_id(node)
+
         return node
 
 

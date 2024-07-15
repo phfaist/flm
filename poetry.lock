@@ -678,15 +678,16 @@ windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
 name = "pylatexenc"
-version = "3.0a21"
+version = "3.0a22"
 description = "Simple LaTeX parser providing latex-to-unicode and unicode-to-latex conversion"
 category = "main"
 optional = false
-python-versions = ">=3.7,<4.0"
-files = [
-    {file = "pylatexenc-3.0a21-py3-none-any.whl", hash = "sha256:98a6a03bcda72f8d5091e0027593e9bb449a2bed991d7ce0d889bca7e8245dff"},
-    {file = "pylatexenc-3.0a21.tar.gz", hash = "sha256:2f5eeeaa81e18a61c6bb2004c27592e6b97c566bdfead90ebd7aed0905642838"},
-]
+python-versions = "*"
+files = []
+
+[package.source]
+type = "file"
+url = "../pylatexenc/dist/pylatexenc-3.0a22-py3-none-any.whl"
 
 [[package]]
 name = "pytest"
@@ -1124,4 +1125,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "c4a5d92e6fbbf8bbc0ce287b003c498b85b5364765ecd2714781365c660aa137"
+content-hash = "39e210b3f84a618953cebe6d7780e032894429f9d347e31e160dc839b014c6e7"

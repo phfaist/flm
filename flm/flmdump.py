@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import (
     LatexArgumentSpec,
@@ -376,10 +378,10 @@ class FLMDataLoader:
             return None
 
         # assume it's a dictionary
-        return { k: self._load_from_data(v)
-                 for k, v in dict(data).items() }
-
-        # return data # should be a simple scalar -- string, int, bool, etc.
+        return {
+            k: self._load_from_data(v)
+            for k, v in dict(data).items()
+        }
 
 
     def _flmenv_object(self, flmenv_what, data):
@@ -495,12 +497,18 @@ class FLMDataLoader:
         else:
             ObjTypeFn = latex_node_types_dict[nodetype]
             finalize_fn = self.environment.finalize_node
+            
+        logger.debug('_make_node_instance: creating %r instance (%r) %r',
+                     ObjTypeFn, base_kwargs, attrib_kwargs)
 
         node = ObjTypeFn(**base_kwargs)
         for k, v in attrib_kwargs.items():
             setattr(node, k, v)
 
         node = finalize_fn(node)
+
+        logger.debug('_make_node_instance: --> finalized node has attrs = %r',
+                     {k: getattr(node, k) for k in attrib_kwargs.keys()})
 
         return node
         

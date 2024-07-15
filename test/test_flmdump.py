@@ -249,6 +249,100 @@ class TestFLMDataDumper(unittest.TestCase):
         )
 
 
+    def test_custom_attributes_load_after_dump_fragment_0(self):
+
+        environment = mk_flm_environ()
+        fragment = environment.make_fragment(r'''\paragraph{Hello} world.''')
+
+        # sanity check - check before dumping that these are correct
+        #
+        self.assertTrue( fragment.nodes[0].flm_is_block_heading )
+
+        dumper = flmdump.FLMDataDumper(environment=environment)
+        dumper.add_object_dump('my_fragment', fragment)
+
+        # even test via JSON
+        dumped_data = dumper.get_data()
+        dumped_data_json = json.dumps( dumped_data )
+
+        # Help debug JSON output
+        print(json.dumps(dumped_data, indent=4))
+        # with open(os.path.join(os.path.dirname(__file__), '_test_dumped_data.json'),
+        #           'w') as fw:
+        #     json.dump(dumped_data, fw, indent=4)
+
+        # reload data
+        loader = flmdump.FLMDataLoader(json.loads(dumped_data_json),
+                                       environment=environment)
+        new_fragment = loader.get_object_dump('my_fragment')
+
+        # print('re-loaded fragment: ', repr(new_fragment))
+        # print('nodes: ', repr(new_fragment.nodes))
+
+        # make sure the custom attribute was preserved in the dump/load cycle
+        self.assertTrue( fragment.nodes[0].flm_is_block_heading )
+
+
+
+    def test_custom_attributes_load_after_dump_fragment_1(self):
+
+        environment = mk_flm_environ()
+        fragment = environment.make_fragment(r'''\begin{enumerate}
+\item Hi again.
+\item And hello again.
+\end{enumerate}
+''')
+
+        # sanity check - check before dumping that these are correct
+        #
+        # logger.debug('flm_blocks = %r', 
+        #              new_fragment.nodes[4].flm_enumeration_items[0][1].flm_blocks)
+        self.assertEqual(
+            fragment.nodes[0].flm_enumeration_items[0][1].flm_blocks[0][0].flm_chars_value,
+            "Hi again."
+        )
+        self.assertEqual(
+            fragment.nodes[0].flm_enumeration_items[1][1].flm_blocks[0][0].flm_chars_value,
+            "And hello again."
+        )
+
+        dumper = flmdump.FLMDataDumper(environment=environment)
+        dumper.add_object_dump('my_fragment', fragment)
+
+        # even test via JSON
+        dumped_data = dumper.get_data()
+        dumped_data_json = json.dumps( dumped_data )
+
+
+        # Help debug JSON output
+        print(json.dumps(dumped_data, indent=4))
+        # with open(os.path.join(os.path.dirname(__file__), '_test_dumped_data.json'),
+        #           'w') as fw:
+        #     json.dump(dumped_data, fw, indent=4)
+
+
+        # reload data
+        loader = flmdump.FLMDataLoader(json.loads(dumped_data_json),
+                                       environment=environment)
+        new_fragment = loader.get_object_dump('my_fragment')
+
+        # print('re-loaded fragment: ', repr(new_fragment))
+        # print('nodes: ', repr(new_fragment.nodes))
+
+        # note stripped trailing whitespace on both following attributes within
+        # the flm_blocks...
+        logger.debug('flm_blocks = %r', 
+                     new_fragment.nodes[0].flm_enumeration_items[0][1].flm_blocks)
+        self.assertEqual(
+            new_fragment.nodes[0].flm_enumeration_items[0][1].flm_blocks[0][0].flm_chars_value,
+            "Hi again."
+        )
+        self.assertEqual(
+            new_fragment.nodes[0].flm_enumeration_items[1][1].flm_blocks[0][0].flm_chars_value,
+            "And hello again."
+        )
+
+
     def test_render_after_dump_and_load_fragment(self):
 
         environment = mk_flm_environ()
