@@ -88,6 +88,24 @@ def FLMArgumentSpec(parser, argname, is_block_level=False, flm_doc=None):
     return arg
 
 
+# ------------------------------------------------------------------------------
+
+def _clone_flm_node(node):
+    Cls = node.nodeType()
+    # don't call latex_walker.make_node() because that would call
+    # finalize_node() on the node instance again.  We don't need it; any
+    # finalized information is stored in flm_ attributes which we'll copy over.
+    new_node = Cls(
+        **dict([(k, getattr(node, k)) for k in node._fields])
+    )
+    # Copy over any flm_* and _flm_* attributes:
+    for attr in dir(node):
+        if attr.startswith('flm') or attr.startswith('_flm'):
+            setattr(new_node, attr, getattr(node, attr))
+
+    return new_node
+
+
 
 # ------------------------------------------------------------------------------
 
@@ -108,7 +126,7 @@ class BlocksBuilder:
             return
         paragraph_nodes = self.pending_paragraph_nodes
         paragraph_nodes = self.finalize_paragraph(paragraph_nodes)
-        #logger.debug("Flushing paragraph: %r", paragraph_nodes)
+        logger.debug("Flushing paragraph: %r", paragraph_nodes)
         nlblock = latexnodes_nodes.LatexNodeList(
             paragraph_nodes,
             parsing_state=self.latexnodelist.parsing_state,
@@ -162,7 +180,7 @@ class BlocksBuilder:
                 info = {'is_head': is_head, 'is_tail': False}
                 if next_node_should_strip_leading_whitespace:
                     info['is_head'] = True
-                char_nodes.append( (node, info ) )
+                char_nodes.append( (node, info, j ) )
                 is_head = False
                 tail_char_node_info = info
             elif not node.isNodeType(latexnodes_nodes.LatexCommentNode):
@@ -181,16 +199,34 @@ class BlocksBuilder:
         if tail_char_node_info is not None:
             tail_char_node_info['is_tail'] = True
 
-        for (char_node, info) in char_nodes:
-            char_node.flm_chars_value = self.simplify_whitespace_chars(
+        for (char_node, info, char_node_j) in char_nodes:
+            # Don't directly modify existing node objects! We shouldn't set any
+            # attributes on nodes that depend on the node's context, as the node
+            # might be placed in different lists. E.g.,
+            # FLMFragment().truncate_to() produces a new list that contains
+            # existing node instances.  ---> Whenever we'd like to add/change a
+            # node attribute, create a new instance.
+            new_flm_chars_value = self.simplify_whitespace_chars(
                 char_node.chars,
                 is_head=info['is_head'],
                 is_tail=info['is_tail'],
             )
+            if (getattr(char_node, 'flm_chars_value', None) != new_flm_chars_value):
+                # avoid cloning object if flm_chars_value already happens to be
+                # correct
+                new_char_node = _clone_flm_node(char_node)
+                # see also NodeListFinalizer.finalize_node() for an important remark
+                # on flm_chars_value.
+                new_char_node.flm_chars_value = new_flm_chars_value
+                paragraph_nodes[char_node_j] = new_char_node
             # logger.debug(
-            #     "simplifying whitespace for chars node, info['is_head']=%r char_node=%r "
-            #     "--> char_node.flm_chars_value=%r",
-            #     info['is_head'], char_node, char_node.flm_chars_value
+            #     "simplifying whitespace for chars node, "
+            #     "info['is_head']=%r, info['is_tail']=%r "
+            #     " char_node=%r; char_node_j=%r "
+            #     "--> new_char_node.flm_chars_value=%r",
+            #     info['is_head'], info['is_tail'],
+            #     char_node, char_node_j,
+            #     new_char_node.flm_chars_value
             # )
 
         return paragraph_nodes
@@ -272,6 +308,12 @@ class NodeListFinalizer:
     r"""
     Responsible for adding additional meta-information to nodes to tell whether
     nodes and node lists are block-level or inline text.
+
+    REMEMBER: After a Node or NodeList is "finalized" (call to
+    finalize_node/finalize_nodelist is over), then we should NOT modify any
+    attributes on that node.  In particular, finalize_nodelist() should NOT
+    set/modify any attributes on existing child nodes instances (we should clone
+    them if necessary).
     """
     def finalize_nodelist(self, latexnodelist):
         r"""
@@ -314,11 +356,6 @@ class NodeListFinalizer:
                           f"(not block level): ‘{n.latex_verbatim()}’",
                         pos=n.pos,
                     )
-                # simplify any white space!
-                if n.isNodeType(latexnodes_nodes.LatexCharsNode):
-                    n.flm_chars_value = self.simplify_whitespace_chars_inline(
-                        n.chars
-                    )
         # ---
 
         # prepare the node list into blocks (e.g., paragraphs or other
@@ -329,6 +366,22 @@ class NodeListFinalizer:
             latexnodelist.flm_blocks = flm_blocks
 
         return latexnodelist
+
+
+    def finalize_node(self, node):
+        # simplify any white space!
+        if node.isNodeType(latexnodes_nodes.LatexCharsNode):
+            # NOTE: About the flm_chars_value attribute.  It might be that a
+            # chars node in `latexNodeList.flm_blocks` has an updated
+            # `flm_chars_value` attribute that differs from the
+            # `flm_chars_value` attribute in the raw `latexNodeList.nodelist`
+            # node list.  This is because the char node might have been replaced
+            # by another one to fix whitespace coming from the decomposition of
+            # the list into blocks.  Careful ;)
+            node.flm_chars_value = self.simplify_whitespace_chars_inline(
+                node.chars
+            )
+        return node
 
 
     def infer_is_block_level_nodelist(self, latexnodelist):
@@ -863,6 +916,7 @@ class FLMEnvironment:
         # _flm_... prefix with leading underscore, not flm_..., because we don't
         # want this value serialized.  It should be recalculated upon load after
         # serialization to make sure they don't clash with new node ids.
+        node = self._node_list_finalizer.finalize_node(node)
         node._flm_node_id = fn_unique_object_id(node)
         return node
 

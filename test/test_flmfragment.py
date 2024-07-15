@@ -140,6 +140,47 @@ with two newline characters.
 
 
 
+    def test_truncate_no_modif_original(self):
+
+        env = mk_flm_environ()
+
+        s = r'''
+A nonlinear single-asymmetric-error code that generalize VT codes and that is constructed from an abelian group.
+
+A CR code for group \(G\) and fixed group element \(g\) consists of all binary strings \(c=c_1c_2\cdots c_n\) that satisfy \(\sum_i c_i g_i = g\) for some elements \(h_i\) a.  Here, addition is the group operation, the multiplication \(1 g_i = g_i\), and \(0 g_i = 0_G\) where \(0\).  BUG!!
+'''.strip()
+
+        frag_full = FLMFragment(
+            s,
+            env,
+            what='example text fragment'
+        )
+
+        frag_1 = frag_full.truncate_to(chars=360)
+
+        self.assertEqual(frag_1.nodes.nodelist[-1].chars, ' where ')
+        self.assertEqual(frag_1.nodes.nodelist[-1].chars, ' where ')
+        self.assertEqual(frag_1.nodes.flm_blocks[1].nodelist[-1].chars, ' where ')
+        # When building the node list, the last chars node gets a rstripped
+        # flm_chars_value because it's the last node.
+        self.assertEqual(frag_1.nodes.flm_blocks[1].nodelist[-1].flm_chars_value, ' where')
+
+        # But, we want to make sure that the same node is not stripped in the
+        # original fragment!
+        the_charsnode_idx = len(frag_1.nodes.flm_blocks[1].nodelist) - 1
+        self.assertEqual(
+            frag_full.nodes.flm_blocks[1].nodelist[the_charsnode_idx].chars,
+            ' where '
+        )
+        self.assertEqual(
+            frag_full.nodes.flm_blocks[1].nodelist[the_charsnode_idx].flm_chars_value,
+            ' where '
+        )
+
+
+
+
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -117,9 +117,15 @@ class TestBlocksBuilder(unittest.TestCase):
 
         blocks = bb.build_blocks()
 
-        self.assertEqual(n1.flm_chars_value, 'Hello world. ')
-        self.assertEqual(n3.flm_chars_value, '. That\'s it!')
-        self.assertEqual(n5.flm_chars_value, 'More text content.')
+        self.assertEqual(len(blocks), 3)
+
+        nn1 = blocks[0].nodelist[0]
+        nn3 = blocks[0].nodelist[2]
+        nn5 = blocks[2].nodelist[0]
+
+        self.assertEqual(nn1.flm_chars_value, 'Hello world. ')
+        self.assertEqual(nn3.flm_chars_value, '. That\'s it!')
+        self.assertEqual(nn5.flm_chars_value, 'More text content.')
 
 
 class TestFLMEnvironment(unittest.TestCase):

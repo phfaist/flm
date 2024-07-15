@@ -417,7 +417,7 @@ class _NodeListTruncator:
 
         # We can't split this node.  If we don't have enough chars left but
         # didn't make the minimum include this node and we're done.
-        if self.count < self.min_chars:
+        if self.min_chars is not None and self.count < self.min_chars:
             # include this node and stop here
             return node
             

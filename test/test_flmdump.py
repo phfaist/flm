@@ -5,6 +5,9 @@ import os.path
 import unittest
 import json
 
+import logging
+logger = logging.getLogger(__name__)
+
 from flm import flmdump
 from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
@@ -261,11 +264,14 @@ Hello, \emph{world}!
             standalone_mode=True,
         )
 
+
         dumper = flmdump.FLMDataDumper(environment=environment)
         dumper.add_object_dump('my_fragment', fragment)
 
         # even test via JSON
-        dumped_data_json = json.dumps( dumper.get_data() )
+        dumped_data_json = json.dumps( dumper.get_data(), indent=4 )
+
+        logger.debug("Dumped = %s", dumped_data_json)
 
         # reload data
         loader = flmdump.FLMDataLoader(json.loads(dumped_data_json),
