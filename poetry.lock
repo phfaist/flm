@@ -682,12 +682,11 @@ version = "3.0a22"
 description = "Simple LaTeX parser providing latex-to-unicode and unicode-to-latex conversion"
 category = "main"
 optional = false
-python-versions = "*"
-files = []
-
-[package.source]
-type = "file"
-url = "../pylatexenc/dist/pylatexenc-3.0a22-py3-none-any.whl"
+python-versions = "<4.0,>=3.7"
+files = [
+    {file = "pylatexenc-3.0a22-py3-none-any.whl", hash = "sha256:d1b21742e5be6ceb35976b974d3a058adaf172328149876e4f0c64e3833d00b6"},
+    {file = "pylatexenc-3.0a22.tar.gz", hash = "sha256:c4b7d5f0258453fcf3385e86fa2ea38514f834f406569b717a0cc0e3f8f12478"},
+]
 
 [[package]]
 name = "pytest"
