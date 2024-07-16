@@ -51,9 +51,11 @@ _base:
 
       defterm: {}
 
-      graphics: {}
-
       theorems: {}
+
+      #graphics: {} # replaced by the 'graphics collection' feature
+
+      'flm.main.feature_graphics_collection': {} # the graphics_resource_provider feature
 
     workflow: {}
 

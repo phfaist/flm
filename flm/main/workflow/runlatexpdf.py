@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 import urllib
 import urllib.request
 from urllib.parse import urlparse
-import glob
 import subprocess
 import shutil
 
@@ -20,38 +19,10 @@ from flm.fragmentrenderer.latex import (
 from ._base import RenderWorkflow
 from .templatebasedworkflow import TemplateBasedRenderWorkflow
 
+from .._find_exe import find_std_exe
 
-
-magick_patterns = [
-    '/usr/local/bin/magick',
-    '/opt/homebrew/bin/magick',
-    r"C:\Programs Files*\Image Magick*\**\magick.exe",
-]
-latexmk_patterns = [
-    '/usr/local/texlive/*/bin/*/latexmk',
-    '/usr/local/bin/latexmk',
-    r'C:\texlive\*\bin\*\latexmk.exe',
-    r'C:\Program Files*\MikTeX*\miktex\bin\latexmk.exe'
-]
-
-def _find_exe(exe_name, std_patterns, var_name):
-    if var_name in os.environ:
-        return os.environ[var_name]
-    for p in std_patterns:
-        result = glob.glob(p, recursive=True)
-        if len(result):
-            return result[0]
-    rexe = shutil.which(exe_name)
-    if rexe:
-        return rexe
-    raise ValueError(f"Cannot find executable ‘{exe_name}’ on your system! "
-                     f"Please set {var_name} to its full path.")
-
-# magick_exe = '/opt/homebrew/bin/magick'
-# latexmk_exe = '/usr/local/texlive/2020/bin/x86_64-darwin/latexmk'
-
-magick_exe = _find_exe('magick', magick_patterns, 'MAGICK')
-latexmk_exe = _find_exe('latexmk', latexmk_patterns, 'LATEXMK')
+magick_exe = find_std_exe('magick')
+latexmk_exe = find_std_exe('latexmk')
 
 
 class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
@@ -64,6 +35,10 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
 
     use_endnote_latex_command = 'flmEndnoteMark'
     use_citation_latex_command = 'flmCitationMark'
+
+    # these attributes are already in LatexFragmentRenderer
+    graphics_raster_magnification = 1
+    graphics_vector_magnification = 1
 
 
     def collect_graphics_resource(self, graphics_resource, render_context):
@@ -138,6 +113,31 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
             # 'export' allows adjustbox keys in \includegraphics
             render_context.data['latex_preamble']['adjustbox'] = \
                 r"\usepackage[export]{adjustbox}"
+
+        if graphics_resource.physical_dimensions:
+            width_spec, height_spec = graphics_resource.physical_dimensions
+            width_value, width_unit = width_spec
+            height_value, height_unit = height_spec
+            # standard 1pt = 1bp in LaTeX = 1/72.0 in; 1pt in LaTeX = 1/72.27 in
+            if width_unit == 'pt':
+                width_unit = 'bp'
+            if height_unit == 'pt':
+                height_unit = 'bp'
+
+            # use magnification, if applicable
+            if graphics_resource.graphics_type == 'raster':
+                width_value *= self.graphics_raster_magnification
+                height_value *= self.graphics_raster_magnification
+            if graphics_resource.graphics_type == 'vector':
+                width_value *= self.graphics_vector_magnification
+                height_value *= self.graphics_vector_magnification
+
+            includegraphics_option_list.append(
+                f"width={width_value:.8g}{width_unit}"
+            )
+            includegraphics_option_list.append(
+                f"height={height_value:.8g}{height_unit}"
+            )
 
         includegraphics_option_list.append(r"max width=\linewidth")
 

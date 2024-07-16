@@ -419,12 +419,36 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     # --
 
+    float_placement_policy = {
+        'nothing': {
+            'environment': 'center',
+            'environment_options_str': '',
+            'centering': '',
+        },
+        'captiononly': {
+            'environment': 'center',
+            'environment_options_str': '',
+            'centering': '',
+        },
+        'numberonly': {
+            'environment_options_str': '[hbtp]',
+        },
+        'numbercaption': {
+            'environment_options_str': '[hbtp]',
+        }
+    }
+    float_use_centering = r'\centering{}'
+
     def render_float(self, float_instance, render_context):
         # see flm.features.floats for FloatInstance
         
+        has_number = False
+        has_caption = False
+
         full_figcaption_rendered_list = []
         float_designator = None
         if float_instance.number is not None:
+            has_number = True
             # numbered float -- generate the "Figure X" part
             float_designator = (
                 self.render_value(
@@ -460,6 +484,7 @@ class LatexFragmentRenderer(FragmentRenderer):
                                                insert_phantom_section=True)
 
         if float_instance.caption_nodelist:
+            has_caption = True
             # we still haven't rendered the caption text itself. We only
             # rendered the "Figure X" or "Figure" so far.  So now we add the
             # caption text.
@@ -499,11 +524,31 @@ class LatexFragmentRenderer(FragmentRenderer):
         else:
             float_content_with_caption = float_content_block_content
 
+        env_name = float_instance.float_type
+        env_options_str = '[h!]'
+        centering = self.float_use_centering
+
+        if not has_number and not has_caption:
+            pl_policy = self.float_placement_policy['nothing']
+        elif has_number and not has_caption:
+            pl_policy = self.float_placement_policy['numberonly']
+        elif not has_number and has_caption:
+            pl_policy = self.float_placement_policy['captiononly']
+        else:
+            pl_policy = self.float_placement_policy['numbercaption']
+
+        if 'environment' in pl_policy:
+            env_name = pl_policy['environment']
+        if 'environment_options_str' in pl_policy:
+            env_options_str = pl_policy['environment_options_str']
+        if 'centering' in pl_policy:
+            centering = pl_policy['centering']
+
         return (
-            r"\begin{" + float_instance.float_type + "}[h!]%\n"
-            + r"\centering{}"
+            r"\begin{" + env_name + "}" + env_options_str + "%\n"
+            + centering
             + float_content_with_caption
-            + r"\end{" + float_instance.float_type + "}"
+            + r"\end{" + env_name + "}"
         )
 
     graphics_raster_magnification = 1
@@ -711,11 +756,12 @@ _latex_preamble_suggested_defs = r"""
 \ifdefined\defterm\else
 \newenvironment{defterm}{%
   \par\vspace{0.5ex plus 0.5ex}\noindent
-  \begingroup\itshape
+  \begingroup\flmDeftermFormat
 }{%
   \endgroup\par\vspace{0.5ex plus 0.5ex}%
 }
 \fi
+\providecommand\flmDeftermFormat{\itshape}
 
 \providecommand\displayterm[1]{\textbf{#1}}
 
