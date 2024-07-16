@@ -89,7 +89,7 @@ def _inspect_graphics_file(file_path):
             'graphics_type': 'vector',
             'dpi': dpi,
             'pixel_dimensions': (width_px, height_px),
-            'physical_dimensions': ((width_pt, 'pt'), (height_pt, 'pt'))
+            'physical_dimensions': (width_pt, height_pt),
         }
     else:
         width_px = int(width_px + 0.5)
@@ -99,7 +99,7 @@ def _inspect_graphics_file(file_path):
             'graphics_type': 'raster',
             'dpi': dpi,
             'pixel_dimensions': (width_px, height_px),
-            'physical_dimensions': ((width_pt, 'pt'), (height_pt, 'pt'))
+            'physical_dimensions': (width_pt, height_pt),
         }
 
 
@@ -200,8 +200,8 @@ class FeatureSimpleGraphicsCollection(Feature):
         self.graphics_collection[source_path] = graphics_resource
         info = ''
         if graphics_resource.physical_dimensions:
-            w_spec, h_spec = graphics_resource.physical_dimensions
-            info = f'{w_spec[0]:.6g}{w_spec[1]} x {h_spec[0]:.6g}{h_spec[1]}'
+            w_pt, h_pt = graphics_resource.physical_dimensions
+            info = f'{w_pt:.6f}pt x {h_pt:.6f}pt'
         logger.info(f"Graphics: ‘{source_path}’ {info}")
 
     def set_collection(self, collection):
