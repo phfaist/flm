@@ -82,6 +82,7 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
 
         urlp = urlparse(src_url)
         if urlp.scheme == '':
+            src_url_basepath = None
             try:
                 src_url_basepath = render_context.doc.metadata['filepath']['dirname']
             except KeyError:
