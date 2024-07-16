@@ -86,6 +86,8 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
             try:
                 src_url_basepath = render_context.doc.metadata['filepath']['dirname']
             except KeyError:
+                # filepath or dirname not provided in metadata, we don't know
+                # what the document's base dir is.
                 pass
             src_url = 'file:' + os.path.join(src_url_basepath, src_url)
 
