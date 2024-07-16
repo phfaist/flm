@@ -6,6 +6,7 @@ logger = logging.getLogger(__name__)
 
 import urllib
 import urllib.request
+from urllib.parse import urlparse
 import glob
 import subprocess
 import shutil
@@ -58,6 +59,9 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
     graphics_resource_counter = 0
     graphics_resource_data_name_prefix = 'gr'
 
+    graphics_resource_magick_transparent_bg = False
+    graphics_resource_magick_raster_dpi = 300 # None
+
     use_endnote_latex_command = 'flmEndnoteMark'
     use_citation_latex_command = 'flmCitationMark'
 
@@ -74,10 +78,22 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
         self.graphics_resource_counter = (self.graphics_resource_counter + 1)
         grname = f"{self.graphics_resource_data_name_prefix}{self.graphics_resource_counter}"
 
-        with urllib.request.urlopen(graphics_resource.src_url) as fimg:
+        src_url = graphics_resource.src_url
+
+        urlp = urlparse(src_url)
+        if urlp.scheme == '':
+            try:
+                src_url_basepath = render_context.doc.metadata['filepath']['dirname']
+            except KeyError:
+                pass
+            src_url = 'file:' + os.path.join(src_url_basepath, src_url)
+
+        with urllib.request.urlopen(src_url) as fimg:
             grdata = fimg.read()
 
-        _, grext = graphics_resource.src_url.rsplit('.', maxsplit=1)
+        _, grext = src_url.rsplit('.', maxsplit=1)
+
+        includegraphics_option_list = []
 
         if grext in ('jpg', 'jpeg', 'png', 'pdf'):
             # all ok
@@ -88,8 +104,25 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
                 ins = '-'
                 if grext in ('gif', 'mng'):
                     ins = '-[0]'
-                subprocess.run([magick_exe, 'convert', ins, 'out.png'],
+
+                extra_args = []
+                if self.graphics_resource_magick_transparent_bg:
+                    extra_args = extra_args + [ '-background', 'none', ]
+                if self.graphics_resource_magick_raster_dpi is not None:
+                    extra_args = extra_args + [
+                        '-density', str(self.graphics_resource_magick_raster_dpi),
+                    ]
+
+                subprocess.run([magick_exe,
+                                'convert',
+                                *extra_args,
+                                ins,
+                                'out.png'],
                                input=grdata, cwd=tempdirname)
+                # scale_factor = 1.0 #72.0 / self.graphics_resource_magick_raster_dpi
+                # includegraphics_option_list.append(
+                #     f'scale={scale_factor:.6g}'
+                # )
                 with open(os.path.join(tempdirname, 'out.png'), 'rb') as f:
                     grdata = f.read()
                     grext = 'png'
@@ -103,9 +136,13 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
             render_context.data['latex_preamble']['adjustbox'] = \
                 r"\usepackage[export]{adjustbox}"
 
-        include_graphics_options = r"max width=\linewidth"
+        includegraphics_option_list.append(r"max width=\linewidth")
 
-        return gr_fname, include_graphics_options
+        includegraphics_options = None
+        if includegraphics_option_list:
+            includegraphics_options = ','.join(includegraphics_option_list)
+
+        return gr_fname, includegraphics_options
 
 
 

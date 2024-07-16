@@ -25,20 +25,21 @@ Pylatexenc specializations
    :undoc-members:
 
 
-Finalizing node lists to handle text blocks
--------------------------------------------
+Finalizing nodes and handling text blocks
+-----------------------------------------
 
-A “node list finalizer” is meant to process a compiled node list to add some
-relevant meta-information and normalize content appropriately.  In particular,
-we auto-detect whether or not the node list is in block-level mode or not (if
-not already specified) and we handle space characters (remove them between
-block-level components and surrounding text; keep one space between inline
-components).
+A “nodes finalizer” is meant to process a compiled node or compiled node list to
+add some relevant meta-information and normalize content appropriately.  In
+particular, we auto-detect whether or not the node list is in block-level mode
+or not (if not already specified) and we handle space characters (remove them
+between block-level components and surrounding text; keep one space between
+inline components).
 
-.. autoclass:: NodeListFinalizer
+.. autoclass:: NodesFinalizer
    :show-inheritance:
    :members:
    :undoc-members:
+
 
 
 The main `FLMEnvironment` class
