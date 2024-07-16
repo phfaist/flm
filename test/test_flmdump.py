@@ -280,7 +280,7 @@ class TestFLMDataDumper(unittest.TestCase):
         # print('nodes: ', repr(new_fragment.nodes))
 
         # make sure the custom attribute was preserved in the dump/load cycle
-        self.assertTrue( fragment.nodes[0].flm_is_block_heading )
+        self.assertTrue( new_fragment.nodes[0].flm_is_block_heading )
 
 
 
