@@ -115,28 +115,23 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
                 r"\usepackage[export]{adjustbox}"
 
         if graphics_resource.physical_dimensions:
-            width_spec, height_spec = graphics_resource.physical_dimensions
-            width_value, width_unit = width_spec
-            height_value, height_unit = height_spec
-            # standard 1pt = 1bp in LaTeX = 1/72.0 in; 1pt in LaTeX = 1/72.27 in
-            if width_unit == 'pt':
-                width_unit = 'bp'
-            if height_unit == 'pt':
-                height_unit = 'bp'
+            width_pt, height_pt = graphics_resource.physical_dimensions
 
             # use magnification, if applicable
             if graphics_resource.graphics_type == 'raster':
-                width_value *= self.graphics_raster_magnification
-                height_value *= self.graphics_raster_magnification
+                width_pt *= self.graphics_raster_magnification
+                height_pt *= self.graphics_raster_magnification
             if graphics_resource.graphics_type == 'vector':
-                width_value *= self.graphics_vector_magnification
-                height_value *= self.graphics_vector_magnification
+                width_pt *= self.graphics_vector_magnification
+                height_pt *= self.graphics_vector_magnification
+
+            # remember: standard 1pt = 1bp in LaTeX = 1/72.0 in; 1pt in LaTeX = 1/72.27 in
 
             includegraphics_option_list.append(
-                f"width={width_value:.8g}{width_unit}"
+                f"width={width_pt:.6f}bp"
             )
             includegraphics_option_list.append(
-                f"height={height_value:.8g}{height_unit}"
+                f"height={height_pt:.6f}bp"
             )
 
         includegraphics_option_list.append(r"max width=\linewidth")
