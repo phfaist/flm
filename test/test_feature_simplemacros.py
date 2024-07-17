@@ -160,7 +160,10 @@ class TestFeatureSimpleMacros(unittest.TestCase):
                             'argname': 'name',
                         },
                     ],
-                    'flm_text_replacement_textmode': r'#{greeting} \emph{#2}!',
+                    'default_argument_values': {
+                        'greeting': 'Salut',
+                    },
+                    'flm_text_replacement_textmode': r'#{greeting}, \emph{#2}!',
                 },
             }
         })
@@ -170,7 +173,7 @@ class TestFeatureSimpleMacros(unittest.TestCase):
 
         self.assertEqual(
             frag1.render_standalone(html_renderer),
-            r'''Test:  <span class="textit">Albert</span>!'''
+            r'''Test: Salut, <span class="textit">Albert</span>!'''
         )
 
 

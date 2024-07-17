@@ -32,10 +32,12 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
 
     allowed_in_standalone_mode = True
 
-    def __init__(self, specials_chars='#', parsed_arguments_infos=None):
+    def __init__(self, specials_chars='#', parsed_arguments_infos=None,
+                 compile_default_argument_value=None):
         super().__init__(specials_chars=specials_chars,
                          arguments_spec_list=_macroarg_placeholder_arguments_spec_list)
         self.parsed_arguments_infos = parsed_arguments_infos
+        self.compile_default_argument_value = compile_default_argument_value
         self.num_arguments = 0
         self.argument_names = []
         for arg in self.parsed_arguments_infos.keys():
@@ -91,8 +93,13 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
 
         nodelist = self.parsed_arguments_infos[argument_ref_key].get_content_nodelist()
 
-        if len(nodelist) == 1 and nodelist[0] is None:
+        if nodelist is None or (len(nodelist) == 1 and nodelist[0] is None):
             nodelist = []
+
+        if len(nodelist) == 0 and self.compile_default_argument_value is not None:
+            nodelist = self.compile_default_argument_value(argument_ref_key)
+            if nodelist is None or (len(nodelist) == 1 and nodelist[0] is None):
+                nodelist = []
 
         # call make_nodelist if necessary
 
@@ -136,6 +143,7 @@ class SimpleCustomMacro(FLMMacroSpecBase):
 
     def __init__(self, macroname,
                  arguments_spec_list=None,
+                 default_argument_values=None,
                  flm_text_replacement_textmode=None,
                  flm_text_replacement_mathmode=None,
                  is_block_level=False,
@@ -147,6 +155,10 @@ class SimpleCustomMacro(FLMMacroSpecBase):
 
         super().__init__(macroname, arguments_spec_list)
         
+        if default_argument_values is None:
+            default_argument_values = {}
+        self.default_argument_values = default_argument_values
+
         self.flm_text_replacement_textmode = flm_text_replacement_textmode
         self.flm_text_replacement_mathmode = flm_text_replacement_mathmode
 
@@ -189,6 +201,49 @@ class SimpleCustomMacro(FLMMacroSpecBase):
             parsed_arguments_infos
         )
 
+        parsing_state_delta = None
+
+        def compile_default_argument_value(arg_ref):
+            try:
+                default_arg_flm_text = self.default_argument_values[arg_ref]
+            except (TypeError, KeyError):
+                # no such argument
+                return []
+            if default_arg_flm_text is None:
+                return []
+
+            defaultarg_latex_walker = flm_environment.make_latex_walker(
+                default_arg_flm_text,
+                is_block_level=node.parsing_state.is_block_level,
+                parsing_mode=base_latex_walker.parsing_mode,
+                resource_info=base_latex_walker.resource_info,
+                standalone_mode=base_latex_walker.standalone_mode,
+                tolerant_parsing=base_latex_walker.tolerant_parsing,
+                what=f"{base_latex_walker.what}→\\{self.macroname}/default arg {arg_ref}",
+                input_lineno_colno_offsets=None,
+            )
+
+            defaultarg_parsing_state = parsing_state_delta.get_updated_parsing_state(
+                defaultarg_latex_walker.default_parsing_state,
+                defaultarg_latex_walker
+            )
+
+            nodes, _ = defaultarg_latex_walker.parse_content(
+                latexnodes_parsers.LatexGeneralNodesParser(),
+                parsing_state=defaultarg_parsing_state
+            )
+            return nodes
+
+
+        parsing_state_delta = ParsingStateDeltaExtendLatexContextDb(
+            {
+                'specials': [
+                    SimpleMacroArgumentPlaceholder('#', parsed_arguments_infos,
+                                                   compile_default_argument_value),
+                ],
+            },
+        )
+
         content_latex_walker = flm_environment.make_latex_walker(
             macro_replacement_flm_text,
             is_block_level=node.parsing_state.is_block_level,
@@ -196,16 +251,8 @@ class SimpleCustomMacro(FLMMacroSpecBase):
             resource_info=base_latex_walker.resource_info,
             standalone_mode=base_latex_walker.standalone_mode,
             tolerant_parsing=base_latex_walker.tolerant_parsing,
-            what=base_latex_walker.what + '→\\'+self.macroname,
+            what=f"{base_latex_walker.what}→\\{self.macroname}",
             input_lineno_colno_offsets=None,
-        )
-
-        parsing_state_delta = ParsingStateDeltaExtendLatexContextDb(
-            {
-                'specials': [
-                    SimpleMacroArgumentPlaceholder('#', parsed_arguments_infos),
-                ],
-            },
         )
 
         content_parsing_state = parsing_state_delta.get_updated_parsing_state(
