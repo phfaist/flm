@@ -39,7 +39,7 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
         self.num_arguments = 0
         self.argument_names = []
         for arg in self.parsed_arguments_infos.keys():
-            if isinstance(arg, int):
+            if isinstance(arg, int) or len(arg) == 1 and arg[0].isdigit():
                 if arg >= self.num_arguments:
                     self.num_arguments = arg + 1
             else:
