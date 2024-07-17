@@ -16,6 +16,7 @@ from .feature.headings import FeatureHeadings
 from .feature.floats import FeatureFloats
 from .feature.graphics import FeatureSimplePathGraphicsResourceProvider
 from .feature.defterm import FeatureDefTerm
+from .feature.simplemacros import FeatureSimpleMacros
 
 from .feature.theorems import FeatureTheorems
 
@@ -43,6 +44,7 @@ def standard_features(
         float_types=None,
         defterm=True,
         theorems=False,
+        macros_definitions=None,
 ):
     r"""
     Build a standard set of features with reasonable defaults and with the
@@ -143,6 +145,11 @@ def standard_features(
         # instance directly
         features.append(
             FeatureTheorems(**(theorems if isinstance(theorems, dict) else {}))
+        )
+
+    if macros_definitions:
+        features.append(
+            FeatureSimpleMacros(macros_definitions)
         )
 
     return features
