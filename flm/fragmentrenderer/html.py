@@ -302,7 +302,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
             class_names.append(f"env-{environmentname.replace('*','-star')}")
 
         content_html = (
-            self.htmlescape( use_delims[0] + nodelist.latex_verbatim() + use_delims[1] )
+            self.htmlescape( use_delims[0] + self.recompose_latex(nodelist) + use_delims[1] )
         )
 
         attrs = {}

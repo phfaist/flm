@@ -24,7 +24,7 @@ class TestFeatureSimpleMacros(unittest.TestCase):
         environ = mk_flm_environ(macros_definitions={
             'macros': {
                 'mymacro': {
-                    'flm_text_replacement_textmode': '[my macro content]',
+                    'content': '[my macro content]',
                 }
             }
         })
@@ -45,7 +45,7 @@ class TestFeatureSimpleMacros(unittest.TestCase):
         environ = mk_flm_environ(macros_definitions={
             'macros': {
                 'mymacro': {
-                    'flm_text_replacement_textmode': r'[my \textit{macro} content]',
+                    'content': r'[my \textit{macro} content]',
                 }
             }
         })
@@ -65,10 +65,10 @@ class TestFeatureSimpleMacros(unittest.TestCase):
         environ = mk_flm_environ(macros_definitions={
             'macros': {
                 'mymacro': {
-                    'flm_text_replacement_textmode': r'Hey, \othermacro!',
+                    'content': r'Hey, \othermacro!',
                 },
                 'othermacro': {
-                    'flm_text_replacement_textmode': r'\emph{YOU}',
+                    'content': r'\emph{YOU}',
                 },
             }
         })
@@ -99,7 +99,7 @@ class TestFeatureSimpleMacros(unittest.TestCase):
                             #'argname': 'name',
                         },
                     ],
-                    'flm_text_replacement_textmode': r'#1, \emph{#2}!',
+                    'content': r'#1, \emph{#2}!',
                 },
             }
         })
@@ -129,7 +129,7 @@ class TestFeatureSimpleMacros(unittest.TestCase):
                             'argname': 'name',
                         },
                     ],
-                    'flm_text_replacement_textmode': r'#{greeting}, \emph{#2}!',
+                    'content': r'#{greeting}, \emph{#2}!',
                 },
             }
         })
@@ -163,7 +163,7 @@ class TestFeatureSimpleMacros(unittest.TestCase):
                     'default_argument_values': {
                         'greeting': 'Salut',
                     },
-                    'flm_text_replacement_textmode': r'#{greeting}, \emph{#2}!',
+                    'content': r'\textbf{#{greeting}}, \emph{#2}!',
                 },
             }
         })
@@ -173,7 +173,63 @@ class TestFeatureSimpleMacros(unittest.TestCase):
 
         self.assertEqual(
             frag1.render_standalone(html_renderer),
-            r'''Test: Salut, <span class="textit">Albert</span>!'''
+            r'''Test: <span class="textbf">Salut</span>, <span class="textit">Albert</span>!'''
+        )
+
+
+    def test_with_arguments_3(self):
+        
+        s = r'Test: \mymacro[]{Albert}'
+        
+        environ = mk_flm_environ(macros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {
+                            'parser': '[',
+                            'argname': 'greeting',
+                        },
+                        {
+                            'parser': '{',
+                            'argname': 'name',
+                        },
+                    ],
+                    'default_argument_values': {
+                        'greeting': 'Salut',
+                    },
+                    'content': r'\textbf{#{greeting}}, \emph{#2}!',
+                },
+            }
+        })
+        frag1 = environ.make_fragment(s, is_block_level=False, standalone_mode=True)
+        
+        html_renderer = HtmlFragmentRenderer()
+
+        self.assertEqual(
+            frag1.render_standalone(html_renderer),
+            r'''Test: <span class="textbf"></span>, <span class="textit">Albert</span>!'''
+        )
+
+
+
+    def test_with_arguments_mathmode(self):
+        
+        s = r'Test: \(\calN(\rho)\)!'
+        
+        environ = mk_flm_environ(macros_definitions={
+            'macros': {
+                'calN': {
+                    'content': r'\mathcal{N}',
+                },
+            }
+        })
+        frag1 = environ.make_fragment(s, is_block_level=False, standalone_mode=True)
+        
+        html_renderer = HtmlFragmentRenderer()
+
+        self.assertEqual(
+            frag1.render_standalone(html_renderer),
+            r'''Test: <span class="inline-math">\(\mathcal{N}(\rho)\)</span>!'''
         )
 
 

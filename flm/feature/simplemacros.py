@@ -6,7 +6,7 @@ from pylatexenc.latexnodes import (
     LatexArgumentSpec,
     LatexWalkerLocatedError,
 )
-from pylatexenc.latexnodes.nodes import LatexNodeList
+from pylatexenc.latexnodes.nodes import LatexNodeList, LatexGroupNode
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.macrospec import ParsingStateDeltaExtendLatexContextDb
 
@@ -93,10 +93,12 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
 
         nodelist = self.parsed_arguments_infos[argument_ref_key].get_content_nodelist()
 
+        use_default = False
         if nodelist is None or (len(nodelist) == 1 and nodelist[0] is None):
             nodelist = []
+            use_default = True
 
-        if len(nodelist) == 0 and self.compile_default_argument_value is not None:
+        if use_default and self.compile_default_argument_value is not None:
             nodelist = self.compile_default_argument_value(argument_ref_key)
             if nodelist is None or (len(nodelist) == 1 and nodelist[0] is None):
                 nodelist = []
@@ -116,13 +118,28 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
 
         node.flm_placeholder_content_nodelist = nodelist
 
+        logger.debug("specinfo postprocessing substitution macro node %r", node)
 
-    def render(self, node, render_context):
-
-        return render_context.fragment_renderer.render_nodelist(
-            node.flm_placeholder_content_nodelist,
-            render_context,
+        substitute_node = node.latex_walker.make_node(
+            LatexGroupNode,
+            parsing_state=node.parsing_state,
+            delimiters=('',''),
+            nodelist=nodelist,
+            pos=node.pos,
+            pos_end=node.pos_end,
         )
+
+        logger.debug("setting substitute node = %r", substitute_node)
+        node.flm_SUBSTITUTE_NODE = substitute_node
+
+
+    # ### Not needed nor called, it's the substitute node that's rendered...
+    #
+    # def render(self, node, render_context):
+    #     return render_context.fragment_renderer.render_nodelist(
+    #         node.flm_placeholder_content_nodelist,
+    #         render_context,
+    #     )
 
 
 def _get_arg_spec(argspec):
@@ -137,16 +154,45 @@ def _get_arg_spec(argspec):
     return argspec
 
 
-class SimpleCustomMacro(FLMMacroSpecBase):
+class SimpleSubstitutionMacro(FLMMacroSpecBase):
+    r"""
+    A macro spec that describes a simple substitution of the macro
+    (possibly with arguments) by user-defined custom FLM content (possibly with
+    argument placeholders).
+
+    - `macroname` is the name of the custom macro
+
+    - `arguments_spec_list` is the list of arguments specification objects
+      describing the arguments accepted by the custom macro.  This parameter is
+      as you'd give to `FLMMacroSpecBase`.  As an exception, each element of the
+      list can also be a dictionary, in which case the corresponding argument
+      specification is constructed by passing the dictionary's contents as
+      keyword arguments to the constructor of `LatexArgumentSpec()`.
+      E.g. `arguments_spec_list = [ {'parser': '[', 'argname': 'argone'},
+      {'parser': '{', 'argname': 'argtwo'} ]`.
+
+    - `default_argument_values` is a dictionary with values that should be used
+      for the arguments if the argument is not specified.  The values are FLM
+      text that can include `#..` argument placeholders.
+
+    - `content` specifies the replacement FLM string for the macro.  If
+      `content` is a string, it is the replacement FLM string associated with
+      the macro, which can contain argument placeholders `#1...#N` and
+      `#{argname}`.  If it is a dictionary, it should have the form
+      `{'textmode': ..., 'mathmode'...}` specifying the replacement FLM string
+      values to be used in text mode and in math mode.
+
+    - `is_block_level` can be used to specify whether the macro represents
+      block-level content or inline content.
+    """
 
     allowed_in_standalone_mode = True
 
     def __init__(self, macroname,
                  arguments_spec_list=None,
                  default_argument_values=None,
-                 flm_text_replacement_textmode=None,
-                 flm_text_replacement_mathmode=None,
-                 is_block_level=False,
+                 content=None,
+                 is_block_level=None,
                  ):
         
         # allow user to specify a latex argument spec as a dict
@@ -159,16 +205,25 @@ class SimpleCustomMacro(FLMMacroSpecBase):
             default_argument_values = {}
         self.default_argument_values = default_argument_values
 
-        self.flm_text_replacement_textmode = flm_text_replacement_textmode
-        self.flm_text_replacement_mathmode = flm_text_replacement_mathmode
+        if content is None:
+            content = ''
+
+        if isinstance(content, str):
+            self.content_textmode = content
+            self.content_mathmode = content
+        else:
+            self.content_textmode = content['textmode']
+            self.content_mathmode = content['mathmode']
 
 
     def postprocess_parsed_node(self, node):
 
+        logger.debug("specinfo postprocessing substitution macro node %r", node)
+
         if node.parsing_state.in_math_mode:
-            macro_replacement_flm_text = self.flm_text_replacement_mathmode
+            macro_replacement_flm_text = self.content_mathmode
         else:
-            macro_replacement_flm_text = self.flm_text_replacement_textmode
+            macro_replacement_flm_text = self.content_textmode
 
         if macro_replacement_flm_text is None:
             raise LatexWalkerLocatedError(
@@ -180,7 +235,22 @@ class SimpleCustomMacro(FLMMacroSpecBase):
         # the replacement fragment flm text
         node.flm_macro_replacement_flm_text = macro_replacement_flm_text
 
-        node.flm_macro_replacement_flm_nodes = self._compile_nodes(node)
+        substitute_nodelist = self._compile_nodes(node)
+
+        node.flm_macro_replacement_flm_nodes = substitute_nodelist
+
+        substitute_node = node.latex_walker.make_node(
+            LatexGroupNode,
+            parsing_state=node.parsing_state,
+            delimiters=('',''),
+            nodelist=substitute_nodelist,
+            pos=node.pos,
+            pos_end=node.pos_end,
+        )
+
+        logger.debug("setting substitute node = %r", substitute_node)
+        node.flm_SUBSTITUTE_NODE = substitute_node
+
 
 
     def _compile_nodes(self, node):
@@ -224,7 +294,7 @@ class SimpleCustomMacro(FLMMacroSpecBase):
             )
 
             defaultarg_parsing_state = parsing_state_delta.get_updated_parsing_state(
-                defaultarg_latex_walker.default_parsing_state,
+                node.parsing_state,
                 defaultarg_latex_walker
             )
 
@@ -256,7 +326,7 @@ class SimpleCustomMacro(FLMMacroSpecBase):
         )
 
         content_parsing_state = parsing_state_delta.get_updated_parsing_state(
-            content_latex_walker.default_parsing_state,
+            node.parsing_state,
             content_latex_walker
         )
 
@@ -304,7 +374,7 @@ class FeatureSimpleMacros(Feature):
         """
         return {
             'macros': [
-                SimpleCustomMacro(macroname=macroname, **macrodef)
+                SimpleSubstitutionMacro(macroname=macroname, **macrodef)
                 for macroname, macrodef in self.definitions['macros'].items()
             ]
         }

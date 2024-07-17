@@ -100,7 +100,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
                             environmentname=None,
                             target_id=None):
 
-        content = delimiters[0] + nodelist.latex_verbatim() + delimiters[1]
+        content = delimiters[0] + self.recompose_latex(nodelist) + delimiters[1]
         content = self.render_value( content, render_context )
 
         content = self._get_target_id_md_code(target_id) + content

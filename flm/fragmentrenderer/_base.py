@@ -2,11 +2,13 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from pylatexenc.latexnodes import LatexWalkerLocatedError
+from pylatexenc.latexnodes import (
+    LatexWalkerLocatedError
+)
 from pylatexenc.latexnodes import nodes
 
 from ..flmrendercontext import FLMRenderContext
-
+from ..flmrecomposer import FLMNodesFlmRecomposer
 
 
 
@@ -257,7 +259,7 @@ class FragmentRenderer:
             end_delim = f"\\end{'{'}{environmentname}{'}'}"
 
         rendered = self.render_verbatim(
-            begin_delim + nodelist.latex_verbatim() + end_delim,
+            begin_delim + self.recompose_latex(nodelist) + end_delim,
             render_context=render_context,
             annotations=[f'{displaytype}-math'],
             target_id=target_id,
@@ -265,6 +267,10 @@ class FragmentRenderer:
         )
         return rendered
     
+    def recompose_latex(self, node):
+        flm = FLMNodesFlmRecomposer().flm_text_recompose(node)
+        logger.debug("recomposed flm ‘%s’ for node: %r", flm, node)
+        return flm
 
 
     # ---

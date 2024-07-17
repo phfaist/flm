@@ -200,7 +200,7 @@ class LatexFragmentRenderer(FragmentRenderer):
             end_delim = f"\\end{'{'}{environmentname}{'}'}"
 
         # recycle latex content as is
-        return begin_delim + nodelist.latex_verbatim() + end_delim
+        return begin_delim + self.recompose_latex(nodelist) + end_delim
 
 
     def render_text_format(self, text_formats, nodelist, render_context):

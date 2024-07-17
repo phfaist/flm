@@ -157,7 +157,10 @@ class FeatureMath(Feature):
 
 # ---
 
-class _ProxyNodeWithLatexVerbatim:
+class _EmptyClass:
+    pass
+
+class _ProxyNodeWithRecomposedLatex:
 
     pos = None
     pos_end = None
@@ -165,8 +168,20 @@ class _ProxyNodeWithLatexVerbatim:
     def __init__(self, verbatim):
         self._verbatim = verbatim
 
+        # fake specinfo for recomposer
+        self.flm_specinfo = _EmptyClass()
+        self.flm_specinfo.flm_text_recomposed = \
+            lambda **kw: self.flm_text_recomposed(**kw)
+
+    def accept_node_visitor(self, visitor):
+        return visitor.visit_unknown_node(self)
+
+    def flm_text_recomposed(self, recomposer, **kwargs):
+        return self._verbatim
+
     def latex_verbatim(self):
         return self._verbatim
+
 
 
 class MathEnvironment(FLMEnvironmentSpecBase):
@@ -382,9 +397,8 @@ class MathEnvironment(FLMEnvironmentSpecBase):
                     i = len(nodelist)
                 nodelist.insert(
                     i,
-                    # note the "proxy node with latex_verbatim()" only works
-                    # because the node is top-level in the node list !
-                    _ProxyNodeWithLatexVerbatim(
+                    # quick & dirty....
+                    _ProxyNodeWithRecomposedLatex(
                         r'\tag*{' + formatted_ref_flm_text + r'}'
                     )
                 )

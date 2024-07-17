@@ -171,8 +171,24 @@ class FLMSpecInfo(macrospec.CallableSpec):
         node.flm_is_block_heading = self.is_block_heading
         node.flm_is_paragraph_break_marker = self.is_paragraph_break_marker
 
-        # Don't overload the node with properties if they're not needed... 
-        #node.flm_strip_preceding_whitespace = False
+        logger.debug("finalize_node(): Finalized node %r.  substitute? %r",
+                     node, getattr(node, 'flm_SUBSTITUTE_NODE', None))
+
+        # feature: postprocess_parsed_node() can request the resulting node be
+        # substituted by a different node (or node list).  Only use sparingly or
+        # it'll cause headaches!  This is used for custom macros, for instance.
+        # If that's the case, then return the substituted node and set
+        # attributes to keep track of the substitution.
+        #
+        # In any case, make sure the substitute node was created with
+        # latex_walker.make_node() or the like so it has been properly finalized
+        # with the relevant FLM-specific attributes.
+        if hasattr(node, 'flm_SUBSTITUTE_NODE') and node.flm_SUBSTITUTE_NODE is not None:
+            substitute_node = node.flm_SUBSTITUTE_NODE
+            substitute_node.flm_SUBSTITUTE_FOR_NODE = node
+            logger.debug("finalize_node(): Substituting node %r for %r !",
+                         node, substitute_node)
+            return substitute_node
 
         return node
     

@@ -678,14 +678,14 @@ windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
 name = "pylatexenc"
-version = "3.0a23"
+version = "3.0a24"
 description = "Simple LaTeX parser providing latex-to-unicode and unicode-to-latex conversion"
 category = "main"
 optional = false
 python-versions = "<4.0,>=3.8"
 files = [
-    {file = "pylatexenc-3.0a23-py3-none-any.whl", hash = "sha256:55b355240a3d3a4e3aed105b3b7c3b3331e5e91a04a85afd381a5c41b5ea3302"},
-    {file = "pylatexenc-3.0a23.tar.gz", hash = "sha256:99c184701c1e38153dab9d6190e4cbb8d32c759218763e98bd4d91471f8f937a"},
+    {file = "pylatexenc-3.0a24-py3-none-any.whl", hash = "sha256:cf42142788c76f10bb716f3c39a4531b1085d1e8c260868c0bb749d69c53b443"},
+    {file = "pylatexenc-3.0a24.tar.gz", hash = "sha256:4e4aa51d8ca18bae362b37418f58b92194104bdc26f930436fe25c15aeada7f5"},
 ]
 
 [[package]]
@@ -1124,4 +1124,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "d0bdb8b6545a3cfb06e2cd014c28e68b376db86c52da42b10294b0d1eafa2b97"
+content-hash = "85478627b800f589c6ec81c853598f340a238f032576837f6ccfba4004bc9264"

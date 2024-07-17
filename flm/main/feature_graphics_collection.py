@@ -29,7 +29,7 @@ class ResourcesScanner(LatexNodesVisitor):
 
     # ---
 
-    def visit(self, node):
+    def visit(self, node, **kwargs):
         logger.debug('Scanning for graphics resources - visiting node %s', node)
         if hasattr(node, 'flm_resources'):
             # it's a node that requires access to an external resource.
