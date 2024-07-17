@@ -227,18 +227,3 @@ class FeatureSimplePathGraphicsResourceProvider(Feature):
 FeatureClass = FeatureSimplePathGraphicsResourceProvider
 
 
-
-# class FeatureSimpleIncludeGraphicsMacro(SimpleLatexDefinitionsFeature):
-    
-#     feature_name = 'graphics_macro'
-#     feature_title = r'Make the \includegraphics macro available also outside figures'
-
-#     latex_definitions = {
-#         'macros': [
-#             SimpleIncludeGraphicsMacro('includegraphics')
-#         ]
-#     }
-
-
-# FeatureClass = FeatureSimpleIncludeGraphicsMacro
-

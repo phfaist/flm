@@ -25,7 +25,7 @@ def find_exe(exe_name, std_patterns, var_name, error=True):
     if rexe:
         return rexe
     if not error:
-        return
+        return None
     raise ValueError(f"Cannot find executable ‘{exe_name}’ on your system! "
                      f"Please set {var_name} to its full path.")
 
