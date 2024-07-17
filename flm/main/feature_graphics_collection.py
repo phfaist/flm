@@ -12,7 +12,7 @@ from flm.feature.graphics import GraphicsResource
 
 from ._find_exe import find_std_exe
 
-magick_exe = find_std_exe('magick')
+magick_exe = find_std_exe('magick', error=False)
 
 
 # ------------------------------------------------------------------------------
@@ -46,6 +46,17 @@ class ResourcesScanner(LatexNodesVisitor):
 
 
 def _inspect_graphics_file(file_path):
+
+    is_vector = file_path.endswith( ('svg', 'pdf') )
+
+    if not magick_exe:
+        logger.warning(
+            "The ‘magick’ executable was not found.  Cannot read image information; "
+            "install ImageMagick to enable this feature."
+        )
+        return {
+            'graphics_type': 'vector' if is_vector else 'raster'
+        }
 
     # use magick to get the resolution information.
     result = subprocess.check_output([
@@ -83,7 +94,7 @@ def _inspect_graphics_file(file_path):
     width_pt = (width_px / dpi) * 72
     height_pt = (height_px / dpi) * 72
 
-    if file_path.endswith( ('svg', 'pdf') ):
+    if is_vector:
         # vector graphics
         return {
             'graphics_type': 'vector',
