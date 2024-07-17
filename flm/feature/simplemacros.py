@@ -274,8 +274,12 @@ class SimpleSubstitutionMacro(FLMMacroSpecBase):
         parsing_state_delta = None
 
         def compile_default_argument_value(arg_ref):
+            arg_ref_user = arg_ref
+            if isinstance(arg_ref, int):
+                # 0-th argument is "#1" so use "1" as argument key
+                arg_ref_user = arg_ref + 1
             try:
-                default_arg_flm_text = self.default_argument_values[arg_ref]
+                default_arg_flm_text = self.default_argument_values[arg_ref_user]
             except (TypeError, KeyError):
                 # no such argument
                 return []

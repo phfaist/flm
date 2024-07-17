@@ -211,6 +211,40 @@ class TestFeatureSimpleMacros(unittest.TestCase):
         )
 
 
+    def test_with_arguments_4(self):
+        
+        s = r'Test: \mymacro[]{Albert}'
+        
+        environ = mk_flm_environ(macros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {
+                            'parser': '[',
+                            'argname': 'greeting',
+                        },
+                        {
+                            'parser': '{',
+                            'argname': 'name',
+                        },
+                    ],
+                    'default_argument_values': {
+                        1: 'Salut',
+                    },
+                    'content': r'\textbf{#1}, \emph{#2}!',
+                },
+            }
+        })
+        frag1 = environ.make_fragment(s, is_block_level=False, standalone_mode=True)
+        
+        html_renderer = HtmlFragmentRenderer()
+
+        self.assertEqual(
+            frag1.render_standalone(html_renderer),
+            r'''Test: <span class="textbf"></span>, <span class="textit">Albert</span>!'''
+        )
+
+
 
     def test_with_arguments_mathmode(self):
         

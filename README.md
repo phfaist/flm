@@ -327,8 +327,37 @@ flm:
           float_caption_name: Tab.
           float_type: table
           content_handlers: ['cells']
+
     defterm: {}
     graphics: {}
+
+    simplemacros:
+      definitions:
+        macros:
+          # Loosely equivalent to \newcommand\mymacro{Substitution \emph{code}}
+          mymacro:
+            content: 'Substitution \emph{code}'
+          # \newcommand\greet[2][Hello]{#1, #2!}
+          greet:
+            arguments_spec_list: '[{'
+            content: '#1, #2!'
+            default_argument_values:
+              1: 'Hello'
+          # Same, but with named arguments -> \greeet
+          greeet:
+            arguments_spec_list:
+              - parser: '['
+                argname: 'the_greeting'
+              - parser: '{'
+                argname: 'person_name'
+            default_argument_values:
+              the_greeting: 'Hello'
+            content: '\textit{#{the_greeting}: #{person_name}}'
+          # Macro with different definitions in text mode and in math mode:
+          Ident:
+            content:
+              textmode: null
+              mathmode: '\mathbb{1}'
 ```
 
 ## Additional Features such as *Citations*
