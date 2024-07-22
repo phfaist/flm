@@ -21,3 +21,5 @@ default_config:
   style:
     extra_css: ''
     extra_js: ''
+
+    include_extra_vertical_spacing: false
