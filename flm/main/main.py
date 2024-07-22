@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 import frontmatter
 import yaml
 
+import watchfiles
+
 
 from .importclass import import_class
 from .configmerger import ConfigMerger
@@ -76,6 +78,28 @@ def load_external_config(arg_config, dirname):
     return {}
 
 
+
+
+def main_watch(**kwargs):
+
+    arg_files = kwargs.get('files', None)
+    arg_output = kwargs.get('output', None)
+
+    if arg_output is None or arg_output == '-':
+        raise ValueError(
+            "Please provide an output file (-o OUTPUT_FILE) when enablig watch mode"
+        )
+
+    main(**kwargs)
+    
+    logger.info('Watching input files, hit Interrupt (Ctrl+C) to quit.')
+
+    for changes in watchfiles.watch(*arg_files, raise_interrupt=False):
+        logger.info('Input file(s) changed: %r', changes)
+
+        main(**kwargs)
+        
+    logger.info('Okay, quitting now.')
 
 
 

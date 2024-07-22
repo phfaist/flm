@@ -10,10 +10,10 @@ default_config:
   preamble:
     general: |
       % Add additional general preamble definitions here
-    fonts: |
-      % LaTeX preamble to set up the document's fonts.  E.g.:
-      % \usepackage{sourceserifpro}
 
+    # fonts: |
+    #   % LaTeX preamble to set up the document's fonts.  E.g.:
+    #   % \usepackage{sourceserifpro}
     fonts: |
       \usepackage[scale=0.96,default,semibold]{sourceserifpro}
       \usepackage{unicode-math}

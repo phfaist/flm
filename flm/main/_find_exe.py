@@ -14,8 +14,11 @@ latexmk_patterns = [
     r'C:\Program Files*\MikTeX*\miktex\bin\latexmk.exe'
 ]
 
-def find_exe(exe_name, std_patterns, var_name, error=True):
+
+def _find_exe_value(exe_name, std_patterns, var_name):
     if var_name in os.environ:
+        if os.environ[var_name] == 'false':
+            return None
         return os.environ[var_name]
     for p in std_patterns:
         result = glob.glob(p, recursive=True)
@@ -24,6 +27,12 @@ def find_exe(exe_name, std_patterns, var_name, error=True):
     rexe = shutil.which(exe_name)
     if rexe:
         return rexe
+    return None
+
+def find_exe(exe_name, std_patterns, var_name, error=True):
+    value = _find_exe_value(exe_name, std_patterns, var_name)
+    if value:
+        return value
     if not error:
         return None
     raise ValueError(f"Cannot find executable ‘{exe_name}’ on your system! "

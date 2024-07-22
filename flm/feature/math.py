@@ -170,13 +170,14 @@ class _ProxyNodeWithRecomposedLatex:
 
         # fake specinfo for recomposer
         self.flm_specinfo = _EmptyClass()
-        self.flm_specinfo.flm_text_recomposed = \
-            lambda **kw: self.flm_text_recomposed(**kw)
+        self.flm_specinfo.recompose_flm_text = \
+            lambda node, recomposer, **kw: \
+                self.recompose_flm_text(node, recomposer=recomposer, **kw)
 
     def accept_node_visitor(self, visitor):
         return visitor.visit_unknown_node(self)
 
-    def flm_text_recomposed(self, recomposer, **kwargs):
+    def recompose_flm_text(self, node, recomposer, **kwargs):
         return self._verbatim
 
     def latex_verbatim(self):

@@ -268,7 +268,7 @@ class FragmentRenderer:
         return rendered
     
     def recompose_latex(self, node):
-        flm = FLMNodesFlmRecomposer().flm_text_recompose(node)
+        flm = FLMNodesFlmRecomposer().recompose_flm_text(node)
         logger.debug("recomposed flm ‘%s’ for node: %r", flm, node)
         return flm
 

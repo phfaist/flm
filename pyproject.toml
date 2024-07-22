@@ -19,6 +19,7 @@ pylatexenc = { version = "^3.0a24", allow-prereleases = true }
 python-frontmatter = "^1.0.0"
 PyYAML = ">=5.0"
 colorlog = "^6.7.0"
+watchfiles = "^0.22.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"

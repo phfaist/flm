@@ -7,6 +7,7 @@ from pylatexenc.latexnodes import LatexWalkerError
 import colorlog
 
 from .main.main import main as _main
+from .main.main import main_watch as _main_watch
 from .main import oshelper as flm_main_oshelper
 from flm import __version__ as flm_version
 
@@ -95,6 +96,11 @@ def _run_main_inner(cmdargs=None):
                              default=None,
                              help="Use custom a workflow to compile the FLM document.")
 
+    args_parser.add_argument('-W', '--watch', action='store_true',
+                             default=False,
+                             help="Continuously monitor the input file and update the output "
+                             "file as the input file is modified.")
+
     args_parser.add_argument('-t', '--template', action='store',
                              default=None,
                              help="Template to use to render the document.  Templates are "
@@ -126,7 +132,7 @@ def _run_main_inner(cmdargs=None):
     args_parser.add_argument('-v', '--verbose', action='store_true',
                              default=False,
                              help="Enable verbose debugging output")
-    args_parser.add_argument('-W', '--very-verbose', action='store_const',
+    args_parser.add_argument('--very-verbose', action='store_const',
                              dest='verbose',
                              const=2,
                              help="Enable very long verbose debugging output "
@@ -154,6 +160,18 @@ def _run_main_inner(cmdargs=None):
 
     #logger = logging.getLogger(__name__)
 
+
+    #
+    # If in watch mode, set that up 
+    #
+
+    if args.watch:
+
+        d = args.__dict__
+
+        return _main_watch(**d)
+
+
     #
     # Dispatch call to our main function
     #
@@ -162,10 +180,19 @@ def _run_main_inner(cmdargs=None):
 
     _main(**d)
 
+
+    #
+    # Possibly open external viewer for ouptut file
+    #
+
     if args.view:
         if not args.output or args.output == '-':
             raise ValueError("You cannot use --view without --output")
         flm_main_oshelper.os_open_file(args.output)
+
+    #
+    # Done.
+    #
 
     return
 

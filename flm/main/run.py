@@ -480,6 +480,8 @@ def run(flm_content,
         metadata=doc_metadata
     )
     
+    doc.document_fragments = [ fragment ]
+
     
     #
     # Allow features prime access to the document and the fragment, in case they

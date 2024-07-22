@@ -152,6 +152,56 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
         )
 
 
+    def recompose_pure_latex(self, node, recomposer, visited_results_arguments,
+                               visited_results_body, **kwargs):
+
+        # produce \begin{defterm}{The Term}\label{one}\label{two}
+        # ... \end{defterm}, as per the original FLM code, but make sure that
+        # the labels are safe!
+
+        if node.flm_referenceable_infos is None:
+            raise LatexWalkerLocatedError(
+                "Recomposing pure LaTeX: Invalid referenceable info in defterm node "
+                + repr(node),
+                pos=node.pos
+            )
+        
+        # flm_environment = node.latex_walker.flm_environment
+
+        s = r'\begin{' + str(node.environmentname) + '}'
+        s += str(visited_results_arguments[0]) # first mandatory argument, the term itself
+
+        for referenceable_info in node.flm_referenceable_infos:
+            for ref_type, ref_label in referenceable_info.labels:
+                safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
+                safe_label = safe_label_info['safe_label']
+                s += r'\label{' + str(safe_label) + '}'
+            
+        s += recomposer.recompose_nodelist(visited_results_body, node)
+        s += r'\end{' + str(node.environmentname) + '}'
+
+        return s
+
+        # for referenceable_info in node.flm_referenceable_infos:
+        #     # produce display term
+        #     text_flm_standalone_fragment = flm_environment.make_fragment(
+        #         referenceable_info.formatted_ref_flm_text
+        #     )
+        #     text_flm_standalone_fragment_latex = \
+        #         recomposer.recompose_pure_latex(text_flm_standalone_fragment.nodes)
+
+        #     environment_body_start_latex += \
+        #         r'\flmlatexDefLabelText{' + str(text_flm_standalone_fragment_latex) + '}{'
+        #     for ref_type, ref_label in referenceable_info.labels:
+        #         safe_label = recomposer.make_safe_label('ref', ref_type, ref_label)
+        #         environment_body_start_latex += r'\label{' + str(safe_label) + '}'
+        #     environment_body_start_latex += '}'
+
+        
+
+
+
+
 class RefTermMacro(FLMMacroSpecBase):
 
     allowed_in_standalone_mode = False

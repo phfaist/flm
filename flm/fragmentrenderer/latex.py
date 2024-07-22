@@ -438,6 +438,7 @@ class LatexFragmentRenderer(FragmentRenderer):
         }
     }
     float_use_centering = r'\centering{}'
+    float_caption_join = ': '
 
     def render_float(self, float_instance, render_context):
         # see flm.features.floats for FloatInstance
@@ -489,7 +490,8 @@ class LatexFragmentRenderer(FragmentRenderer):
             # rendered the "Figure X" or "Figure" so far.  So now we add the
             # caption text.
             full_figcaption_rendered_list.append(
-                ": " # filler between the "Figure X" and the rest of the caption text.
+                # filler between the "Figure X" and the rest of the caption text.
+                self.float_caption_join # typically ': '
             )
             full_figcaption_rendered_list.append(
                 self.render_nodelist(
@@ -593,9 +595,6 @@ class LatexFragmentRenderer(FragmentRenderer):
         return graphics_resource.src_url, whoptc
 
     def render_cells(self, cells_model, render_context, target_id=None):
-
-        # no support for styles yet ...
-        # logger.warning("LaTeX output only has very rudimentary support for tables !")
 
         stab_contents = ''
 

@@ -549,6 +549,50 @@ class RefMacro(FLMMacroSpecBase):
         return mgr.render_ref_many(ref_list, resource_info)
 
 
+    # Rules for conversion to pure LaTeX code
+
+    def recompose_pure_latex(self, node, recomposer, **kwargs):
+        if node.flm_ref_info is None:
+            raise LatexWalkerLocatedError(
+                "Recomposing pure LaTeX: Invalid ref info in node "
+                + repr(node),
+                pos=node.pos
+            )
+        safe_ref_labels = []
+        for ref_type, ref_label in node.flm_ref_info['ref_list']:
+            safe_ref_labels.append(
+                recomposer.make_safe_label('ref', ref_type, ref_label)
+            )
+        display_content_nodelist = node.flm_ref_info['display_content_nodelist']
+        if display_content_nodelist is not None \
+           and display_content_nodelist.nodelist and len(display_content_nodelist.nodelist):
+            if len(safe_ref_labels) > 1:
+                # cannot have more than one ref target if it has an explicit display text
+                raise LatexWalkerLocatedError(
+                    f"Hyperref macro cannot have multiple ref targets because it "
+                    f"specifies a custom display string.",
+                    pos=node.pos
+                )
+            safe_label = safe_ref_labels[0]['safe_label']
+            disp_latex_info = recomposer.recompose_pure_latex(display_content_nodelist)
+            disp_latex = disp_latex_info['latex']
+            # \usepackage information is already store in the recomposer,
+            # because it's the same object
+            return (
+                r'\NoCaseChange{\protect\hyperref[' + str(safe_label) + ']{'
+                + str(disp_latex) + '}}'
+            )
+        
+        recomposer.ensure_latex_package('cleveref')
+        return (
+            r'\NoCaseChange{\protect\cref{'
+            + ",".join([ safe_label_info['safe_label']
+                         for safe_label_info in safe_ref_labels ])
+            + '}}'
+        )
+            
+
+
 # ------------------------------------------------
 
 FeatureClass = FeatureRefs

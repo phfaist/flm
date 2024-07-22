@@ -169,6 +169,13 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
         node.flmarg_graphics_path = \
             node_args['graphics_path'].get_content_as_chars()
 
+        if node.flmarg_graphics_options_value:
+            raise LatexWalkerLocatedError(
+                (f"Graphics options are not supported for now: "
+                 + f"‘{node.flmarg_graphics_options_value}’"),
+                pos=node_args['graphics_options'].nodelist.pos,
+            )
+
         node.flm_resources = [
             { 'resource_type': 'graphics_path',
               'resource_source_type': 'file',
@@ -184,12 +191,6 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
         graphics_options_value = node.flmarg_graphics_options_value
         graphics_path = node.flmarg_graphics_path
         
-        if graphics_options_value:
-            raise LatexWalkerLocatedError(
-                f"Graphics options are not supported here: ‘{graphics_options_value}’",
-                pos=node_args['graphics_options'].nodelist.pos,
-            )
-
         if not render_context.supports_feature('graphics_resource_provider'):
             raise RuntimeError(
                 "FLM's ‘SimpleIncludeGraphicsSpecInfo’ (‘\\includegraphics’) requires a "
@@ -205,7 +206,51 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
 
         return fragment_renderer.render_graphics_block( graphics_resource, render_context )
 
+    #
+    # recompose pure latex
+    #
 
+    def recompose_pure_latex(self, node, recomposer, **kwargs):
+
+        if recomposer.render_context is not None:
+            graphics_resource_provider_mgr = \
+                recomposer.render_context.feature_render_manager('graphics_resource_provider')
+            graphics_resource = \
+                graphics_resource_provider_mgr.get_graphics_resource(
+                    node.flmarg_graphics_path,
+                    resource_info=node.latex_walker.resource_info
+                )
+        else:
+            logger.warning(
+                f"recomposing pure latex: we have no access to a graphics resource provider "
+                f"(need a render_context in the pure latex recomposer for that). "
+                f"Graphics resource information will not be available."
+            )
+            graphics_resource = GraphicsResource(
+                src_url=node.flmarg_graphics_path,
+            )
+        
+        recopt_graphics = recomposer.get_options('graphics')
+        width_scale = recopt_graphics.get('width_scale', None)
+        set_max_width = recopt_graphics.get('set_max_width', r'\linewidth')
+
+        graphics_options_list = []
+        if graphics_resource.physical_dimensions is not None:
+            width_pt, _ = graphics_resource.physical_dimensions
+            if width_pt is not None:
+                if width_scale is not None:
+                    width_pt = float(width_pt) * width_scale
+                graphics_options_list.append(f'width={width_pt:.6f}bp')
+        if set_max_width is not None:
+            recomposer.ensure_latex_package('adjustbox', options='export')
+            graphics_options_list.append(f'max width={set_max_width}')
+
+        return (
+            r'\includegraphics' 
+            + ("["+",".join([opt for opt in graphics_options_list ])+"]"
+               if graphics_options_list else "")
+            + "{" + str(graphics_resource.src_url) + "}"
+        )
 
 
 
