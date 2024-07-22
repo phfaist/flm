@@ -241,6 +241,9 @@ def main(**kwargs):
         if not binary_output and not arg_suppress_final_newline:
             fout.write("\n")
 
+        if isinstance(arg_output, str) and arg_output != '-':
+            logger.info('Output to ‘%s’', arg_output)
+
     return
 
 

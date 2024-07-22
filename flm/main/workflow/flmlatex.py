@@ -60,7 +60,7 @@ class FlmLatexWorkflow(RenderWorkflow):
             s += r'{' + pname + r'}'
         
         s += '\n'
-        s += r'\begin{document}\n'
+        s += r'\begin{document}' + '\n'
         has_title = False
         if 'title' in document.metadata:
             has_title = True
