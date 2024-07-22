@@ -96,8 +96,12 @@ def main_watch(**kwargs):
 
     for changes in watchfiles.watch(*arg_files, raise_interrupt=False):
         logger.info('Input file(s) changed: %r', changes)
-
-        main(**kwargs)
+        
+        try:
+            main(**kwargs)
+        except Exception as e:
+            logger.error("Error recompiling document! %s", e, exc_info=e)
+            
         
     logger.info('Okay, quitting now.')
 
