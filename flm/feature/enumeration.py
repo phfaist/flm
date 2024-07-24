@@ -291,14 +291,6 @@ class FeatureEnumeration(Feature):
     DocumentManager = None
     RenderManager = None
 
-    # class RenderManager(Feature.RenderManager):
-    #     def initialize(self):
-    #         self.target_id_counter = 1
-    #     def generate_target_id(self):
-    #         tgtid = f"enum-item--{self.target_id_counter}"
-    #         self.target_id_counter += 1
-    #         return tgtid
-
 
     def __init__(self, enumeration_environments=None):
         super().__init__()
