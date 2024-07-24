@@ -78,6 +78,10 @@ class FLMRenderContext:
 
             with render_context.push_logical_state('myfeature', 'depth', depth+1):
                # ...
+
+        FIXME: SHOULDN'T THIS BE IMPLEMENTED BY A DIFFERENT "SUB-RENDER-CONTEXT"
+        OBJECT WHICH IS THEN PASSED TO OTHER CALLS TO RENDER METHODS?
+        ..............................
         """
         return _RenderContextPushLogicalState(self, domainname, propname, value)
 

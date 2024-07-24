@@ -309,8 +309,9 @@ class LatexFragmentRenderer(FragmentRenderer):
             itemlabel = ''
             if target_id_generator is not None:
                 this_target_id = target_id_generator(enumno)
-                itemlabel = self.pin_label_here(this_target_id, tag_content,
-                                                insert_phantom_section=True)
+                if this_target_id is not None:
+                    itemlabel = self.pin_label_here(this_target_id, tag_content,
+                                                    insert_phantom_section=True)
 
             s_items.append(
                 "%\n" + r'\item[{' + tag_content + '}]' #+ '%\n\\relax{}'

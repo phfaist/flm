@@ -17,6 +17,7 @@ parsed as markup so it can be rendered in various formats (html, text, latex).
    overview
    command-line
    features
+   model
    selfdocenv
    lib
    lib-js

@@ -15,7 +15,7 @@ class GraphicsResource:
 
     Attributes:
 
-    .. py:attr:: src_url
+    .. py:attribute:: src_url
 
        A string containing the path or full URL at which the graphics resource
        should be found.  This is the path or URL that should be included in the
@@ -26,24 +26,24 @@ class GraphicsResource:
        that produces FLM output along with e.g. optimized graphics (e.g., if
        you're producing a page on a website).
 
-    .. py:attr:: graphics_type
+    .. py:attribute:: graphics_type
 
        One of 'raster' or 'vector'.
 
-    .. py:attr:: dpi
+    .. py:attribute:: dpi
 
        The dots per inch (or pixels per inch) resolution of the source image.
 
        This property is only used if the `graphics_type` is 'raster'.
 
-    .. py:attr:: pixel_dimensions
+    .. py:attribute:: pixel_dimensions
 
        A tuple `(width_px, height_px)` storing the pixel dimensions of the
        raster source image.
 
        This property is only used if the `graphics_type` is 'raster'.
 
-    .. py:attr:: physical_dimensions
+    .. py:attribute:: physical_dimensions
 
        A tuple `(width_pt, height_pt)` storing the dimensions at which the image
        is meant to be produced on a physical display.  A dimension of `1 pt` is
@@ -59,7 +59,7 @@ class GraphicsResource:
        such a case, the relation is ``physical_dimensions = (
        pixel_dimensions[0]*72/x_dpi, pixel_dimensions[1]*72/y_dpi )``
 
-    .. py:attr:: srcset
+    .. py:attribute:: srcset
 
        Possible alternative source URL to retrieve the final image resource
        (URLs to be included in rendered result), meant for use in <img
@@ -74,9 +74,9 @@ class GraphicsResource:
        as `'pixel_density': 1`.
     
        See also:
-       `https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement/srcset`_.
+       `The <srcset> HTML tag <https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement/srcset>`_.
 
-    .. py:attr:: source_info
+    .. py:attribute:: source_info
 
        This attribute can be set to a dictionary to store any additional
        information about where this graphics resource was resolved/found.

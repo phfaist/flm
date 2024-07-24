@@ -177,7 +177,8 @@ class MarkdownFragmentRenderer(FragmentRenderer):
             tgtid_md_code = ''
             if target_id_generator is not None:
                 target_id = target_id_generator(enumno)
-                tgtid_md_code = self._get_target_id_md_code(target_id)
+                if target_id is not None:
+                    tgtid_md_code = self._get_target_id_md_code(target_id)
 
             # It doesn't seem that Markdown has good support for customizing the
             # list itemize/enumeration tag, so add it to the list item content...

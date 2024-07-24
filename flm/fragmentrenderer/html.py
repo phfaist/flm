@@ -428,7 +428,9 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
             dtattrs = {}
             if target_id_generator is not None:
-                dtattrs['id'] = target_id_generator(enumno)
+                tid = target_id_generator(enumno)
+                if tid is not None:
+                    dtattrs['id'] = tid
 
             s_items.append(
                 self.render_join([
@@ -1014,6 +1016,13 @@ th {
 
 .defterm {
   font-style: italic;
+  margin: 1em 0px;
+}
+.defterm:first-child {
+  margin-top: 0px;
+}
+.defterm:last-child {
+  margin-bottom: 0px;
 }
 
 .defterm .defterm-term {

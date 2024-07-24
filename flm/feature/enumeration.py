@@ -12,7 +12,12 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from ..flmspecinfo import FLMEnvironmentSpecBase # , FLMSpecInfoParagraphBreak
+from ..flmspecinfo import (
+    FLMEnvironmentSpecBase,
+    label_arg,
+    helper_collect_labels,
+    # FLMSpecInfoParagraphBreak
+)
 from ..flmenvironment import (
     FLMArgumentSpec,
 )
@@ -21,6 +26,7 @@ from .. import counter
 
 from ._base import Feature
 
+from .refs import get_safe_target_id
 
 
 
@@ -54,6 +60,11 @@ class Enumeration(FLMEnvironmentSpecBase):
     body_contents_is_block_level = True
 
     allowed_in_standalone_mode = True
+
+
+    # allow these prefixes in \label's pinned to individual \item's
+    allowed_item_label_prefixes = ('item', )
+
 
     def __init__(self,
                  environmentname,
@@ -89,6 +100,7 @@ class Enumeration(FLMEnvironmentSpecBase):
                     macros=[
                         MacroSpec('item', arguments_spec_list=[
                             FLMArgumentSpec('[', argname='custom_tag'),
+                            label_arg, # allow \label{}'s to be attached to \item's
                         ])
                     ]
                 )
@@ -156,7 +168,7 @@ class Enumeration(FLMEnvironmentSpecBase):
         fragment_renderer = render_context.fragment_renderer
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-            ('tag_template',),
+            ('tag_template', ),
         )
 
         state = render_context.get_logical_state('enumeration')
@@ -180,22 +192,65 @@ class Enumeration(FLMEnvironmentSpecBase):
         )
 
         items_custom_tags = {}
+        items_custom_labels = {}
         items_nodelists = []
         for j, iteminfo in enumerate(node.flm_enumeration_items):
             item_macro, item_content_nodelist = iteminfo
             items_nodelists.append( item_content_nodelist )
 
             item_node_args = ParsedArgumentsInfo(node=item_macro).get_all_arguments_info(
-                ('custom_tag',),
+                ('custom_tag', 'label', ),
             )
 
             if 'custom_tag' in item_node_args and item_node_args['custom_tag'].was_provided():
                 items_custom_tags[1+j] = item_node_args['custom_tag'].get_content_nodelist()
+            if 'label' in item_node_args and item_node_args['label'].was_provided():
+                items_custom_labels[1+j] = helper_collect_labels(
+                    item_node_args['label'],
+                    self.allowed_item_label_prefixes,
+                )
 
         def the_counter_formatter(n):
             if n in items_custom_tags:
                 return items_custom_tags[n]
             return counter_formatter(n)
+
+        enum_items_target_ids = {}
+        if len(items_custom_labels) and render_context.supports_feature('refs'):
+            # register any label refs
+            mgr_enum = render_context.feature_render_manager('enumeration')
+            mgr_refs = render_context.feature_render_manager('refs')
+
+            # register labels to the full enumeration
+            for n, labels in items_custom_labels.items():
+
+                if len(labels) == 0:
+                    continue
+
+                if n in items_custom_tags:
+                    item_tag_flm_text = item_custom_tags[n]
+                else:
+                    # This function will be called twice, oh well...
+                    item_tag_flm_text = the_counter_formatter(n)
+
+                ref_type_0, ref_label_0 = labels[0]
+
+                enum_item_tgtid = get_safe_target_id(ref_type_0, ref_label_0)
+                target_href = '#' + enum_item_tgtid
+                enum_items_target_ids[n] = enum_item_tgtid
+
+                for (ref_type, ref_label) in labels:
+                    mgr_refs.register_reference(
+                        ref_type, ref_label,
+                        formatted_ref_flm_text=item_tag_flm_text,
+                        node=node,
+                        target_href=target_href,
+                    )
+
+        def item_target_id_generator(n):
+            if n in enum_items_target_ids:
+                return enum_items_target_ids[n]
+            return None
 
         with render_context.push_logical_state('enumeration', 'nested_depth', nested_depth+1):
             # for transcrypt -- don't return from within a with statement or the
@@ -205,7 +260,8 @@ class Enumeration(FLMEnvironmentSpecBase):
                 the_counter_formatter,
                 render_context=render_context,
                 annotations=self.annotations,
-                nested_depth=nested_depth
+                nested_depth=nested_depth,
+                target_id_generator=item_target_id_generator,
             )
         return result
 
@@ -234,6 +290,15 @@ class FeatureEnumeration(Feature):
 
     DocumentManager = None
     RenderManager = None
+
+    # class RenderManager(Feature.RenderManager):
+    #     def initialize(self):
+    #         self.target_id_counter = 1
+    #     def generate_target_id(self):
+    #         tgtid = f"enum-item--{self.target_id_counter}"
+    #         self.target_id_counter += 1
+    #         return tgtid
+
 
     def __init__(self, enumeration_environments=None):
         super().__init__()
