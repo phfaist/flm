@@ -1,19 +1,17 @@
 import sys
 import os.path
 import fileinput
-import re
 import json
 
 import logging
 logger = logging.getLogger(__name__)
 
-import frontmatter
 import yaml
 
 import watchfiles
 
 
-from .importclass import import_class
+from .importclass import import_class as _import_class
 from .configmerger import ConfigMerger
 configmerger = ConfigMerger()
 
@@ -27,26 +25,27 @@ class ResourceAccessor(run.ResourceAccessorBase):
         os.path.realpath(os.path.join(os.path.dirname(__file__), 'templates')),
     ]
 
-    def file_exists(self, fpath, fname, ftype):
-        fullpath = self.get_full_path(fpath, fname, ftype)
+    def file_exists(self, fpath, fname, ftype, flm_run_info):
+        fullpath = self.get_full_path(fpath, fname, ftype, flm_run_info)
         return os.path.exists(fullpath) and os.path.isfile(fullpath)
 
-    def dir_exists(self, fpath, fname, ftype):
-        fullpath = self.get_full_path(fpath, fname, ftype)
+    def dir_exists(self, fpath, fname, ftype, flm_run_info):
+        fullpath = self.get_full_path(fpath, fname, ftype, flm_run_info)
         return os.path.exists(fullpath) and os.path.isdir(fullpath)
 
-    def read_file(self, fpath, fname, ftype):
-        fullpath = self.get_full_path(fpath, fname, ftype)
+    def read_file(self, fpath, fname, ftype, flm_run_info):
+        fullpath = self.get_full_path(fpath, fname, ftype, flm_run_info)
         with open(fullpath, encoding='utf-8') as f:
-            return f.read()
+            content = f.read()
+        return content
 
-    def get_full_path(self, fpath, fname, ftype):
+    def get_full_path(self, fpath, fname, ftype, flm_run_info):
         if not fpath:
             return fname
         return os.path.join(fpath, fname)
 
-    def import_class(self, fullname, **kwargs):
-        return import_class(fullname, **kwargs)
+    def import_class(self, fullname, *, flm_run_info, **kwargs):
+        return _import_class(fullname, **kwargs)
 
 
 
@@ -157,17 +156,9 @@ def main(**kwargs):
         for line in fileinput.input(files=arg_files, encoding='utf-8'):
             input_content += line
 
-    frontmatter_metadata, flm_content = frontmatter.parse(input_content)
 
-    # compute line number offset (it doesn't look like I can grab this from the
-    # `frontmatter` module's result :/
-    rx_frontmatter = re.compile(r"^-{3,}\s*$\s*", re.MULTILINE) # \s also matches newline
-    m = rx_frontmatter.search(input_content) # top separator
-    if m is not None:
-        m = rx_frontmatter.search(input_content, m.end()) # below the front matter
-    line_number_offset = 0
-    if m is not None:
-        line_number_offset = input_content[:m.end()].count('\n') + 1
+    frontmatter_metadata, flm_content, line_number_offset = \
+        run.parse_frontmatter_content_linenumberoffset(input_content)
 
     # load config & defaults
 

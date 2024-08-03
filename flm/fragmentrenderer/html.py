@@ -4,6 +4,7 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 
+
 from ._base import FragmentRenderer
 
 
@@ -461,8 +462,10 @@ class HtmlFragmentRenderer(FragmentRenderer):
                        annotations=None):
 
         if heading_level not in self.heading_tags_by_level:
-            raise ValueError(f"Bad {heading_level=}, expected one of "
-                             f"{list(self.heading_tags_by_level.keys())}")
+            raise ValueError(f"HTML renderer: bad heading level ‘{heading_level}’, "
+                             f" expected one of "
+                             f"{list(self.heading_tags_by_level.keys())} (or set "
+                             f"HTML fragment renderer's ‘heading_tags_by_level’ config")
 
         annot = list(annotations) if annotations else []
         annot.append(f"heading-level-{heading_level}")

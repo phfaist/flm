@@ -175,6 +175,11 @@ class FLMDocument:
                     node,
                     what=f"{node.display_str()} (delayed render)"
                 )
+                if node.latex_walker.what:
+                    e.set_pos_or_add_open_context_from_node(
+                        node,
+                        what=node.latex_walker.what
+                    )
                 raise e
             except ValueError as e:
                 raise LatexWalkerLocatedError(str(e), pos=node.pos)

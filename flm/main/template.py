@@ -92,7 +92,8 @@ class SimpleStringTemplate:
             )
 
         self.template_content = flm_run_info['resource_accessor'].read_file(
-            template_info_path, template_content_file, 'template_content'
+            template_info_path, template_content_file, 'template_content',
+            flm_run_info=flm_run_info
         )
 
         self.ifmarks = dict(_default_ifmarks)
@@ -194,7 +195,8 @@ class DocumentTemplate:
                 self.flm_run_info
             )
         template_info_yaml = resource_accessor.read_file(
-            self.template_info_path, self.template_info_file, 'template_info'
+            self.template_info_path, self.template_info_file, 'template_info',
+            flm_run_info=self.flm_run_info
         )
         self.template_info = yaml.safe_load(template_info_yaml)
 
@@ -206,6 +208,7 @@ class DocumentTemplate:
         _, cls = resource_accessor.import_class(
             self.template_engine,
             default_classnames=[ 'TemplateEngineClass' ],
+            flm_run_info=self.flm_run_info
         )
 
         self.template = cls(

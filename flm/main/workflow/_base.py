@@ -1,6 +1,8 @@
 import logging
 logger = logging.getLogger(__name__)
 
+from pylatexenc.latexnodes.nodes import LatexMacroNode
+
 from .._util import abbrev_value_str
 
 
@@ -68,9 +70,48 @@ class RenderWorkflow:
         return rendered_result, render_context
 
 
-    def render_document_fragment_callback(self, fragment, render_context):
+    def render_document_fragment_callback(
+            self, fragment, render_context,
+            content_parts_infos,
+            **kwargs
+    ):
 
         rendered_result = fragment.render(render_context)
+
+        environment = fragment.environment
+
+        # Render content parts, if applicable
+        doc_parts = content_parts_infos.get('parts', None)
+        if not doc_parts: doc_parts = []
+        for doc_part_info in doc_parts:
+
+            fragment_part = doc_part_info['fragment']
+
+            # latex_walker = fragment_part.nodes.latex_walker
+
+            # part_type = doc_part_info.get('type', None)
+            # part_label = doc_part_info.get('label', None)
+            # part_frontmatter = doc_part_info.get('frontmatter_metadata', None) or {}
+            # part_frontmatter_title = part_frontmatter.get('title', None)
+            # if part_type and part_frontmatter_title:
+
+            #     head_frag_flm_content = (
+            #         '\\' + str(part_type) + '{' + part_frontmatter_title + '}'
+            #     )
+            #     if part_label:
+            #         head_frag_flm_content += '\\label{' + str(part_label) + '}'
+            #     head_frag_flm_content += '\n'
+
+            #     head_fragment = environment.make_fragment(
+            #         in_flm_content,
+            #         silent=silent,
+            #         what=f"Auto-generated heading code for document part ‘{in_input_fname}’"
+            #     )
+
+            #     rendered_result += head_fragment.render(render_context)
+
+            rendered_result += fragment_part.render(render_context)
+
 
         # Render endnotes
         if ( getattr(self, 'render_endnotes', True)

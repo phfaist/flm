@@ -122,13 +122,16 @@ class FeatureSimpleGraphicsCollection(Feature):
 
     class DocumentManager(Feature.DocumentManager):
 
-        def flm_main_scan_fragment(self, fragment):
+        def flm_main_scan_fragment(self, fragment, document_parts_fragments=None, **kwargs):
             
             logger.debug('Scanning fragment for graphics resources')
 
             scanner = ResourcesScanner()
 
             fragment.start_node_visitor(scanner)
+            if document_parts_fragments:
+                for frag in document_parts_fragments:
+                    frag.start_node_visitor(scanner)
 
             for resource in scanner.get_encountered_resources():
                 if resource.get('resource_type', None) == 'graphics_path':

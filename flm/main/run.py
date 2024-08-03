@@ -1,3 +1,4 @@
+import re
 import copy
 import os # os.pathsep
 import os.path
@@ -8,6 +9,7 @@ from typing import Any, Optional
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+import frontmatter
 import yaml
 
 from .configmerger import ConfigMerger
@@ -20,6 +22,11 @@ from flm import flmenvironment
 # ---
 
 class ResourceAccessorBase:
+    r"""
+    Interface to access templates, import feature/workflow class instances,
+    and read FS files.  See main subclass :py:class:`flm.main.ResourceAccessor`.
+    """
+
 
     template_exts = ['', '.yaml', '.yml', '.json']
     
@@ -36,9 +43,9 @@ class ResourceAccessorBase:
             if tpath is None:
                 tpath = cwd # might still be `None`
 
-            for text in self.template_exts:
-                tfullname = os.path.join(template_prefix, f"{template_name}{text}")
-                if self.file_exists(tpath, tfullname, 'template_info'):
+            for t_ext in self.template_exts:
+                tfullname = os.path.join(template_prefix, f"{template_name}{t_ext}")
+                if self.file_exists(tpath, tfullname, 'template_info', flm_run_info):
                     return tpath, tfullname
 
         raise ValueError(
@@ -46,18 +53,41 @@ class ResourceAccessorBase:
             f"Template path is = {repr(self.template_path)}"
         )
 
-    def import_class(self, fullname, *, default_classnames=None, default_prefix=None):
+    def import_class(self, fullname, *, default_classnames=None, default_prefix=None,
+                     flm_run_info=None):
         raise RuntimeError("Must be reimplemented by subclasses!")
 
-    def read_file(self, fpath, fname, ftype):
+    def read_file(self, fpath, fname, ftype, flm_run_info):
         raise RuntimeError("Must be reimplemented by subclasses!")
 
-    def file_exists(self, fpath, fname, ftype):
+    def file_exists(self, fpath, fname, ftype, flm_run_info):
         raise RuntimeError("Must be reimplemented by subclasses!")
 
-    def dir_exists(self, fpath, fname, ftype):
+    def dir_exists(self, fpath, fname, ftype, flm_run_info):
         raise RuntimeError("Must be reimplemented by subclasses!")
         
+
+
+# ------------------
+
+
+_rx_frontmatter = re.compile(r"^-{3,}\s*$\s*", re.MULTILINE) # \s also matches newline
+
+def parse_frontmatter_content_linenumberoffset(input_content):
+
+    frontmatter_metadata, content = frontmatter.parse(input_content)
+
+    # compute line number offset (it doesn't look like I can grab this from the
+    # `frontmatter` module's result :/
+    m = _rx_frontmatter.search(input_content) # top separator
+    if m is not None:
+        m = _rx_frontmatter.search(input_content, m.end()) # below the front matter
+    line_number_offset = 0
+    if m is not None:
+        line_number_offset = input_content[:m.end()].count('\n') + 1
+
+    return frontmatter_metadata, content, line_number_offset
+
 
 
 # ------------------
@@ -105,6 +135,7 @@ def load_features(features_merge_configs, flm_run_info):
             featurename,
             default_prefix='flm.feature',
             default_classnames=['FeatureClass'],
+            flm_run_info=flm_run_info
         )
 
         # re-merge the config fully from the initial merge configs, so that we
@@ -212,7 +243,8 @@ def load_workflow_environment(*,
     _, WorkflowClass = resource_accessor.import_class(
         workflow_name,
         default_prefix='flm.main.workflow',
-        default_classnames=['RenderWorkflowClass']
+        default_classnames=['RenderWorkflowClass'],
+        flm_run_info=flm_run_info
     )
 
     #
@@ -333,7 +365,8 @@ def load_workflow_environment(*,
             tmodname = path[len('pkg:'):]
             _, pkg_get_template_path = resource_accessor.import_class(
                 tmodname,
-                default_classnames=['get_template_path']
+                default_classnames=['get_template_path'],
+                flm_run_info=flm_run_info
             )
             this_template_path = pkg_get_template_path()
         else:
@@ -358,6 +391,7 @@ def load_workflow_environment(*,
         fragment_renderer_name,
         default_prefix='flm.fragmentrenderer',
         default_classnames=['FragmentRendererInformation'],
+        flm_run_info=flm_run_info,
     )
     FragmentRendererClass = fragment_renderer_information.FragmentRendererClass
 
@@ -429,6 +463,8 @@ def run(flm_content,
         default_configs=None,
         add_builtin_default_configs=True):
 
+    resource_accessor = flm_run_info['resource_accessor']
+
     wenv = load_workflow_environment(
         flm_run_info=flm_run_info,
         run_config=run_config,
@@ -438,13 +474,12 @@ def run(flm_content,
 
     environment = wenv.environment
     config = wenv.config
-    flm_run_info = wenv.flm_run_info
     workflow = wenv.workflow
     fragment_renderer_name = wenv.fragment_renderer_name
 
 
     #
-    # Set up the fragment
+    # Set up the fragment (MAIN fragment in case of content-chapters)
     #
     silent = True # we'll report errors ourselves
     if logging.getLogger('flm').isEnabledFor(logging.DEBUG):
@@ -470,13 +505,95 @@ def run(flm_content,
         flm_run_info.get('metadata', {}),
         { k: v for (k,v) in config.items() if k != 'flm' }
     ])
+
+    #
+    # Find any "child" documents (CONTENT PARTS) and compile them, too.
+    #
+    content_parts_infos = {
+        'parts': [],
+        'by_type': {},
+        # 'type_flm_spec_infos': {},
+    }
+    document_parts_fragments = []
+    if 'content_parts' in config:
+        for content_part_info in config['content_parts']:
+            if 'input' not in content_part_info:
+                raise ValueError("Expected 'input:' in each entry in 'content_parts:' list")
+            in_input_fname = content_part_info['input']
+            in_input_content = resource_accessor.read_file(
+                flm_run_info.get('cwd', None),
+                in_input_fname,
+                'content_part',
+                flm_run_info
+            )
+
+            # parse content/frontmatter and keep line number offset
+            in_frontmatter_metadata, in_flm_content, in_line_number_offset = \
+                parse_frontmatter_content_linenumberoffset(in_input_content)
+
+
+            in_type = None
+            if 'type' in content_part_info:
+                in_type = content_part_info['type']
+                in_label = content_part_info.get('label', None)
+                in_frontmatter_title = (in_frontmatter_metadata or {}).get(
+                    'title',
+                    '[part title not specified in included FLM file front matter]'
+                )
+
+                head_flm_content = (
+                    '\\' + str(in_type) + '{' + in_frontmatter_title + '}'
+                )
+                if in_label:
+                    head_flm_content += '\\label{' + str(in_label) + '}'
+                head_flm_content += '\n'
+
+                in_flm_content = head_flm_content + in_flm_content
+                in_line_number_offset -= head_flm_content.count('\n')
+
+            in_input_lineno_colno_offsets = {
+                'line_number_offset': in_line_number_offset,
+            }
+            
+            logger.debug('Document part FLM with auto-generated part type header:\n%s',
+                         in_flm_content)
+
+            in_fragment = environment.make_fragment(
+                in_flm_content,
+                silent=silent,
+                input_lineno_colno_offsets=in_input_lineno_colno_offsets,
+                what=f"Document Part ‘{in_input_fname}’"
+            )
+
+            document_parts_fragments.append(in_fragment)
+
+            cpinfo = dict(content_part_info)
+            cpinfo['fragment'] = in_fragment
+            cpinfo['flm_content'] = in_flm_content
+            cpinfo['frontmatter_metadata'] = in_frontmatter_metadata
+            cpinfo['input_lineno_colno_offsets'] = in_input_lineno_colno_offsets
+
+            content_parts_infos['parts'].append( cpinfo )
+            if in_type:
+                if in_type not in content_parts_infos['by_type']:
+                    content_parts_infos['by_type'][in_type] = []
+                    # mspec = environment.latex_context.get_macro_spec(
+                    #     in_type, raise_if_not_found=True
+                    # )
+                    # content_parts_infos['type_flm_spec_infos'][in_type] = mspec
+                        
+                content_parts_infos['by_type'][in_type].append( cpinfo )
+            
     
     #
     # Build the document, with the rendering function from the workflow.
     #
     doc = environment.make_document(
         lambda render_context:
-            workflow.render_document_fragment_callback(fragment, render_context),
+            workflow.render_document_fragment_callback(
+                fragment, render_context,
+                content_parts_infos=content_parts_infos,
+            ),
         metadata=doc_metadata
     )
     
@@ -489,7 +606,10 @@ def run(flm_content,
     #
     for feature_name, feature_document_manager in doc.feature_document_managers:
         if hasattr(feature_document_manager, 'flm_main_scan_fragment'):
-            feature_document_manager.flm_main_scan_fragment(fragment)
+            feature_document_manager.flm_main_scan_fragment(
+                fragment,
+                document_parts_fragments=document_parts_fragments,
+            )
 
 
     #

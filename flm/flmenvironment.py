@@ -913,6 +913,10 @@ class FLMEnvironment:
         return nl
 
     def finalize_node(self, node):
+        ### !!!! FIXME: change method name !!!!  This method has the same name
+        ### !!!! as macrospec._specclasses.CallableSpec, which is called by
+        ### !!!! pylatexenc.macrospec._macrocallparser.LatexMacroCallParser; the
+        ### !!!! present method is unrelated.
 
         # finalize node using nodes finalizer
         node = self._nodes_finalizer.finalize_node(node)

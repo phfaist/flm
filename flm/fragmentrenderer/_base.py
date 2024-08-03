@@ -46,6 +46,16 @@ class FragmentRenderer:
             return self.render_nodelist(flm_fragment.nodes,
                                         self.ensure_render_context(render_context),
                                         is_block_level=is_block_level)
+        except LatexWalkerLocatedError as e:
+            logger.debug(
+                f"Error in rendering fragment ‘{flm_fragment.what}’: {e}",
+                exc_info=True
+            )
+            # add open LaTeX context for this fragment (show document file name)
+            e.set_pos_or_add_open_context_from_node(
+                flm_fragment.nodes, what=flm_fragment.what
+            )
+            raise e
         except Exception as e:
             logger.debug(
                 f"Exception while rendering fragment ‘{flm_fragment.what}’: {e}",
@@ -142,7 +152,9 @@ class FragmentRenderer:
             raise e
 
         except Exception as e:
-            raise LatexWalkerLocatedError(str(e), pos=node.pos)
+            err = LatexWalkerLocatedError(str(e))
+            err.set_pos_or_add_open_context_from_node(node)
+            raise err
         
 
     def render_node_chars(self, node, render_context):
