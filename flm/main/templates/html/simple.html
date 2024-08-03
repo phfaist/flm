@@ -68,10 +68,46 @@ figure.float .float-contents img {
 }
 ${endif}
 /* ------------------ */
+${if:display_toc}
+#TOC {
+    max-width: ${layout.content_width};
+    margin: 2rem auto;
+    border: solid .4pt black;
+    padding: 1em;
+}
+#TOC > h1 { font-size: 1.1rem; font-weight: bold; margin: 0px 0px 1em; }
+#TOC > div.toc-hX { margin-top: 0.25em; }
+#TOC > div.toc-h1 { margin-left: 0px; }
+#TOC > div.toc-h2 { margin-left: 1em; }
+${endif}
+/* ------------------ */
 ${style.extra_css}
 /* ------------------ */
 </style>
+
 <script type="text/javascript">
+${if:display_toc}
+// cf. https://stackoverflow.com/a/41085566/1694896
+window.addEventListener('load', function(){
+    var rootEl = document.getElementById('MainArticle');
+    var headings = rootEl.querySelectorAll('h1, h2');
+    var tocEl = document.getElementById('TOC');
+    headings.forEach(function (heading, index) {
+        var ref;
+        if (heading.hasAttribute('id')) {
+            ref = heading.getAttribute('id');
+        } else {
+            ref = '_rToc'+index;
+            heading.setAttribute('id', ref);
+        }
+        var div = tocEl.appendChild(document.createElement('div'));
+        div.setAttribute('class', 'toc-hX toc-'+heading.tagName.toLowerCase() );
+        var link = div.appendChild(document.createElement('a'));
+        link.setAttribute('href', '#'+ref);
+        link.textContent = heading.textContent;
+    });
+});
+${endif}
 ${style.js_local}
 ${style.extra_js}
 </script>
@@ -88,7 +124,10 @@ ${if:render_header}
     ${endif}
   </header>
 ${endif}
-<article>
+${if:display_toc}
+<div id="TOC"><h1>Contents:</h1></div>
+${endif}
+<article id="MainArticle">
 ${content}
 </article>
 ${style.body_end_js_scripts}

@@ -18,8 +18,8 @@ _base:
 
       math: {}
 
-      headings:
-        section_commands_by_level: null
+      headings: {}
+      #  section_commands_by_level: null
 
       enumeration:
         enumeration_environments: {}            

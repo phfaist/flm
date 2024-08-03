@@ -19,6 +19,10 @@ ${endif}%$$
 \date{${metadata.date}}%$$
 \maketitle
 
+${if:render_toc}
+\tableofcontents
+${endif}%$$
+
 ${content}%$$
 
 \end{document}

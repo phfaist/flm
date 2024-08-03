@@ -17,6 +17,7 @@ default_config:
   documentclass_options: 'reprint,pra,superscriptaddress'
 
   render_title: true
+  render_toc: false
 
   enable_hyperref: true
 

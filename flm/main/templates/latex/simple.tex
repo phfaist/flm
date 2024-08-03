@@ -22,5 +22,8 @@ ${if:render_title}%$$
 \date{${metadata.date}}%$$
 \maketitle
 ${endif}%$$
+${if:render_toc}
+\tableofcontents
+${endif}%$$
 ${content}%$$
 \end{document}
