@@ -154,6 +154,8 @@ def _get_arg_spec(argspec):
         # not a dict, okay, use default constructor (may still be a string)
         pass
     if parser_val is not None:
+        if isinstance(argspec, str):
+            return FLMArgumentSpec(parser=argspec, argname=None)
         argspecargs = dict(argspec)
         if 'argname' not in argspecargs:
             argspecargs['argname'] = None
