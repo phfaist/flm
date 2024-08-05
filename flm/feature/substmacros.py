@@ -298,8 +298,8 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
 
         # add body "argument", if applicable
         if node.isNodeType(LatexEnvironmentNode):
-            parsed_argument_infos = dict(parsed_argument_infos)
-            parsed_argument_infos['body'] = SingleParsedArgumentInfo(
+            parsed_arguments_infos = dict(parsed_arguments_infos)
+            parsed_arguments_infos['body'] = SingleParsedArgumentInfo(
                 argument_node_object=node.nodelist
             )
 
@@ -519,7 +519,7 @@ class FeatureSubstMacros(Feature):
                 for macroname, specdef in self.definitions['macros'].items()
             ],
             'environments': [
-                SubstitutionEnvironments(environmentname=environmentname, **specdef)
+                SubstitutionEnvironment(environmentname=environmentname, **specdef)
                 for environmentname, specdef in self.definitions['environments'].items()
             ],
             'specials': [

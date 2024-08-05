@@ -324,6 +324,30 @@ class TestFeatureSubstMacros(unittest.TestCase):
         )
 
 
+    def test_env(self):
+        
+        s = r'''Test
+\begin{myenv}
+Hello.
+\end{myenv}'''
+        
+        environ = mk_flm_environ(substmacros_definitions={
+            'environments': {
+                'myenv': {
+                    'content': '[[[#{body}]]]',
+                }
+            }
+        })
+        frag1 = environ.make_fragment(s, is_block_level=False, standalone_mode=True)
+        
+        html_renderer = HtmlFragmentRenderer()
+
+        self.assertEqual(
+            frag1.render_standalone(html_renderer),
+            r'''Test [[[ Hello. ]]]'''
+        )
+
+
 
 
 
