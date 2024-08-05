@@ -347,6 +347,30 @@ Hello.
             r'''Test [[[ Hello. ]]]'''
         )
 
+    def test_env_arg(self):
+        
+        s = r'''Test
+\begin{myenv}{ccc}
+Hello.
+\end{myenv}'''
+        
+        environ = mk_flm_environ(substmacros_definitions={
+            'environments': {
+                'myenv': {
+                    'content': '[#1][[[#{body}]]]',
+                    'arguments_spec_list': '{',
+                }
+            }
+        })
+        frag1 = environ.make_fragment(s, is_block_level=False, standalone_mode=True)
+        
+        html_renderer = HtmlFragmentRenderer()
+
+        self.assertEqual(
+            frag1.render_standalone(html_renderer),
+            r'''Test [ccc][[[ Hello. ]]]'''
+        )
+
 
 
 
