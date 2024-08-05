@@ -59,7 +59,7 @@ class LatexFragmentRenderer(FragmentRenderer):
         self.latex_encoder = UnicodeToLatexEncoder(
             conversion_rules=
                 pyltxenc_lenc_get_builtin.get_builtin_conversion_rules('defaults'),
-            unknown_char_policy='unihex',
+            unknown_char_policy='keep', # keep Unicode char as is
         )
 
     # ------------------

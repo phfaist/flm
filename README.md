@@ -331,7 +331,7 @@ flm:
     defterm: {}
     graphics: {}
 
-    simplemacros:
+    substmacros:
       definitions:
         macros:
           # Loosely equivalent to \newcommand\mymacro{Substitution \emph{code}}

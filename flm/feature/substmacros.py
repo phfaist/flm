@@ -3,15 +3,15 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import (
     ParsedArgumentsInfo,
-    LatexArgumentSpec,
+    SingleParsedArgumentInfo,
     LatexWalkerLocatedError,
 )
-from pylatexenc.latexnodes.nodes import LatexNodeList, LatexGroupNode
+from pylatexenc.latexnodes.nodes import LatexNodeList, LatexGroupNode, LatexEnvironmentNode
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.macrospec import ParsingStateDeltaExtendLatexContextDb
 
 from ..flmspecinfo import (
-    FLMArgumentSpec, FLMMacroSpecBase, FLMSpecialsSpecBase
+    FLMArgumentSpec, FLMSpecInfo, FLMSpecialsSpecBase
 )
 
 from ._base import Feature
@@ -32,7 +32,9 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
 
     allowed_in_standalone_mode = True
 
-    def __init__(self, specials_chars='#', parsed_arguments_infos=None,
+    def __init__(self, specials_chars='#',
+                 parsed_arguments_infos=None,
+                 argument_number_offset=0,
                  compile_default_argument_value=None):
         super().__init__(specials_chars=specials_chars,
                          arguments_spec_list=_macroarg_placeholder_arguments_spec_list)
@@ -40,10 +42,11 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
         self.compile_default_argument_value = compile_default_argument_value
         self.num_arguments = 0
         self.argument_names = []
+        self.argument_number_offset = argument_number_offset
         for arg in self.parsed_arguments_infos.keys():
-            if isinstance(arg, int) or len(arg) == 1 and arg[0].isdigit():
+            if isinstance(arg, int) or arg.isdigit(): # .isdigit() implies len>=1
                 if arg >= self.num_arguments:
-                    self.num_arguments = arg + 1
+                    self.num_arguments = int(arg) + 1
             else:
                 self.argument_names.append(arg)
 
@@ -58,8 +61,8 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
 
         argument_ref_key = None
         if len(argument_ref) == 1 and argument_ref.isdigit():
-            # numerical argument reference
-            argument_ref_key = int(argument_ref) - 1 # store index, starting from zero
+            # numerical argument reference. Store index, starting from zero.
+            argument_ref_key = int(argument_ref) - 1 + self.argument_number_offset
 
             if argument_ref_key < 0 or argument_ref_key >= self.num_arguments:
                 raise LatexWalkerLocatedError(
@@ -79,7 +82,7 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
 
         # and figure out the replacement nodes!
         if argument_ref_key not in self.parsed_arguments_infos:
-            valid_arg_specs = f"numbers 1–{self.num_arguments}"
+            valid_arg_specs = f"numbers 1–{self.num_arguments-self.argument_number_offset}"
             if len(self.argument_names):
                 valid_arg_specs = (
                     ",".join([f"‘{argname}’" for argname in self.argument_names ])
@@ -133,43 +136,49 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
         node.flm_SUBSTITUTE_NODE = substitute_node
 
 
+    #
     # ### Not needed nor called, it's the substitute node that's rendered...
     #
-    # def render(self, node, render_context):
-    #     return render_context.fragment_renderer.render_nodelist(
-    #         node.flm_placeholder_content_nodelist,
-    #         render_context,
-    #     )
+    def render(self, node, render_context):
+        raise RuntimeError("Shouldn't be called")
+    
 
 
 def _get_arg_spec(argspec):
+    parser_val = None
     try:
-        if argspec['parser']:
-            # argspec is a dictionary and it has a 'parser' key.  (Don't use
-            # isinstance(..., dict) so that this works with Transcrypt...)
-            return LatexArgumentSpec(**argspec)
+        parser_val = argspec['parser']
+        # argspec is a dictionary and it has a 'parser' key.  (Don't use
+        # isinstance(..., dict) so that this works with Transcrypt...)
     except (TypeError, KeyError):
         # not a dict, okay, use default constructor (may still be a string)
         pass
+    if parser_val is not None:
+        argspecargs = dict(argspec)
+        if 'argname' not in argspecargs:
+            argspecargs['argname'] = None
+        return FLMArgumentSpec(**argspecargs)
     return argspec
 
 
-class SimpleSubstitutionMacro(FLMMacroSpecBase):
-    r"""
-    A macro spec that describes a simple substitution of the macro
-    (possibly with arguments) by user-defined custom FLM content (possibly with
-    argument placeholders).
 
-    - `macroname` is the name of the custom macro
+ # ------------------------------------------------------------------------------
+
+
+class SubstitutionCallableSpecInfo(FLMSpecInfo):
+    r"""
+    A callable spec that describes a simple substitution of the
+    macro/environment/specials (possibly with arguments) by user-defined custom
+    FLM content (possibly with argument placeholders).
 
     - `arguments_spec_list` is the list of arguments specification objects
       describing the arguments accepted by the custom macro.  This parameter is
-      as you'd give to `FLMMacroSpecBase`.  As an exception, each element of the
-      list can also be a dictionary, in which case the corresponding argument
-      specification is constructed by passing the dictionary's contents as
-      keyword arguments to the constructor of `LatexArgumentSpec()`.
-      E.g. `arguments_spec_list = [ {'parser': '[', 'argname': 'argone'},
-      {'parser': '{', 'argname': 'argtwo'} ]`.
+      as you'd give to :py:class:`FLMSpecInfo` or :py:class:`FLMMacroSpecBase`.
+      As an exception, each element of the list can also be a dictionary, in
+      which case the corresponding argument specification is constructed by
+      passing the dictionary's contents as keyword arguments to the constructor
+      of `LatexArgumentSpec()`.  E.g. `arguments_spec_list = [ {'parser': '[',
+      'argname': 'argone'}, {'parser': '{', 'argname': 'argtwo'} ]`.
 
     - `default_argument_values` is a dictionary with values that should be used
       for the arguments if the argument is not specified.  The values are FLM
@@ -188,32 +197,52 @@ class SimpleSubstitutionMacro(FLMMacroSpecBase):
 
     allowed_in_standalone_mode = True
 
-    def __init__(self, macroname,
+    def __init__(self,
+                 spec_node_parser_type,
                  arguments_spec_list=None,
+                 argument_number_offset=0,
                  default_argument_values=None,
                  content=None,
                  is_block_level=None,
+                 **kwargs,
                  ):
         
         # allow user to specify a latex argument spec as a dict
         if arguments_spec_list is not None and len(arguments_spec_list):
             arguments_spec_list = [ _get_arg_spec(arg) for arg in arguments_spec_list ]
 
-        super().__init__(macroname, arguments_spec_list)
+        super().__init__(
+            spec_node_parser_type=spec_node_parser_type,
+            arguments_spec_list=arguments_spec_list,
+            **kwargs
+        )
         
         if default_argument_values is None:
             default_argument_values = {}
         self.default_argument_values = default_argument_values
 
+        self.argument_number_offset = argument_number_offset
+
         if content is None:
             content = ''
 
+        self.content_textmode = None
+        self.content_mathmode = None
         if isinstance(content, str):
             self.content_textmode = content
             self.content_mathmode = content
         else:
-            self.content_textmode = content['textmode']
-            self.content_mathmode = content['mathmode']
+            if 'textmode' in content:
+                self.content_textmode = content['textmode']
+            if 'mathmode' in content:
+                self.content_mathmode = content['mathmode']
+
+        logger.debug("Constructing SimpleSubstitutionMacro, arguments_spec_list = %r; "
+                     "content_textmode=%r, content_mathmode=%r, kwargs=%r",
+                     arguments_spec_list, self.content_textmode, self.content_mathmode,
+                     kwargs)
+
+
 
 
     def postprocess_parsed_node(self, node):
@@ -252,6 +281,8 @@ class SimpleSubstitutionMacro(FLMMacroSpecBase):
         node.flm_SUBSTITUTE_NODE = substitute_node
 
 
+    def filter_parsed_arguments_infos(self, parsed_arguments_infos, **kwargs):
+        return parsed_arguments_infos
 
     def _compile_nodes(self, node):
 
@@ -265,24 +296,89 @@ class SimpleSubstitutionMacro(FLMMacroSpecBase):
 
         parsed_arguments_infos = ParsedArgumentsInfo(node=node).get_all_arguments_info()
 
+        # add body "argument", if applicable
+        if node.isNodeType(LatexEnvironmentNode):
+            parsed_argument_infos = dict(parsed_argument_infos)
+            parsed_argument_infos['body'] = SingleParsedArgumentInfo(
+                argument_node_object=node.nodelist
+            )
+
+        parsed_arguments_infos = self.filter_parsed_arguments_infos(
+            parsed_arguments_infos,
+            node=node
+        )
+
         logger.debug(
-            "Parsing macro content %r with replacements %r",
+            "Parsing callable content %r with argument replacements %r",
             macro_replacement_flm_text,
             parsed_arguments_infos
         )
 
+        callablewhat = '(callable)'
+        if hasattr(self, 'macroname'):
+            callablewhat = '\\' + str(self.macroname)
+        elif hasattr(self, 'environmentname'):
+            callablewhat = r'\begin{' + str(self.environmentname) + r'}...\end{..}'
+        elif hasattr(self, 'specials_chars'):
+            callablewhat = r'specials(‘' + str(self.specials_chars) + r'’)'
+
         parsing_state_delta = None
 
         def compile_default_argument_value(arg_ref):
-            arg_ref_user = arg_ref
+
+            arg_ref_user = None
+            default_arg_flm_text = None
+
             if isinstance(arg_ref, int):
                 # 0-th argument is "#1" so use "1" as argument key
-                arg_ref_user = arg_ref + 1
-            try:
-                default_arg_flm_text = self.default_argument_values[arg_ref_user]
-            except (TypeError, KeyError):
-                # no such argument
-                return []
+                arg_ref_user = arg_ref + 1 - self.argument_number_offset
+
+                if arg_ref_user in self.default_argument_values:
+                    # all ok, found our requested default value
+                    default_arg_flm_text = self.default_argument_values[arg_ref_user]
+                else:
+                    # try to find default value by argument name instead.
+                    if node.nodeargd is None or node.nodeargd.arguments_spec_list is None \
+                       or arg_ref < 0 or arg_ref >= len(node.nodeargd.arguments_spec_list):
+                        raise ValueError(
+                            "Unexpected invalid arg_ref={} for node={}".format(
+                                repr(arg_ref), repr(node)
+                            )
+                        )
+                    argname = node.nodeargd.arguments_spec_list[arg_ref].argname
+                    if not argname or argname not in self.default_argument_values:
+                        # no default value provided.
+                        return []
+                    # all ok, use ref by name
+                    arg_ref_user = argname
+                    default_arg_flm_text = self.default_argument_values[arg_ref_user]
+                    
+            else:
+                # arg_ref is an argname
+                if arg_ref in self.default_argument_values:
+                    # all ok, found our requested default value
+                    arg_ref_user = arg_ref
+                    default_arg_flm_text = self.default_argument_values[arg_ref_user]
+                else:
+                    # try to find by index instead
+                    if node.nodeargd is None or node.nodeargd.arguments_spec_list is None:
+                        raise ValueError("Unexpected invalid node arguments for node={}"
+                                         .format(repr(node)))
+                    for arg_j, arg_spec in enumerate(node.nodeargd.arguments_spec_list):
+                        if arg_spec.argname == arg_ref:
+                            break
+                    else:
+                        raise ValueError("Unexpected invalid argument argname={} for node={}"
+                                         .format(repr(argname), repr(node)))
+                    # found arg_j
+                    arg_ref_user = arg_j + 1 - self.argument_number_offset
+                    if arg_ref_user not in self.default_argument_values:
+                        # no default value provided.
+                        return []
+                    
+                    # all ok, found our requested default value
+                    default_arg_flm_text = self.default_argument_values[arg_ref_user]
+
             if default_arg_flm_text is None:
                 return []
 
@@ -293,7 +389,7 @@ class SimpleSubstitutionMacro(FLMMacroSpecBase):
                 resource_info=base_latex_walker.resource_info,
                 standalone_mode=base_latex_walker.standalone_mode,
                 tolerant_parsing=base_latex_walker.tolerant_parsing,
-                what=f"{base_latex_walker.what}→\\{self.macroname}/default arg {arg_ref}",
+                what=f"{base_latex_walker.what}→{callablewhat}",
                 input_lineno_colno_offsets=None,
             )
 
@@ -312,8 +408,12 @@ class SimpleSubstitutionMacro(FLMMacroSpecBase):
         parsing_state_delta = ParsingStateDeltaExtendLatexContextDb(
             {
                 'specials': [
-                    SimpleMacroArgumentPlaceholder('#', parsed_arguments_infos,
-                                                   compile_default_argument_value),
+                    SimpleMacroArgumentPlaceholder(
+                        '#',
+                        parsed_arguments_infos=parsed_arguments_infos,
+                        compile_default_argument_value=compile_default_argument_value,
+                        argument_number_offset=self.argument_number_offset,
+                    ),
                 ],
             },
         )
@@ -325,7 +425,7 @@ class SimpleSubstitutionMacro(FLMMacroSpecBase):
             resource_info=base_latex_walker.resource_info,
             standalone_mode=base_latex_walker.standalone_mode,
             tolerant_parsing=base_latex_walker.tolerant_parsing,
-            what=f"{base_latex_walker.what}→\\{self.macroname}",
+            what=f"{base_latex_walker.what}→{callablewhat}",
             input_lineno_colno_offsets=None,
         )
 
@@ -351,7 +451,40 @@ class SimpleSubstitutionMacro(FLMMacroSpecBase):
         )
 
 
-class FeatureSimpleMacros(Feature):
+
+class SubstitutionMacro(SubstitutionCallableSpecInfo):
+    def __init__(self, macroname, **kwargs):
+        super().__init__(
+            macroname=macroname,
+            spec_node_parser_type='macro',
+            **kwargs
+        )
+
+
+class SubstitutionEnvironment(SubstitutionCallableSpecInfo):
+    def __init__(self, environmentname, **kwargs):
+        super().__init__(
+            environmentname=environmentname,
+            spec_node_parser_type='environment',
+            **kwargs
+        )
+
+
+
+class SubstitutionSpecials(SubstitutionCallableSpecInfo):
+    def __init__(self, specials_chars, **kwargs):
+        super().__init__(
+            specials_chars=specials_chars,
+            spec_node_parser_type='specials',
+            **kwargs
+        )
+
+
+
+
+
+
+class FeatureSubstMacros(Feature):
 
     DocumentManager = None
     RenderManager = None
@@ -367,6 +500,10 @@ class FeatureSimpleMacros(Feature):
             definitions = {}
         if 'macros' not in definitions:
             definitions['macros'] = {}
+        if 'environments' not in definitions:
+            definitions['environments'] = {}
+        if 'specials' not in definitions:
+            definitions['specials'] = {}
 
         self.definitions = definitions
         
@@ -378,10 +515,18 @@ class FeatureSimpleMacros(Feature):
         """
         return {
             'macros': [
-                SimpleSubstitutionMacro(macroname=macroname, **macrodef)
-                for macroname, macrodef in self.definitions['macros'].items()
-            ]
+                SubstitutionMacro(macroname=macroname, **specdef)
+                for macroname, specdef in self.definitions['macros'].items()
+            ],
+            'environments': [
+                SubstitutionEnvironments(environmentname=environmentname, **specdef)
+                for environmentname, specdef in self.definitions['environments'].items()
+            ],
+            'specials': [
+                SubstitutionSpecials(specials_chars=specials_chars, **specdef)
+                for specials_chars, specdef in self.definitions['specials'].items()
+            ],
         }
         
 
-FeatureClass = FeatureSimpleMacros
+FeatureClass = FeatureSubstMacros
