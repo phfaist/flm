@@ -43,6 +43,7 @@ def standard_features(
         floats=True,
         float_types=None,
         defterm=True,
+        render_defterm_with_term=True,
         theorems=False,
         substmacros_definitions=None,
 ):
@@ -136,7 +137,7 @@ def standard_features(
 
     if defterm:
         features.append(
-            FeatureDefTerm()
+            FeatureDefTerm(render_defterm_with_term=render_defterm_with_term)
         )
 
     if theorems:

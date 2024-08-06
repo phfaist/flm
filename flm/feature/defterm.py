@@ -308,16 +308,20 @@ class RefTermMacro(FLMMacroSpecBase):
 
         is_currently_defining_term = term_info['is_currently_defining_term']
 
-        annotations = []
         if is_currently_defining_term:
-            annotations.append('term-in-defining-defterm')
+
+            return render_context.fragment_renderer.render_text_format(
+                ['defterm-term', 'term-in-defining-defterm'],
+                nodelist=term_flm_show_term_nodelist,
+                render_context=render_context,
+            )
 
         return render_context.fragment_renderer.render_link(
             'term',
             href=ref_instance.target_href,
             display_nodelist=term_flm_show_term_nodelist,
             render_context=render_context,
-            annotations=annotations,
+            annotations=[],
         )
 
 

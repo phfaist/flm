@@ -41,7 +41,8 @@ class LatexFragmentRenderer(FragmentRenderer):
     text_format_cmds = {
         'textit': 'textit',
         'textbf': 'textbf',
-        'defterm-term': 'displayterm'
+        'defterm-term': 'displayterm',
+        'term-in-defining-defterm': None,
     }
 
     latex_semantic_block_environments = {
