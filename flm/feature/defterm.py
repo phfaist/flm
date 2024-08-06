@@ -98,58 +98,74 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
 
         formatted_ref_flm_text = node.flmarg_term_flm_ref_label_verbatim
 
-        # register the term
-        if render_context.supports_feature('refs'):
-            refs_mgr = render_context.feature_render_manager('refs')
-            for referenceable_info in node.flm_referenceable_infos:
-                refs_mgr.register_reference_referenceable(
-                    node=node,
-                    referenceable_info=referenceable_info,
-                    #target_href=target_href,
+        logical_state = render_context.get_logical_state('feature.defterm')
+        if 'currently_defining_terms' not in logical_state:
+            logical_state['currently_defining_terms'] = []
+
+        cur_def_terms = list(logical_state['currently_defining_terms'])
+        cur_def_terms.append( formatted_ref_flm_text )
+
+        with render_context.push_logical_state('feature.defterm',
+                                               'currently_defining_terms', cur_def_terms):
+
+            logger.debug("Pushed logical state, cur_def_terms = %r", cur_def_terms)
+
+            # register the term
+            if render_context.supports_feature('refs'):
+                refs_mgr = render_context.feature_render_manager('refs')
+                for referenceable_info in node.flm_referenceable_infos:
+                    refs_mgr.register_reference_referenceable(
+                        node=node,
+                        referenceable_info=referenceable_info,
+                        #target_href=target_href,
+                    )
+
+            thenodelist = node.nodelist
+
+            if self.render_with_term:
+                environ = render_context.doc.environment
+                term_fragment = environ.make_fragment(
+                    formatted_ref_flm_text + self.render_with_term_suffix,
+                    standalone_mode=True
+                )
+                intro_node = term_fragment.latex_walker.make_node(
+                    latexnodes_nodes.LatexMacroNode,
+                    macroname='',
+                    spec=self.render_term_text_format_spec,
+                    macro_post_space='',
+                    parsing_state=term_fragment.nodes.parsing_state,
+                    nodeargd=ParsedArguments(
+                        arguments_spec_list=self.render_term_text_format_spec.arguments_spec_list,
+                        argnlist=[
+                            term_fragment.nodes,
+                        ]
+                    ),
+                    pos=node.pos,
+                    pos_end=node.pos_end
+                )
+                self.render_term_text_format_spec.finalize_node( intro_node )
+
+                thenodelist = term_fragment.latex_walker.make_nodelist(
+                    [ intro_node ] + list(thenodelist),
+                    parsing_state=node.nodelist.parsing_state,
                 )
 
-        thenodelist = node.nodelist
-
-        if self.render_with_term:
-            environ = render_context.doc.environment
-            term_fragment = environ.make_fragment(
-                formatted_ref_flm_text + self.render_with_term_suffix,
-                standalone_mode=True
-            )
-            intro_node = term_fragment.latex_walker.make_node(
-                latexnodes_nodes.LatexMacroNode,
-                macroname='',
-                spec=self.render_term_text_format_spec,
-                macro_post_space='',
-                parsing_state=term_fragment.nodes.parsing_state,
-                nodeargd=ParsedArguments(
-                    arguments_spec_list=self.render_term_text_format_spec.arguments_spec_list,
-                    argnlist=[
-                        term_fragment.nodes,
-                    ]
+            # A call to render_semantic_block() is needed around the rendered
+            # nodelist so that we can attach a target_id anchor to the content.
+            result = render_context.fragment_renderer.render_semantic_block(
+                content=render_context.fragment_renderer.render_nodelist(
+                    thenodelist,
+                    render_context=render_context,
+                    is_block_level=True,
                 ),
-                pos=node.pos,
-                pos_end=node.pos_end
-            )
-            self.render_term_text_format_spec.finalize_node( intro_node )
-
-            thenodelist = term_fragment.latex_walker.make_nodelist(
-                [ intro_node ] + list(thenodelist),
-                parsing_state=node.nodelist.parsing_state,
-            )
-
-        # A call to render_semantic_block() is needed around the rendered
-        # nodelist so that we can attach a target_id anchor to the content.
-        return render_context.fragment_renderer.render_semantic_block(
-            content=render_context.fragment_renderer.render_nodelist(
-                thenodelist,
+                role='defterm',
                 render_context=render_context,
-                is_block_level=True,
-            ),
-            role='defterm',
-            render_context=render_context,
-            target_id=node.flm_referenceable_infos[0].get_target_id(),
-        )
+                target_id=node.flm_referenceable_infos[0].get_target_id(),
+            )
+
+            logger.debug("End of logical state push/")
+
+        return result
 
 
     def recompose_pure_latex(self, node, recomposer, visited_results_arguments,
@@ -181,21 +197,6 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
         s += r'\end{' + str(node.environmentname) + '}'
 
         return s
-
-        # for referenceable_info in node.flm_referenceable_infos:
-        #     # produce display term
-        #     text_flm_standalone_fragment = flm_environment.make_fragment(
-        #         referenceable_info.formatted_ref_flm_text
-        #     )
-        #     text_flm_standalone_fragment_latex = \
-        #         recomposer.recompose_pure_latex(text_flm_standalone_fragment.nodes)
-
-        #     environment_body_start_latex += \
-        #         r'\flmlatexDefLabelText{' + str(text_flm_standalone_fragment_latex) + '}{'
-        #     for ref_type, ref_label in referenceable_info.labels:
-        #         safe_label = recomposer.make_safe_label('ref', ref_type, ref_label)
-        #         environment_body_start_latex += r'\label{' + str(safe_label) + '}'
-        #     environment_body_start_latex += '}'
 
         
 
@@ -256,7 +257,28 @@ class RefTermMacro(FLMMacroSpecBase):
 
 
     def prepare_delayed_render(self, node, render_context):
-        pass
+
+        logger.debug("Prepare delayed render - node = %r", node)
+
+        # flag to set a special style to \term{...} calls *within the defterm
+        # environment that is defining that precise term*
+        is_currently_defining_term = False
+        logical_state = render_context.get_logical_state('feature.defterm')
+        if 'currently_defining_terms' in logical_state:
+            if (node.flm_term_flm_ref_label_verbatim
+                in logical_state['currently_defining_terms']):
+                is_currently_defining_term = True
+
+        logger.debug("Queried logical state, cur_def_terms = %r; currently defining term? %s",
+                     logical_state.get('currently_defining_terms'),
+                     is_currently_defining_term)
+
+        mgr = render_context.feature_render_manager('defterm')
+        mgr.register_term_node_info(
+            node,
+            is_currently_defining_term=is_currently_defining_term
+        )
+
 
     def render(self, node, render_context):
 
@@ -281,11 +303,21 @@ class RefTermMacro(FLMMacroSpecBase):
             resource_info,
         )
 
+        mgr = render_context.feature_render_manager('defterm')
+        term_info = mgr.get_term_node_info(node)
+
+        is_currently_defining_term = term_info['is_currently_defining_term']
+
+        annotations = []
+        if is_currently_defining_term:
+            annotations.append('term-in-defining-defterm')
+
         return render_context.fragment_renderer.render_link(
             'term',
             href=ref_instance.target_href,
             display_nodelist=term_flm_show_term_nodelist,
             render_context=render_context,
+            annotations=annotations,
         )
 
 
@@ -297,8 +329,14 @@ class FeatureDefTerm(Feature):
     feature_name = 'defterm'
     feature_title = 'Definition terms'
 
-    FeatureDocumentManager = None
-    FeatureRenderManager = None
+    class RenderManager(Feature.RenderManager):
+        def initialize(self):
+            self.registered_term_node_infos = {}
+        def register_term_node_info(self, node, **kwargs):
+            self.registered_term_node_infos[self.get_node_id(node)] = kwargs
+        def get_term_node_info(self, node):
+            return self.registered_term_node_infos[self.get_node_id(node)]
+
 
     render_defterm_with_term = True
     render_defterm_with_term_suffix = ': '
