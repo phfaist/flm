@@ -254,11 +254,17 @@ class PlaceholderSubstitutor:
                 argument_key += self.argument_number_offset
 
             if argument_key < 0 or argument_key >= self.num_arguments:
-                raise LatexWalkerLocatedError(
-                    f"Invalid argument number: ‘{placeholder_ref}’.  Expected a number between "
-                    f"1 and {self.num_arguments} (incl.)",
-                    pos=node.pos
+                expected_what = None
+                if self.num_arguments == 0:
+                    expected_what = "The callable accepts no numbered arguments"
+                else:
+                    expected_what = \
+                        f"Expected a number between 1 and {self.num_arguments} (incl.)"
+                e = LatexWalkerLocatedError(
+                    f"Invalid argument number: ‘{placeholder_ref}’.  {expected_what}",
                 )
+                e.set_pos_or_add_open_context_from_node(node=self.callable_node)
+                raise e
         else:
             argument_key = placeholder_ref
 
