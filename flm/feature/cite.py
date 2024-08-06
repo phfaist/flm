@@ -445,16 +445,13 @@ class CiteMacro(FLMMacroSpecBase):
             #
             optional_cite_extra_nodelist = node_args['cite_pre_text'].get_content_nodelist()
 
-        citekeylist_nodelist = node_args['citekey'].get_content_nodelist()
-
-        # not necessary to expose this raw information -- it's the arguments really
-        #
-        #node.flmarg_optional_cite_extra_nodelist = optional_cite_extra_nodelist
-        #node.flmarg_citekeylist_nodelist = citekeylist_nodelist
-
         # citekeylist_nodelist is a list of groups, each group is delimited by
         # ('', ',') and represents a citation key.  It was parsed using
         # pylatexenc3's LatexCharsCommaSeparatedListParser.
+
+        citekeylist_nodelist = node_args['citekey'].get_content_nodelist(
+            unwrap_double_group=False
+        )
 
         #logger.debug(f"Citation key nodes: {citekeylist_nodelist=}")
 
@@ -511,7 +508,9 @@ class CiteMacro(FLMMacroSpecBase):
         )
 
         # maybe there were more \cite commands tacked onto this one?
-        cite_more_macros_nodelist = node_args['cite_more'].get_content_nodelist()
+        cite_more_macros_nodelist = node_args['cite_more'].get_content_nodelist(
+            unwrap_double_group=False
+        )
         if cite_more_macros_nodelist is not None:
             for gn in cite_more_macros_nodelist:
                 assert( gn.isNodeType(latexnodes_nodes.LatexGroupNode) )
@@ -526,7 +525,9 @@ class CiteMacro(FLMMacroSpecBase):
                 more_extra_nl = None
                 if more_node_args['cite_pre_text'].was_provided():
                     more_extra_nl = more_node_args['cite_pre_text'].get_content_nodelist()
-                more_citekeylist_nl = more_node_args['citekey'].get_content_nodelist()
+                more_citekeylist_nl = more_node_args['citekey'].get_content_nodelist(
+                    unwrap_double_group=False
+                )
 
                 more_cite_items = _get_cite_items_from_key_nodelist(
                     more_citekeylist_nl, more_extra_nl,
