@@ -6,6 +6,7 @@ from pylatexenc.latexnodes import (
     SingleParsedArgumentInfo,
     LatexWalkerLocatedError,
 )
+from pylatexenc.latexnodes.parsers import LatexParserBase
 from pylatexenc.latexnodes.nodes import LatexNodeList, LatexGroupNode, LatexEnvironmentNode
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.macrospec import ParsingStateDeltaExtendLatexContextDb
@@ -15,6 +16,26 @@ from ..flmspecinfo import (
 )
 
 from ._base import Feature
+
+
+
+# ---
+
+class NothingParser(LatexParserBase):
+    def parse(self, latex_walker, token_reader, parsing_state, **kwargs):
+        # parse nothing - always return None
+        return None, None
+
+
+SetArgumentNumberOffset = FLMArgumentSpec(
+    parser=NothingParser(),
+    argname='_SetArgumentNumberOffset',
+)
+
+
+
+# ---
+
 
 
 _macroarg_placeholder_arguments_spec_list = [
@@ -49,10 +70,18 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
         
         argument_ref = node_args['argument_ref'].get_content_as_chars().strip()
 
-        nodelist = self.placeholder_substitutor.get_placeholder_nodelist(
+        value = self.placeholder_substitutor.get_placeholder_value(
             argument_ref,
             placeholder_node=node,
         )
+        if isinstance(value, str):
+            nodelist = self.placeholder_substitutor.compile_flm_text(
+                value,
+                add_what=f"placeholder ‘{placeholder_ref}’ value"
+            )
+        else:
+            # value should be a node list
+            nodelist = value
 
         # call make_nodelist if necessary
 
@@ -103,6 +132,8 @@ def _get_arg_spec(argspec):
         # not a dict, okay, use default constructor (may still be a string)
         pass
     if parser_val is not None:
+        if argspec == 'SetArgumentNumberOffset':
+            return SetArgumentNumberOffset
         if isinstance(argspec, str):
             return FLMArgumentSpec(parser=argspec, argname=None)
         argspecargs = dict(argspec)
@@ -153,34 +184,56 @@ class PlaceholderSubstitutor:
             },
         )
 
+        # set the argument number offset, if applicable:
+        if self.callable_node.nodeargd is not None:
+            arguments_spec_list = self.callable_node.nodeargd.arguments_spec_list
+            if arguments_spec_list:
+                for j, arg_spec in enumerate(arguments_spec_list):
+                    if arg_spec.argname == '_SetArgumentNumberOffset':
+                        logger.debug("Found _SetArgumentNumberOffset in %r, "
+                                     "setting offset = %d",
+                                     repr(self.callable_node), j)
+                        self.argument_number_offset = j
+                        break
+
+
+
+    def initialize(self):
+        # can be reimplemented to set up computed values after base class is
+        # constructed without having to worry about passing arguments up to base
+        # class constructor
+        pass
 
     # ---
 
-    def get_placeholder_nodelist(self, placeholder_ref, placeholder_node):
+    def get_placeholder_value(self, placeholder_ref, placeholder_node):
 
-        nodelist = self.substitutor_manager.get_placeholder_nodelist(
+        value = self.substitutor_manager.get_placeholder_value(
             placeholder_ref,
             placeholder_node=placeholder_node,
             callable_node=self.callable_node,
             placeholder_substitutor=self,
         )
-        if nodelist is not None:
-            return nodelist
+        if value is not None:
+            return value
 
         if placeholder_ref == 'body':
             # return environment body
             return self.callable_node.nodelist
 
-        return self.get_argument_placeholder_nodelist(placeholder_ref, placeholder_node)
+        return self.get_argument_placeholder_value(placeholder_ref, placeholder_node)
+
 
     # ---
 
-    def get_argument_placeholder_nodelist(self, placeholder_ref, placeholder_node):
+    def get_argument_placeholder_value(self, placeholder_ref, placeholder_node):
         
         argument_key = None
         if placeholder_ref and placeholder_ref.isdigit():
             # numerical argument reference. Store index, starting from zero.
-            argument_key = int(placeholder_ref) - 1 + self.argument_number_offset
+            argument_key = int(placeholder_ref) - 1
+            if self.argument_number_offset is not None:
+                argument_key += self.argument_number_offset
 
             if argument_key < 0 or argument_key >= self.num_arguments:
                 raise LatexWalkerLocatedError(
@@ -197,6 +250,9 @@ class PlaceholderSubstitutor:
 
         # and figure out the replacement nodes!
         if argument_key not in self.parsed_arguments_infos:
+            lastnum = self.num_arguments
+            if self.argument_number_offset is not None:
+                lastnum -= self.argument_number_offset
             valid_arg_specs = f"numbers 1–{self.num_arguments-self.argument_number_offset}"
             if len(self.argument_names):
                 valid_arg_specs = (
@@ -232,7 +288,9 @@ class PlaceholderSubstitutor:
 
         if isinstance(argument_key, int):
             # 0-th argument is "#1" so use "1" as argument key
-            argument_ref_user = argument_key + 1 - self.argument_number_offset
+            argument_ref_user = argument_key + 1
+            if self.argument_number_offset is not None:
+                argument_key -= self.argument_number_offset
 
             if argument_ref_user in self.default_argument_values:
                 # all ok, found our requested default value
@@ -275,7 +333,9 @@ class PlaceholderSubstitutor:
             raise ValueError("Unexpected invalid argument argname={} for node={}"
                              .format(repr(argname), repr(node)))
         # found arg_j
-        argument_ref_user = arg_j + 1 - self.argument_number_offset
+        argument_ref_user = arg_j + 1
+        if self.argument_number_offset is not None:
+            argument_key -= self.argument_number_offset
         if argument_ref_user not in self.default_argument_values:
             # no default value provided.
             return None
@@ -293,6 +353,8 @@ class PlaceholderSubstitutor:
         return self.compile_flm_text(default_arg_flm_text,
                                      add_what=f"default ‘{argument_key}’")
 
+
+    # ---
 
     def compile_flm_text(self, flm_text, add_what=None):
 
@@ -337,9 +399,12 @@ class PlaceholderSubstitutor:
 
 
 class PlaceholderSubstitutorManager:
+
+    PlaceholderSubstitutorClass = PlaceholderSubstitutor
+
     def __init__(self,
                  spec_object,
-                 argument_number_offset=0,
+                 argument_number_offset=None,
                  default_argument_values=None,
                  ):
         super().__init__()
@@ -352,7 +417,12 @@ class PlaceholderSubstitutorManager:
         parsed_arguments_infos = \
             ParsedArgumentsInfo(node=callable_node).get_all_arguments_info()
 
-        return PlaceholderSubstitutor(
+        parsed_arguments_infos = self.filter_parsed_arguments_infos(
+            parsed_arguments_infos,
+            callable_node
+        )
+
+        return self.PlaceholderSubstitutorClass(
             substitutor_manager=self,
             callable_node=callable_node,
             parsed_arguments_infos=parsed_arguments_infos,
@@ -360,8 +430,10 @@ class PlaceholderSubstitutorManager:
             default_argument_values=self.default_argument_values,
         )
 
+    def filter_parsed_arguments_infos(self, parsed_arguments_infos, callable_node):
+        return parsed_arguments_infos
 
-    def get_placeholder_nodelist(
+    def get_placeholder_value(
             self,
             placeholder_ref,
             placeholder_node,
@@ -370,7 +442,7 @@ class PlaceholderSubstitutorManager:
             placeholder_substitutor
         ):
         # by default, try the corresponding method on the spec object.
-        return self.spec_object.get_placeholder_nodelist(
+        return self.spec_object.get_placeholder_value(
             placeholder_ref=placeholder_ref,
             placeholder_node=placeholder_node,
             callable_node=callable_node,
@@ -415,10 +487,13 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
 
     allowed_in_standalone_mode = True
 
+    PlaceholderSubstitutorManagerClass = PlaceholderSubstitutorManager
+
     def __init__(self,
                  spec_node_parser_type,
                  arguments_spec_list=None,
                  default_argument_values=None,
+                 argument_number_offset=None,
                  content=None,
                  is_block_level=None,
                  placeholder_substitutor_manager=None,
@@ -436,16 +511,24 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
         )
         
         if placeholder_substitutor_manager is None:
-            placeholder_substitutor_manager = PlaceholderSubstitutorManager(
+            placeholder_substitutor_manager = self.PlaceholderSubstitutorManagerClass(
                 spec_object=self,
                 default_argument_values=default_argument_values,
+                argument_number_offset=argument_number_offset,
             )
-        elif default_argument_values is not None:
-            logger.warning(
-                "Ignoring `default_argument_values` in SubstitutionCallableSpecInfo "
-                "constructor because you already provided a placeholder_substitutor_manager "
-                "instance."
-            )
+        else:
+            if default_argument_values is not None:
+                logger.warning(
+                    "Ignoring `default_argument_values` in SubstitutionCallableSpecInfo "
+                    "constructor because you already provided a "
+                    "placeholder_substitutor_manager instance."
+                )
+            if argument_number_offset is not None:
+                logger.warning(
+                    "Ignoring `argument_number_offset` in SubstitutionCallableSpecInfo "
+                    "constructor because you already provided a "
+                    "placeholder_substitutor_manager instance."
+                )
 
         self.placeholder_substitutor_manager = placeholder_substitutor_manager
 
@@ -529,6 +612,8 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
                 callable_node=node
             )
 
+        placeholder_substitutor.initialize()
+
         nodes = placeholder_substitutor.compile_flm_text(
             macro_replacement_flm_text,
         )
@@ -536,7 +621,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
         return nodes
 
 
-    def get_placeholder_nodelist(
+    def get_placeholder_value(
             self,
             placeholder_ref,
             placeholder_node,
@@ -544,7 +629,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
             callable_node,
             placeholder_substitutor
         ):
-        # do nothing by default.
+        # nothing by default.
         return None
 
 
