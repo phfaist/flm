@@ -290,31 +290,46 @@ class PlaceholderSubstitutor:
         if default_arg_flm_text is None:
             return []
 
+        return self.compile_flm_text(default_arg_flm_text,
+                                     add_what=f"default ‘{argument_key}’")
+
+
+    def compile_flm_text(self, flm_text, add_what=None):
+
+        parsing_state_delta = self.placeholder_parsing_state_delta
         callable_node = self.callable_node
         base_latex_walker = callable_node.latex_walker
         flm_environment = base_latex_walker.flm_environment
 
-        defaultarg_latex_walker = flm_environment.make_latex_walker(
-            default_arg_flm_text,
+        what = f"{base_latex_walker.what}→{self.substitutor_manager.spec_object.get_what()}"
+        if add_what:
+            what += f"[{add_what}]"
+
+        content_latex_walker = flm_environment.make_latex_walker(
+            flm_text,
             is_block_level=callable_node.parsing_state.is_block_level,
             parsing_mode=base_latex_walker.parsing_mode,
             resource_info=base_latex_walker.resource_info,
             standalone_mode=base_latex_walker.standalone_mode,
             tolerant_parsing=base_latex_walker.tolerant_parsing,
-            what=f"{base_latex_walker.what}→{self.substitutor_manager.spec_object.get_what()}",
+            what=what,
             input_lineno_colno_offsets=None,
         )
 
-        defaultarg_parsing_state = \
-            self.placeholder_parsing_state_delta.get_updated_parsing_state(
-                callable_node.parsing_state,
-                defaultarg_latex_walker
+        content_parsing_state = parsing_state_delta.get_updated_parsing_state(
+            callable_node.parsing_state,
+            content_latex_walker
+        )
+
+        nodes, newpsdelta = content_latex_walker.parse_content(
+            latexnodes_parsers.LatexGeneralNodesParser(),
+            parsing_state=content_parsing_state
+        )
+        if newpsdelta is not None:
+            logger.warning(
+                f"Ignoring parsing state delta from compiling substitution nodes {what}"
             )
 
-        nodes, _ = defaultarg_latex_walker.parse_content(
-            latexnodes_parsers.LatexGeneralNodesParser(),
-            parsing_state=defaultarg_parsing_state
-        )
         return nodes
 
 
@@ -507,37 +522,15 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
         base_latex_walker = node.latex_walker
         flm_environment = node.latex_walker.flm_environment
 
-        callablewhat = self.get_what()
-
         macro_replacement_flm_text = node.flm_macro_replacement_flm_text
-
 
         placeholder_substitutor = \
             self.placeholder_substitutor_manager.make_placeholder_substitutor(
                 callable_node=node
             )
 
-        parsing_state_delta = placeholder_substitutor.placeholder_parsing_state_delta
-
-        content_latex_walker = flm_environment.make_latex_walker(
+        nodes = placeholder_substitutor.compile_flm_text(
             macro_replacement_flm_text,
-            is_block_level=node.parsing_state.is_block_level,
-            parsing_mode=base_latex_walker.parsing_mode,
-            resource_info=base_latex_walker.resource_info,
-            standalone_mode=base_latex_walker.standalone_mode,
-            tolerant_parsing=base_latex_walker.tolerant_parsing,
-            what=f"{base_latex_walker.what}→{callablewhat}",
-            input_lineno_colno_offsets=None,
-        )
-
-        content_parsing_state = parsing_state_delta.get_updated_parsing_state(
-            node.parsing_state,
-            content_latex_walker
-        )
-
-        nodes, _ = content_latex_walker.parse_content(
-            latexnodes_parsers.LatexGeneralNodesParser(),
-            parsing_state=content_parsing_state
         )
 
         return nodes
