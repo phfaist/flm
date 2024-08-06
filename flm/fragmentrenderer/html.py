@@ -1028,7 +1028,7 @@ th {
   margin-bottom: 0px;
 }
 
-.defterm .defterm-term {
+.defterm .defterm-term, .defterm .term-in-defining-defterm {
   font-style: italic;
   font-weight: bold;
 }

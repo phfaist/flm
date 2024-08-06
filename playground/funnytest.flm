@@ -71,7 +71,7 @@ The Pauli matrices obey the following properties.
 
 \begin{defterm}{qu\(d\)it}
   \label{topic:qudit}
-  A \emph{qu\(d\)it} is a \(d\)-dimensional quantum system.
+  A \term{qu\(d\)it} is a \(d\)-dimensional quantum system.
 \end{defterm}
 
 Here's a display equation:
