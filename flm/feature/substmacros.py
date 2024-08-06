@@ -32,24 +32,14 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
 
     allowed_in_standalone_mode = True
 
-    def __init__(self, specials_chars='#',
-                 parsed_arguments_infos=None,
-                 argument_number_offset=0,
-                 compile_default_argument_value=None):
+    def __init__(self,
+                 specials_chars='#',
+                 *,
+                 placeholder_substitutor,
+                 ):
         super().__init__(specials_chars=specials_chars,
                          arguments_spec_list=_macroarg_placeholder_arguments_spec_list)
-        self.parsed_arguments_infos = parsed_arguments_infos
-        self.compile_default_argument_value = compile_default_argument_value
-        self.num_arguments = 0
-        self.argument_names = []
-        self.argument_number_offset = argument_number_offset
-        for arg in self.parsed_arguments_infos.keys():
-            if isinstance(arg, int) or arg.isdigit(): # .isdigit() implies len>=1
-                if arg >= self.num_arguments:
-                    self.num_arguments = int(arg) + 1
-            else:
-                self.argument_names.append(arg)
-
+        self.placeholder_substitutor = placeholder_substitutor
         
     def postprocess_parsed_node(self, node):
 
@@ -59,52 +49,10 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
         
         argument_ref = node_args['argument_ref'].get_content_as_chars().strip()
 
-        argument_ref_key = None
-        if len(argument_ref) == 1 and argument_ref.isdigit():
-            # numerical argument reference. Store index, starting from zero.
-            argument_ref_key = int(argument_ref) - 1 + self.argument_number_offset
-
-            if argument_ref_key < 0 or argument_ref_key >= self.num_arguments:
-                raise LatexWalkerLocatedError(
-                    f"Invalid argument number: ‘{argument_ref}’.  Expected a number between "
-                    f"1 and {self.num_arguments} (incl.)",
-                    pos=node.pos
-                )
-        else:
-            argument_ref_key = argument_ref
-
-        logger.debug(f"Got argument replacement placeholder ref={repr(argument_ref)} "
-                     f"[→ type {type(argument_ref)} → key={argument_ref_key}]")
-        logger.debug("Available argument values are %r", self.parsed_arguments_infos)
-
-        node.flmarg_argument_ref = argument_ref
-        node.flmarg_argument_ref_key = argument_ref_key
-
-        # and figure out the replacement nodes!
-        if argument_ref_key not in self.parsed_arguments_infos:
-            valid_arg_specs = f"numbers 1–{self.num_arguments-self.argument_number_offset}"
-            if len(self.argument_names):
-                valid_arg_specs = (
-                    ",".join([f"‘{argname}’" for argname in self.argument_names ])
-                    + " and " + valid_arg_specs
-                )
-            raise LatexWalkerLocatedError(
-                f"Invalid argument name or index: ‘{argument_ref}’.  Valid argument "
-                + f"specifiers are {valid_arg_specs}",
-                pos=node.pos
-            )
-
-        nodelist = self.parsed_arguments_infos[argument_ref_key].get_content_nodelist()
-
-        use_default = False
-        if nodelist is None or (len(nodelist) == 1 and nodelist[0] is None):
-            nodelist = []
-            use_default = True
-
-        if use_default and self.compile_default_argument_value is not None:
-            nodelist = self.compile_default_argument_value(argument_ref_key)
-            if nodelist is None or (len(nodelist) == 1 and nodelist[0] is None):
-                nodelist = []
+        nodelist = self.placeholder_substitutor.get_placeholder_nodelist(
+            argument_ref,
+            placeholder_node=node,
+        )
 
         # call make_nodelist if necessary
 
@@ -119,6 +67,7 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
                 parsing_state=node.parsing_state
             )
 
+        node.flmarg_argument_ref = argument_ref
         node.flm_placeholder_content_nodelist = nodelist
 
         logger.debug("specinfo postprocessing substitution macro node %r", node)
@@ -167,6 +116,258 @@ def _get_arg_spec(argspec):
  # ------------------------------------------------------------------------------
 
 
+class PlaceholderSubstitutor:
+    def __init__(self,
+                 substitutor_manager,
+                 callable_node,
+                 parsed_arguments_infos,
+                 argument_number_offset,
+                 default_argument_values):
+
+        if default_argument_values is None:
+            default_argument_values = {}
+
+        self.substitutor_manager = substitutor_manager
+        self.callable_node = callable_node
+        self.parsed_arguments_infos = parsed_arguments_infos
+        self.default_argument_values = default_argument_values
+        self.argument_number_offset = argument_number_offset
+
+        self.num_arguments = 0
+        self.argument_names = []
+        for arg in self.parsed_arguments_infos.keys():
+            if isinstance(arg, int) or arg.isdigit(): # .isdigit() implies len>=1
+                if arg >= self.num_arguments:
+                    self.num_arguments = int(arg) + 1
+            else:
+                self.argument_names.append(arg)
+
+        self.placeholder_parsing_state_delta = ParsingStateDeltaExtendLatexContextDb(
+            {
+                'specials': [
+                    SimpleMacroArgumentPlaceholder(
+                        '#',
+                        placeholder_substitutor=self,
+                    ),
+                ],
+            },
+        )
+
+
+    # ---
+
+    def get_placeholder_nodelist(self, placeholder_ref, placeholder_node):
+
+        nodelist = self.substitutor_manager.get_placeholder_nodelist(
+            placeholder_ref,
+            placeholder_node=placeholder_node,
+            callable_node=self.callable_node,
+            placeholder_substitutor=self,
+        )
+        if nodelist is not None:
+            return nodelist
+
+        if placeholder_ref == 'body':
+            # return environment body
+            return self.callable_node.nodelist
+
+        return self.get_argument_placeholder_nodelist(placeholder_ref, placeholder_node)
+
+    # ---
+
+    def get_argument_placeholder_nodelist(self, placeholder_ref, placeholder_node):
+        
+        argument_key = None
+        if placeholder_ref and placeholder_ref.isdigit():
+            # numerical argument reference. Store index, starting from zero.
+            argument_key = int(placeholder_ref) - 1 + self.argument_number_offset
+
+            if argument_key < 0 or argument_key >= self.num_arguments:
+                raise LatexWalkerLocatedError(
+                    f"Invalid argument number: ‘{placeholder_ref}’.  Expected a number between "
+                    f"1 and {self.num_arguments} (incl.)",
+                    pos=node.pos
+                )
+        else:
+            argument_key = placeholder_ref
+
+        logger.debug(f"Got argument replacement placeholder ref={repr(placeholder_ref)} "
+                     f"[→ type {type(placeholder_ref)} → key={argument_key}]")
+        logger.debug("Available argument values are %r", self.parsed_arguments_infos)
+
+        # and figure out the replacement nodes!
+        if argument_key not in self.parsed_arguments_infos:
+            valid_arg_specs = f"numbers 1–{self.num_arguments-self.argument_number_offset}"
+            if len(self.argument_names):
+                valid_arg_specs = (
+                    ",".join([f"‘{argname}’" for argname in self.argument_names ])
+                    + " and " + valid_arg_specs
+                )
+            raise LatexWalkerLocatedError(
+                f"Invalid argument name or index: ‘{placeholder_ref}’.  Valid argument "
+                + f"specifiers are {valid_arg_specs}",
+                pos=node.pos
+            )
+
+        nodelist = self.parsed_arguments_infos[argument_key].get_content_nodelist()
+
+        use_default = False
+        if nodelist is None or (len(nodelist) == 1 and nodelist[0] is None):
+            nodelist = []
+            use_default = True
+
+        if use_default:
+            nodelist = self.get_default_argument_value_nodelist(argument_key)
+            if nodelist is None or (len(nodelist) == 1 and nodelist[0] is None):
+                nodelist = []
+
+        return nodelist
+
+    def get_default_argument_value_flm_text(self, argument_key):
+
+        argument_ref_user = None
+        default_arg_flm_text = None
+
+        node = self.callable_node
+
+        if isinstance(argument_key, int):
+            # 0-th argument is "#1" so use "1" as argument key
+            argument_ref_user = argument_key + 1 - self.argument_number_offset
+
+            if argument_ref_user in self.default_argument_values:
+                # all ok, found our requested default value
+                return self.default_argument_values[argument_ref_user]
+
+            # try to find default value by argument name instead.
+            if node.nodeargd is None or node.nodeargd.arguments_spec_list is None \
+               or argument_key < 0 \
+               or argument_key >= len(node.nodeargd.arguments_spec_list):
+                raise ValueError(
+                    "Unexpected invalid argument_key={} for node={}".format(
+                        repr(argument_key), repr(node)
+                    )
+                )
+
+            argname = node.nodeargd.arguments_spec_list[argument_key].argname
+            if not argname or argname not in self.default_argument_values:
+                # no default value provided.
+                return None
+
+            # all ok, use ref by name
+            argument_ref_user = argname
+            return self.default_argument_values[argument_ref_user]
+
+        # argument_key is an argname.
+
+        if argument_key in self.default_argument_values:
+            # all ok, found our requested default value
+            argument_ref_user = argument_key
+            return self.default_argument_values[argument_ref_user]
+
+        # try to find by index instead
+        if node.nodeargd is None or node.nodeargd.arguments_spec_list is None:
+            raise ValueError("Unexpected invalid node arguments for node={}"
+                             .format(repr(node)))
+        for arg_j, arg_spec in enumerate(node.nodeargd.arguments_spec_list):
+            if arg_spec.argname == argument_key:
+                break
+        else:
+            raise ValueError("Unexpected invalid argument argname={} for node={}"
+                             .format(repr(argname), repr(node)))
+        # found arg_j
+        argument_ref_user = arg_j + 1 - self.argument_number_offset
+        if argument_ref_user not in self.default_argument_values:
+            # no default value provided.
+            return None
+
+        # all ok, found our requested default value
+        return self.default_argument_values[argument_ref_user]
+
+    def get_default_argument_value_nodelist(self, argument_key):
+
+        default_arg_flm_text = self.get_default_argument_value_flm_text(argument_key)
+
+        if default_arg_flm_text is None:
+            return []
+
+        callable_node = self.callable_node
+        base_latex_walker = callable_node.latex_walker
+        flm_environment = base_latex_walker.flm_environment
+
+        defaultarg_latex_walker = flm_environment.make_latex_walker(
+            default_arg_flm_text,
+            is_block_level=callable_node.parsing_state.is_block_level,
+            parsing_mode=base_latex_walker.parsing_mode,
+            resource_info=base_latex_walker.resource_info,
+            standalone_mode=base_latex_walker.standalone_mode,
+            tolerant_parsing=base_latex_walker.tolerant_parsing,
+            what=f"{base_latex_walker.what}→{self.substitutor_manager.spec_object.get_what()}",
+            input_lineno_colno_offsets=None,
+        )
+
+        defaultarg_parsing_state = \
+            self.placeholder_parsing_state_delta.get_updated_parsing_state(
+                callable_node.parsing_state,
+                defaultarg_latex_walker
+            )
+
+        nodes, _ = defaultarg_latex_walker.parse_content(
+            latexnodes_parsers.LatexGeneralNodesParser(),
+            parsing_state=defaultarg_parsing_state
+        )
+        return nodes
+
+
+
+
+
+class PlaceholderSubstitutorManager:
+    def __init__(self,
+                 spec_object,
+                 argument_number_offset=0,
+                 default_argument_values=None,
+                 ):
+        super().__init__()
+        self.spec_object = spec_object
+        self.argument_number_offset = argument_number_offset
+        self.default_argument_values = default_argument_values
+
+    def make_placeholder_substitutor(self, callable_node):
+
+        parsed_arguments_infos = \
+            ParsedArgumentsInfo(node=callable_node).get_all_arguments_info()
+
+        return PlaceholderSubstitutor(
+            substitutor_manager=self,
+            callable_node=callable_node,
+            parsed_arguments_infos=parsed_arguments_infos,
+            argument_number_offset=self.argument_number_offset,
+            default_argument_values=self.default_argument_values,
+        )
+
+
+    def get_placeholder_nodelist(
+            self,
+            placeholder_ref,
+            placeholder_node,
+            *,
+            callable_node,
+            placeholder_substitutor
+        ):
+        # by default, try the corresponding method on the spec object.
+        return self.spec_object.get_placeholder_nodelist(
+            placeholder_ref=placeholder_ref,
+            placeholder_node=placeholder_node,
+            callable_node=callable_node,
+            placeholder_substitutor=placeholder_substitutor,
+        )
+
+
+
+# ------------------------------------------------------------------------------
+
+
+
 class SubstitutionCallableSpecInfo(FLMSpecInfo):
     r"""
     A callable spec that describes a simple substitution of the
@@ -202,10 +403,10 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
     def __init__(self,
                  spec_node_parser_type,
                  arguments_spec_list=None,
-                 argument_number_offset=0,
                  default_argument_values=None,
                  content=None,
                  is_block_level=None,
+                 placeholder_substitutor_manager=None,
                  **kwargs,
                  ):
         
@@ -219,11 +420,19 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
             **kwargs
         )
         
-        if default_argument_values is None:
-            default_argument_values = {}
-        self.default_argument_values = default_argument_values
+        if placeholder_substitutor_manager is None:
+            placeholder_substitutor_manager = PlaceholderSubstitutorManager(
+                spec_object=self,
+                default_argument_values=default_argument_values,
+            )
+        elif default_argument_values is not None:
+            logger.warning(
+                "Ignoring `default_argument_values` in SubstitutionCallableSpecInfo "
+                "constructor because you already provided a placeholder_substitutor_manager "
+                "instance."
+            )
 
-        self.argument_number_offset = argument_number_offset
+        self.placeholder_substitutor_manager = placeholder_substitutor_manager
 
         if content is None:
             content = ''
@@ -244,7 +453,14 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
                      arguments_spec_list, self.content_textmode, self.content_mathmode,
                      kwargs)
 
-
+    def get_what(self):
+        if hasattr(self, 'macroname'):
+            return '“\\' + str(self.macroname) + '”'
+        elif hasattr(self, 'environmentname'):
+            return r'“\begin{' + str(self.environmentname) + r'}...\end{..}”'
+        elif hasattr(self, 'specials_chars'):
+            return r'“' + str(self.specials_chars) + r'”'
+        return '(?callable?)'
 
 
     def postprocess_parsed_node(self, node):
@@ -266,7 +482,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
         # the replacement fragment flm text
         node.flm_macro_replacement_flm_text = macro_replacement_flm_text
 
-        substitute_nodelist = self._compile_nodes(node)
+        substitute_nodelist = self.compile_subst_nodes(node)
 
         node.flm_macro_replacement_flm_nodes = substitute_nodelist
 
@@ -283,10 +499,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
         node.flm_SUBSTITUTE_NODE = substitute_node
 
 
-    def filter_parsed_arguments_infos(self, parsed_arguments_infos, **kwargs):
-        return parsed_arguments_infos
-
-    def _compile_nodes(self, node):
+    def compile_subst_nodes(self, node):
 
         # compose & compile the flm text into nodes, including argument
         # placeholder nodes.
@@ -294,131 +507,17 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
         base_latex_walker = node.latex_walker
         flm_environment = node.latex_walker.flm_environment
 
+        callablewhat = self.get_what()
+
         macro_replacement_flm_text = node.flm_macro_replacement_flm_text
 
-        parsed_arguments_infos = ParsedArgumentsInfo(node=node).get_all_arguments_info()
 
-        # add body "argument", if applicable
-        if node.isNodeType(LatexEnvironmentNode):
-            parsed_arguments_infos = dict(parsed_arguments_infos)
-            parsed_arguments_infos['body'] = SingleParsedArgumentInfo(
-                argument_node_object=node.nodelist
+        placeholder_substitutor = \
+            self.placeholder_substitutor_manager.make_placeholder_substitutor(
+                callable_node=node
             )
 
-        parsed_arguments_infos = self.filter_parsed_arguments_infos(
-            parsed_arguments_infos,
-            node=node
-        )
-
-        logger.debug(
-            "Parsing callable content %r with argument replacements %r",
-            macro_replacement_flm_text,
-            parsed_arguments_infos
-        )
-
-        callablewhat = '(callable)'
-        if hasattr(self, 'macroname'):
-            callablewhat = '\\' + str(self.macroname)
-        elif hasattr(self, 'environmentname'):
-            callablewhat = r'\begin{' + str(self.environmentname) + r'}...\end{..}'
-        elif hasattr(self, 'specials_chars'):
-            callablewhat = r'specials(‘' + str(self.specials_chars) + r'’)'
-
-        parsing_state_delta = None
-
-        def compile_default_argument_value(arg_ref):
-
-            arg_ref_user = None
-            default_arg_flm_text = None
-
-            if isinstance(arg_ref, int):
-                # 0-th argument is "#1" so use "1" as argument key
-                arg_ref_user = arg_ref + 1 - self.argument_number_offset
-
-                if arg_ref_user in self.default_argument_values:
-                    # all ok, found our requested default value
-                    default_arg_flm_text = self.default_argument_values[arg_ref_user]
-                else:
-                    # try to find default value by argument name instead.
-                    if node.nodeargd is None or node.nodeargd.arguments_spec_list is None \
-                       or arg_ref < 0 or arg_ref >= len(node.nodeargd.arguments_spec_list):
-                        raise ValueError(
-                            "Unexpected invalid arg_ref={} for node={}".format(
-                                repr(arg_ref), repr(node)
-                            )
-                        )
-                    argname = node.nodeargd.arguments_spec_list[arg_ref].argname
-                    if not argname or argname not in self.default_argument_values:
-                        # no default value provided.
-                        return []
-                    # all ok, use ref by name
-                    arg_ref_user = argname
-                    default_arg_flm_text = self.default_argument_values[arg_ref_user]
-                    
-            else:
-                # arg_ref is an argname
-                if arg_ref in self.default_argument_values:
-                    # all ok, found our requested default value
-                    arg_ref_user = arg_ref
-                    default_arg_flm_text = self.default_argument_values[arg_ref_user]
-                else:
-                    # try to find by index instead
-                    if node.nodeargd is None or node.nodeargd.arguments_spec_list is None:
-                        raise ValueError("Unexpected invalid node arguments for node={}"
-                                         .format(repr(node)))
-                    for arg_j, arg_spec in enumerate(node.nodeargd.arguments_spec_list):
-                        if arg_spec.argname == arg_ref:
-                            break
-                    else:
-                        raise ValueError("Unexpected invalid argument argname={} for node={}"
-                                         .format(repr(argname), repr(node)))
-                    # found arg_j
-                    arg_ref_user = arg_j + 1 - self.argument_number_offset
-                    if arg_ref_user not in self.default_argument_values:
-                        # no default value provided.
-                        return []
-                    
-                    # all ok, found our requested default value
-                    default_arg_flm_text = self.default_argument_values[arg_ref_user]
-
-            if default_arg_flm_text is None:
-                return []
-
-            defaultarg_latex_walker = flm_environment.make_latex_walker(
-                default_arg_flm_text,
-                is_block_level=node.parsing_state.is_block_level,
-                parsing_mode=base_latex_walker.parsing_mode,
-                resource_info=base_latex_walker.resource_info,
-                standalone_mode=base_latex_walker.standalone_mode,
-                tolerant_parsing=base_latex_walker.tolerant_parsing,
-                what=f"{base_latex_walker.what}→{callablewhat}",
-                input_lineno_colno_offsets=None,
-            )
-
-            defaultarg_parsing_state = parsing_state_delta.get_updated_parsing_state(
-                node.parsing_state,
-                defaultarg_latex_walker
-            )
-
-            nodes, _ = defaultarg_latex_walker.parse_content(
-                latexnodes_parsers.LatexGeneralNodesParser(),
-                parsing_state=defaultarg_parsing_state
-            )
-            return nodes
-
-
-        parsing_state_delta = ParsingStateDeltaExtendLatexContextDb(
-            {
-                'specials': [
-                    SimpleMacroArgumentPlaceholder(
-                        '#',
-                        parsed_arguments_infos=parsed_arguments_infos,
-                        compile_default_argument_value=compile_default_argument_value,
-                        argument_number_offset=self.argument_number_offset,
-                    ),
-                ],
-            },
-        )
+        parsing_state_delta = placeholder_substitutor.placeholder_parsing_state_delta
 
         content_latex_walker = flm_environment.make_latex_walker(
             macro_replacement_flm_text,
@@ -443,6 +542,17 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
 
         return nodes
 
+
+    def get_placeholder_nodelist(
+            self,
+            placeholder_ref,
+            placeholder_node,
+            *,
+            callable_node,
+            placeholder_substitutor
+        ):
+        # do nothing by default.
+        return None
 
 
     def render(self, node, render_context):
