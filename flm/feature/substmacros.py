@@ -40,13 +40,21 @@ SetArgumentNumberOffset = FLMArgumentSpec(
 
 _macroarg_placeholder_arguments_spec_list = [
     FLMArgumentSpec(
+        parser='[',
+        argname='substitution_arg',
+        flm_doc=(
+            'When defining custom substitution handlers, you can use this argument '
+            'internally to specify custom substitution strings'
+        )
+    ),
+    FLMArgumentSpec(
         parser='{',
         argname='argument_ref',
         flm_doc=(
             'Argument number (e.g. #2 for second argument, counting from 1 like LaTeX) or '
             'argument name (e.g. #{label} for argument named "label")'
         )
-    )
+    ),
 ]
 
 class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
@@ -65,7 +73,7 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
     def postprocess_parsed_node(self, node):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-            ('argument_ref',) ,
+            ('substitution_arg', 'argument_ref',) ,
         )
         
         argument_ref = node_args['argument_ref'].get_content_as_chars().strip()
@@ -73,6 +81,7 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
         value = self.placeholder_substitutor.get_placeholder_value(
             argument_ref,
             placeholder_node=node,
+            substitution_arg=node_args['substitution_arg'],
         )
         if isinstance(value, str):
             nodelist = self.placeholder_substitutor.compile_flm_text(
@@ -206,11 +215,12 @@ class PlaceholderSubstitutor:
 
     # ---
 
-    def get_placeholder_value(self, placeholder_ref, placeholder_node):
+    def get_placeholder_value(self, placeholder_ref, placeholder_node, substitution_arg):
 
         value = self.substitutor_manager.get_placeholder_value(
             placeholder_ref,
             placeholder_node=placeholder_node,
+            substitution_arg=substitution_arg,
             callable_node=self.callable_node,
             placeholder_substitutor=self,
         )
@@ -438,6 +448,7 @@ class PlaceholderSubstitutorManager:
             placeholder_ref,
             placeholder_node,
             *,
+            substitution_arg,
             callable_node,
             placeholder_substitutor
         ):
@@ -445,6 +456,7 @@ class PlaceholderSubstitutorManager:
         return self.spec_object.get_placeholder_value(
             placeholder_ref=placeholder_ref,
             placeholder_node=placeholder_node,
+            substitution_arg=substitution_arg,
             callable_node=callable_node,
             placeholder_substitutor=placeholder_substitutor,
         )
@@ -626,6 +638,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
             placeholder_ref,
             placeholder_node,
             *,
+            substitution_arg,
             callable_node,
             placeholder_substitutor
         ):
