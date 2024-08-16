@@ -5,6 +5,7 @@ from pylatexenc.latexnodes import (
     ParsedArgumentsInfo,
     SingleParsedArgumentInfo,
     LatexWalkerLocatedError,
+    ParsingStateDelta,
 )
 from pylatexenc.latexnodes.parsers import LatexParserBase
 from pylatexenc.latexnodes.nodes import LatexNodeList, LatexGroupNode, LatexEnvironmentNode
@@ -64,11 +65,11 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
     def __init__(self,
                  specials_chars='#',
                  *,
-                 placeholder_substitutor,
+                 macro_content_substitutor,
                  ):
         super().__init__(specials_chars=specials_chars,
                          arguments_spec_list=_macroarg_placeholder_arguments_spec_list)
-        self.placeholder_substitutor = placeholder_substitutor
+        self.macro_content_substitutor = macro_content_substitutor
         
     def postprocess_parsed_node(self, node):
 
@@ -78,15 +79,16 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
         
         placeholder_ref = node_args['placeholder_ref'].get_content_as_chars().strip()
 
-        value = self.placeholder_substitutor.get_placeholder_value(
+        value = self.macro_content_substitutor.get_placeholder_value(
             placeholder_ref,
             placeholder_node=node,
             substitution_arg_info=node_args['substitution_arg'],
         )
         if isinstance(value, str):
-            nodelist = self.placeholder_substitutor.compile_flm_text(
+            nodelist = self.macro_content_substitutor.compile_flm_text(
                 value,
-                add_what=f"placeholder ‘{placeholder_ref}’ value"
+                add_what=f"placeholder ‘{placeholder_ref}’ value",
+                is_block_level=node.parsing_state.is_block_level,
             )
         else:
             # value should be a node list
@@ -110,11 +112,13 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
         node.flmarg_placeholder_ref = placeholder_ref
         node.flm_placeholder_content_nodelist = nodelist
 
+        nodelist_parsing_state = nodelist.parsing_state
+
         logger.debug("specinfo postprocessing substitution macro node %r", node)
 
         substitute_node = node.latex_walker.make_node(
             LatexGroupNode,
-            parsing_state=node.parsing_state,
+            parsing_state=nodelist_parsing_state,
             delimiters=('',''),
             nodelist=nodelist,
             pos=node.pos,
@@ -158,7 +162,7 @@ def _get_arg_spec(argspec):
  # ------------------------------------------------------------------------------
 
 
-class PlaceholderSubstitutor:
+class MacroContentSubstitutor:
     def __init__(self,
                  substitutor_manager,
                  callable_node,
@@ -184,15 +188,18 @@ class PlaceholderSubstitutor:
             else:
                 self.argument_names.append(arg)
 
-        self.placeholder_parsing_state_delta = ParsingStateDeltaExtendLatexContextDb(
-            {
+        self.macro_content_parsing_state_delta = ParsingStateDeltaExtendLatexContextDb(
+            extend_latex_context={
                 'specials': [
                     SimpleMacroArgumentPlaceholder(
                         '#',
-                        placeholder_substitutor=self,
+                        macro_content_substitutor=self,
                     ),
                 ],
             },
+            set_attributes={
+                'is_block_level': None,
+            }
         )
 
         # set the argument number offset, if applicable:
@@ -224,7 +231,7 @@ class PlaceholderSubstitutor:
             placeholder_node=placeholder_node,
             substitution_arg_info=substitution_arg_info,
             callable_node=self.callable_node,
-            placeholder_substitutor=self,
+            macro_content_substitutor=self,
         )
         if value is not None:
             return value
@@ -297,7 +304,10 @@ class PlaceholderSubstitutor:
             use_default = True
 
         if use_default:
-            nodelist = self.get_default_argument_value_nodelist(argument_key)
+            nodelist = self.get_default_argument_value_nodelist(
+                argument_key,
+                placeholder_node=placeholder_node,
+            )
             if nodelist is None or (len(nodelist) == 1 and nodelist[0] is None):
                 nodelist = []
 
@@ -367,22 +377,28 @@ class PlaceholderSubstitutor:
         # all ok, found our requested default value
         return self.default_argument_values[argument_ref_user]
 
-    def get_default_argument_value_nodelist(self, argument_key):
+    def get_default_argument_value_nodelist(self, argument_key, placeholder_node):
+
+        is_block_level = placeholder_node.parsing_state.is_block_level
 
         default_arg_flm_text = self.get_default_argument_value_flm_text(argument_key)
 
         if default_arg_flm_text is None:
             return []
 
-        return self.compile_flm_text(default_arg_flm_text,
-                                     add_what=f"default ‘{argument_key}’")
+        return self.compile_flm_text(
+            default_arg_flm_text,
+            add_what=f"default ‘{argument_key}’",
+            is_block_level=is_block_level,
+        )
 
 
     # ---
 
-    def compile_flm_text(self, flm_text, add_what=None):
+    def compile_flm_text(self, flm_text, add_what=None, is_block_level=None, 
+                         parsing_state_delta=None):
 
-        parsing_state_delta = self.placeholder_parsing_state_delta
+        mc_parsing_state_delta = self.macro_content_parsing_state_delta
         callable_node = self.callable_node
         base_latex_walker = callable_node.latex_walker
         flm_environment = base_latex_walker.flm_environment
@@ -391,9 +407,15 @@ class PlaceholderSubstitutor:
         if add_what:
             what += f"[{add_what}]"
 
+        # No, don't parse macro content with *outer* parsing state block mode.  The
+        # way the macro content is parsed shouldn't depend on where it is inserted.
+        #
+        # if is_block_level is None:
+        #     is_block_level = callable_node.parsing_state.is_block_level
+
         content_latex_walker = flm_environment.make_latex_walker(
             flm_text,
-            is_block_level=callable_node.parsing_state.is_block_level,
+            is_block_level=is_block_level,
             parsing_mode=base_latex_walker.parsing_mode,
             resource_info=base_latex_walker.resource_info,
             standalone_mode=base_latex_walker.standalone_mode,
@@ -402,10 +424,15 @@ class PlaceholderSubstitutor:
             input_lineno_colno_offsets=None,
         )
 
-        content_parsing_state = parsing_state_delta.get_updated_parsing_state(
+        content_parsing_state = mc_parsing_state_delta.get_updated_parsing_state(
             callable_node.parsing_state,
             content_latex_walker
         )
+        if parsing_state_delta is not None:
+            content_parsing_state = parsing_state_delta.get_updated_parsing_state(
+                content_parsing_state,
+                content_latex_walker
+            )
 
         nodes, newpsdelta = content_latex_walker.parse_content(
             latexnodes_parsers.LatexGeneralNodesParser(),
@@ -422,9 +449,9 @@ class PlaceholderSubstitutor:
 
 
 
-class PlaceholderSubstitutorManager:
+class MacroContentSubstitutorManager:
 
-    PlaceholderSubstitutorClass = PlaceholderSubstitutor
+    MacroContentSubstitutorClass = MacroContentSubstitutor
 
     def __init__(self,
                  spec_object,
@@ -436,7 +463,7 @@ class PlaceholderSubstitutorManager:
         self.argument_number_offset = argument_number_offset
         self.default_argument_values = default_argument_values
 
-    def make_placeholder_substitutor(self, callable_node):
+    def make_macro_content_substitutor(self, callable_node):
 
         parsed_arguments_infos = \
             ParsedArgumentsInfo(node=callable_node).get_all_arguments_info()
@@ -446,7 +473,7 @@ class PlaceholderSubstitutorManager:
             callable_node
         )
 
-        return self.PlaceholderSubstitutorClass(
+        return self.MacroContentSubstitutorClass(
             substitutor_manager=self,
             callable_node=callable_node,
             parsed_arguments_infos=parsed_arguments_infos,
@@ -464,7 +491,7 @@ class PlaceholderSubstitutorManager:
             *,
             substitution_arg_info,
             callable_node,
-            placeholder_substitutor
+            macro_content_substitutor
         ):
         # by default, try the corresponding method on the spec object.
         return self.spec_object.get_placeholder_value(
@@ -472,7 +499,7 @@ class PlaceholderSubstitutorManager:
             placeholder_node=placeholder_node,
             substitution_arg_info=substitution_arg_info,
             callable_node=callable_node,
-            placeholder_substitutor=placeholder_substitutor,
+            macro_content_substitutor=macro_content_substitutor,
         )
 
 
@@ -513,7 +540,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
 
     allowed_in_standalone_mode = True
 
-    PlaceholderSubstitutorManagerClass = PlaceholderSubstitutorManager
+    MacroContentSubstitutorManagerClass = MacroContentSubstitutorManager
 
     def __init__(self,
                  spec_node_parser_type,
@@ -522,7 +549,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
                  argument_number_offset=None,
                  content=None,
                  is_block_level=None,
-                 placeholder_substitutor_manager=None,
+                 macro_content_substitutor_manager=None,
                  **kwargs,
                  ):
         
@@ -536,8 +563,8 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
             **kwargs
         )
         
-        if placeholder_substitutor_manager is None:
-            placeholder_substitutor_manager = self.PlaceholderSubstitutorManagerClass(
+        if macro_content_substitutor_manager is None:
+            macro_content_substitutor_manager = self.MacroContentSubstitutorManagerClass(
                 spec_object=self,
                 default_argument_values=default_argument_values,
                 argument_number_offset=argument_number_offset,
@@ -547,16 +574,16 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
                 logger.warning(
                     "Ignoring `default_argument_values` in SubstitutionCallableSpecInfo "
                     "constructor because you already provided a "
-                    "placeholder_substitutor_manager instance."
+                    "macro_content_substitutor_manager instance."
                 )
             if argument_number_offset is not None:
                 logger.warning(
                     "Ignoring `argument_number_offset` in SubstitutionCallableSpecInfo "
                     "constructor because you already provided a "
-                    "placeholder_substitutor_manager instance."
+                    "macro_content_substitutor_manager instance."
                 )
 
-        self.placeholder_substitutor_manager = placeholder_substitutor_manager
+        self.macro_content_substitutor_manager = macro_content_substitutor_manager
 
         if content is None:
             content = ''
@@ -610,9 +637,11 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
 
         node.flm_macro_replacement_flm_nodes = substitute_nodelist
 
+        substitute_nodelist_parsing_state = substitute_nodelist.parsing_state
+
         substitute_node = node.latex_walker.make_node(
             LatexGroupNode,
-            parsing_state=node.parsing_state,
+            parsing_state=substitute_nodelist_parsing_state,
             delimiters=('',''),
             nodelist=substitute_nodelist,
             pos=node.pos,
@@ -633,14 +662,14 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
 
         macro_replacement_flm_text = node.flm_macro_replacement_flm_text
 
-        placeholder_substitutor = \
-            self.placeholder_substitutor_manager.make_placeholder_substitutor(
+        macro_content_substitutor = \
+            self.macro_content_substitutor_manager.make_macro_content_substitutor(
                 callable_node=node
             )
 
-        placeholder_substitutor.initialize()
+        macro_content_substitutor.initialize()
 
-        nodes = placeholder_substitutor.compile_flm_text(
+        nodes = macro_content_substitutor.compile_flm_text(
             macro_replacement_flm_text,
         )
 
@@ -654,7 +683,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
             *,
             substitution_arg_info,
             callable_node,
-            placeholder_substitutor
+            macro_content_substitutor
         ):
         # nothing by default.
         return None

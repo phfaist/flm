@@ -268,6 +268,54 @@ class TestFeatureSubstMacros(unittest.TestCase):
 
 
 
+    def test_with_arguments_blck(self):
+        
+        s = r'''Block 1
+
+\mymacro{Albert}
+
+Block 3
+'''
+        
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {
+                            'parser': '[',
+                            'argname': 'greeting',
+                        },
+                        {
+                            'parser': '{',
+                            'argname': 'name',
+                        },
+                    ],
+                    'default_argument_values': {
+                        'greeting': 'Hello',
+                    },
+                    'content': r'#1, \emph{#2}!',
+                },
+            }
+        })
+        frag1 = environ.make_fragment(s, is_block_level=True, standalone_mode=True)
+
+        print('ps: ', frag1.nodes.parsing_state, ' = ', frag1.nodes.parsing_state.get_fields())
+        print('*** blocks[1] = ', frag1.nodes.flm_blocks[1])
+        print('*** blocks[1].nodelist = ', frag1.nodes.flm_blocks[1].nodelist)
+
+        self.assertEqual(len(frag1.nodes.flm_blocks), 3)
+        
+        html_renderer = HtmlFragmentRenderer()
+
+        self.assertEqual(
+            frag1.render_standalone(html_renderer),
+            r'''<p>Block 1</p>
+<p>Hello, <span class="textit">Albert</span>!</p>
+<p>Block 3</p>'''
+        )
+
+
+
     def test_specials(self):
         
         s = r'Test! Hello.'
