@@ -42,7 +42,7 @@ def setup_logging(level):
 
 
 
-def run_main(cmdargs=None, enable_debug_pdb=False):
+def run_main(cmdargs=None, enable_debug_pdb=False, exit_code_on_error=1):
     try:
         _run_main_inner()
     except LatexWalkerError as e:
@@ -50,11 +50,15 @@ def run_main(cmdargs=None, enable_debug_pdb=False):
         logging.getLogger('flm').critical(
             f"FLM Error\n{e}",
         )
+        if exit_code_on_error is not None:
+            sys.exit(exit_code_on_error)
     except Exception as e:
         logging.getLogger('flm').critical('Error.', exc_info=e)
         if enable_debug_pdb:
             import pdb
             pdb.post_mortem()
+        elif exit_code_on_error is not None:
+            sys.exit(exit_code_on_error)
 
 
 def _run_main_inner(cmdargs=None):
