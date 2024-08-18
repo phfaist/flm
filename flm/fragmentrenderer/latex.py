@@ -53,6 +53,9 @@ class LatexFragmentRenderer(FragmentRenderer):
         'prooflike': 'flmThmProofLike',
     }
 
+    # this attribute is picked up by baseformatting.NoExtraSpaceAfterDotMacro
+    latex_macro_no_extra_space_after_dot = r'\@'
+
     # ------------------
 
     def __init__(self, **kwargs):

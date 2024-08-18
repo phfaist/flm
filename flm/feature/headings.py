@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import (
-    ParsedArgumentsInfo,
+    LatexArgumentSpec, ParsedArgumentsInfo,
 )
 
 from .. import flmspecinfo
@@ -36,7 +36,11 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
         """
         super().__init__(
             macroname,
-            arguments_spec_list=[ flmspecinfo.text_arg, flmspecinfo.label_arg ],
+            arguments_spec_list=[
+                LatexArgumentSpec('*', argname='star'),
+                flmspecinfo.text_arg,
+                flmspecinfo.label_arg
+            ],
         )
         self.heading_level = heading_level
         self.inline_heading = inline_heading
@@ -54,7 +58,7 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
     def postprocess_parsed_node(self, node):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-            ('text', 'label') ,
+            ('star', 'text', 'label') ,
         )
 
         node.flmarg_heading_content_nodelist = node_args['text'].get_content_nodelist()

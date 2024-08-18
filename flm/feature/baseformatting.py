@@ -1,10 +1,24 @@
 
 from ..flmspecinfo import (
-    ConstantValueMacro, TextFormatMacro, ConstantValueSpecials, ParagraphBreakSpecials
+    ConstantValueMacro, TextFormatMacro, ConstantValueSpecials, ParagraphBreakSpecials,
+    FLMMacroSpecBase
 )
 
 from ._base import SimpleLatexDefinitionsFeature
 
+
+class NoExtraSpaceAfterDotMacro(FLMMacroSpecBase):
+    r"""
+    Spec info class for the ``\@`` macro.  This macro should be placed
+    immediately after a period that does not terminate a sentence, such as in
+    initials or abbreviations, to avoid awkward spacing.  For instance, type
+    ``Well, well, Mr.\@ Bond.  You look surprised to see me.``.
+    """
+    def render(self, node, render_context):
+        if hasattr(render_context.fragment_renderer, 'latex_macro_no_extra_space_after_dot'):
+            return render_context.fragment_renderer.latex_macro_no_extra_space_after_dot
+        # otherwise, just ignore this macro.
+        return ''
 
 
 class FeatureBaseFormatting(SimpleLatexDefinitionsFeature):
@@ -47,6 +61,8 @@ class FeatureBaseFormatting(SimpleLatexDefinitionsFeature):
                 'textbf',
                 text_formats=('textbf',),
             ),
+
+            NoExtraSpaceAfterDotMacro('@'), # \@ macro
         ],
         'specials': [
             ConstantValueSpecials(
