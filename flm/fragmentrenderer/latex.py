@@ -100,14 +100,23 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     debug_disable_pin_labels = False
 
+    use_flm_macro_for_pinning_labels = True
+
     def pin_label_here(self, target_id, display_latex, insert_phantom_section=True):
         if self.debug_disable_pin_labels:
             return ''
         s = ''
         if insert_phantom_section and self.use_phantom_section:
             s += r'\phantomsection '
-        s += r'\expandafter\def\csname @currentlabel\endcsname{' + display_latex + '}'
-        s += r'\label{' + self.latex_label_prefix + target_id + '}'
+        if self.use_flm_macro_for_pinning_labels:
+            s += (
+                r'\flmPinLabelHereWithDisplayText{'
+                + self.latex_label_prefix + target_id + '}{'
+                + display_latex + '}'
+            )
+        else:
+            s += r'\expandafter\def\csname @currentlabel\endcsname{' + display_latex + '}'
+            s += r'\label{' + self.latex_label_prefix + target_id + '}'
         return s
 
     # -----------------
@@ -444,6 +453,8 @@ class LatexFragmentRenderer(FragmentRenderer):
     }
     float_use_centering = r'\centering{}'
     float_caption_join = ': '
+    float_latex_before_caption = r'\flmFloatCaption{' # r'\par\vspace{1ex}\relax '
+    float_latex_after_caption = r'}'
 
     def render_float(self, float_instance, render_context):
         # see flm.features.floats for FloatInstance
@@ -508,13 +519,14 @@ class LatexFragmentRenderer(FragmentRenderer):
         rendered_float_caption = None
         if full_figcaption_rendered_list:
             rendered_float_caption = (
-                r'\par' +
-                self.render_semantic_block(
+                self.float_latex_before_caption
+                + self.render_semantic_block(
                     labelcmd
                     + self.render_join(full_figcaption_rendered_list, render_context),
                     role='figure_caption',
                     render_context=render_context,
                 )
+                + self.float_latex_after_caption
             )
         
         float_content_block_content = self.render_nodelist(
@@ -806,6 +818,16 @@ _latex_preamble_suggested_defs = r"""
 \definecolor{flmTabCellColorYellow}{RGB}{255,255,200}
 \definecolor{flmTabCellColorRed}{RGB}{255,200,200}
 \providecommand\flmCellsHeaderFont{\bfseries}
+
+
+\providecommand\flmFloatCaption[1]{%
+  \par\vspace{\abovecaptionskip}\relax
+  #1\par
+}
+\providecommand\flmPinLabelHereWithDisplayText[2]{%
+  \expandafter\def\csname @currentlabel\endcsname{#2}%
+  \label{#1}%
+}
 
 """
 
