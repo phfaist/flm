@@ -16,10 +16,16 @@ flm = 'flm.__main__:run_main'
 [tool.poetry.dependencies]
 python = "^3.8"
 pylatexenc = { version = "^3.0a29", allow-prereleases = true }
+
+[tool.poetry.group.maincmdl]
+optional = false
+
+[tool.poetry.group.maincmdl.dependencies]
+watchfiles = "^0.22.0"
 python-frontmatter = "^1.0.0"
 PyYAML = ">=5.0"
 colorlog = "^6.7.0"
-watchfiles = "^0.22.0"
+pillow = "^10.4.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"

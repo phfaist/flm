@@ -33,11 +33,20 @@ class ResourceAccessor(run.ResourceAccessorBase):
         fullpath = self.get_full_path(fpath, fname, ftype, flm_run_info)
         return os.path.exists(fullpath) and os.path.isdir(fullpath)
 
-    def read_file(self, fpath, fname, ftype, flm_run_info):
+    def _open_r(self, fullpath, binary):
+        if binary:
+            return open(fullpath, 'rb')
+        return open(fullpath, 'r', encoding='utf-8')
+        
+    def read_file(self, fpath, fname, ftype, flm_run_info, binary=False):
         fullpath = self.get_full_path(fpath, fname, ftype, flm_run_info)
-        with open(fullpath, encoding='utf-8') as f:
+        with self._open_r(fullpath, binary) as f:
             content = f.read()
         return content
+
+    def open_file_object_context(self, fpath, fname, ftype, flm_run_info, binary=False):
+        fullpath = self.get_full_path(fpath, fname, ftype, flm_run_info)
+        return self._open_r(fullpath, binary)
 
     def get_full_path(self, fpath, fname, ftype, flm_run_info):
         if not fpath:
@@ -190,7 +199,7 @@ def main(**kwargs):
         'add_template_path': arg_template_path,
         'force_block_level': arg_force_block_level,
         'cwd': dirname,
-        'input_source': arg_files,
+        'input_source': arg_files[0] if (arg_files and len(arg_files)) else None,
         'input_lineno_colno_offsets': {
             'line_number_offset': line_number_offset,
         },

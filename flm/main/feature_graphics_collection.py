@@ -1,18 +1,21 @@
+import os
 import os.path
-import json
-import subprocess
+import string # string.Template
+import shutil
+
 from urllib.parse import urlparse
+import urllib.request
 
 import logging
 logger = logging.getLogger(__name__)
 
+from pylatexenc.latexnodes import LatexWalkerError
 from pylatexenc.latexnodes.nodes import LatexNodesVisitor
 from flm.feature._base import Feature
 from flm.feature.graphics import GraphicsResource
 
-from ._find_exe import find_std_exe
 
-magick_exe = find_std_exe('magick', error=False)
+from ._inspectimagefile import get_image_file_info
 
 
 # ------------------------------------------------------------------------------
@@ -44,83 +47,23 @@ class ResourcesScanner(LatexNodesVisitor):
 
 
 
-
-def _inspect_graphics_file(file_path):
-
-    is_vector = file_path.endswith( ('svg', 'pdf') )
-
-    if not magick_exe:
-        logger.warning(
-            "The ‘magick’ executable was not found.  Cannot read image information; "
-            "install ImageMagick to enable this feature."
-        )
-        return {
-            'graphics_type': 'vector' if is_vector else 'raster'
-        }
-
-    # use magick to get the resolution information.
-    result = subprocess.check_output([
-        magick_exe,
-        'identify',
-        '-format',
-        '{"w":%[width],"h":%[height],"rx":%[resolution.x],"ry":%[resolution.y],"rU":"%[units]"}',
-        file_path
-    ])
-    gfdata = json.loads(result)
-
-    width_px = float(gfdata['w'])
-    height_px = float(gfdata['h'])
-
-    dpi_x = float(gfdata['rx'])
-    dpi_y = float(gfdata['ry'])
-    if gfdata['rU'].lower() == "PixelsPerCentimeter".lower():
-        dpi_x = dpi_x*2.54
-        dpi_y = dpi_y*2.54
-
-    if abs(dpi_x - dpi_y) > 1e-2:
-        raise ValueError(
-            "Your image seems to have different DPI values for the X and Y dimensions: "
-            f"({dpi_x!r}, {dpi_y!r}).  I don't know how to handle this.  Please fix "
-            "your image so that it has a fixed DPI setting."
-        )
-
-    # round up DPI setting a bit (two decimal places' equivalent in binary)
-    dpi = int(dpi_x * 128 + 0.5) / 128
-
-    # set the relevant data in our graphics_resource data structure
-
-    # There are 72 pts in an inch. Don't use 96 here, it's the DPI value that
-    # should reflect the value 96 that your googling might have alerted you to.
-    width_pt = (width_px / dpi) * 72
-    height_pt = (height_px / dpi) * 72
-
-    if is_vector:
-        # vector graphics
-        return {
-            'graphics_type': 'vector',
-            'dpi': dpi,
-            'pixel_dimensions': (width_px, height_px),
-            'physical_dimensions': (width_pt, height_pt),
-        }
-    else:
-        width_px = int(width_px + 0.5)
-        height_px = int(height_px + 0.5)
-        # raster graphics
-        return {
-            'graphics_type': 'raster',
-            'dpi': dpi,
-            'pixel_dimensions': (width_px, height_px),
-            'physical_dimensions': (width_pt, height_pt),
-        }
+# ------------------------------------------------------------------------------
 
 
 
-class FeatureSimpleGraphicsCollection(Feature):
+
+class FeatureGraphicsCollection(Feature):
 
     feature_name = 'graphics_resource_provider'
     feature_title = 'Process a collection of graphics that can be included in FLM content'
 
     class DocumentManager(Feature.DocumentManager):
+
+        def initialize(self):
+            self.document_graphics_by_source_key = {}
+
+            self.flm_run_info = self.doc.metadata['_flm_run_info']
+            self.resource_accessor = self.flm_run_info['resource_accessor']
 
         def flm_main_scan_fragment(self, fragment, document_parts_fragments=None, **kwargs):
             
@@ -137,75 +80,304 @@ class FeatureSimpleGraphicsCollection(Feature):
                 if resource.get('resource_type', None) == 'graphics_path':
                     self.inspect_add_graphics_resource(resource)
 
+
+        def get_source_info(self, graphics_path, resource_info):
+
+            # Let's see if it's a local file (rather than a remote URL)
+
+            urlp = urlparse(graphics_path)
+            if urlp.scheme == '' or urlp.scheme == 'file':
+
+                source_path = os.path.join(
+                    resource_info.get_source_directory(),
+                    urlp.path
+                )
+
+                return ('file', source_path, f"file:{source_path}")
+
+            src_url = graphics_path
+
+            return ('url', src_url, src_url)
+
+
         def inspect_add_graphics_resource(self, resource):
 
             logger.debug('Inspect graphics resource? %r', resource)
 
+            if resource['resource_source_type'] != 'file':
+                logger.warning("I don't know how to handle resource sources of type %r",
+                               resource['resource_source_type'])
+                return
+
+            src_url = resource['resource_source']
+            resource_info = resource['encountered_in']['resource_info']
+                
+            source_type, source_url, source_key = self.get_source_info(src_url, resource_info)
+
+            if source_key not in self.document_graphics_by_source_key:
+                self.document_graphics_by_source_key[source_key] = \
+                    source_type, source_url, source_key
+
+            if source_key in self.feature.graphics_collection:
+                # info already there, no need to fetch anything or create
+                # graphics resource.
+                return
+
             # look up the file etc.
-            if resource['resource_source_type'] == 'file':
+            if source_type == 'file':
 
-                src_url = resource['resource_source']
+                source_path = source_url
 
-                # Let's see if it's actually a URL.  If not, we won't be able to
-                # retrieve its meta info.
-                urlp = urlparse(src_url)
-                if urlp.scheme == '' or urlp.scheme == 'file':
-                    src_url_basepath = None
-                    try:
-                        src_url_basepath = self.doc.metadata['filepath']['dirname']
-                    except KeyError:
-                        # filepath or dirname not provided in metadata, we don't know
-                        # what the document's base dir is.
-                        pass
+                # fetch the info and store the graphics
 
-                    file_path = os.path.join(src_url_basepath, src_url)
+                file_path, file_name = self.resource_accessor.find_in_search_paths(
+                    self.feature.graphics_search_path,
+                    source_path,
+                    ftype='graphics',
+                    flm_run_info=self.flm_run_info
+                )
 
-                    graphics_resource = GraphicsResource(
-                        src_url=src_url,
-                        ** self.feature.inspect_graphics_file(file_path),
-                    )
+                with self.resource_accessor.open_file_object_context(
+                        fpath=file_path, fname=file_name,
+                        ftype='graphics',
+                        flm_run_info=self.flm_run_info, binary=True
+                ) as fp:
+                    info = self.feature.inspect_graphics_file(source_path, fp)
 
-                    self.feature.add_graphics(src_url, graphics_resource)
+                if info is None:
+                    info = {}
+
+                graphics_resource = GraphicsResource(
+                    src_url=source_path,
+                    ** info,
+                )
+
+                self.feature.add_graphics(source_key, graphics_resource)
+
+            elif source_type == 'url':
+
+                # won't be able to inspect meta-information
+                logger.warning("Can't inspect meta-information for remote resouce ‘%s’",
+                               source_url)
+
+                graphics_resource = GraphicsResource(
+                    src_url=source_url,
+                )
+
+                self.feature.add_graphics(source_key, graphics_resource)
+
             else:
-                raise ValueError("Unknown resource source type: " + repr(resource_source_type))
+                raise LatexWalkerError(
+                    "Unknown resource source type: " + repr(source_type)
+                )
 
 
     class RenderManager(Feature.RenderManager):
 
-        def initialize(self, src_url_resolver_fn=None):
+        def initialize(
+                self,
+                src_url_resolver_fn=None,
+                allow_unknown_graphics=None,
+                collect_graphics_to_output_folder=None,
+                collect_graphics_relative_output_folder=None,
+                collect_graphics_filename_template=None,
+        ):
             self.src_url_resolver_fn = src_url_resolver_fn
 
-        def get_graphics_resource(self, graphics_path, resource_info):
-            return self.feature.get_graphics_resource_base(
-                graphics_path, resource_info, self.render_context,
-                self.src_url_resolver_fn
+            if allow_unknown_graphics is not None:
+                self.allow_unknown_graphics = allow_unknown_graphics
+            else:
+                self.allow_unknown_graphics = self.feature.allow_unknown_graphics
+
+            if collect_graphics_to_output_folder is not None:
+                self.collect_graphics_to_output_folder = collect_graphics_to_output_folder
+            else:
+                self.collect_graphics_to_output_folder = \
+                    self.feature.collect_graphics_to_output_folder
+
+            if collect_graphics_relative_output_folder is not None:
+                self.collect_graphics_relative_output_folder = \
+                    collect_graphics_relative_output_folder
+            else:
+                self.collect_graphics_relative_output_folder = \
+                    self.feature.collect_graphics_relative_output_folder
+
+            if self.collect_graphics_relative_output_folder is None:
+                self.collect_graphics_relative_output_folder = \
+                    self.collect_graphics_to_output_folder
+
+            if collect_graphics_filename_template is not None:
+                self.collect_graphics_filename_template = collect_graphics_filename_template
+            else:
+                self.collect_graphics_filename_template = \
+                    self.feature.collect_graphics_filename_template
+
+            self.collect_graphics_filename_template_obj = string.Template(
+                self.collect_graphics_filename_template
             )
 
-    def __init__(self,
-                 allow_unknown_graphics=True,
-                 export_graphics_resource_url_fn=None):
+            self.graphics_to_collect = {}
+
+            if self.collect_graphics_to_output_folder:
+                counter = 0
+                for source_key, source_info in \
+                    self.feature_document_manager.document_graphics_by_source_key.items():
+
+                    source_type, source_url, source_key = source_info
+
+                    # src_url is resolved according to graphics_source_paths
+                    src_url = self.feature.graphics_collection[source_key].src_url
+
+                    counter += 1
+                    basename = os.path.basename(src_url)
+                    basenoext, ext = os.path.splitext(basename)
+                    target_fname = self.collect_graphics_filename_template_obj.substitute({
+                        'basename': os.path.basename(src_url),
+                        'basenoext': basenoext,
+                        'ext': ext,
+                        'counter': counter,
+                    })
+                    target_path = os.path.join(
+                        self.collect_graphics_to_output_folder,
+                        target_fname
+                    )
+                    target_relative_path = os.path.join(
+                        self.collect_graphics_relative_output_folder,
+                        target_fname
+                    )
+                    _, target_ext = os.path.splitext(target_path)
+
+                    # prepare which files we have to collect
+                    self.graphics_to_collect[source_key] = {
+                        'source_type': source_type,
+                        'source_url': source_url,
+                        'src_url_resolved': src_url,
+                        'target_path': target_path,
+                        'target_relative_path': target_relative_path,
+                        'from_ext': ext,
+                        'to_ext': target_ext,
+                    }
+
+
+        def get_graphics_resource(self, graphics_path, resource_info):
+
+            render_context = self.render_context
+            src_url_resolver_fn = self.src_url_resolver_fn
+
+            source_type, src_url, source_key = \
+                self.feature_document_manager.get_source_info(graphics_path, resource_info)
+
+            if source_key in self.feature.graphics_collection:
+                graphics_resource = self.feature.graphics_collection[source_key]
+            else:
+                graphics_resource = self.get_unknown_graphics_resource(
+                    graphics_path, source_path, resource_info
+                )
+
+            grkwargs = None
+            collect_info = None
+
+            # if we're collecting the graphics to some output folder, set the
+            # path to the collected one
+            if source_key in self.graphics_to_collect:
+                collect_info = self.graphics_to_collect[source_key]
+                grkwargs = {
+                    'src_url': collect_info['target_relative_path'],
+                }
+
+            if src_url_resolver_fn is not None:
+                src_url_result = src_url_resolver_fn(
+                    graphics_resource, render_context, source_path,
+                    collect_info=collect_info
+                )
+                if 'src_url' not in src_url_result:
+                    raise ValueError(
+                        "src_url_resolver_fn() did not return a dict with key src_url: "
+                        + repr(src_url_result)
+                    )
+
+                grkwargs = {
+                    'src_url': src_url_result['src_url'],
+                    'srcset': src_url_result['srcset'],
+                }
+
+            if grkwargs:
+                fullgrkwargs = dict(graphics_resource.asdict())
+                fullgrkwargs.update(grkwargs)
+                return GraphicsResource(**fullgrkwargs)
+
+            return graphics_resource
+
+
+        def get_unknown_graphics_resource(
+                self, graphics_path, source_path, resource_info
+        ):
+            if not self.allow_unknown_graphics:
+                raise LatexWalkerError(
+                    f"Graphics ‘{graphics_path}’ (from ‘{source_path}’) was not "
+                    f"added to collection"
+                )
+            return GraphicsResource(src_url=graphics_path)
+
+
+        def postprocess(self, value):
+            # collect graphics to output folder, if applicable
+            if self.collect_graphics_to_output_folder:
+                # make sure output folder exists
+                os.makedirs(
+                    os.path.realpath(self.collect_graphics_to_output_folder),
+                    exist_ok=True
+                )
+
+                for source_key, collect_info in self.graphics_to_collect.items():
+                    source_type = collect_info['source_type']
+                    src_url = collect_info['src_url_resolved']
+                    target_path = collect_info['target_path']
+
+                    logger.info('Collecting ‘%s’ to ‘%s’ as %s', src_url, target_path,
+                                source_type)
+
+                    if os.path.exists(target_path):
+                        logger.error("Cowardly refusing to overwrite %s", target_path)
+                        continue
+
+                    if source_type == 'file':
+                        shutil.copyfile(src_url, target_path)
+                    else:
+                        with urllib.request.urlopen(src_url) as fr:
+                            with open(target_path, 'wb') as fw:
+                                shutil.copyfileobj(fr, fw)
+
+
+    def __init__(
+            self,
+            allow_unknown_graphics=True,
+            collect_graphics_to_output_folder=False,
+            collect_graphics_relative_output_folder=None,
+            collect_graphics_filename_template="gr${counter}${ext}",
+            graphics_search_path=None,
+    ):
         super().__init__()
 
         self.graphics_collection = {}
 
         # allow get_graphics_resource() calls to graphics given by source paths
-        # that weren't explicitly added to the collection.  In such cases, the
-        # method self.get_unknown_graphics_resource() is called to form the
-        # GraphicsResource object.
+        # that weren't explicitly added to the collection.
         self.allow_unknown_graphics = allow_unknown_graphics
+        self.collect_graphics_to_output_folder = collect_graphics_to_output_folder
+        self.collect_graphics_relative_output_folder = collect_graphics_relative_output_folder
+        self.collect_graphics_filename_template = collect_graphics_filename_template
 
-        self.export_graphics_resource_url_fn = export_graphics_resource_url_fn
+        self.graphics_search_path = list(graphics_search_path or ['.'])
 
 
-
-    def inspect_graphics_file(self, file_path):
-        return _inspect_graphics_file(file_path)
-
+    def inspect_graphics_file(self, file_path, fp):
+        return get_image_file_info(file_path, fp)
 
 
     def add_graphics(self, source_path, graphics_resource):
         if source_path in self.graphics_collection:
-            raise ValueError(
+            raise LatexWalkerError(
                 f"Graphics collection already has a graphics resource registered "
                 f"for path ‘{source_path}’ (registered target "
                 f"‘{self.graphics_collection[source_path].src_url}’, new target "
@@ -226,55 +398,6 @@ class FeatureSimpleGraphicsCollection(Feature):
         return (source_path in self.graphics_collection)
         
 
-    def get_unknown_graphics_resource(
-            self, graphics_path, source_path, resource_info, render_context,
-            src_url_resolver_fn
-    ):
-        # Alternatively, we could raise an error here. (You can reimplement in subclass.)
-        return GraphicsResource(src_url=graphics_path)
-
-    def get_graphics_resource_base(self, graphics_path, resource_info,
-                                   render_context,
-                                   src_url_resolver_fn=None):
-
-        # Note: the `render_context` argument here is only needed so that we can
-        # provide it as parameter to the custom callback `src_url_resolver_fn()`
-
-        #
-        # [FUTURE: in case of multiple input files] Compose full source path 
-        #
-        # source_path = os.path.join(
-        #     resource_info.get_source_directory(),
-        #     graphics_path
-        # )
-        source_path = graphics_path
-
-        if source_path in self.graphics_collection:
-            graphics_resource = self.graphics_collection[source_path]
-        else:
-            graphics_resource = self.get_unknown_graphics_resource(
-                graphics_path, source_path, resource_info, render_context,
-                src_url_resolver_fn
-            )
-
-        if src_url_resolver_fn is not None:
-            src_url_result = src_url_resolver_fn(
-                graphics_resource, render_context, source_path
-            )
-            if 'src_url' not in src_url_result:
-                raise ValueError(
-                    "src_url_resolver_fn() did not return a dict with key src_url: "
-                    + repr(src_url_result)
-                )
-
-            grkwargs = dict(graphics_resource.asdict())
-            grkwargs['src_url'] = src_url_result['src_url']
-            grkwargs['srcset'] = src_url_result['srcset']
-
-            graphics_resource = GraphicsResource(**grkwargs)
-
-        return graphics_resource
 
 
-
-FeatureClass = FeatureSimpleGraphicsCollection
+FeatureClass = FeatureGraphicsCollection

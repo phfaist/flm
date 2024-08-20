@@ -53,11 +53,30 @@ class ResourceAccessorBase:
             f"Template path is = {repr(self.template_path)}"
         )
 
+    def find_in_search_paths(self, search_paths, fname, ftype, flm_run_info):
+
+        cwd = flm_run_info.get('cwd', None)
+
+        for search_path in search_paths:
+
+            if cwd is not None:
+                search_path = os.path.join(cwd, search_path)
+
+            if self.file_exists(search_path, fname, ftype, flm_run_info):
+                return search_path, fname
+
+        raise ValueError(
+            f"File not found: ‘{fname}’. Search path was = {repr(search_paths)}"
+        )
+
     def import_class(self, fullname, *, default_classnames=None, default_prefix=None,
                      flm_run_info=None):
         raise RuntimeError("Must be reimplemented by subclasses!")
 
-    def read_file(self, fpath, fname, ftype, flm_run_info):
+    def read_file(self, fpath, fname, ftype, flm_run_info, binary=False):
+        raise RuntimeError("Must be reimplemented by subclasses!")
+
+    def open_file_object_context(self, fpath, fname, ftype, flm_run_info, binary=False):
         raise RuntimeError("Must be reimplemented by subclasses!")
 
     def file_exists(self, fpath, fname, ftype, flm_run_info):
@@ -87,6 +106,23 @@ def parse_frontmatter_content_linenumberoffset(input_content):
         line_number_offset = input_content[:m.end()].count('\n') + 1
 
     return frontmatter_metadata, content, line_number_offset
+
+
+
+# ------------------
+
+
+
+class ResourceInfo:
+    def __init__(self, source_path):
+        super().__init__()
+        self.source_path = source_path
+
+        self._source_dirname = os.path.dirname(self.source_path)
+
+    def get_source_directory(self):
+        return self._source_dirname
+
 
 
 
@@ -124,6 +160,8 @@ def load_features(features_merge_configs, flm_run_info):
 
     features = []
 
+    feature_configs = {}
+
     for featurename, featureconfig in features_onoff.items():
 
         if featureconfig is None or featureconfig is False:
@@ -159,7 +197,9 @@ def load_features(features_merge_configs, flm_run_info):
 
         features.append( FeatureClass(**featureconfig) )
 
-    return features
+        feature_configs[featurename] = feature_configs
+
+    return features, feature_configs
 
 
 def _ensurefeatureconfig(x):
@@ -211,6 +251,8 @@ class WorkflowEnvironmentInformation:
     environment : Optional[Any] = None
 
     config : Optional[Mapping] = None
+
+    feature_configs : Optional[Mapping] = None
 
     flm_run_info: Optional[Mapping] = None
 
@@ -435,7 +477,7 @@ def load_workflow_environment(*,
     parsing_state = flmenvironment.standard_parsing_state(**config['flm']['parsing'])
     logger.debug("parsing_state = %r", parsing_state)
 
-    features = load_features(features_merge_configs, flm_run_info)
+    features, feature_configs = load_features(features_merge_configs, flm_run_info)
     logger.debug("features = %r", features)
 
     environment = flmenvironment.make_standard_environment(
@@ -446,9 +488,10 @@ def load_workflow_environment(*,
     return WorkflowEnvironmentInformation(
         environment=environment,
         config=config,
+        feature_configs=feature_configs,
         flm_run_info=flm_run_info,
         workflow=workflow,
-        fragment_renderer_name=fragment_renderer_name
+        fragment_renderer_name=fragment_renderer_name,
     )
 
 
@@ -486,13 +529,18 @@ def run(flm_content,
         # verbose logging is enabled, so don't be silent
         silent = False
 
+    what = flm_run_info.get('input_source', None)
     fragment = environment.make_fragment(
         flm_content,
         #is_block_level is already set in parsing_state
         silent=silent,
         input_lineno_colno_offsets=flm_run_info.get('input_lineno_colno_offsets', {}),
-        what=flm_run_info.get('input_source', None)
+        what=what,
+        resource_info=ResourceInfo(
+            source_path=flm_run_info.get('input_source', None)
+        ),
     )
+
 
     #
     # Prepare document metadata
@@ -501,10 +549,12 @@ def run(flm_content,
         {
             '_flm_config': config['flm'],
             '_flm_workflow': workflow,
+            '_flm_run_info': flm_run_info,
         },
         flm_run_info.get('metadata', {}),
         { k: v for (k,v) in config.items() if k != 'flm' }
     ])
+
 
     #
     # Find any "child" documents (CONTENT PARTS) and compile them, too.
@@ -562,7 +612,10 @@ def run(flm_content,
                 in_flm_content,
                 silent=silent,
                 input_lineno_colno_offsets=in_input_lineno_colno_offsets,
-                what=f"Document Part ‘{in_input_fname}’"
+                what=f"Document Part ‘{in_input_fname}’",
+                resource_info=ResourceInfo(
+                    source_path=in_input_fname
+                ),
             )
 
             document_parts_fragments.append(in_fragment)
@@ -594,10 +647,11 @@ def run(flm_content,
                 fragment, render_context,
                 content_parts_infos=content_parts_infos,
             ),
-        metadata=doc_metadata
+        metadata=doc_metadata,
     )
     
     doc.document_fragments = [ fragment ]
+
 
     
     #
