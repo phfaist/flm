@@ -118,7 +118,10 @@ class ResourceInfo:
         super().__init__()
         self.source_path = source_path
 
-        self._source_dirname = os.path.dirname(self.source_path)
+        if source_path is not None:
+            self._source_dirname = os.path.dirname(self.source_path)
+        else:
+            self._source_dirname = None
 
     def get_source_directory(self):
         return self._source_dirname
