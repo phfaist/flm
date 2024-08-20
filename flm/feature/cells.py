@@ -876,6 +876,41 @@ class CellsEnvironment(FLMEnvironmentSpecBase):
             cells_model=node.flm_cells_model,
             render_context=render_context,
         )
+
+
+    #
+    # recompose pure latex
+    #
+
+    def recompose_pure_latex(self, node, recomposer, **kwargs):
+
+        recopt_cells = recomposer.get_options('cells')
+        if recopt_cells.get('keep_as_is', False):
+            return False # use default recomposer.
+
+        if recomposer.render_context is None \
+           or not hasattr(recomposer.render_context, 'fragment_renderer') \
+           or recomposer.render_context.fragment_renderer is None:
+            raise ValueError(
+                "Recomposing cells while compiling them into a tabularray "
+                "requires a render_context in the pure latex recomposer with a "
+                "LatexFragmentRenderer instance."
+            )
+
+        render_context = recomposer.render_context
+        fragment_renderer = render_context.fragment_renderer
+        
+        return fragment_renderer.render_cells(
+            cells_model=node.flm_cells_model,
+            render_context=render_context,            
+            render_cell_nodelist_contents_fn= (
+                lambda nodelist, render_context:
+                recomposer.recompose_flm_text(nodelist)
+            )
+        )
+
+
+
     
     
 

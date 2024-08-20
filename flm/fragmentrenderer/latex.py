@@ -41,12 +41,12 @@ class LatexFragmentRenderer(FragmentRenderer):
     text_format_cmds = {
         'textit': 'textit',
         'textbf': 'textbf',
-        'defterm-term': 'displayterm',
+        'defterm-term': 'flmDisplayTerm',
         'term-in-defining-defterm': None,
     }
 
     latex_semantic_block_environments = {
-        'defterm': 'defterm',
+        'defterm': 'flmDefterm',
         
         'theoremlike': 'flmThmTheoremLike',
         'definitionlike': 'flmThmDefinitionLike',
@@ -576,7 +576,8 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     def render_graphics_block(self, graphics_resource, render_context):
 
-        src_url, incloptions = self.collect_graphics_resource(graphics_resource, render_context)
+        src_url, incloptions = \
+            self.collect_graphics_resource(graphics_resource, render_context)
 
         opts = ''
         if incloptions is not None:
@@ -611,7 +612,12 @@ class LatexFragmentRenderer(FragmentRenderer):
         return graphics_resource.src_url, whoptc
 
 
-    def render_cells(self, cells_model, render_context, target_id=None):
+    def render_cells(self, cells_model, render_context, target_id=None,
+                     render_cell_nodelist_contents_fn=None):
+
+        if render_cell_nodelist_contents_fn is None:
+            render_cell_nodelist_contents_fn = lambda nodes, render_context: \
+                self.render_nodelist(nodes, render_context=render_context)
 
         stab_contents = ''
 
@@ -629,7 +635,7 @@ class LatexFragmentRenderer(FragmentRenderer):
                     and cellinfo['is_topleft']):
                     #
                     cell = cellinfo['cell']
-                    cell_content =  self.render_nodelist(
+                    cell_content = render_cell_nodelist_contents_fn(
                         cell.content_nodes,
                         render_context=render_context,
                     )
@@ -769,8 +775,8 @@ _latex_preamble_suggested_defs = r"""
 
 \providecommand\phantomsection{}
 
-\ifdefined\defterm\else
-\newenvironment{defterm}{%
+\ifdefined\flmDefterm\else
+\newenvironment{flmDefterm}{%
   \par\vspace{0.5ex plus 0.5ex}\noindent
   \begingroup\flmDeftermFormat
 }{%
@@ -779,7 +785,7 @@ _latex_preamble_suggested_defs = r"""
 \fi
 \providecommand\flmDeftermFormat{\itshape}
 
-\providecommand\displayterm[1]{\textbf{#1}}
+\providecommand\flmDisplayTerm[1]{\textbf{#1}}
 
 \providecommand\flmThmHeadingTheoremLike[1]{\textbf{#1}.\hspace{.8em}\ignorespaces}
 \providecommand\flmThmHeadingDefinitionLike[1]{\textbf{#1}.\hspace{.8em}\ignorespaces}

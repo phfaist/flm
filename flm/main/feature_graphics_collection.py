@@ -1,7 +1,9 @@
 import os
 import os.path
 import string # string.Template
+import tempfile
 import shutil
+import subprocess
 
 from urllib.parse import urlparse
 import urllib.request
@@ -14,8 +16,9 @@ from pylatexenc.latexnodes.nodes import LatexNodesVisitor
 from flm.feature._base import Feature
 from flm.feature.graphics import GraphicsResource
 
-
 from ._inspectimagefile import get_image_file_info
+
+from ._find_exe import find_std_exe
 
 
 # ------------------------------------------------------------------------------
@@ -45,6 +48,200 @@ class ResourcesScanner(LatexNodesVisitor):
                 self.encountered_resources.append(rdata)
 
 
+
+
+
+# ------------------------------------------------------------------------------
+
+class GraphicsFormatConversionRule:
+    def __init__(self, rule):
+        super().__init__()
+        self.rule = rule
+        self._parse_set_rule(rule)
+
+    def _parse_set_rule(self, rule):
+
+        if isinstance(rule, str):
+            rule_from, rule_to = rule.split(':', maxsplit=1)
+            rule_via = []
+            rule_options = None
+        else:
+            rule_from = rule.get('from', [])
+            rule_to = rule.get('to', [])
+            rule_via = rule.get('via', [])
+            rule_options = rule.get('options', None)
+            
+        if isinstance(rule_from, str):
+            rule_from = rule_from.split(',')
+        if isinstance(rule_to, str):
+            rule_to = rule_to.split(',')
+        if isinstance(rule_via, str):
+            rule_via = rule_via.split(',')
+
+        self.from_ext_list = [x for x in rule_from if x]
+        self.to_ext_list = [x for x in rule_to if x]
+        self.via_list = [x for x in rule_via if x]
+        self.options = rule_options
+
+        if len(self.to_ext_list) >= 2:
+            logger.warning("Rules with multiple output formats are not supported yet.  "
+                           "First output format specified will be used.")
+
+    def get_converter_or_none(self, ext):
+
+        if len(self.from_ext_list) and ext not in self.from_ext_list:
+            return None
+
+        to_ext = self.to_ext_list[0]
+
+        for converter in _graphics_converters:
+
+            if len(self.via_list) and converter.name not in self.via_list:
+                continue
+
+            if not converter.can_convert(ext, to_ext):
+                continue
+
+            return {
+                'target_ext': to_ext,
+                'instance': converter.get_instance(),
+                'options': self.options
+            }
+
+        logger.warning(
+            f"Could not find a graphics converter that could convert ‘{ext}’ to ‘{to_ext}’ "
+            f"as requested by rule"
+        )
+        return None
+
+
+# ---
+
+
+class GraphicsConverter:
+    name = None
+
+    @classmethod
+    def get_instance(Cls):
+        if not hasattr(Cls, '_instance') or Cls._instance is None:
+            Cls._instance = Cls()
+        return Cls._instance
+
+    def read_input(self, source_type, src_url, binary=True):
+        if source_type == 'file':
+            if binary:
+                with open(src_url, 'rb') as f:
+                    data = f.read()
+            else:
+                with open(src_url, 'r', encoding='utf-8') as f:
+                    data = f.read()
+            return data
+
+        with urllib.request.urlopen(src_url) as f:
+            data = f.read()
+        if binary:
+            return data
+        return data.decode('utf-8')
+
+
+
+class CairoSvgConverter(GraphicsConverter):
+    
+    name = 'cairosvg'
+
+    @staticmethod
+    def can_convert(ext, to_ext):
+        if ext == '.svg' and to_ext in ('.pdf', '.png', '.ps', '.eps'):
+            return True
+        
+    def convert(self, source_type, src_url, target_path, converter_info, options=None):
+
+        if options is None:
+            options = {}
+
+        svgkwargs = {}
+        if 'dpi' in options:
+            svgkwargs['dpi'] = options['dpi']
+        if 'scale' in options:
+            svgkwargs['scale'] = options['scale']
+        if 'parent_width' in options:
+            svgkwargs['parent_width'] = options['parent_width']
+        if 'parent_height' in options:
+            svgkwargs['parent_height'] = options['parent_height']
+
+        import cairosvg
+
+        target_ext = converter_info['target_ext']
+        if target_ext == '.pdf':
+            svgconvert = cairosvg.svg2pdf
+        elif target_ext == '.png':
+            svgconvert = cairosvg.svg2png
+        elif target_ext in ('.ps', '.eps'):
+            svgconvert = cairosvg.svg2ps
+
+        svgconvert(url=src_url, write_to=target_path, **svgkwargs)
+
+        
+
+
+
+
+
+class MagickConverter(GraphicsConverter):
+
+    name = 'magick'
+
+    @staticmethod
+    def can_convert(ext, to_ext):
+        return True
+
+    def __init__(self):
+        self.magick_exe = find_std_exe('magick')
+
+    def convert(self, source_type, src_url, target_path, converter_info, options=None):
+
+        if options is None:
+            options = {}
+
+        transparent_bg = options.get('transparent_bg', False)
+        dpi = options.get('dpi', None)
+
+        input_data = self.read_input(source_type, src_url, binary=True)
+        
+        ins = '-'
+        if src_url.endswith( ('.gif', '.mng') ):
+            ins = '-[0]'
+
+        extra_args = []
+        if transparent_bg:
+            extra_args = extra_args + [ '-background', 'none', ]
+        if dpi is not None:
+            extra_args = extra_args + [
+                '-density', str(dpi),
+            ]
+
+        cmdargs = [
+            self.magick_exe,
+            'convert',
+            *extra_args,
+            ins,
+            target_path
+        ]
+
+        logger.debug('Running: %r', cmdargs)
+        subprocess.run(
+            cmdargs,
+            input=input_data,
+            #cwd=tempdirname
+        )
+
+
+
+
+_graphics_converters = [
+    CairoSvgConverter,
+    MagickConverter,
+]
 
 
 # ------------------------------------------------------------------------------
@@ -183,6 +380,7 @@ class FeatureGraphicsCollection(Feature):
                 collect_graphics_to_output_folder=None,
                 collect_graphics_relative_output_folder=None,
                 collect_graphics_filename_template=None,
+                collect_format_conversion_rules=None,
         ):
             self.src_url_resolver_fn = src_url_resolver_fn
 
@@ -214,9 +412,25 @@ class FeatureGraphicsCollection(Feature):
                 self.collect_graphics_filename_template = \
                     self.feature.collect_graphics_filename_template
 
+            if collect_format_conversion_rules is not None:
+                self.collect_format_conversion_rules = collect_format_conversion_rules
+            else:
+                self.collect_format_conversion_rules = \
+                    self.feature.collect_format_conversion_rules
+
+            # prepare output target template object, if applicable
             self.collect_graphics_filename_template_obj = string.Template(
                 self.collect_graphics_filename_template
             )
+
+            # prepare conversion rules, if applicable
+            if self.collect_format_conversion_rules:
+                self.collect_format_conversion_rules = [
+                    GraphicsFormatConversionRule(rule)
+                    for rule in self.collect_format_conversion_rules
+                ]
+            else:
+                self.collect_format_conversion_rules = []
 
             self.graphics_to_collect = {}
 
@@ -225,40 +439,105 @@ class FeatureGraphicsCollection(Feature):
                 for source_key, source_info in \
                     self.feature_document_manager.document_graphics_by_source_key.items():
 
-                    source_type, source_url, source_key = source_info
-
+                    counter += 1
                     # src_url is resolved according to graphics_source_paths
                     src_url = self.feature.graphics_collection[source_key].src_url
 
-                    counter += 1
-                    basename = os.path.basename(src_url)
-                    basenoext, ext = os.path.splitext(basename)
-                    target_fname = self.collect_graphics_filename_template_obj.substitute({
-                        'basename': os.path.basename(src_url),
-                        'basenoext': basenoext,
-                        'ext': ext,
-                        'counter': counter,
-                    })
-                    target_path = os.path.join(
-                        self.collect_graphics_to_output_folder,
-                        target_fname
+                    self.prepare_collect_graphics(
+                        source_info,
+                        resolved_src_url=src_url,
+                        counter=counter,
                     )
-                    target_relative_path = os.path.join(
-                        self.collect_graphics_relative_output_folder,
-                        target_fname
-                    )
-                    _, target_ext = os.path.splitext(target_path)
 
-                    # prepare which files we have to collect
-                    self.graphics_to_collect[source_key] = {
-                        'source_type': source_type,
-                        'source_url': source_url,
-                        'src_url_resolved': src_url,
-                        'target_path': target_path,
-                        'target_relative_path': target_relative_path,
-                        'from_ext': ext,
-                        'to_ext': target_ext,
-                    }
+
+        def prepare_collect_graphics_get_converter(self, source_info, resolved_src_url, ext):
+            # see if we should convert this
+
+            converter_info = None
+
+            for rule in self.collect_format_conversion_rules:
+                converter_info = rule.get_converter_or_none(ext)
+                if converter_info:
+                    return converter_info
+
+            # by default, same output extension as input extension
+            return { 'target_ext': ext, 'instance': None }
+
+        def prepare_collect_graphics(self, source_info, resolved_src_url, counter):
+
+            source_type, source_url, source_key = source_info
+
+            basename = os.path.basename(resolved_src_url)
+            basenoext, ext = os.path.splitext(basename)
+
+            converter_info = self.prepare_collect_graphics_get_converter(
+                source_info, resolved_src_url, ext
+            )
+            target_ext = converter_info['target_ext']
+
+            target_fname = self.collect_graphics_filename_template_obj.substitute({
+                'basename': os.path.basename(resolved_src_url),
+                'basenoext': basenoext,
+                'ext': target_ext,
+                'counter': counter,
+            })
+            target_path = os.path.join(
+                self.collect_graphics_to_output_folder,
+                target_fname
+            )
+            target_relative_path = os.path.join(
+                self.collect_graphics_relative_output_folder,
+                target_fname
+            )
+
+            # prepare which files we have to collect
+            self.graphics_to_collect[source_key] = {
+                'source_type': source_type,
+                'source_url': source_url,
+                'src_url_resolved': resolved_src_url,
+                'converter_info': converter_info,
+                'target_path': target_path,
+                'target_relative_path': target_relative_path,
+                'from_ext': ext,
+                'to_ext': target_ext,
+            }
+
+            
+        def collect_graphics(self, source_key, collect_info):
+
+            source_type = collect_info['source_type']
+            src_url = collect_info['src_url_resolved']
+            converter_info = collect_info['converter_info']
+            converter = converter_info['instance']
+            target_path = collect_info['target_path']
+
+            logger.info('Collecting ‘%s’ to ‘%s’ as %s', src_url, target_path,
+                        source_type)
+
+            logger.debug('converter_info = %r', converter_info)
+
+            if os.path.exists(target_path):
+                logger.error("Cowardly refusing to overwrite %s", target_path)
+                return
+
+            if converter is not None:
+
+                converter_options = converter_info['options']
+
+                converter.convert(
+                    source_type, src_url, target_path,
+                    converter_info=converter_info,
+                    options=converter_options,
+                )
+
+            else:
+
+                if source_type == 'file':
+                    shutil.copyfile(src_url, target_path)
+                else:
+                    with urllib.request.urlopen(src_url) as fr:
+                        with open(target_path, 'wb') as fw:
+                            shutil.copyfileobj(fr, fw)
 
 
         def get_graphics_resource(self, graphics_path, resource_info):
@@ -323,6 +602,10 @@ class FeatureGraphicsCollection(Feature):
 
 
         def postprocess(self, value):
+            self.collect_all_graphics()
+
+        def collect_all_graphics(self):
+
             # collect graphics to output folder, if applicable
             if self.collect_graphics_to_output_folder:
                 # make sure output folder exists
@@ -332,23 +615,9 @@ class FeatureGraphicsCollection(Feature):
                 )
 
                 for source_key, collect_info in self.graphics_to_collect.items():
-                    source_type = collect_info['source_type']
-                    src_url = collect_info['src_url_resolved']
-                    target_path = collect_info['target_path']
 
-                    logger.info('Collecting ‘%s’ to ‘%s’ as %s', src_url, target_path,
-                                source_type)
+                    self.collect_graphics(source_key, collect_info)
 
-                    if os.path.exists(target_path):
-                        logger.error("Cowardly refusing to overwrite %s", target_path)
-                        continue
-
-                    if source_type == 'file':
-                        shutil.copyfile(src_url, target_path)
-                    else:
-                        with urllib.request.urlopen(src_url) as fr:
-                            with open(target_path, 'wb') as fw:
-                                shutil.copyfileobj(fr, fw)
 
 
     def __init__(
@@ -357,6 +626,7 @@ class FeatureGraphicsCollection(Feature):
             collect_graphics_to_output_folder=False,
             collect_graphics_relative_output_folder=None,
             collect_graphics_filename_template="gr${counter}${ext}",
+            collect_format_conversion_rules=None,
             graphics_search_path=None,
     ):
         super().__init__()
@@ -369,6 +639,7 @@ class FeatureGraphicsCollection(Feature):
         self.collect_graphics_to_output_folder = collect_graphics_to_output_folder
         self.collect_graphics_relative_output_folder = collect_graphics_relative_output_folder
         self.collect_graphics_filename_template = collect_graphics_filename_template
+        self.collect_format_conversion_rules = collect_format_conversion_rules
 
         self.graphics_search_path = list(graphics_search_path or ['.'])
 

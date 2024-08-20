@@ -46,3 +46,4 @@ default_config:
   phfnote_options: 'nosecfmt'
   enable_hyperref: true
 
+  flmlatex_preamble_packages: ''

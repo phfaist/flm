@@ -21,3 +21,4 @@ default_config:
 
   enable_hyperref: true
 
+  flmlatex_preamble_packages: ''

@@ -51,7 +51,14 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
 
     template_config_workflow_defaults = {}
 
-    def render_templated_document(self, rendered_content, document, render_context):
+    def get_wstyle_information(self):
+        return {}
+
+    def render_templated_document(
+            self,
+            rendered_content, document, render_context, *,
+            add_context=None,
+    ):
         r"""
         Take the raw rendered document content `rendered_content` and place
         it in a document based on a suitable template.  The argument `document`
@@ -90,6 +97,10 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         if hasattr(frinfo, 'get_style_information'):
             fr_style_information = frinfo.get_style_information(self.fragment_renderer)
 
+        # get any relevant style information from the workflow class itself (us
+        # or a relevant subclass)
+        workflow_style_information = self.get_wstyle_information()
+
         template_prefix = self.config.get('template_prefix', None)
         if template_prefix is None and hasattr(frinfo, 'format_name'):
             template_prefix = frinfo.format_name
@@ -99,6 +110,7 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
             self.template_config_workflow_defaults,
             {
                 'style': fr_style_information,
+                'wstyle': workflow_style_information,
             }
         ])
 
@@ -117,12 +129,17 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         else:
             metadata = {k: v for (k, v) in metadata.items() if k != "_flm_config"}
 
-        rendered_template = template.render_template([
-            {
-                'content': rendered_content,
-                'metadata': metadata,
-            },
-        ])
+        main_template_config = {
+            'content': rendered_content,
+            'metadata': metadata,
+        }
+
+        template_config_list = []
+        if add_context:
+            template_config_list.append(add_context)
+        template_config_list.append(main_template_config)
+
+        rendered_template = template.render_template(template_config_list)
 
         return rendered_template
 

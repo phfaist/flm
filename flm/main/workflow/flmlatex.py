@@ -3,6 +3,7 @@ from ...fragmentrenderer._base import FragmentRenderer
 from ...flmrecomposer.purelatex import FLMPureLatexRecomposer
 
 from ._base import RenderWorkflow
+from .templatebasedworkflow import TemplateBasedRenderWorkflow
 
 
 
@@ -11,14 +12,8 @@ _default_config = {
 }
 
 
-class PureLatexDummyFragmentRenderer(FragmentRenderer):
-    pass
 
-class PureLatexDummyFragmentRendererInfo:
-    FragmentRendererClass = PureLatexDummyFragmentRenderer
-
-
-class FlmLatexWorkflow(RenderWorkflow):
+class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
 
     @staticmethod
     def get_workflow_default_config(flm_run_info, config):
@@ -28,17 +23,24 @@ class FlmLatexWorkflow(RenderWorkflow):
     def get_fragment_renderer_name(outputformat, flm_run_info, run_config):
 
         if not outputformat or outputformat == 'latex':
-            return 'flm.main.workflow.flmlatex.PureLatexDummyFragmentRendererInfo'
+            # Use 'latex' fragment renderer.  It will provide some useful
+            # methods for rendering parts of the latex, for instance things to
+            # do with graphics or maybe even cells
+            return 'latex'
 
         raise ValueError(f"Unsupported format: {outputformat}")
 
-    def render_templated_document(self, rendered_content, document, render_context):
-        return "<<< render_templated_document() is unused but needs to be present >>>"
 
+    def get_wstyle_information(self):
+        return {
+            'preamble_suggested_defs': _latex_wstyle_suggested_preamble_defs,
+        }
 
     def render_document(self, document):
 
-        render_context = document.make_render_context(fragment_renderer=None)
+        render_context = document.make_render_context(
+            fragment_renderer=self.fragment_renderer # a LatexFragmentRenderer
+        )
 
         recomposer = FLMPureLatexRecomposer(
             dict(self.recomposer_options,
@@ -51,36 +53,95 @@ class FlmLatexWorkflow(RenderWorkflow):
         latex = recomposed_result['latex']
         packages = recomposed_result['packages']
 
-        # need some template stuff at this point
-        s = r'\documentclass{article}'
-        for pname, pinfo in packages.items():
-            s += r'\usepackage'
-            if pinfo['options']:
-                s += '[' + pinfo['options'] + ']'
-            s += r'{' + pname + r'}'
+        # Call resource manager process/postprocess methods in case there is any
+        # post-processing that is needed to be done (e.g., collect graphics)
+
+        for feature_name, feature_render_manager in render_context.feature_render_managers:
+            if feature_render_manager is not None:
+                feature_render_manager.process(latex)
+
+        for feature_name, feature_render_manager in render_context.feature_render_managers:
+            if feature_render_manager is not None:
+                feature_render_manager.postprocess(latex)
+
+        # Render the template.
+
+        rendered_content = latex
         
-        s += '\n'
-        s += r'\begin{document}' + '\n'
-        has_title = False
-        if 'title' in document.metadata:
-            has_title = True
-            s += r'\title{' + document.metadata['title'] + '}\n'
-        if 'author' in document.metadata:
-            has_title = True
-            s += r'\author{' + document.metadata['author'] + '}\n'
-        if 'date' in document.metadata:
-            has_title = True
-            s += r'\date{' + document.metadata['date'] + '}\n'
-        if has_title:
-            s += r'\maketitle' + '\n'
+        flmlatex_preamble_packages = ''
+        for pname, pinfo in packages.items():
+            flmlatex_preamble_packages += r'\usepackage'
+            if pinfo['options']:
+                flmlatex_preamble_packages += '[' + pinfo['options'] + ']'
+            flmlatex_preamble_packages += r'{' + pname + r'}' + '\n'
 
-        s += latex
+        final_content = self.render_templated_document(
+            rendered_content, document, render_context,
+            add_context={
+                'flmlatex_preamble_packages': flmlatex_preamble_packages
+            }
+        )
 
-        s += r'\end{document}' + '\n'
-
-        return s
+        return final_content
 
 
+# --------
+
+_latex_wstyle_suggested_preamble_defs = r"""
+\makeatletter
+\newif\ifdeftermShowTerm
+\deftermShowTermfalse
+\def\defterm#1{%
+  \begingroup
+  \edef\flmL@cur@defterm{\detokenize{#1}}%
+  \par\vspace{\abovedisplayskip}%
+  \flmDeftermFormat
+  \phantomsection
+  \hypertarget{term:\flmL@cur@defterm}{}\relax
+  \ifdeftermShowTerm \flmDisplayTerm{#1: }\fi
+}
+\def\enddefterm{%
+  \par
+  \vspace{\belowdisplayskip}%
+  \endgroup
+}
+\def\term{\@ifnextchar[\term@o\term@a}%]
+\def\term@a#1{\term@o[{#1}]{#1}}
+\def\term@o[#1]#2{%
+  \edef\flmL@tmp@a{\detokenize{#1}}%
+  \ifx\flmL@tmp@a\flmL@cur@defterm%
+    \termDisplayInDefterm{#2}%
+  \else
+    \hyperlink{term:\flmL@tmp@a}{%
+      \termDisplay{#2}%
+    }%
+  \fi
+}
+\def\termDisplayInDefterm#1{%
+  \textbf{\textit{#1}}%
+}
+\def\termDisplay#1{%
+  #1%
+}
+\def\flmFloat#1#2{%
+  \edef\flmFloat@curfloatenv{#1}%
+  \edef\x{%
+    \noexpand\begin{#1}\csname flmFloatPlacementArgs#2\endcsname}%
+  \x
+  \centering
+}
+\def\endflmFloat{%
+  \expandafter\end\expandafter{\flmFloat@curfloatenv}%
+}
+\def\flmFloatPlacementArgsNumCap{[tbph]}
+\def\flmFloatPlacementArgsNumOnly{[tbph]}
+\def\flmFloatPlacementArgsCapOnly{[h]}
+\def\flmFloatPlacementArgsBare{[h]}
+\makeatother
+"""
+
+
+# --------
 
 
 RenderWorkflowClass = FlmLatexWorkflow

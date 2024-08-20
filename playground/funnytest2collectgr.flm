@@ -14,10 +14,22 @@ flm:
            #family: 'Comic Sans MS'
            family: 'EB Garamond' #'Harrington'
            size: '18px'
+     latex:
+        simple:
+          preamble:
+            general: |
+              \usepackage{phfthm}
+              \usepackage{phfparen}
+
    features:
      theorems: {}
      'flm.main.feature_graphics_collection':
        collect_graphics_to_output_folder: './out/'
+       collect_format_conversion_rules:
+         - '.gif:.png'
+         - from: '.svg'
+           to: '.pdf'
+           via: 'cairosvg'
      # ### Will override format-specific FLM defaults
      # endnotes:
      #   categories:

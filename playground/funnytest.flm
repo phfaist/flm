@@ -14,6 +14,13 @@ flm:
            #family: 'Comic Sans MS'
            family: 'EB Garamond' #'Harrington'
            size: '18px'
+     latex:
+        simple:
+          preamble:
+            general: |
+              \usepackage{phfthm}
+              \usepackage{phfparen}
+
    features:
      theorems: {}
      # ### Will override format-specific FLM defaults

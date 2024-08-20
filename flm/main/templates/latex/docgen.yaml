@@ -19,3 +19,5 @@ default_config:
   render_title: true
 
   enable_hyperref: true
+
+  flmlatex_preamble_packages: ''

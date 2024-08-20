@@ -339,6 +339,65 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
 
 
 
+    #
+    # recompose pure latex
+    #
+
+    def recompose_pure_latex(self, node, recomposer,
+                             visited_results_arguments,
+                             visited_results_body, **kwargs):
+
+        recopt_floats = recomposer.get_options('floats')
+        if recopt_floats.get('keep_as_is', False):
+            return False # use default recomposer.
+
+        if recomposer.render_context is None \
+           or not hasattr(recomposer.render_context, 'fragment_renderer') \
+           or recomposer.render_context.fragment_renderer is None:
+            raise ValueError(
+                "Recomposing floats while compiling them into corresponding latex "
+                "constructs requires a render_context in the pure latex recomposer "
+                "with a LatexFragmentRenderer instance."
+            )
+
+        render_context = recomposer.render_context
+        fragment_renderer = render_context.fragment_renderer
+        
+        #node.flm_float_label = dict(ref_label_prefix=None, ref_label=None, label_node=None)
+        #node.flm_float_caption = dict(caption_nodelist=None, caption_node=None)
+
+        # determine if the float has a number and a caption
+        has_number = (
+            node.flm_float_label['ref_label_prefix'] is not None
+            or node.flm_float_label['ref_label'] is not None
+        )
+        has_caption = (node.flm_float_caption['caption_nodelist'] is not None)
+
+        env_name = "flmFloat"
+        env_args = "{" + str(node.environmentname) + "}"
+        if has_number:
+            if has_caption:
+                env_args += "{NumCap}"
+            else:
+                env_args += "{NumOnly}"
+        else:
+            if has_caption:
+                env_args += "{CapOnly}"
+            else:
+                env_args += "{Bare}"
+
+        return (
+            r'\begin{' + env_name + r'}' + env_args
+            + "".join(visited_results_arguments)
+            + "".join(visited_results_body)
+            + r'\end{' + env_name + r'}'
+        )
+
+
+
+
+
+
 # ------------------------------------------------------------------------------
 
 

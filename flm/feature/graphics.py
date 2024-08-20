@@ -222,7 +222,7 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
                 )
         else:
             logger.warning(
-                f"recomposing pure latex: we have no access to a graphics resource provider "
+                f"Recomposing pure latex: we have no access to a graphics resource provider "
                 f"(need a render_context in the pure latex recomposer for that). "
                 f"Graphics resource information will not be available."
             )
