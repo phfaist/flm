@@ -123,7 +123,8 @@ def get_image_file_info_svg(filename, fp):
     width_pt = width_dimension_u * _pt_per_u[width_unit]
     height_pt = height_dimension_u * _pt_per_u[height_unit]
 
-    d = {
-        'type': 'vector',
+    return {
+        'graphics_type': 'vector',
         'physical_dimensions': ( width_pt, height_pt ),
     }
+

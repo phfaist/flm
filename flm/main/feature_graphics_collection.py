@@ -147,6 +147,8 @@ class FeatureGraphicsCollection(Feature):
                 if info is None:
                     info = {}
 
+                logger.debug("Inspected graphics ‘%s’, found info %r", source_path, info)
+
                 graphics_resource = GraphicsResource(
                     src_url=source_path,
                     ** info,
@@ -264,7 +266,7 @@ class FeatureGraphicsCollection(Feature):
             render_context = self.render_context
             src_url_resolver_fn = self.src_url_resolver_fn
 
-            source_type, src_url, source_key = \
+            source_type, source_url, source_key = \
                 self.feature_document_manager.get_source_info(graphics_path, resource_info)
 
             if source_key in self.feature.graphics_collection:
@@ -351,7 +353,7 @@ class FeatureGraphicsCollection(Feature):
 
     def __init__(
             self,
-            allow_unknown_graphics=True,
+            allow_unknown_graphics=False,
             collect_graphics_to_output_folder=False,
             collect_graphics_relative_output_folder=None,
             collect_graphics_filename_template="gr${counter}${ext}",

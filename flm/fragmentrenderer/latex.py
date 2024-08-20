@@ -570,6 +570,7 @@ class LatexFragmentRenderer(FragmentRenderer):
             + r"\end{" + env_name + "}"
         )
 
+
     graphics_raster_magnification = 1
     graphics_vector_magnification = 1
 
@@ -584,8 +585,6 @@ class LatexFragmentRenderer(FragmentRenderer):
         return r'\includegraphics' + opts + '{' + src_url + '}'
 
     def collect_graphics_resource(self, graphics_resource, render_context):
-        # can be reimplemented to collect the given graphics resource somewhere
-        # relevant etc.
 
         whoptc = None
         if graphics_resource.physical_dimensions is not None:
@@ -610,6 +609,7 @@ class LatexFragmentRenderer(FragmentRenderer):
                 whoptc += f"height={height_pt:.6f}pt,"
 
         return graphics_resource.src_url, whoptc
+
 
     def render_cells(self, cells_model, render_context, target_id=None):
 
