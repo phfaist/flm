@@ -212,6 +212,8 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
 
     def recompose_pure_latex(self, node, recomposer, **kwargs):
 
+        magnification = None
+
         if recomposer.render_context is not None:
             graphics_resource_provider_mgr = \
                 recomposer.render_context.feature_render_manager('graphics_resource_provider')
@@ -220,6 +222,16 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
                     node.flmarg_graphics_path,
                     resource_info=node.latex_walker.resource_info
                 )
+            fragment_renderer = recomposer.render_context.fragment_renderer
+            if fragment_renderer is not None:
+                if graphics_resource.graphics_type == 'raster' \
+                   and hasattr(fragment_renderer, 'graphics_raster_magnification'):
+                    magnification = fragment_renderer.graphics_raster_magnification
+                elif hasattr(fragment_renderer, 'graphics_vector_magnification'):
+                    # in particular, use the "vector" magnificiation if graphics
+                    # type is unknown
+                    magnification = fragment_renderer.graphics_vector_magnification
+                    
         else:
             logger.warning(
                 f"Recomposing pure latex: we have no access to a graphics resource provider "
@@ -235,12 +247,26 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
         width_scale = recopt_graphics.get('width_scale', None)
         set_max_width = recopt_graphics.get('set_max_width', r'\linewidth')
 
+        if magnification is not None and width_scale is not None:
+            logger.warning(
+                "Applying graphics magnification both from magnification=%f from "
+                "fragment_renderer option as well as from width_scale recomposer option."
+            )
+            magification = magnification * width_scale
+        elif width_scale is not None:
+            # magnification is None, width_scale is not None
+            magnification = width_scale
+        elif magnification is None:
+            # magnification is None, width_scale is None
+            magnification = 1
+        # else:
+        #     pass # magnification is not None, width_scale is None --> already ok
+
         graphics_options_list = []
         if graphics_resource.physical_dimensions is not None:
             width_pt, _ = graphics_resource.physical_dimensions
             if width_pt is not None:
-                if width_scale is not None:
-                    width_pt = float(width_pt) * width_scale
+                width_pt = float(width_pt) * magnification
                 graphics_options_list.append(f'width={width_pt:.6f}bp')
         if set_max_width is not None and set_max_width is not False:
             recomposer.ensure_latex_package('adjustbox', options='export')

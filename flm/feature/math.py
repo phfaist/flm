@@ -255,20 +255,23 @@ class MathEnvironment(FLMEnvironmentSpecBase):
         if not self.is_numbered:
             return node
 
-        init_last_line_info = {
-            'labels_info': [],
-            'custom_tag_flm_text': None,
-            'nonumber': False,
-        }
-        last_line_info = dict(init_last_line_info)
+        def init_last_line_info():
+            return {
+                'labels_info': [],
+                'custom_tag_flm_text': None,
+                'nonumber': False,
+                'line_nodelist': [], # node list w/o \label or \tag content
+            }
+        last_line_info = dict(init_last_line_info())
         def _flush_last_equation_line_labels_infos(newline_node=None):
             node.flm_equation_lines_labels_infos.append({
                 'labels': list(last_line_info['labels_info']),
                 'custom_tag_flm_text': last_line_info['custom_tag_flm_text'],
                 'nonumber': last_line_info['nonumber'],
+                'line_nodelist': list(last_line_info['line_nodelist']),
                 'newline_node': newline_node,
             })
-            last_line_info.update(init_last_line_info)
+            last_line_info.update(init_last_line_info())
 
         last_node_is_newline = False
         for n in node.nodelist:
@@ -315,11 +318,15 @@ class MathEnvironment(FLMEnvironmentSpecBase):
             elif n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == '\\':
                 _flush_last_equation_line_labels_infos(n)
                 last_node_is_newline = True
+
+            else:
+                last_line_info['line_nodelist'].append(n)
             
-            elif (not n.isNodeType(latexnodes_nodes.LatexCommentNode)
-                and not (n.isNodeType(latexnodes_nodes.LatexCharsNode) and not n.chars.strip())
-                ):
-                last_node_is_newline = False
+                if (not n.isNodeType(latexnodes_nodes.LatexCommentNode)
+                    and not (n.isNodeType(latexnodes_nodes.LatexCharsNode)
+                             and not n.chars.strip())
+                    ):
+                    last_node_is_newline = False
                 
         if not last_node_is_newline:
             _flush_last_equation_line_labels_infos()
@@ -435,6 +442,47 @@ class MathEnvironment(FLMEnvironmentSpecBase):
         )
 
 
+    def recompose_pure_latex(self, node, recomposer, visited_results_arguments, 
+                             visited_results_body, **kwargs):
+
+        # we'll have to recompose the body again, oh well ...
+
+        s = r'\begin{' + node.environmentname + '}'
+        s += "".join([ x for x in visited_results_arguments if x is not None ])
+
+        # do the body line-by-line, correcting labels as necessary.
+        s_lines = []
+        for line_infos in node.flm_equation_lines_labels_infos:
+
+            s_line = ''
+
+            for n in line_infos['line_nodelist']:
+                s_line += recomposer.recompose_pure_latex( n ) ["latex"]
+
+            s_line = s_line.strip()  # ??
+
+            if line_infos['custom_tag_flm_text'] is not None:
+                s_line += r'\tag*{' + recomposer.recompose_pure_latex(
+                    line_infos['custom_tag_flm_text']
+                ) ["latex"] + '}'
+
+            for label_info in line_infos['labels']:
+                (ref_type, ref_label) = label_info['label']
+                safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
+                s_line += r'\label{' + safe_label_info['safe_label'] + '}'
+
+            if line_infos['nonumber']:
+                s_line += r'\nonumber '
+
+            logger.debug("adding line = \n%r\n... from line_infos=%r", s_line, line_infos)
+
+            s_lines.append(s_line)
+
+        s += '\\\\\n'.join( s_lines )
+
+        s += r'\end{' + node.environmentname + '}'
+
+        return s
 
 
 class MathEqrefMacro(FLMMacroSpecBase):
@@ -520,7 +568,12 @@ class MathEqrefMacro(FLMMacroSpecBase):
     def recompose_pure_latex(self, node, recomposer, visited_results_arguments, **kwargs):
         
         # use raw label, not safe label for now.  FIXME: convert all to safe labels...
-        return r'\eqref{' + ':'.join(node.flmarg_ref)  + '}'
+
+        safe_label_info = recomposer.make_safe_label(
+            'ref', node.flmarg_ref[0], node.flmarg_ref[1]
+        )
+
+        return r'\eqref{' + safe_label_info['safe_label'] + '}'
 
 
 # ------------------------------------------------

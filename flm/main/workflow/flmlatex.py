@@ -10,6 +10,7 @@ from .templatebasedworkflow import TemplateBasedRenderWorkflow
 _default_config = {
     'recomposer_options': {},
     'skip_packages': [],
+    'add_bibliography': False,
 }
 
 
@@ -92,10 +93,15 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
                 flmlatex_preamble_packages += '[' + pinfo['options'] + ']'
             flmlatex_preamble_packages += r'{' + pname + r'}' + '\n'
 
+        flmlatex_add_bibliography = None
+        if self.add_bibliography:
+            flmlatex_add_bibliography = self.add_bibliography
+
         final_content = self.render_templated_document(
             rendered_content, document, render_context,
             add_context={
-                'flmlatex_preamble_packages': flmlatex_preamble_packages
+                'flmlatex_preamble_packages': flmlatex_preamble_packages,
+                'flmlatex_add_bibliography': flmlatex_add_bibliography,
             }
         )
 
