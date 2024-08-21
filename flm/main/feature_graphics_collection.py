@@ -153,6 +153,7 @@ class CairoSvgConverter(GraphicsConverter):
     def can_convert(ext, to_ext):
         if ext == '.svg' and to_ext in ('.pdf', '.png', '.ps', '.eps'):
             return True
+        return False
         
     def convert(self, source_type, src_url, target_path, converter_info, options=None):
 
@@ -181,9 +182,64 @@ class CairoSvgConverter(GraphicsConverter):
 
         svgconvert(url=src_url, write_to=target_path, **svgkwargs)
 
+
+
+
+class PdfToCairoCmdlConverter(GraphicsConverter):
+    
+    name = 'pdftocairo'
+
+    @classmethod
+    def can_convert(Cls, ext, to_ext):
+        if ext == '.pdf' and to_ext in Cls._fmts_to_opts:
+            return True
+        return False
+
+    _fmts_to_opts = {
+        '.ps': [ '-ps', '-origpagesizes', '-level3' ],
+        '.eps': [ '-eps', '-origpagesizes', '-level3' ],
+        '.svg': [ '-svg', '-origpagesizes' ],
+        '.png': [ '-png', '-singlefile' ],
+        '.jpg': [ '-jpeg', '-singlefile' ],
+        '.jpeg': [ '-jpeg', '-singlefile' ],
+        '.tiff': [ '-tiff', '-singlefile' ],
+    }
+
+    def __init__(self):
+        self.pdftocairo_exe = find_std_exe('pdftocairo')
+
+    def convert(self, source_type, src_url, target_path, converter_info, options=None):
+
+        if options is None:
+            options = {}
+
+        target_ext = converter_info['target_ext']
+
+        xtracmdargs = []
+        if 'dpi' in options:
+            xtracmdargs += [ '-r', str(options['dpi']) ]
+        if options.get('transparent_bg', False) and target_ext == '.png':
+            xtracmdargs += [ '-transp' ]
+
+        input_data = self.read_input(source_type, src_url, binary=True)
         
+        cmdargs = [
+            self.pdftocairo_exe,
+            '-',
+            *self._fmts_to_opts[target_ext],
+            *xtracmdargs,
+            '-', # we'll write to target file ourselves, otherwise pdftocairo
+                 # tries to add an extension automatically ... :/
+        ]
 
-
+        logger.debug('Running: %r', cmdargs)
+        with open(target_path, 'wb') as fw:
+            subprocess.run(
+                cmdargs,
+                input=input_data,
+                stdout=fw,
+                #cwd=tempdirname
+            )
 
 
 
@@ -240,6 +296,7 @@ class MagickConverter(GraphicsConverter):
 
 _graphics_converters = [
     CairoSvgConverter,
+    PdfToCairoCmdlConverter,
     MagickConverter,
 ]
 

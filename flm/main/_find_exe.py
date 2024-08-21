@@ -13,6 +13,11 @@ latexmk_patterns = [
     r'C:\texlive\*\bin\*\latexmk.exe',
     r'C:\Program Files*\MikTeX*\miktex\bin\latexmk.exe'
 ]
+pdftocairo_patterns = [
+    '/usr/local/bin/pdftocairo',
+    '/opt/homebrew/bin/pdftocairo',
+    r"C:\Programs Files*\pdftocairo*\**\pdftocairo.exe", # ???
+]
 
 
 def _find_exe_value(exe_name, std_patterns, var_name):
@@ -24,7 +29,7 @@ def _find_exe_value(exe_name, std_patterns, var_name):
         result = glob.glob(p, recursive=True)
         if len(result):
             return result[0]
-    rexe = shutil.which(exe_name)
+    rexe = shutil.which(exe_name) # search in PATH
     if rexe:
         return rexe
     return None
@@ -41,6 +46,7 @@ def find_exe(exe_name, std_patterns, var_name, error=True):
 std_exe_dict = {
     'magick': [magick_patterns, 'MAGICK'],
     'latexmk': [latexmk_patterns, 'LATEXMK'],
+    'pdftocairo': [pdftocairo_patterns, 'PDFTOCAIRO'],
 }
 std_exe_found = {}
 

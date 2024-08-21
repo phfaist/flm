@@ -1,21 +1,51 @@
 import re
 import os.path
-
-import PIL
-import PIL.Image
-
-import xml.etree.ElementTree as ET
-
+import logging
+logger = logging.getLogger(__name__)
 
 
 def get_image_file_info(filename, fp=None):
     if filename.endswith('.svg'):
         # use svg processor
         return get_image_file_info_svg(filename, fp)
+    if filename.endswith('.pdf'):
+        # use PDF processor
+        return get_image_file_info_pdf(filename, fp)
     return get_image_file_info_pil(filename, fp)
 
 
+def get_image_file_info_pdf(filename, fp):
+
+    import pypdf
+
+    pdf = pypdf.PdfReader(fp)
+
+    if not pdf.pages or len(pdf.pages) == 0:
+        logger.warning(f"PDF ‘{filename}’ has no pages!")
+        return None
+
+    if len(pdf.pages) != 1:
+        logger.warning(f"PDF ‘{filename}’ has {len(pdf.pages)} pages, only the "
+                       f"first one is inspected.")
+
+    page = pdf.pages[0]
+    width_uu = page.mediabox.width
+    height_uu = page.mediabox.height
+
+    width_pt = page.user_unit * width_uu
+    height_pt = page.user_unit * height_uu
+
+    return {
+        'graphics_type': 'vector',
+        'physical_dimensions': ( width_pt, height_pt ),
+    }
+
+
 def get_image_file_info_pil(filename, fp):
+
+    import PIL
+    import PIL.Image
+
     try:
         img = PIL.Image.open(fp or filename)
     except PIL.UnidentifiedImageError:
@@ -93,6 +123,8 @@ _rx_dimen = re.compile(
 
 def get_image_file_info_svg(filename, fp):
     
+    import xml.etree.ElementTree as ET
+
     tree = ET.parse(fp or filename)
     root = tree.getroot()
 

@@ -51,7 +51,7 @@ class RenderWorkflow:
                      abbrev_value_str(workflow_config, maxstrlen=512))
 
 
-    def render_document(self, document):
+    def render_document(self, document, **kwargs):
 
         rendered_content, render_context = self.render_document_fragments(document)
 

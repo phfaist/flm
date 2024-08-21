@@ -673,7 +673,7 @@ def run(flm_content,
     # Render the document according to the workflow
     #
 
-    result = workflow.render_document(doc)
+    result = workflow.render_document(doc, content_parts_infos=content_parts_infos)
 
 
     #

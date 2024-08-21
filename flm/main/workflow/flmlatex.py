@@ -36,7 +36,7 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
             'preamble_suggested_defs': _latex_wstyle_suggested_preamble_defs,
         }
 
-    def render_document(self, document):
+    def render_document(self, document, content_parts_infos, **kwargs):
 
         render_context = document.make_render_context(
             fragment_renderer=self.fragment_renderer # a LatexFragmentRenderer
@@ -51,6 +51,20 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
             recomposer.recompose_pure_latex(document.document_fragments[0].nodes)
 
         latex = recomposed_result['latex']
+
+        # render individual parts, if applicable:
+
+        doc_parts = content_parts_infos.get('parts', None)
+        if not doc_parts: doc_parts = []
+        for doc_part_info in doc_parts:
+
+            fragment_part = doc_part_info['fragment']
+
+            recomposed_result_part = recomposer.recompose_pure_latex(fragment_part.nodes)
+
+            latex_part = recomposed_result_part['latex']
+            latex += latex_part
+
         packages = recomposed_result['packages']
 
         # Call resource manager process/postprocess methods in case there is any

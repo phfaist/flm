@@ -30,6 +30,12 @@ flm:
          - from: '.svg'
            to: '.pdf'
            via: 'cairosvg'
+         - from: '.pdf'
+           to: '.png'
+           via: 'pdftocairo'
+           options:
+             dpi: 1200
+
      # ### Will override format-specific FLM defaults
      # endnotes:
      #   categories:
@@ -138,7 +144,12 @@ that a qubit is also a \term[qu\(d\)it]{qu\((d=2)\)it}.
 
 \begin{figure}
   \includegraphics{xpic.svg}
-  \caption{Test include local graphics file}
+  \caption{Test include local graphics file originally in SVG format}
+\end{figure}
+
+\begin{figure}
+  \includegraphics{examplediagram.pdf}
+  \caption{Test include local graphics file originally in PDF format}
 \end{figure}
 
 
