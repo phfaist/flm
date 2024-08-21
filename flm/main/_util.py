@@ -35,7 +35,7 @@ class abbrev_value_str:
             s_items = []
             for k2, v2 in v.items():
                 fmtval2 = str(abbrev_value_str(v2, level=self.level+1, **self.options))
-                fmtkey2 = self._fmt_key(k2)
+                fmtkey2 = self._fmt_key(str(k2))
                 s_items.append(f"{fmtkey2}: {fmtval2}")
 
             return self._fmt_list_items(s_items, ('{', ',', '}'))
@@ -64,7 +64,7 @@ class abbrev_value_str:
         
 
     def _fmt_key(self, key):
-        if re.match('^[a-zA-Z0-9_]+$', key):
+        if re.match('^[a-zA-Z0-9_]+$', key) is not None:
             return key
         return repr(key)
 
