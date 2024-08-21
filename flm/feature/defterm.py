@@ -169,7 +169,7 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
 
 
     def recompose_pure_latex(self, node, recomposer, visited_results_arguments,
-                               visited_results_body, **kwargs):
+                             visited_results_body, **kwargs):
 
         # produce \begin{defterm}{The Term}\label{one}\label{two}
         # ... \end{defterm}, as per the original FLM code, but make sure that
@@ -187,6 +187,8 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
         s = r'\begin{' + str(node.environmentname) + '}'
         s += str(visited_results_arguments[0]) # first mandatory argument, the term itself
 
+        # term label itself is already in flm_referenceable_infos and will be
+        # turned into a safe label --
         for referenceable_info in node.flm_referenceable_infos:
             for ref_type, ref_label in referenceable_info.labels:
                 safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
@@ -322,6 +324,21 @@ class RefTermMacro(FLMMacroSpecBase):
             display_nodelist=term_flm_show_term_nodelist,
             render_context=render_context,
             annotations=[],
+        )
+
+    def recompose_pure_latex(self, node, recomposer, visited_results_arguments, **kwargs):
+
+        ref_type = self.defterm_ref_type
+        ref_label = node.flm_term_flm_ref_label_verbatim
+
+        safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
+        safe_label = safe_label_info['safe_label']
+
+        return (
+            '\\flmTerm{' + node.macroname + '}{'+safe_label+'}'
+            + ('{' + visited_results_arguments[0] + '}'
+               if visited_results_arguments[0] else '{}')
+            + visited_results_arguments[1]
         )
 
 

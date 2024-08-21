@@ -116,6 +116,29 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
         )
 
 
+    def recompose_pure_latex(self, node, recomposer, visited_results_arguments, **kwargs):
+
+        s = '\\' + node.macroname
+
+        # arguments_spec_list=[
+        #     LatexArgumentSpec('*', argname='star'),
+        #     flmspecinfo.text_arg,
+        #     flmspecinfo.label_arg
+        # ],
+        
+        if visited_results_arguments[0] is not None:
+            s += visited_results_arguments[0] # star
+
+        if visited_results_arguments[1] is not None:
+            s += visited_results_arguments[1] # text argument
+
+        # add labels
+        for ref_type, ref_label in node.flmarg_labels:
+            safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
+            s += r'\label{' + safe_label_info['safe_label'] + '}'
+
+        return s
+
 
 
 class FeatureHeadings(Feature):

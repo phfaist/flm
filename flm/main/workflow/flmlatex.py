@@ -9,6 +9,7 @@ from .templatebasedworkflow import TemplateBasedRenderWorkflow
 
 _default_config = {
     'recomposer_options': {},
+    'skip_packages': [],
 }
 
 
@@ -84,6 +85,8 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
         
         flmlatex_preamble_packages = ''
         for pname, pinfo in packages.items():
+            if pname in self.skip_packages:
+                continue
             flmlatex_preamble_packages += r'\usepackage'
             if pinfo['options']:
                 flmlatex_preamble_packages += '[' + pinfo['options'] + ']'
@@ -105,31 +108,32 @@ _latex_wstyle_suggested_preamble_defs = r"""
 \makeatletter
 \newif\ifdeftermShowTerm
 \deftermShowTermfalse
-\def\defterm#1{%
+\def\defterm#1\label#2{%
   \begingroup
-  \edef\flmL@cur@defterm{\detokenize{#1}}%
   \par\vspace{\abovedisplayskip}%
   \flmDeftermFormat
   \phantomsection
-  \hypertarget{term:\flmL@cur@defterm}{}\relax
+  \label{#2}%
+  \edef\flmL@cur@defterm@label{\flmL@cur@defterm@label,#2,}%
   \ifdeftermShowTerm \flmDisplayTerm{#1: }\fi
 }
+\def\flmL@cur@defterm@label{}
 \def\enddefterm{%
   \par
   \vspace{\belowdisplayskip}%
   \endgroup
 }
-\def\term{\@ifnextchar[\term@o\term@a}%]
-\def\term@a#1{\term@o[{#1}]{#1}}
-\def\term@o[#1]#2{%
-  \edef\flmL@tmp@a{\detokenize{#1}}%
-  \ifx\flmL@tmp@a\flmL@cur@defterm%
-    \termDisplayInDefterm{#2}%
+\def\flmTerm#1#2#3#4{%
+  \edef\x{\noexpand\in@{,#2,}{\flmL@cur@defterm@label}}%
+  \x\ifin@
+    \termDisplayInDefterm{#4}%
   \else
-    \hyperlink{term:\flmL@tmp@a}{%
-      \termDisplay{#2}%
-    }%
+    \flmDisplayTermRef{#2}{#4}%
   \fi
+}
+\robustify\flmTerm
+\def\flmDisplayTermRef#1#2{%
+  \hyperref[#1]{\termDisplay{#2}}%
 }
 \def\termDisplayInDefterm#1{%
   \textbf{\textit{#1}}%

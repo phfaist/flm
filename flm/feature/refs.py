@@ -576,7 +576,7 @@ class RefMacro(FLMMacroSpecBase):
             safe_label = safe_ref_labels[0]['safe_label']
             disp_latex_info = recomposer.recompose_pure_latex(display_content_nodelist)
             disp_latex = disp_latex_info['latex']
-            # \usepackage information is already store in the recomposer,
+            # \usepackage information is already stored in the recomposer,
             # because it's the same object
             return (
                 r'\NoCaseChange{\protect\hyperref[' + str(safe_label) + ']{'

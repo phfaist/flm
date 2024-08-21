@@ -517,6 +517,10 @@ class MathEqrefMacro(FLMMacroSpecBase):
                 pos=node.pos,
             )
 
+    def recompose_pure_latex(self, node, recomposer, visited_results_arguments, **kwargs):
+        
+        # use raw label, not safe label for now.  FIXME: convert all to safe labels...
+        return r'\eqref{' + ':'.join(node.flmarg_ref)  + '}'
 
 
 # ------------------------------------------------

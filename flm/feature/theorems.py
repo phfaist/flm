@@ -323,6 +323,34 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             annotations=[ self.environmentname ],
         )
 
+    def recompose_pure_latex(self, node, recomposer, visited_results_arguments,
+                             visited_results_body, **kwargs):
+
+        s = r'\begin{' + node.environmentname + '}'
+
+        if not node.flmarg_thmtitle['has_relation_ref']:
+            # a simple title.
+            if visited_results_arguments[0] is not None:
+                s += visited_results_arguments[0]
+        else:
+            rel_ref_type, rel_ref_label = node.flmarg_thmtitle['relation_ref_target']
+            safe_label_info = recomposer.make_safe_label('ref', rel_ref_type, rel_ref_label)
+            s += '[*'
+            if not node.flmarg_thmtitle['relation_ref_show_ref']:
+                s += '*'
+            s += safe_label_info['safe_label']
+            s += ']'
+
+        # any pinned label(s), if applicable
+        for ref_type, ref_label in node.flmarg_labels:
+            safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
+            s += r'\label{' + safe_label_info['safe_label'] + '}'
+
+        s += "".join(visited_results_body)
+
+        s += r'\end{' + node.environmentname + '}'
+        
+        return s
 
 
 

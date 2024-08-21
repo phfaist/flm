@@ -231,6 +231,7 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
             )
         
         recopt_graphics = recomposer.get_options('graphics')
+        logger.debug(f"recomposer graphics options = %r", recopt_graphics)
         width_scale = recopt_graphics.get('width_scale', None)
         set_max_width = recopt_graphics.get('set_max_width', r'\linewidth')
 
@@ -241,7 +242,7 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
                 if width_scale is not None:
                     width_pt = float(width_pt) * width_scale
                 graphics_options_list.append(f'width={width_pt:.6f}bp')
-        if set_max_width is not None:
+        if set_max_width is not None and set_max_width is not False:
             recomposer.ensure_latex_package('adjustbox', options='export')
             graphics_options_list.append(f'max width={set_max_width}')
 
