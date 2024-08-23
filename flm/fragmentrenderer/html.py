@@ -864,6 +864,7 @@ h3 {
 }
 .heading-level-theorem::after {
   font-weight: bold;
+  display: inline-block;
   margin: 0px .12em 0px 0px;
   content: '.';
 }
