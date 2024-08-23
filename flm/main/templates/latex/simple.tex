@@ -17,6 +17,8 @@ ${if:enable_hyperref}%$$
 \usepackage{hyperref}
 ${endif}%$$
 
+\ifcsname flmLatexFinalPreambleSetup\endcsname \flmLatexFinalPreambleSetup\else\fi
+
 \begin{document}
 ${if:render_title}%$$
 \title{${metadata.title}}%$$

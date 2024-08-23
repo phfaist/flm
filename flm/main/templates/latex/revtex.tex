@@ -15,6 +15,8 @@ ${if:enable_hyperref}%$$
 \usepackage{hyperref}
 ${endif}%$$
 
+\ifcsname flmLatexFinalPreambleSetup\endcsname \flmLatexFinalPreambleSetup\else\fi
+
 \begin{document}
 \title{${metadata.title}}%$$
 \author{${metadata.author}}%$$

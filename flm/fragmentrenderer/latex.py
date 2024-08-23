@@ -773,6 +773,8 @@ _latex_preamble_suggested_defs = r"""
 \usepackage{graphicx}
 \usepackage{xcolor}
 
+\providecommand\flmFinalPreambleSetup{}
+
 \providecommand\phantomsection{}
 
 \ifdefined\flmDefterm\else

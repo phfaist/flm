@@ -42,7 +42,7 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
         
         recomposed_result = recomposer.recompose_pure_latex(fragment.nodes)
 
-        recomposed_result += "%%\n"
+        recomposed_result["latex"] += "%%\n"
 
         return recomposed_result
 
@@ -57,7 +57,10 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
                  render_context=render_context)
         )
 
-        recomposed_result = self.recompose_fragment(document.document_fragments[0])
+        recomposed_result = self.recompose_fragment(
+            recomposer,
+            document.document_fragments[0]
+        )
 
         latex = recomposed_result['latex']
 
@@ -69,7 +72,10 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
 
             fragment_part = doc_part_info['fragment']
 
-            recomposed_result_part = self.recompose_fragment(fragment_part)
+            recomposed_result_part = self.recompose_fragment(
+                recomposer,
+                fragment_part
+            )
 
             latex_part = recomposed_result_part['latex']
             latex += latex_part
@@ -119,6 +125,41 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
 
 _latex_wstyle_suggested_preamble_defs = r"""
 \makeatletter
+
+\providecommand\flmFinalPreambleSetup{}
+
+% For references -- pin down custom labels wherever we want for \cref
+\NewDocumentCommand{\flmL@crefCustomLabel}{O{flmLCustomLabel}m+m}{%
+  \begingroup
+    \cref@constructprefix{#1}{\cref@result}%
+    \protected@edef\@currentlabel{%
+      #3}%
+    \protected@edef\@currentlabelname{#3}%
+    \protected@edef\cref@currentlabel{%
+      [#1][][\cref@result]%
+      #3%
+    }%
+    \flmL@cref@label[#1]{#2}%
+  \endgroup
+}
+\g@addto@macro\flmFinalPreambleSetup{%
+  \ifcsname crefname\noexpand\endcsname
+    \crefname{flmLCustomLabel}{}{}%
+    \Crefname{flmLCustomLabel}{}{}}
+\noexpand\fi}}
+\newcommand\flmLDefLabelText[2]{%
+  \begingroup
+    \let\flmL@cref@label\label
+    \def\label##1{%
+      \flmL@crefCustomLabel{##1}{#1}%
+    }%
+    #2%
+  \endgroup
+}
+
+
+% For defterms -- 
+
 \newif\ifdeftermShowTerm
 \deftermShowTermfalse
 \def\defterm#1\label#2{%
