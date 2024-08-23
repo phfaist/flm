@@ -846,7 +846,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
                  content=None,
                  is_block_level=None,
                  macro_content_substitutor_manager=None,
-                 skip_substitution=False,
+                 render_time_substitution=False,
                  **kwargs,
                  ):
         
@@ -896,13 +896,13 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
             if 'mathmode' in content:
                 self.content_mathmode = content['mathmode']
 
-        self.skip_substitution = skip_substitution
+        self.render_time_substitution = render_time_substitution
 
         logger.debug("Constructing SimpleSubstitutionMacro, arguments_spec_list = %r; "
-                     "content_textmode=%r, content_mathmode=%r, skip_substitution=%r; "
+                     "content_textmode=%r, content_mathmode=%r, render_time_substitution=%r; "
                      "kwargs=%r",
                      arguments_spec_list, self.content_textmode, self.content_mathmode,
-                     self.skip_substitution, kwargs)
+                     self.render_time_substitution, kwargs)
 
     def get_what(self):
         if hasattr(self, 'macroname'):
@@ -948,9 +948,10 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
             pos_end=node.pos_end,
         )
 
-        if self.skip_substitution:
-            node.flm_skipped_substitute_node = substitute_node
-            logger.debug("NOT substituting node because skip_substitution=True: %r", node)
+        node.flm_macro_replacement_flm_group_node = substitute_node
+
+        if self.render_time_substitution:
+            logger.debug("Node is to be substituted only at render time: %r", node)
             return
 
         logger.debug("setting substitute node = %r", substitute_node)
@@ -996,10 +997,13 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
 
     def render(self, node, render_context):
 
-        logger.warning(
-            "Attempting to render substitution macro node that should have been "
-            "substituted in node tree!"
-        )
+        if not self.render_time_substitution:
+            logger.error(
+                "Rendering substitution macro node that should have been "
+                "substituted in node tree!"
+            )
+
+        logger.debug("Rendering substitution node %r", node)
 
         return render_context.fragment_renderer.render_nodelist(
             node.flm_macro_replacement_flm_nodes,
