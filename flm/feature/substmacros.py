@@ -13,7 +13,7 @@ from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.macrospec import ParsingStateDeltaExtendLatexContextDb
 
 from ..flmspecinfo import (
-    FLMArgumentSpec, FLMSpecInfo, FLMSpecialsSpecBase
+    FLMArgumentSpec, FLMSpecInfo, FLMMacroSpecBase, FLMSpecialsSpecBase
 )
 
 from ._base import Feature
@@ -58,6 +58,8 @@ _macroarg_placeholder_arguments_spec_list = [
     ),
 ]
 
+
+
 class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
 
     allowed_in_standalone_mode = True
@@ -66,11 +68,13 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
                  specials_chars='#',
                  *,
                  macro_content_substitutor,
+                 parse_arg_information_only=False,
                  ):
         super().__init__(specials_chars=specials_chars,
                          arguments_spec_list=_macroarg_placeholder_arguments_spec_list)
         self.macro_content_substitutor = macro_content_substitutor
-        
+        self.parse_arg_information_only = parse_arg_information_only
+
     def postprocess_parsed_node(self, node):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
@@ -78,6 +82,13 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
         )
         
         placeholder_ref = node_args['placeholder_ref'].get_content_as_chars().strip()
+
+        node.flmarg_placeholder_ref = placeholder_ref
+        node.flmarg_substitution_arg_info = node_args['substitution_arg']
+
+        if self.parse_arg_information_only:
+            # stop here
+            return
 
         value = self.macro_content_substitutor.get_placeholder_value(
             placeholder_ref,
@@ -137,6 +148,186 @@ class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
     
 
 
+
+
+def _make_ifarg_argument_argspec(macro_content_substitutor):
+    return FLMArgumentSpec(
+        parser='{',
+        parsing_state_delta=ParsingStateDeltaExtendLatexContextDb(
+            extend_latex_context={
+                'specials': [
+                    SimpleMacroArgumentPlaceholder(
+                        '#',
+                        macro_content_substitutor=macro_content_substitutor,
+                        parse_arg_information_only=True,
+                    ),
+                ],
+            },
+            set_attributes=dict(is_block_level=False),
+        ),
+        argname='arg_ref',
+    )
+
+
+def _make_ifarg_arguments_spec_list(macroname, macro_content_substitutor):
+    if macroname == 'IfNoValueTF':
+        return [
+            _make_ifarg_argument_argspec(macro_content_substitutor),
+            FLMArgumentSpec(
+                parser='{',
+                argname='value_true',
+            ),
+            FLMArgumentSpec(
+                parser='{',
+                argname='value_false',
+            ),        
+        ]
+    if macroname == 'IfNoValueT':
+        return [
+            _make_ifarg_argument_argspec(macro_content_substitutor),
+            FLMArgumentSpec(
+                parser='{',
+                argname='value_true',
+            ),
+        ]
+    if macroname == 'IfNoValueF':
+        return [
+            _make_ifarg_argument_argspec(macro_content_substitutor),
+            FLMArgumentSpec(
+                parser='{',
+                argname='value_false',
+            ),
+        ]
+    if macroname == 'IfBooleanTF':
+        return [
+            _make_ifarg_argument_argspec(macro_content_substitutor),
+            FLMArgumentSpec(
+                parser='{',
+                argname='value_true',
+            ),
+            FLMArgumentSpec(
+                parser='{',
+                argname='value_false',
+            ),        
+        ]
+    if macroname == 'IfBooleanT':
+        return [
+            _make_ifarg_argument_argspec(macro_content_substitutor),
+            FLMArgumentSpec(
+                parser='{',
+                argname='value_true',
+            ),
+        ]
+    if macroname == 'IfBooleanF':
+        return [
+            _make_ifarg_argument_argspec(macro_content_substitutor),
+            FLMArgumentSpec(
+                parser='{',
+                argname='value_false',
+            ),
+        ]
+    raise ValueError(f"Invalid/unknown macro name for ifarg-type macro: {macroname}")
+
+
+class SimpleMacroContentIfArgCondition(FLMMacroSpecBase):
+
+    allowed_in_standalone_mode = True
+
+    def __init__(self,
+                 macroname,
+                 *,
+                 macro_content_substitutor,
+                 ):
+        arguments_spec_list = _make_ifarg_arguments_spec_list(
+            macroname, macro_content_substitutor
+        )
+        super().__init__(macroname=macroname,
+                         arguments_spec_list=arguments_spec_list)
+        self.macro_content_substitutor = macro_content_substitutor
+        
+    def postprocess_parsed_node(self, node):
+        
+        node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
+            ('arg_ref', 'value_true', 'value_false') ,
+            skip_nonexistent_arguments=True,
+        )
+        
+        arg_ref_nodelist = node_args['arg_ref'].get_content_nodelist().filter(
+            skip_none=True, skip_comments=True, skip_whitespace_char_nodes=True
+        )
+        
+        if len(arg_ref_nodelist) != 1 \
+           or not hasattr(arg_ref_nodelist[0], 'flmarg_placeholder_ref'):
+            raise LatexWalkerLocatedError(
+                f"First argument of \\{self.macroname} must be a argument reference. "
+                f"Got = {repr(arg_ref_nodelist)}",
+                pos=node.pos,
+            )
+
+        arg_ref_node = arg_ref_nodelist[0]
+
+        placeholder_ref = arg_ref_node.flmarg_placeholder_ref
+
+        if arg_ref_node.flmarg_substitution_arg_info.was_provided():
+            raise LatexWalkerLocatedError(
+                f"Cannot provide substitution placeholder optional arguments in argument "
+                f"of \\{self.macroname}; got = "
+                f"{repr(arg_ref_node.flmarg_substitution_arg_info)}.",
+                pos=node.pos,
+            )
+
+        # figure out if condition is true or false and do substitution accordingly.
+
+        argument_info = self.macro_content_substitutor.get_parsed_argument_info(
+            placeholder_ref,
+            placeholder_node=arg_ref_node,
+        )
+
+        result_nodes = None
+
+        if self.macroname in ('IfBooleanTF', 'IfBooleanT', 'IfBooleanF'):
+            if argument_info.was_provided():
+                if 'value_true' in node_args:
+                    result_nodes = node_args['value_true'].get_content_nodelist()
+            else:
+                if 'value_false' in node_args:
+                    result_nodes = node_args['value_false'].get_content_nodelist()
+        if self.macroname in ('IfNoValueTF', 'IfNoValueT', 'IfNoValueF'):
+            arg_content_nodes = argument_info.get_content_nodelist().filter(
+                skip_none=True, skip_comments=True,
+            )
+            if len(arg_content_nodes) == 0:
+                if 'value_true' in node_args:
+                    result_nodes = node_args['value_true'].get_content_nodelist()
+            else:
+                if 'value_false' in node_args:
+                    result_nodes = node_args['value_false'].get_content_nodelist()
+
+        if result_nodes is None:
+            result_nodes = node.latex_walker.make_nodelist(
+                [],
+                parsing_state=node.parsing_state,
+                pos=node.pos,
+            )
+
+
+        substitute_node = node.latex_walker.make_node(
+            LatexGroupNode,
+            parsing_state=node.parsing_state,
+            delimiters=('',''),
+            nodelist=result_nodes,
+            pos=result_nodes.pos,
+            pos_end=result_nodes.pos_end,
+        )
+
+        node.flm_SUBSTITUTE_NODE = substitute_node
+
+
+
+# ------------------------------------------------------------------------------
+
+
+
 def _get_arg_spec(argspec):
     parser_val = None
     try:
@@ -158,8 +349,8 @@ def _get_arg_spec(argspec):
     return argspec
 
 
+# --------------------------------------
 
- # ------------------------------------------------------------------------------
 
 
 class MacroContentSubstitutor:
@@ -196,6 +387,32 @@ class MacroContentSubstitutor:
                         macro_content_substitutor=self,
                     ),
                 ],
+                'macros': [
+                    SimpleMacroContentIfArgCondition(
+                        macroname='IfNoValueTF',
+                        macro_content_substitutor=self,
+                    ),
+                    SimpleMacroContentIfArgCondition(
+                        macroname='IfNoValueT',
+                        macro_content_substitutor=self,
+                    ),
+                    SimpleMacroContentIfArgCondition(
+                        macroname='IfNoValueF',
+                        macro_content_substitutor=self,
+                    ),
+                    SimpleMacroContentIfArgCondition(
+                        macroname='IfBooleanTF',
+                        macro_content_substitutor=self,
+                    ),
+                    SimpleMacroContentIfArgCondition(
+                        macroname='IfBooleanT',
+                        macro_content_substitutor=self,
+                    ),
+                    SimpleMacroContentIfArgCondition(
+                        macroname='IfBooleanF',
+                        macro_content_substitutor=self,
+                    ),
+                ]
             },
             set_attributes={
                 'is_block_level': None,
@@ -251,7 +468,7 @@ class MacroContentSubstitutor:
 
     # ---
 
-    def get_argument_placeholder_value(self, placeholder_ref, placeholder_node):
+    def get_argument_key(self, placeholder_ref, placeholder_node=None):
         
         argument_key = None
         if placeholder_ref and placeholder_ref.isdigit():
@@ -269,17 +486,17 @@ class MacroContentSubstitutor:
                         f"Expected a number between 1 and {self.num_arguments} (incl.)"
                 e = LatexWalkerLocatedError(
                     f"Invalid argument number: ‘{placeholder_ref}’.  {expected_what}",
+                    pos=(placeholder_node.pos if placeholder_node is not None else None)
                 )
                 e.set_pos_or_add_open_context_from_node(node=self.callable_node)
                 raise e
         else:
             argument_key = placeholder_ref
 
-        logger.debug(f"Got argument replacement placeholder ref={repr(placeholder_ref)} "
-                     f"[→ type {type(placeholder_ref)} → key={argument_key}]")
-        logger.debug("Available argument values are %r", self.parsed_arguments_infos)
+        # logger.debug(f"Got argument replacement placeholder ref={repr(placeholder_ref)} "
+        #              f"[→ type {type(placeholder_ref)} → key={argument_key}]")
+        # logger.debug("Available argument values are %r", self.parsed_arguments_infos)
 
-        # and figure out the replacement nodes!
         if argument_key not in self.parsed_arguments_infos:
             lastnum = self.num_arguments
             if self.argument_number_offset is not None:
@@ -290,11 +507,27 @@ class MacroContentSubstitutor:
                     ",".join([f"‘{argname}’" for argname in self.argument_names ])
                     + " and " + valid_arg_specs
                 )
-            raise LatexWalkerLocatedError(
+            e = LatexWalkerLocatedError(
                 f"Invalid argument name or index: ‘{placeholder_ref}’.  Valid argument "
                 + f"specifiers are {valid_arg_specs}",
-                pos=node.pos
+                pos=(placeholder_node.pos if placeholder_node is not None else None)
             )
+            e.set_pos_or_add_open_context_from_node(node=self.callable_node)
+            raise e
+
+        return argument_key
+
+
+    def get_parsed_argument_info(self, placeholder_ref, placeholder_node=None):
+        
+        argument_key = self.get_argument_key(placeholder_ref, placeholder_node)
+
+        return self.parsed_arguments_infos[argument_key]
+
+
+    def get_argument_placeholder_value(self, placeholder_ref, placeholder_node):
+        
+        argument_key = self.get_argument_key(placeholder_ref, placeholder_node)
 
         nodelist = self.parsed_arguments_infos[argument_key].get_content_nodelist()
 
@@ -312,6 +545,7 @@ class MacroContentSubstitutor:
                 nodelist = []
 
         return nodelist
+
 
     def get_default_argument_value_flm_text(self, argument_key):
 

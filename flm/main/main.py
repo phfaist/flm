@@ -98,11 +98,21 @@ def main_watch(**kwargs):
             "Please provide an output file (-o OUTPUT_FILE) when enablig watch mode"
         )
 
-    main(**kwargs)
+    info = main(**kwargs)
+
+    watch_files = [
+        info['flm_run_info']['input_source']
+    ]
+
+    if info['result_info']['content_parts_infos']:
+        watch_files += [
+            cpinfo['input_source']
+            for cpinfo in info['result_info']['content_parts_infos']['parts']
+        ]
     
     logger.info('Watching input files, hit Interrupt (Ctrl+C) to quit.')
 
-    for changes in watchfiles.watch(*arg_files, raise_interrupt=False):
+    for changes in watchfiles.watch(*watch_files, raise_interrupt=False, debounce=2000):
         logger.info('Input file(s) changed: %r', changes)
         
         try:
@@ -244,7 +254,18 @@ def main(**kwargs):
         if isinstance(arg_output, str) and arg_output != '-':
             logger.info('Output to ‘%s’', arg_output)
 
-    return
+
+    main_run_info = {
+        'flm_run_info': flm_run_info,
+        'flm_content': flm_content,
+        'run_config': run_config,
+        'result': result,
+        'result_info': result_info,
+        'output': arg_output,
+        'binary_output': binary_output,
+    }
+
+    return main_run_info
 
 
 

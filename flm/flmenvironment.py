@@ -67,18 +67,30 @@ class FLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
 # ------------------------------------------------------------------------------
 
 
-def FLMArgumentSpec(parser, argname, is_block_level=False, flm_doc=None):
+def FLMArgumentSpec(parser, argname, is_block_level=False, flm_doc=None,
+                    parsing_state_delta=None):
     r"""
     Doc..........
 
     I might turn this function into a proper subclass of `LatexArgumentSpec` in
     the future.
     """
-    parsing_state_delta = None
-    if is_block_level is not None:
-        parsing_state_delta = FLMParsingStateDeltaSetBlockLevel(
-            is_block_level=is_block_level
-        )
+    if parsing_state_delta is None:
+        if is_block_level is not None:
+            parsing_state_delta = FLMParsingStateDeltaSetBlockLevel(
+                is_block_level=is_block_level
+            )
+    else:
+        if is_block_level is not None \
+           and parsing_state_delta.set_attributes.get('is_block_level', None) != is_block_level:
+            raise ValueError(
+                "You specified a parsing_state_delta= to FLMArgumentSpec(...) which "
+                "might not be compatible with the provided is_block_level= arg. "
+                "It's your responsibility to make sure is_block_level is correctly "
+                "applied in the parsing state delta you provided, and you should "
+                "set is_block_level=None here."
+            )
+
     arg = latexnodes.LatexArgumentSpec(
         parser=parser,
         argname=argname,

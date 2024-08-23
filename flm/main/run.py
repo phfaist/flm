@@ -624,6 +624,7 @@ def run(flm_content,
             document_parts_fragments.append(in_fragment)
 
             cpinfo = dict(content_part_info)
+            cpinfo['input_source'] = in_input_fname
             cpinfo['fragment'] = in_fragment
             cpinfo['flm_content'] = in_flm_content
             cpinfo['frontmatter_metadata'] = in_frontmatter_metadata
@@ -685,6 +686,8 @@ def run(flm_content,
         #'fragment_renderer': fragment_renderer, # use workflow.fragment_renderer
         'workflow': workflow,
         'binary_output': workflow.binary_output,
+        'content_parts_infos': content_parts_infos,
+        'document_parts_fragments': document_parts_fragments,
     }
 
     #

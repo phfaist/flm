@@ -421,6 +421,133 @@ Hello.
 
 
 
+    def test_subst_IfNoValueTF(self):
+        
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {
+                            'parser': '[',
+                            'argname': 'greeting',
+                        },
+                        {
+                            'parser': '{',
+                            'argname': 'name',
+                        },
+                    ],
+                    'default_argument_values': {
+                        'greeting': 'Hello',
+                    },
+                    'content': r'\IfNoValueTF{#1}{Hello, \emph{#2}!}{#1, \emph{#2}.}',
+                },
+            }
+        })
+
+        html_renderer = HtmlFragmentRenderer()
+
+        s1 = r'''\mymacro{Albert}'''
+        frag1 = environ.make_fragment(s1, standalone_mode=True)
+
+        self.assertEqual(
+            frag1.render_standalone(html_renderer),
+            r'''Hello, <span class="textit">Albert</span>!'''
+        )
+
+        s2 = r'''\mymacro[Howdy]{Albert}'''
+        frag2 = environ.make_fragment(s2, standalone_mode=True)
+
+        self.assertEqual(
+            frag2.render_standalone(html_renderer),
+            r'''Howdy, <span class="textit">Albert</span>.'''
+        )
+
+    def test_subst_IfNoValueT_IfNoValueF(self):
+        
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {
+                            'parser': '[',
+                            'argname': 'greeting',
+                        },
+                        {
+                            'parser': '{',
+                            'argname': 'name',
+                        },
+                    ],
+                    'default_argument_values': {
+                        'greeting': 'Hello',
+                    },
+                    'content': r'Test: \IfNoValueF{#{greeting}}{#1: }\IfNoValueT{#1}{Hello, }\emph{#2}!',
+                },
+            }
+        })
+
+        html_renderer = HtmlFragmentRenderer()
+
+        s1 = r'''\mymacro{Albert}'''
+        frag1 = environ.make_fragment(s1, standalone_mode=True)
+
+        self.assertEqual(
+            frag1.render_standalone(html_renderer),
+            r'''Test: Hello, <span class="textit">Albert</span>!'''
+        )
+
+        s2 = r'''\mymacro[Howdy]{Albert}'''
+        frag2 = environ.make_fragment(s2, standalone_mode=True)
+
+        self.assertEqual(
+            frag2.render_standalone(html_renderer),
+            r'''Test: Howdy: <span class="textit">Albert</span>!'''
+        )
+
+    def test_subst_IfBoolean(self):
+        
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {
+                            'parser': '*',
+                            'argname': 'star',
+                        },
+                        {
+                            'parser': '[',
+                            'argname': 'greeting',
+                        },
+                        {
+                            'parser': '{',
+                            'argname': 'name',
+                        },
+                    ],
+                    'default_argument_values': {
+                        'greeting': 'Hello',
+                    },
+                    'content': r'Test: \IfBooleanTF{#{star}}{STAR}{NOSTAR} \IfBooleanT{#1}{T-STAR}-\IfBooleanF{#1}{F-NOSTAR}'
+                },
+            }
+        })
+
+        html_renderer = HtmlFragmentRenderer()
+
+        s1 = r'''\mymacro*[Hi]{Albert}'''
+        frag1 = environ.make_fragment(s1, standalone_mode=True)
+
+        self.assertEqual(
+            frag1.render_standalone(html_renderer),
+            r'''Test: STAR T-STAR-'''
+        )
+
+        s2 = r'''\mymacro{Albert}'''
+        frag2 = environ.make_fragment(s2, standalone_mode=True)
+
+        self.assertEqual(
+            frag2.render_standalone(html_renderer),
+            r'''Test: NOSTAR -F-NOSTAR'''
+        )
+
 
 
 
