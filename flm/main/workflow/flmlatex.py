@@ -145,8 +145,8 @@ _latex_wstyle_suggested_preamble_defs = r"""
 \g@addto@macro\flmFinalPreambleSetup{%
   \ifcsname crefname\noexpand\endcsname
     \crefname{flmLCustomLabel}{}{}%
-    \Crefname{flmLCustomLabel}{}{}}
-\noexpand\fi}}
+    \Crefname{flmLCustomLabel}{}{}%
+  \fi}
 \newcommand\flmLDefLabelText[2]{%
   \begingroup
     \let\flmL@cref@label\label
