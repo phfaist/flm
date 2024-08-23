@@ -38,6 +38,14 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
             'preamble_suggested_defs': _latex_wstyle_suggested_preamble_defs,
         }
 
+    def recompose_fragment(self, recomposer, fragment):
+        
+        recomposed_result = recomposer.recompose_pure_latex(fragment.nodes)
+
+        recomposed_result += "%%\n"
+
+        return recomposed_result
+
     def render_document(self, document, content_parts_infos, **kwargs):
 
         render_context = document.make_render_context(
@@ -49,8 +57,7 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
                  render_context=render_context)
         )
 
-        recomposed_result = \
-            recomposer.recompose_pure_latex(document.document_fragments[0].nodes)
+        recomposed_result = self.recompose_fragment(document.document_fragments[0])
 
         latex = recomposed_result['latex']
 
@@ -62,7 +69,7 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
 
             fragment_part = doc_part_info['fragment']
 
-            recomposed_result_part = recomposer.recompose_pure_latex(fragment_part.nodes)
+            recomposed_result_part = self.recompose_fragment(fragment_part)
 
             latex_part = recomposed_result_part['latex']
             latex += latex_part
