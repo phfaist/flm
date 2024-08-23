@@ -382,64 +382,16 @@ class FeatureRefsRenderManager(Feature.RenderManager):
 
 
 
+# --------------------------------------
 
 
-class FeatureRefs(Feature):
-    r"""
-    Manager for internal references, such as ``\ref{...}``, ``\hyperref{...}``,
-    etc.
-    """
-
-    feature_name = 'refs'
-    feature_title = 'Labels and cross-references'
-
-    RenderManager = FeatureRefsRenderManager
-
-    def __init__(self, external_ref_resolvers=None):
-        super().__init__()
-        # e.g., resolve a reference to a different code page in the EC zoo!
-        if external_ref_resolvers is not None:
-            self.external_ref_resolvers = list(external_ref_resolvers)
-        else:
-            self.external_ref_resolvers = []
-        logger.debug(f"Created FeatureRefs with external_ref_resolvers = "
-                     f"{repr(external_ref_resolvers)}")
-
-    def set_external_ref_resolvers(self, external_ref_resolvers):
-        if self.external_ref_resolvers is not None and len(self.external_ref_resolvers):
-            logger.warning("FeatureRefs.set_external_ref_resolvers(): There were already "
-                           "external refs resolvers set.  They will be replaced.")
-        self.external_ref_resolvers = external_ref_resolvers
-
-    def add_external_ref_resolver(self, external_ref_resolver):
-        self.external_ref_resolvers.append( external_ref_resolver )
-
-    def add_latex_context_definitions(self):
-        return dict(
-            macros=[
-                RefMacro(
-                    macroname='ref',
-                    command_arguments=('ref_label',)
-                ),
-                RefMacro(
-                    macroname='hyperref',
-                    command_arguments=('[]ref_label','display_text',)
-                ),
-            ]
-        )
-
-
-    # mainly for debug messages
-    def __repr__(self):
-        return (
-            f"{self.__class__.__name__}("
-            f"external_ref_resolvers={repr(self.external_ref_resolvers)})"
-        )
 
 
 _ref_arg_specs = {
-    'ref_label': FLMArgumentSpec(latexnodes_parsers.LatexCharsGroupParser(),
-                                  argname='ref_label'),
+    'ref_label': FLMArgumentSpec(
+        latexnodes_parsers.LatexCharsGroupParser(),
+        argname='ref_label'
+    ),
     '[]ref_label': FLMArgumentSpec(
         latexnodes_parsers.LatexCharsGroupParser(
             delimiters=('[', ']'),
@@ -447,6 +399,17 @@ _ref_arg_specs = {
         argname='ref_label'
     ),
     'display_text': FLMArgumentSpec('{', argname='display_text',),
+
+    # special, for macro expansions.  Allow specials (like the "#N"
+    # placeholders!) to be expanded while processing the target URL or Email.
+    'Xref_label': FLMArgumentSpec(
+        parser='{',
+        argname='ref_label',
+    ),
+    '[]Xref_label': FLMArgumentSpec(
+        parser='r[]', # required []-delimited argument
+        argname='ref_label',
+    ),
 }
 
 
@@ -462,25 +425,27 @@ class RefMacro(FLMMacroSpecBase):
             command_arguments=('ref_label', 'display_text',),
             counter_prefix_variant=None,
     ):
+        arguments_spec_list = self._get_arguments_spec_list(command_arguments)
         super().__init__(
             macroname=macroname,
-            arguments_spec_list=self._get_arguments_spec_list(command_arguments),
+            arguments_spec_list=arguments_spec_list,
         )
         self.ref_type = ref_type
-        self.command_arguments = [ c.replace('[]','') for c in command_arguments ]
+        self.command_arguments = command_arguments
         self.counter_prefix_variant = counter_prefix_variant
         
+        self.command_argnames = [ c.argname for c in arguments_spec_list ]
+
     _fields = ('macroname', 'ref_type', 'command_arguments', 'counter_prefix_variant',)
 
     @classmethod
     def _get_arguments_spec_list(cls, command_arguments):
-        return [ _ref_arg_specs[argname]
-                 for argname in command_arguments ]
+        return [ _ref_arg_specs[a] for a in command_arguments ]
 
     def postprocess_parsed_node(self, node):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-            self.command_arguments,
+            self.command_argnames,
         )
 
         ref_spec = node_args['ref_label'].get_content_as_chars()
@@ -590,6 +555,68 @@ class RefMacro(FLMMacroSpecBase):
                          for safe_label_info in safe_ref_labels ])
             + '}}'
         )
+
+
+
+
+# --------------------------------------
+
+
+
+class FeatureRefs(Feature):
+    r"""
+    Manager for internal references, such as ``\ref{...}``, ``\hyperref{...}``,
+    etc.
+    """
+
+    feature_name = 'refs'
+    feature_title = 'Labels and cross-references'
+
+    RenderManager = FeatureRefsRenderManager
+
+    def __init__(self, external_ref_resolvers=None):
+        super().__init__()
+        # e.g., resolve a reference to a different code page in the EC zoo!
+        if external_ref_resolvers is not None:
+            self.external_ref_resolvers = list(external_ref_resolvers)
+        else:
+            self.external_ref_resolvers = []
+        logger.debug(f"Created FeatureRefs with external_ref_resolvers = "
+                     f"{repr(external_ref_resolvers)}")
+
+    def set_external_ref_resolvers(self, external_ref_resolvers):
+        if self.external_ref_resolvers is not None and len(self.external_ref_resolvers):
+            logger.warning("FeatureRefs.set_external_ref_resolvers(): There were already "
+                           "external refs resolvers set.  They will be replaced.")
+        self.external_ref_resolvers = external_ref_resolvers
+
+    def add_external_ref_resolver(self, external_ref_resolver):
+        self.external_ref_resolvers.append( external_ref_resolver )
+
+    def add_latex_context_definitions(self):
+        return dict(
+            macros=[
+                self.RefMacroCls(
+                    macroname='ref',
+                    command_arguments=('ref_label',)
+                ),
+                self.RefMacroCls(
+                    macroname='hyperref',
+                    command_arguments=('[]ref_label','display_text',)
+                ),
+            ]
+        )
+
+    RefMacroCls = RefMacro
+
+    # mainly for debug messages
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"external_ref_resolvers={repr(self.external_ref_resolvers)})"
+        )
+
+
             
 
 

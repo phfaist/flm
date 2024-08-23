@@ -257,6 +257,46 @@ def _make_ifarg_arguments_spec_list(macroname, macro_content_substitutor):
     return args
 
 
+def _make_patched_callables(environment):
+    patched_callables = {
+        'macros': [],
+        'environments': [],
+        'specials': [],
+    }
+    if environment.supports_feature('href'):
+        # Use versions of these macros that enable specials replacements in the
+        # URL.  Otherwise #N placeholders will be kept verbatim!
+        href_feature = environment.feature('href')
+        HrefHyperlinkMacroClass = href_feature.HrefHyperlinkMacroClass
+        patched_callables['macros'] += [
+            HrefHyperlinkMacroClass(
+                macroname='href',
+                command_arguments=('target_Xhref', 'display_text',),
+            ),
+            HrefHyperlinkMacroClass(
+                macroname='url',
+                command_arguments=('target_Xhref',),
+            ),
+            HrefHyperlinkMacroClass(
+                macroname='email',
+                command_arguments=('target_Xemail',),
+            ),
+        ]
+
+    if environment.supports_feature('refs'):
+        RefMacroCls = environment.feature('refs').RefMacroCls
+        patched_callables['macros'] += [
+            RefMacroCls(
+                macroname='ref',
+                command_arguments=('Xref_label',)
+            ),
+            RefMacroCls(
+                macroname='hyperref',
+                command_arguments=('[]Xref_label','display_text',)
+            ),
+        ]
+    return patched_callables
+
 
 class SimpleMacroContentIfArgCondition(FLMMacroSpecBase):
 
@@ -642,6 +682,26 @@ class MacroContentSubstitutor:
         what = f"{base_latex_walker.what}→{self.substitutor_manager.spec_object.get_what()}"
         if add_what:
             what += f"[{add_what}]"
+
+        patched_callables = _make_patched_callables(flm_environment)
+
+        if 'macros' in patched_callables:
+            if 'macros' not in mc_parsing_state_delta.extend_latex_context:
+                mc_parsing_state_delta.extend_latex_context['macros'] = []
+            mc_parsing_state_delta.extend_latex_context['macros'] \
+                += patched_callables['macros']
+
+        if 'environments' in patched_callables:
+            if 'environments' not in mc_parsing_state_delta.extend_latex_context:
+                mc_parsing_state_delta.extend_latex_context['environments'] = []
+            mc_parsing_state_delta.extend_latex_context['environments'] \
+                += patched_callables['environments']
+
+        if 'specials' in patched_callables:
+            if 'specials' not in mc_parsing_state_delta.extend_latex_context:
+                mc_parsing_state_delta.extend_latex_context['specials'] = []
+            mc_parsing_state_delta.extend_latex_context['specials'] \
+                += patched_callables['specials']
 
         # No, don't parse macro content with *outer* parsing state block mode.  The
         # way the macro content is parsed shouldn't depend on where it is inserted.

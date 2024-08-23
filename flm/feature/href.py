@@ -23,6 +23,16 @@ _href_arg_specs = {
         parser='{',
         argname='display_text',
     ),
+    # special, for macro expansions.  Allow specials (like the "#N"
+    # placeholders!) to be expanded while processing the target URL or Email.
+    'target_Xhref': FLMArgumentSpec(
+        parser='{',
+        argname='target_href',
+    ),
+    'target_Xemail': FLMArgumentSpec(
+        parser='{',
+        argname='target_email',
+    ),
 }
 
 
@@ -37,17 +47,21 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
             command_arguments=('target_href', 'target_email', 'display_text',),
             ref_type='href',
     ):
+        arguments_spec_list = self._get_arguments_spec_list(command_arguments)
         super().__init__(
             macroname=macroname,
-            arguments_spec_list=self._get_arguments_spec_list(command_arguments)
+            arguments_spec_list=arguments_spec_list,
         )
-        self.command_arguments = [ c.strip('[]') for c in command_arguments ]
+        self.command_arguments = command_arguments
         self.ref_type = ref_type
 
-        if 'display_text' in command_arguments:
+        self.command_argnames = [ c.argname for c in arguments_spec_list ]
+
+        if 'display_text' in self.command_argnames:
             # internal, used when truncating fragments to a certain number of
             # characters (see fragment.truncate_to())
              self._flm_main_text_argument = 'display_text'
+
 
     _fields = ('macroname', 'command_arguments', 'ref_type', )
 
@@ -73,7 +87,7 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
     def postprocess_parsed_node(self, node):
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-            self.command_arguments,
+            self.command_argnames,
         )
         
         target_href = None
@@ -147,6 +161,8 @@ class FeatureHref(SimpleLatexDefinitionsFeature):
             ),
         ]
     }
+
+    HrefHyperlinkMacroClass = HrefHyperlinkMacro
 
 
 FeatureClass = FeatureHref

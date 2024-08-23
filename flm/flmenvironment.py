@@ -767,6 +767,13 @@ class FLMEnvironment:
             )
 
 
+
+    def supports_feature(self, feature_name):
+        return (
+            feature_name in self.features_by_name
+            and self.features_by_name[feature_name] is not None
+        )
+
     def feature(self, feature_name):
         return self.features_by_name[feature_name]
 
