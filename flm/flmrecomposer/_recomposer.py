@@ -28,8 +28,13 @@ class FLMNodesFlmRecomposer(LatexNodesLatexRecomposer):
 
     rx_escape_chars_text = None
 
+    recompose_escape_chars_if_specials_disabled = False
+
     def escape_chars(self, chars, parsing_state):
         if self.rx_escape_chars_text is None:
+            return chars
+        if not parsing_state.enable_specials \
+           and not self.recompose_escape_chars_if_specials_disabled:
             return chars
         if parsing_state.in_math_mode:
             return chars
@@ -47,6 +52,7 @@ class FLMNodesFlmRecomposer(LatexNodesLatexRecomposer):
                 **kwargs
             )
         return False
+
 
     def recompose_chars(self, chars, n):
         if not chars:

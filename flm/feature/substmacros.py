@@ -846,6 +846,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
                  content=None,
                  is_block_level=None,
                  macro_content_substitutor_manager=None,
+                 skip_substitution=False,
                  **kwargs,
                  ):
         
@@ -895,10 +896,13 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
             if 'mathmode' in content:
                 self.content_mathmode = content['mathmode']
 
+        self.skip_substitution = skip_substitution
+
         logger.debug("Constructing SimpleSubstitutionMacro, arguments_spec_list = %r; "
-                     "content_textmode=%r, content_mathmode=%r, kwargs=%r",
+                     "content_textmode=%r, content_mathmode=%r, skip_substitution=%r; "
+                     "kwargs=%r",
                      arguments_spec_list, self.content_textmode, self.content_mathmode,
-                     kwargs)
+                     self.skip_substitution, kwargs)
 
     def get_what(self):
         if hasattr(self, 'macroname'):
@@ -944,6 +948,11 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
             pos_end=node.pos_end,
         )
 
+        if self.skip_substitution:
+            node.flm_skipped_substitute_node = substitute_node
+            logger.debug("NOT substituting node because skip_substitution=True: %r", node)
+            return
+
         logger.debug("setting substitute node = %r", substitute_node)
         node.flm_SUBSTITUTE_NODE = substitute_node
 
@@ -986,6 +995,11 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
 
 
     def render(self, node, render_context):
+
+        logger.warning(
+            "Attempting to render substitution macro node that should have been "
+            "substituted in node tree!"
+        )
 
         return render_context.fragment_renderer.render_nodelist(
             node.flm_macro_replacement_flm_nodes,
