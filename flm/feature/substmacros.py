@@ -169,64 +169,93 @@ def _make_ifarg_argument_argspec(macro_content_substitutor):
     )
 
 
+
+
+def _ifargcmd_condition_wasprovided(argument_info):
+    return argument_info.was_provided()
+
+def _ifargcmd_condition_wasnotprovided(argument_info):
+    return not argument_info.was_provided()
+
+def _ifargcmd_condition_isempty(argument_info):
+    arg_content_nodes = argument_info.get_content_nodelist().filter(
+        skip_none=True, skip_comments=True,
+    )
+    return len(arg_content_nodes) == 0
+
+def _ifargcmd_condition_notempty(argument_info):
+    arg_content_nodes = argument_info.get_content_nodelist().filter(
+        skip_none=True, skip_comments=True,
+    )
+    return len(arg_content_nodes) != 0
+
+
+_ifargcmd_types = {
+    'IfNoValueTF': (
+        _ifargcmd_condition_wasnotprovided,
+        ('value_true', 'value_false',),
+    ),
+    'IfNoValueT': (
+        _ifargcmd_condition_wasnotprovided,
+        ('value_true',),
+    ),
+    'IfNoValueF': (
+        _ifargcmd_condition_wasnotprovided,
+        ('value_false',),
+    ),
+    'IfBooleanTF': (
+        _ifargcmd_condition_wasprovided,
+        ('value_true', 'value_false',),
+    ),
+    'IfBooleanT': (
+        _ifargcmd_condition_wasprovided,
+        ('value_true',),
+    ),
+    'IfBooleanF': (
+        _ifargcmd_condition_wasprovided,
+        ('value_false',),
+    ),
+    'IfValueTF': (
+        _ifargcmd_condition_wasprovided,
+        ('value_true', 'value_false',),
+    ),
+    'IfValueT': (
+        _ifargcmd_condition_wasprovided,
+        ('value_true',),
+    ),
+    'IfValueF': (
+        _ifargcmd_condition_wasprovided,
+        ('value_false',),
+    ),
+    'ifblank': (
+        _ifargcmd_condition_isempty,
+        ('value_true', 'value_false',)
+    ),
+    'notblank': (
+        _ifargcmd_condition_notempty,
+        ('value_true', 'value_false',)
+    ),
+}
+
+
+
 def _make_ifarg_arguments_spec_list(macroname, macro_content_substitutor):
-    if macroname == 'IfNoValueTF':
-        return [
-            _make_ifarg_argument_argspec(macro_content_substitutor),
+
+    if macroname not in _ifargcmd_types:
+        raise ValueError(f"Invalid/unknown macro name for ifarg-type macro: {macroname}")
+
+    args = [
+        _make_ifarg_argument_argspec(macro_content_substitutor),
+    ]
+    for argname in _ifargcmd_types[macroname][1]:
+        args.append(
             FLMArgumentSpec(
                 parser='{',
-                argname='value_true',
-            ),
-            FLMArgumentSpec(
-                parser='{',
-                argname='value_false',
-            ),        
-        ]
-    if macroname == 'IfNoValueT':
-        return [
-            _make_ifarg_argument_argspec(macro_content_substitutor),
-            FLMArgumentSpec(
-                parser='{',
-                argname='value_true',
-            ),
-        ]
-    if macroname == 'IfNoValueF':
-        return [
-            _make_ifarg_argument_argspec(macro_content_substitutor),
-            FLMArgumentSpec(
-                parser='{',
-                argname='value_false',
-            ),
-        ]
-    if macroname == 'IfBooleanTF':
-        return [
-            _make_ifarg_argument_argspec(macro_content_substitutor),
-            FLMArgumentSpec(
-                parser='{',
-                argname='value_true',
-            ),
-            FLMArgumentSpec(
-                parser='{',
-                argname='value_false',
-            ),        
-        ]
-    if macroname == 'IfBooleanT':
-        return [
-            _make_ifarg_argument_argspec(macro_content_substitutor),
-            FLMArgumentSpec(
-                parser='{',
-                argname='value_true',
-            ),
-        ]
-    if macroname == 'IfBooleanF':
-        return [
-            _make_ifarg_argument_argspec(macro_content_substitutor),
-            FLMArgumentSpec(
-                parser='{',
-                argname='value_false',
-            ),
-        ]
-    raise ValueError(f"Invalid/unknown macro name for ifarg-type macro: {macroname}")
+                argname=argname,
+            )
+        )
+    return args
+
 
 
 class SimpleMacroContentIfArgCondition(FLMMacroSpecBase):
@@ -285,23 +314,14 @@ class SimpleMacroContentIfArgCondition(FLMMacroSpecBase):
 
         result_nodes = None
 
-        if self.macroname in ('IfBooleanTF', 'IfBooleanT', 'IfBooleanF'):
-            if argument_info.was_provided():
-                if 'value_true' in node_args:
-                    result_nodes = node_args['value_true'].get_content_nodelist()
-            else:
-                if 'value_false' in node_args:
-                    result_nodes = node_args['value_false'].get_content_nodelist()
-        if self.macroname in ('IfNoValueTF', 'IfNoValueT', 'IfNoValueF'):
-            arg_content_nodes = argument_info.get_content_nodelist().filter(
-                skip_none=True, skip_comments=True,
-            )
-            if len(arg_content_nodes) == 0:
-                if 'value_true' in node_args:
-                    result_nodes = node_args['value_true'].get_content_nodelist()
-            else:
-                if 'value_false' in node_args:
-                    result_nodes = node_args['value_false'].get_content_nodelist()
+        condition_fn, _ = _ifargcmd_types[self.macroname]
+
+        if condition_fn(argument_info):
+            if 'value_true' in node_args:
+                result_nodes = node_args['value_true'].get_content_nodelist()
+        else:
+            if 'value_false' in node_args:
+                result_nodes = node_args['value_false'].get_content_nodelist()
 
         if result_nodes is None:
             result_nodes = node.latex_walker.make_nodelist(
@@ -309,7 +329,6 @@ class SimpleMacroContentIfArgCondition(FLMMacroSpecBase):
                 parsing_state=node.parsing_state,
                 pos=node.pos,
             )
-
 
         substitute_node = node.latex_walker.make_node(
             LatexGroupNode,
@@ -379,6 +398,14 @@ class MacroContentSubstitutor:
             else:
                 self.argument_names.append(arg)
 
+        ifmacros = [
+            SimpleMacroContentIfArgCondition(
+                macroname=ifmacroname,
+                macro_content_substitutor=self,
+            )
+            for ifmacroname in _ifargcmd_types.keys()
+        ]
+
         self.macro_content_parsing_state_delta = ParsingStateDeltaExtendLatexContextDb(
             extend_latex_context={
                 'specials': [
@@ -387,32 +414,7 @@ class MacroContentSubstitutor:
                         macro_content_substitutor=self,
                     ),
                 ],
-                'macros': [
-                    SimpleMacroContentIfArgCondition(
-                        macroname='IfNoValueTF',
-                        macro_content_substitutor=self,
-                    ),
-                    SimpleMacroContentIfArgCondition(
-                        macroname='IfNoValueT',
-                        macro_content_substitutor=self,
-                    ),
-                    SimpleMacroContentIfArgCondition(
-                        macroname='IfNoValueF',
-                        macro_content_substitutor=self,
-                    ),
-                    SimpleMacroContentIfArgCondition(
-                        macroname='IfBooleanTF',
-                        macro_content_substitutor=self,
-                    ),
-                    SimpleMacroContentIfArgCondition(
-                        macroname='IfBooleanT',
-                        macro_content_substitutor=self,
-                    ),
-                    SimpleMacroContentIfArgCondition(
-                        macroname='IfBooleanF',
-                        macro_content_substitutor=self,
-                    ),
-                ]
+                'macros': ifmacros
             },
             set_attributes={
                 'is_block_level': None,

@@ -462,6 +462,22 @@ Hello.
             r'''Howdy, <span class="textit">Albert</span>.'''
         )
 
+        s3 = r'''\mymacro[]{Albert}'''
+        frag3 = environ.make_fragment(s3, standalone_mode=True)
+
+        self.assertEqual(
+            frag3.render_standalone(html_renderer),
+            r''', <span class="textit">Albert</span>.'''
+        )
+
+        s4 = r'''\mymacro[{}]{Albert}'''
+        frag4 = environ.make_fragment(s4, standalone_mode=True)
+
+        self.assertEqual(
+            frag4.render_standalone(html_renderer),
+            r''', <span class="textit">Albert</span>.'''
+        )
+
     def test_subst_IfNoValueT_IfNoValueF(self):
         
         environ = mk_flm_environ(substmacros_definitions={
@@ -546,6 +562,121 @@ Hello.
         self.assertEqual(
             frag2.render_standalone(html_renderer),
             r'''Test: NOSTAR -F-NOSTAR'''
+        )
+
+
+    def test_subst_IfValue(self):
+        
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {
+                            'parser': '*',
+                            'argname': 'star',
+                        },
+                        {
+                            'parser': '[',
+                            'argname': 'greeting',
+                        },
+                        {
+                            'parser': '{',
+                            'argname': 'name',
+                        },
+                    ],
+                    'default_argument_values': {
+                        'greeting': 'Hello',
+                    },
+                    'content': r'Test: \IfValueTF{#{greeting}}{G}{NOG} \IfValueT{#1}{T-G}-\IfValueF{#1}{F-NOG}'
+                },
+            }
+        })
+
+        html_renderer = HtmlFragmentRenderer()
+
+        s1 = r'''\mymacro*[Hi]{Albert}'''
+        frag1 = environ.make_fragment(s1, standalone_mode=True)
+
+        self.assertEqual(
+            frag1.render_standalone(html_renderer),
+            r'''Test: G T-G-'''
+        )
+
+        s2 = r'''\mymacro{Albert}'''
+        frag2 = environ.make_fragment(s2, standalone_mode=True)
+
+        self.assertEqual(
+            frag2.render_standalone(html_renderer),
+            r'''Test: NOG -F-NOG'''
+        )
+
+        s3 = r'''\mymacro*[]{Albert}'''
+        frag3 = environ.make_fragment(s3, standalone_mode=True)
+
+        self.assertEqual(
+            frag3.render_standalone(html_renderer),
+            r'''Test: G T-G-'''
+        )
+
+        s4 = r'''\mymacro*[{}]{Albert}'''
+        frag4 = environ.make_fragment(s4, standalone_mode=True)
+
+        self.assertEqual(
+            frag4.render_standalone(html_renderer),
+            r'''Test: G T-G-'''
+        )
+
+
+    def test_subst_ifblank_notblank(self):
+        
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {
+                            'parser': '[',
+                            'argname': 'greeting',
+                        },
+                        {
+                            'parser': '{',
+                            'argname': 'name',
+                        },
+                    ],
+                    'default_argument_values': {
+                        'greeting': 'Hello',
+                    },
+                    'content': r'''
+Test: \ifblank{#1}{1BLK}{1NOBLK} \ifblank{#2}{2BLK}{2NOBLK}
+\notblank{#1}{1NOBLK}{1BLK} \notblank{#2}{2NOBLK}{2BLK}
+'''.strip().replace('\n', ' ')
+                },
+            }
+        })
+
+        html_renderer = HtmlFragmentRenderer()
+
+        s1 = r'''\mymacro[Hi]{Albert}'''
+        frag1 = environ.make_fragment(s1, standalone_mode=True)
+
+        self.assertEqual(
+            frag1.render_standalone(html_renderer),
+            r'''Test: 1NOBLK 2NOBLK 1NOBLK 2NOBLK'''
+        )
+
+        s2 = r'''\mymacro{Albert}'''
+        frag2 = environ.make_fragment(s2, standalone_mode=True)
+
+        self.assertEqual(
+            frag2.render_standalone(html_renderer),
+            r'''Test: 1BLK 2NOBLK 1BLK 2NOBLK'''
+        )
+
+        s3 = r'''\mymacro{}'''
+        frag3 = environ.make_fragment(s3, standalone_mode=True)
+
+        self.assertEqual(
+            frag3.render_standalone(html_renderer),
+            r'''Test: 1BLK 2BLK 1BLK 2BLK'''
         )
 
 
