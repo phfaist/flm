@@ -198,14 +198,15 @@ _latex_wstyle_suggested_preamble_defs = r"""
 \def\flmFloat#1#2{%
   \edef\flmFloat@curfloatenv{#1}%
   \edef\flmFloat@usefloatenv{#1}%
-  \ifcsname flmFloat@OverrideEnv@useenv#1\endcsname
-    \csname flmFloat@OverrideEnv@useenv#1\endcsname
-  \endcsname
-  \ifcsname flmFloat@OverrideEnv@useconfig#2\endcsname
-    \csname flmFloat@OverrideEnv@useconfig#2\endcsname
-  \endcsname
+  \edef\flmFloat@useenvargs{\csname flmFloatPlacementArgs#2\endcsname}%
+  \ifcsname flmFloatSetUseEnv#1\endcsname
+    \csname flmFloatSetUseEnv#1\endcsname
+  \fi
+  \ifcsname flmFloatSetUseConfig#2\endcsname
+    \csname flmFloatSetUseConfig#2\endcsname
+  \fi
   \edef\x{%
-    \noexpand\begin{\flmFloat@usefloatenv}\csname flmFloatPlacementArgs#2\endcsname}%
+    \noexpand\begin{\flmFloat@usefloatenv}\expandonce\flmFloat@useenvargs}%
   \x
   \centering
 }
@@ -216,6 +217,13 @@ _latex_wstyle_suggested_preamble_defs = r"""
 \def\flmFloatPlacementArgsNumOnly{[tbph]}
 \def\flmFloatPlacementArgsCapOnly{[h]}
 \def\flmFloatPlacementArgsBare{[h]}
+\def\flmFloatSetUseConfigBare{%
+  \edef\flmFloat@usefloatenv{center}%
+  \def\flmFloat@useenvargs{%
+    \edef\@captype{\flmFloat@curfloatenv}%
+  }%
+}
+\let\flmFloatSetUseConfigCapOnly\flmFloatSetUseConfigBare
 \makeatother
 """
 
