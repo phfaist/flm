@@ -197,13 +197,20 @@ _latex_wstyle_suggested_preamble_defs = r"""
 }
 \def\flmFloat#1#2{%
   \edef\flmFloat@curfloatenv{#1}%
+  \edef\flmFloat@usefloatenv{#1}%
+  \ifcsname flmFloat@OverrideEnv@useenv#1\endcsname
+    \csname flmFloat@OverrideEnv@useenv#1\endcsname
+  \endcsname
+  \ifcsname flmFloat@OverrideEnv@useconfig#2\endcsname
+    \csname flmFloat@OverrideEnv@useconfig#2\endcsname
+  \endcsname
   \edef\x{%
-    \noexpand\begin{#1}\csname flmFloatPlacementArgs#2\endcsname}%
+    \noexpand\begin{\flmFloat@usefloatenv}\csname flmFloatPlacementArgs#2\endcsname}%
   \x
   \centering
 }
 \def\endflmFloat{%
-  \expandafter\end\expandafter{\flmFloat@curfloatenv}%
+  \expandafter\end\expandafter{\flmFloat@usefloatenv}%
 }
 \def\flmFloatPlacementArgsNumCap{[tbph]}
 \def\flmFloatPlacementArgsNumOnly{[tbph]}
