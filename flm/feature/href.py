@@ -5,7 +5,8 @@ from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 
-from ..flmspecinfo import FLMArgumentSpec, FLMMacroSpecBase
+from ..flmenvironment import FLMArgumentSpec
+from ..flmspecinfo import FLMMacroSpecBase
 
 from ._base import SimpleLatexDefinitionsFeature
 
@@ -117,17 +118,18 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
 
         # show URL by default
         if display_text_nodelist is None:
+            ps = node.parsing_state.sub_context(is_block_level=False)
             display_text_nodelist = node.latex_walker.make_nodelist(
                 [
                     node.latex_walker.make_node(
                         latexnodes_nodes.LatexCharsNode,
-                        parsing_state=node.parsing_state,
+                        parsing_state=ps,
                         chars=self.pretty_url(target_href),
                         pos=node.pos,
                         pos_end=node.pos,
                     )
                 ],
-                parsing_state=node.parsing_state
+                parsing_state=ps,
             )
 
         return render_context.fragment_renderer.render_link(
