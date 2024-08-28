@@ -1,3 +1,4 @@
+import re
 import logging
 logger = logging.getLogger(__name__)
 
@@ -139,6 +140,34 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
             render_context,
         )
 
+
+    def recompose_pure_latex(self, node, recomposer, visited_results_arguments, **kwargs):
+
+        s = '\\' + node.macroname
+
+        # Fix URL arguments to make sure we escape '#' and '%'.  This might be
+        # necessary in case the \href/\url command is used within an argument to
+        # some outer macro and the catcodes of these characters are already
+        # fixed...
+
+        s_macro_args = []
+
+        rx = re.compile(r'([\\#%{}])')
+
+        for (argname, recomposed_arg_value) in \
+            zip(self.command_argnames, visited_results_arguments):
+
+            if argname in ('target_href', 'target_email'):
+                slenm1 = len(recomposed_arg_value) - 1
+                s_macro_args.append(
+                    recomposed_arg_value[0]
+                    + rx.sub(r'\\\1', recomposed_arg_value[1:slenm1])
+                    + recomposed_arg_value[slenm1]
+                )
+            else:
+                s_macro_args.append(recomposed_arg_value)
+
+        return s + "".join(s_macro_args)
 
 
 
