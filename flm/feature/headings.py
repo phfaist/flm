@@ -118,7 +118,15 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
 
     def recompose_pure_latex(self, node, recomposer, visited_results_arguments, **kwargs):
 
-        s = '\\' + node.macroname
+        heading_macroname = node.macroname
+
+        recopt_cells = recomposer.get_options('headings')
+        heading_macroname_mapping = recopt_cells.get('macroname_mapping', None)
+        if heading_macroname_mapping:
+            if heading_macroname in heading_macroname_mapping:
+                heading_macroname = heading_macroname_mapping[heading_macroname]
+
+        s = '\\' + heading_macroname
 
         # arguments_spec_list=[
         #     LatexArgumentSpec('*', argname='star'),

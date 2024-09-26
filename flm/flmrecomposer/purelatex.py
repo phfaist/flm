@@ -79,7 +79,7 @@ class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
     rx_escape_chars_text = _default_rx_escape_chars_text
 
     def get_options(self, key):
-        return self.options.get(key, {})
+        return dict(self.options.get(key, {}))
 
     def ensure_latex_package(self, packagename, options=None):
         if packagename not in self.packages:

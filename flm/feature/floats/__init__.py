@@ -351,22 +351,6 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
         if recopt_floats.get('keep_as_is', False):
             return False # use default recomposer.
 
-        # if recomposer.render_context is None \
-        #    or not hasattr(recomposer.render_context, 'fragment_renderer') \
-        #    or recomposer.render_context.fragment_renderer is None:
-        #     raise ValueError(
-        #         "Recomposing floats while compiling them into corresponding latex "
-        #         "constructs requires a render_context in the pure latex recomposer "
-        #         "with a LatexFragmentRenderer instance."
-        #     )
-
-        # render_context = recomposer.render_context
-        # fragment_renderer = render_context.fragment_renderer
-        
-        #node.flm_float_label = dict(ref_label_prefix=None, ref_label=None, label_node=None)
-        #node.flm_float_caption = dict(caption_nodelist=None, caption_node=None)
-        #node.flm_float_content_nodelist = ...
-
         # determine if the float has a number and a caption
         has_label = (
             node.flm_float_label['ref_label_prefix'] is not None
