@@ -58,7 +58,13 @@ class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
 
         # self.safe_ref_types['ref']['code'] = True to treat 'ref'-domain labels
         # of the form 'code:kxnfjdoisan' as automatically safe
-        self.safe_ref_types = dict( self.options_recomposer.get('safe_label_ref_types', {}) )
+        safe_ref_types = dict( self.options_recomposer.get('safe_label_ref_types', {}) )
+        # make sure all objects are turned into dict's (especially, ensure that
+        # they are not native JS objects in Transcrypt)
+        for ref_domain in list(safe_ref_types.keys()):
+            dic = dict(safe_ref_types[ref_domain])
+            safe_ref_types[ref_domain] = dic
+        self.safe_ref_types = safe_ref_types
 
 
     def recompose_pure_latex(self, node):

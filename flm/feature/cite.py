@@ -549,3 +549,43 @@ class CiteMacro(FLMMacroSpecBase):
             node,
         )
 
+    def recompose_pure_latex(self, node, recomposer, **kwargs):
+
+        # Some processing to do here.
+        cite_items = node.flmarg_cite_items
+
+        if not len(cite_items):
+            return ''
+
+        # citations without "extras" go first, then those with an extra annotation go last.
+        cite_bare = []
+        cite_extras = []
+        for cite_item in cite_items:
+            extra = cite_item["extra"]
+
+            cite_prefix = cite_item["prefix"]
+            cite_key = cite_item["key"]
+            safe_info = recomposer.make_safe_label('cite', f"{cite_prefix}:{cite_key}")
+            safe_label = safe_info["safe_label"]
+
+            if extra is not None and extra and extra.nodelist is not None \
+               and len(extra.nodelist):
+                cite_extras.append( (safe_label, extra) )
+            else:
+                cite_bare.append( safe_label )
+
+        s = '\\NoCaseChange{'
+
+        if len(cite_bare):
+            s += '\\protect\\cite{' + ','.join(cite_bare) + '}'
+
+        if len(cite_extras):
+            for safe_label, extra in cite_extras:
+                extra_latex_info = recomposer.recompose_pure_latex(extra)
+                s += (
+                    '\\protect\\cite[{' + extra_latex_info["latex"] + '}]{'
+                    + safe_label + '}'
+                )
+
+        s += '}'
+        return s
