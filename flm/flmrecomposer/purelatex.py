@@ -36,6 +36,9 @@ _Dict = JsMapDict
 
 
 class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
+    r"""
+    Doc ................
+    """
     
     def __init__(self, options):
         super().__init__()

@@ -135,7 +135,7 @@ class FLMDocument:
 
     def render(self, fragment_renderer, feature_render_options=None):
         r"""
-        ...........
+        doc ...........
         """
         #logger.debug("document render()")
 

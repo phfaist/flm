@@ -13,4 +13,5 @@ Doc.................
    api-dump
    api-util
    api-main
+   api-recomposer
    api-docgen
