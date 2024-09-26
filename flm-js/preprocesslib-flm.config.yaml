@@ -17,6 +17,8 @@ module_list:
   - 'flm.fragmentrenderer.latex'
   - 'flm.fragmentrenderer.markdown'
   - 'flm.flmdump'
+  - 'flm.flmrecomposer'
+  - 'flm.flmrecomposer.purelatex'
 
 skip_relative_import_prefixes:
   - 'pylatexenc'

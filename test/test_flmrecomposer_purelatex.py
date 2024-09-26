@@ -41,6 +41,106 @@ class TestFLMPureLatexRecomposer(unittest.TestCase):
         )
 
 
+
+    def test_escape_chars(self):
+
+        env = mk_flm_environ()
+
+        recomposer = FLMPureLatexRecomposer({})
+
+        result = recomposer.escape_chars(
+            r"""
+You & me want _lots_ of $$$, right ^^
+""",
+            env.make_parsing_state(is_block_level=False)
+        )
+
+        self.assertEqual(
+            result,
+            r"""
+You \& me want \_lots\_ of \$\$\$, right \^\^
+"""
+        )
+
+
+    def test_environment_with_newlines(self):
+
+        env = mk_flm_environ()
+
+        s = r'''
+\begin{align}A + B = C\ .\end{align}
+'''
+
+        frag = env.make_fragment(
+            s,
+            what='example text fragment'
+        )
+
+        recomposer = FLMPureLatexRecomposer({})
+
+        result = recomposer.recompose_pure_latex(frag.nodes)
+
+        result_latex_correct = s
+
+        self.assertEqual(
+            result["latex"],
+            result_latex_correct
+        )
+
+
+
+    def test_safe_labels(self):
+
+        env = mk_flm_environ()
+
+        s = r'''
+\section{Introduction}\label{sec:intro}
+
+Anticipating equation~\eqref{eq:MySecondFancyEquation}, along with \ref{sec:mySubSection}.
+
+An equation:
+\begin{align}A + B = C\ .\label{eq:MyFancyEquation}\end{align}
+
+Another equation:
+\begin{align}A + B = C\ .\label{eq:MySecondFancyEquation}\end{align}
+
+Test reference to~\eqref{eq:MyFancyEquation}.
+
+\subsection{Some subsection}\label{sec:mySubSection}
+
+More text.
+'''.strip()
+
+        frag = env.make_fragment(
+            s,
+            what='example text fragment'
+        )
+
+        recomposer = FLMPureLatexRecomposer({
+            'recomposer': {
+                'safe_label_ref_types': {
+                    'ref': {
+                        'sec': True,
+                    },
+                },
+            }
+        })
+
+        result = recomposer.recompose_pure_latex(frag.nodes)
+
+        result_latex_correct = s \
+            .replace( 'eq:MySecondFancyEquation', 'ref1' ) \
+            .replace( 'eq:MyFancyEquation', 'ref2' ) \
+            .replace( r'\ref{sec:mySubSection}',
+                      r'\NoCaseChange{\protect\cref{sec:mySubSection}}' )
+
+        self.assertEqual(
+            result["latex"],
+            result_latex_correct
+        )
+
+
+
     def test_float(self):
 
         env = mk_flm_environ()

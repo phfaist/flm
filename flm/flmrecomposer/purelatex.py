@@ -8,7 +8,8 @@ from pylatexenc.latexnodes.nodes import LatexGroupNode
 from ._recomposer import FLMNodesFlmRecomposer
 
 
-_default_rx_escape_chars_text = re.compile('[$&#^_%]')
+# escaping \$ in regex is required for Transcrypt! Otherwise we match newlines ... :/
+_default_rx_escape_chars_text = re.compile(r'[\$&#\^_%]')
 
 
 # We'll need to specialize code for Transcrypt/JS, as we need to use JS
@@ -20,19 +21,19 @@ _default_rx_escape_chars_text = re.compile('[$&#^_%]')
 _Dict = dict
 
 # only for Transcrypt:
+#__pragma__('js', '{}', 'function _JsMapDict_createMap() { return new Map(); }; function _JsMapDict_get(map, k, dflt) { if (map.has(k)) { return map.get(k) } return dflt; };')
 """?
 class JsMapDict:
     def __init__(self):
-        self.map = Map()
+        self.map = _JsMapDict_createMap()
     def get(self, k, dflt=None):
-        if self.map.has(k):
-            return self.map.get(k)
-        return dflt
+        return _JsMapDict_get(self.map, k, dflt)
     def __setattr__(self, k, v):
         self.map.set(k, v)
 
 _Dict = JsMapDict
 ?"""
+
 
 
 class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
@@ -74,25 +75,25 @@ class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
     def get_options(self, key):
         return self.options.get(key, {})
 
-    def ensure_latex_package(self, package, options=None):
-        if package not in self.packages:
-            self.packages[package] = {
+    def ensure_latex_package(self, packagename, options=None):
+        if packagename not in self.packages:
+            self.packages[packagename] = {
                 'options': options,
             }
             return
         if options is None:
             # all good, package is already loaded
             return
-        if self.packages[package]['options'] is None:
+        if self.packages[packagename]['options'] is None:
             # all good, simply need to set options
-            self.packages[package]['options'] = options
-        if self.packages[package]['options'] == options:
+            self.packages[packagename]['options'] = options
+        if self.packages[packagename]['options'] == options:
             # all ok, options are the same
             return
         # not good, conflicting options
         raise ValueError(
-            f"Conflicting pure latex package options requested for package {package} in "
-            f"pure latex FLM export: ‘{self.packages[package]['options']}’ ≠ ‘{options}’"
+            f"Conflicting pure latex package options requested for package {packagename} in "
+            f"pure latex FLM export: ‘{self.packages[packagename]['options']}’ ≠ ‘{options}’"
         )
 
     def make_safe_label(self, ref_domain, ref_type, ref_label):
