@@ -257,6 +257,10 @@ class RefTermMacro(FLMMacroSpecBase):
                 get_term_ref_label_verbatim(node.flm_term_flm_show_term_nodelist)
         
         node.flmarg_ref = (self.defterm_ref_type, node.flm_term_flm_ref_label_verbatim)
+        node.flm_ref_info = {
+            'ref_list': [ node.flmarg_ref ],
+            'display_content_nodelist': node.flm_term_flm_show_term_nodelist,
+        }
 
 
     def prepare_delayed_render(self, node, render_context):
