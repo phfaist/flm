@@ -72,6 +72,7 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
 
         node.flm_referenceable_infos = [
             refs.ReferenceableInfo(
+                kind='heading',
                 formatted_ref_flm_text=heading_flm_text,
                 labels=node.flmarg_labels,
             )

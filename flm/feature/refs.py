@@ -22,18 +22,21 @@ class ReferenceableInfo:
     r"""
     Arguments:
 
+    - `kind` - The type of the thing being referenced (e.g. 'heading', 'defterm')
+
     - `formatted_ref_flm_text` - should be a string (standalone FLM code) or an
       `FLMFragment` instance
 
     - `labels` - a list of pairs `(ref_type, ref_label)` to attach to this
       referenceable object.
     """
-    def __init__(self, formatted_ref_flm_text, labels):
+    def __init__(self, kind, formatted_ref_flm_text, labels):
         super().__init__()
+        self.kind = kind
         self.formatted_ref_flm_text = formatted_ref_flm_text
         self.labels = labels # list of (ref_type, ref_label)
 
-        self._fields = ('formatted_ref_flm_text', 'labels',)
+        self._fields = ('kind', 'formatted_ref_flm_text', 'labels',)
 
     def get_target_id(self):
 

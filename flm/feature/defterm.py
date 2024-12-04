@@ -84,6 +84,7 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
 
         node.flm_referenceable_infos = [
             refs.ReferenceableInfo(
+                kind='defterm',
                 formatted_ref_flm_text=node.flmarg_term_flm_ref_label_verbatim,
                 labels=(
                     [(self.defterm_ref_type, node.flmarg_term_flm_ref_label_verbatim)]

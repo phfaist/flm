@@ -537,6 +537,10 @@ class MathEqrefMacro(FLMMacroSpecBase):
             )
 
         node.flmarg_ref = (ref_type, ref_label)
+        node.flm_ref_info = {
+            'ref_list': [ node.flmarg_ref ],
+            'display_content_nodelist': None,
+        }
 
 
     def prepare_delayed_render(self, node, render_context):
