@@ -645,7 +645,7 @@ class MacroContentSubstitutor:
         # found arg_j
         argument_ref_user = arg_j + 1
         if self.argument_number_offset is not None:
-            argument_key -= self.argument_number_offset
+            argument_ref_user -= self.argument_number_offset
         if argument_ref_user not in self.default_argument_values:
             # no default value provided.
             return None
