@@ -557,6 +557,14 @@ class CiteMacro(FLMMacroSpecBase):
         if not len(cite_items):
             return ''
 
+        recopt_cite = recomposer.get_options('cite')
+        logger.debug(f"recomposer cite options = %r", recopt_cite)
+        # Usually we don't want safe labels because the keys refer to some
+        # external resource, e.g., a custom bibliography file that is not
+        # process simultaneously as a flmlatex workflow.  But this can be
+        # changed in the recomposer options.
+        use_safe_labels = recopt_cite.get('safe_labels', False)
+
         # citations without "extras" go first, then those with an extra annotation go last.
         cite_bare = []
         cite_extras = []
@@ -565,14 +573,18 @@ class CiteMacro(FLMMacroSpecBase):
 
             cite_prefix = cite_item["prefix"]
             cite_key = cite_item["key"]
-            safe_info = recomposer.make_safe_label('cite', f"{cite_prefix}:{cite_key}")
-            safe_label = safe_info["safe_label"]
+            cite_label = f"{cite_prefix}:{cite_key}"
+
+            if use_safe_labels:
+                safe_info = recomposer.make_safe_label('cite', cite_prefix, cite_key)
+                #safe_label = safe_info["safe_label"]
+                cite_label = safe_info["safe_label"]
 
             if extra is not None and extra and extra.nodelist is not None \
                and len(extra.nodelist):
-                cite_extras.append( (safe_label, extra) )
+                cite_extras.append( (cite_label, extra) )
             else:
-                cite_bare.append( safe_label )
+                cite_bare.append( cite_label )
 
         s = '\\NoCaseChange{'
 
