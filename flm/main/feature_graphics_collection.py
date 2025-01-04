@@ -184,6 +184,74 @@ class CairoSvgConverter(GraphicsConverter):
 
 
 
+class GhostscriptConverter(GraphicsConverter):
+    
+    name = 'gs'
+
+    @staticmethod
+    def can_convert(ext, to_ext):
+        if ext in ('.pdf', '.ps', '.eps') and to_ext in ('.png', '.jpg', '.jpeg', '.pdf'):
+            return True
+        return False
+        
+    def __init__(self):
+        self.gs_exe = find_std_exe('gs')
+
+    def convert(self, source_type, src_url, target_path, converter_info, options=None):
+
+        target_ext = converter_info['target_ext']
+
+        if options is None:
+            options = {}
+
+        dpi = 300
+        if 'dpi' in options:
+            dpi = options['dpi']
+
+        gs_device = None
+        gs_device_options = None
+        if target_ext == '.png':
+            gs_device = 'png16m'
+            gs_device_options = ['-dTextAlphaBits=4', '-dGraphicsAlphaBits=4',]
+        elif target_ext in ('.jpg', '.jpeg'):
+            gs_device = 'jpeg'
+            gs_device_options = ['-dTextAlphaBits=4', '-dGraphicsAlphaBits=4',]
+        elif target_ext == '.pdf':
+            gs_device = 'pdfwrite'
+            gs_device_options = []
+        else:
+            raise ValueError(
+                f"Invalid target extension for GhostscriptConverter: ‘{target_ext}’"
+            )
+
+        input_data = self.read_input(source_type, src_url, binary=True)
+
+        cmdargs = [
+            self.gs_exe,
+            '-dSAFER',
+            '-dBATCH',
+            '-dNOPAUSE',
+            '-q',
+            f"-sDEVICE={gs_device}",
+            f"-r{dpi}",
+            *gs_device_options,
+            f"-sOutputFile={target_path}",
+            "-", # use STDIN as input
+        ]
+
+        logger.debug('Running: %r', cmdargs)
+        result = subprocess.run(
+            cmdargs,
+            input=input_data,
+            #cwd=tempdirname
+        )
+        if result.returncode != 0:
+            logger.error(f"Command failed: {repr(cmdargs)}")
+
+
+
+
+
 
 class PdfToCairoCmdlConverter(GraphicsConverter):
     
@@ -234,12 +302,14 @@ class PdfToCairoCmdlConverter(GraphicsConverter):
 
         logger.debug('Running: %r', cmdargs)
         with open(target_path, 'wb') as fw:
-            subprocess.run(
+            result = subprocess.run(
                 cmdargs,
                 input=input_data,
                 stdout=fw,
                 #cwd=tempdirname
             )
+            if result.returncode != 0:
+                logger.error(f"Command failed: {repr(cmdargs)}")
 
 
 
@@ -285,17 +355,20 @@ class MagickConverter(GraphicsConverter):
         ]
 
         logger.debug('Running: %r', cmdargs)
-        subprocess.run(
+        result = subprocess.run(
             cmdargs,
             input=input_data,
             #cwd=tempdirname
         )
+        if result.returncode != 0:
+            logger.error(f"Command failed: {repr(cmdargs)}")
 
 
 
 
 _graphics_converters = [
     CairoSvgConverter,
+    GhostscriptConverter,
     PdfToCairoCmdlConverter,
     MagickConverter,
 ]
@@ -568,8 +641,8 @@ class FeatureGraphicsCollection(Feature):
             converter = converter_info['instance']
             target_path = collect_info['target_path']
 
-            logger.info('Collecting ‘%s’ to ‘%s’ as %s', src_url, target_path,
-                        source_type)
+            logger.info('Collecting ‘%s’ to ‘%s’ as %s (via %s)',
+                        src_url, target_path, source_type, converter.name)
 
             logger.debug('converter_info = %r', converter_info)
 

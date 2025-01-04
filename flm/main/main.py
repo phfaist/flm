@@ -60,30 +60,84 @@ class ResourceAccessor(run.ResourceAccessorBase):
 
 
 
-def load_external_config(arg_config, dirname):
-    config_file = arg_config
-    if isinstance(config_file, str) and config_file:
-        # parse a YAML file
-        with open(config_file, encoding='utf-8') as f:
-            data = yaml.safe_load(f)
-            data['$_cwd'] = os.path.dirname(config_file)
-            return data
-    elif isinstance(config_file, dict):
-        return config_file
+def load_external_configs(dirname, *, arg_config, arg_format, arg_workflow):
+
+    load_config_files = []
+
+    # figure out which config files to load.
+    if isinstance(arg_config, dict):
+        load_config_files = [ arg_config ]
     else:
-        # see if there's a flmconfig.(yaml|yml) in the same directory as the
-        # input file, and load that one if applicable.
-        cfgfnamesbase = [ 'flmconfig.yaml', 'flmconfig.yml' ]
-        for cfgfnamebase in cfgfnamesbase:
-            cfgfname = os.path.join(dirname or '', cfgfnamebase)
-            if os.path.exists(cfgfname):
-                with open(cfgfname, encoding='utf-8') as f:
-                    logger.debug(f"Found config file {cfgfname}, loading it.")
-                    data = yaml.safe_load(f)
-                    data['$_cwd'] = dirname
-                    return data
+        # we're going to load one or more config files.
+        fnameconfigbase = "flmconfig"
+        fnametryexts = (".yaml", ".yml",) # only the FIRST EXISTING EXTENSION is read.
+        if isinstance(arg_config, str):
+            fnamepath, fnameconfigtail = os.path.split(arg_config)
+            fnameconfigbase, fnametrysingleext = os.path.splitext(fnameconfigtail)
+            fnametryexts = ( fnametrysingleext, )
+        # attempt to load different variants of the config file, and use/merge them all.
+        # [ flmconfig+WORKFLOW.FORMAT.yaml, flmconfig+WORKFLOW.yaml,
+        #   flmconfig.FORMAT.yaml, flmconfig.yaml ].
+        fnametryworkflowparts = ("",)
+        if arg_workflow:
+            fnametryworkflowparts = (f"+{arg_workflow}", "",)
+        fnametryformatparts = ("",)
+        if arg_format:
+            fnametryworkflowparts = (f".{arg_format}", "",)
+        for workflowpart in fnametryworkflowparts:
+            for formatpart in fnametryformatparts:
+                for ext in fnametryexts:
+                    tryfname = f"{fnameconfigbase}{workflowpart}{formatpart}{ext}"
+                    if os.path.exists(tryfname):
+                        load_config_files.append(tryfname)
+                        # Now, break the innermost for loop (over extensions).
+                        # Once a pattern with a valid extension is found, don't
+                        # try any other extensions and proceed to the next
+                        # workflow/format pattern. -->
+                        break
+
+    logger.debug(f"Identified config files to load: {','.join(load_config_files)}")
+
+    loaded_config_datas = []
+    for config_file in load_config_files:
+        # parse a YAML file
+        if isinstance(config_file, dict):
+            data = config_file
+        else:
+            with open(config_file, encoding='utf-8') as f:
+                logger.info(f"Loading flm config from {config_file}")
+                data = yaml.safe_load(f)
+                data['$_cwd'] = os.path.dirname(config_file)
+        loaded_config_datas.append( data )
+
+    if len(loaded_config_datas) == 0:
+        loaded_config_datas = [ {} ]
+
+    return loaded_config_datas
+
+    # config_file = arg_config
+    # if isinstance(config_file, str) and config_file:
+    #     # parse a YAML file
+    #     with open(config_file, encoding='utf-8') as f:
+    #         data = yaml.safe_load(f)
+    #         data['$_cwd'] = os.path.dirname(config_file)
+    #         return [ data ]
+    # elif isinstance(config_file, dict):
+    #     return [ config_file ]
+    # else:
+    #     # see if there's a flmconfig.(yaml|yml) in the same directory as the
+    #     # input file, and load that one if applicable.
+    #     cfgfnamesbase = [ 'flmconfig.yaml', 'flmconfig.yml' ]
+    #     for cfgfnamebase in cfgfnamesbase:
+    #         cfgfname = os.path.join(dirname or '', cfgfnamebase)
+    #         if os.path.exists(cfgfname):
+    #             with open(cfgfname, encoding='utf-8') as f:
+    #                 logger.debug(f"Found config file {cfgfname}, loading it.")
+    #                 data = yaml.safe_load(f)
+    #                 data['$_cwd'] = dirname
+    #                 return [ data ]
         
-    return {}
+    # return {}
 
 
 
@@ -181,7 +235,12 @@ def main(**kwargs):
 
     # load config & defaults
 
-    orig_config = load_external_config(arg_config, dirname)
+    orig_configs = load_external_configs(
+        dirname,
+        arg_config=arg_config,
+        arg_format=arg_format,
+        arg_workflow=arg_workflow
+    )
 
     logger.debug("Input frontmatter_metadata is\n%s",
                  json.dumps(frontmatter_metadata,indent=4))
@@ -223,7 +282,7 @@ def main(**kwargs):
         flm_content,
         flm_run_info=flm_run_info,
         run_config=run_config,
-        default_configs=[ orig_config, ]
+        default_configs=orig_configs,
     )
 
     binary_output = result_info['binary_output']

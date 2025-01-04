@@ -18,6 +18,13 @@ pdftocairo_patterns = [
     '/opt/homebrew/bin/pdftocairo',
     r"C:\Programs Files*\pdftocairo*\**\pdftocairo.exe", # ???
 ]
+gs_patterns = [
+    "/usr/local/bin/gs",
+    "/opt/local/bin/gs",
+    r"C:\Program Files*\gs*\gs*\bin\gswin*.exe", # ???
+    r"C:\texlive\*\bin\win*\gswin*.exe", # ???
+    r"C:\Program Files*\MiKTeX*\miktex\bin\mgs.exe", # ???
+]
 
 
 def _find_exe_value(exe_name, std_patterns, var_name):
@@ -47,6 +54,7 @@ std_exe_dict = {
     'magick': [magick_patterns, 'MAGICK'],
     'latexmk': [latexmk_patterns, 'LATEXMK'],
     'pdftocairo': [pdftocairo_patterns, 'PDFTOCAIRO'],
+    'gs': [gs_patterns, 'GHOSTSCRIPT'],
 }
 std_exe_found = {}
 

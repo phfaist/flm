@@ -158,7 +158,7 @@ class PresetImport:
                 property_path,
                 top_level_obj=top_level_obj
             ))
-        logger.debug(f"processed property $import -> {result=} {obj=}")
+        logger.debug(f"processed property $import ‘{import_target}’ -> {result=} {obj=}")
         
 
     def process_list_item(self, configmerger,
