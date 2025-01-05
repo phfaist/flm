@@ -252,7 +252,7 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
                 "Applying graphics magnification both from magnification=%f from "
                 "fragment_renderer option as well as from width_scale recomposer option."
             )
-            magification = magnification * width_scale
+            magnification = magnification * width_scale
         elif width_scale is not None:
             # magnification is None, width_scale is not None
             magnification = width_scale

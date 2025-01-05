@@ -122,10 +122,10 @@ class GraphicsConverter:
     name = None
 
     @classmethod
-    def get_instance(Cls):
-        if not hasattr(Cls, '_instance') or Cls._instance is None:
-            Cls._instance = Cls()
-        return Cls._instance
+    def get_instance(cls):
+        if not hasattr(cls, '_instance') or cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
     def read_input(self, source_type, src_url, binary=True):
         if source_type == 'file':
@@ -260,8 +260,8 @@ class PdfToCairoCmdlConverter(GraphicsConverter):
     name = 'pdftocairo'
 
     @classmethod
-    def can_convert(Cls, ext, to_ext):
-        if ext == '.pdf' and to_ext in Cls._fmts_to_opts:
+    def can_convert(cls, ext, to_ext):
+        if ext == '.pdf' and to_ext in cls._fmts_to_opts:
             return True
         return False
 

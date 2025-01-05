@@ -78,7 +78,7 @@ class RenderWorkflow:
 
         rendered_result = fragment.render(render_context)
 
-        environment = fragment.environment
+        #environment = fragment.environment
 
         # Render content parts, if applicable
         doc_parts = content_parts_infos.get('parts', None)

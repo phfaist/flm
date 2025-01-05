@@ -592,7 +592,6 @@ class MacroContentSubstitutor:
     def get_default_argument_value_flm_text(self, argument_key):
 
         argument_ref_user = None
-        default_arg_flm_text = None
 
         node = self.callable_node
 
@@ -963,8 +962,8 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
         # compose & compile the flm text into nodes, including argument
         # placeholder nodes.
 
-        base_latex_walker = node.latex_walker
-        flm_environment = node.latex_walker.flm_environment
+        #base_latex_walker = node.latex_walker
+        #flm_environment = node.latex_walker.flm_environment
 
         macro_replacement_flm_text = node.flm_macro_replacement_flm_text
 

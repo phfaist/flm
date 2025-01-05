@@ -144,7 +144,7 @@ def load_external_configs(dirname, *, arg_config, arg_format, arg_workflow):
 
 def main_watch(**kwargs):
 
-    arg_files = kwargs.get('files', None)
+    #arg_files = kwargs.get('files', None)
     arg_output = kwargs.get('output', None)
 
     if arg_output is None or arg_output == '-':
