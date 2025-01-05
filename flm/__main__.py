@@ -173,7 +173,9 @@ def _run_main_inner(cmdargs=None):
 
         d = args.__dict__
 
-        return _main_watch(**d)
+        _main_watch(**d)
+
+        return
 
 
     #

@@ -641,7 +641,7 @@ class MacroContentSubstitutor:
                 break
         else:
             raise ValueError("Unexpected invalid argument argname={} for node={}"
-                             .format(repr(argname), repr(node)))
+                             .format(repr(argument_key), repr(node)))
         # found arg_j
         argument_ref_user = arg_j + 1
         if self.argument_number_offset is not None:

@@ -179,6 +179,8 @@ class CairoSvgConverter(GraphicsConverter):
             svgconvert = cairosvg.svg2png
         elif target_ext in ('.ps', '.eps'):
             svgconvert = cairosvg.svg2ps
+        else:
+            raise ValueError(f"Invalid target ext {target_ext}, shouldn't be here")
 
         svgconvert(url=src_url, write_to=target_path, **svgkwargs)
 
