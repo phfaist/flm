@@ -368,7 +368,7 @@ def helper_collect_labels(node_arg_label, allowed_prefixes, allow_unknown_macros
 
             if ref_type not in allowed_prefixes:
                 raise LatexWalkerParseError(
-                    f"Heading label ‘{the_label}’ has incorrect prefix "
+                    f"Argument label ‘{the_label}’ has incorrect prefix "
                     f"‘{ref_type}:’; expected one of {allowed_prefixes}",
                     pos=argnode.pos,
                 )

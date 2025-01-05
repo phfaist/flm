@@ -1,6 +1,9 @@
 
 from pylatexenc.latexnodes import ParsedArgumentsInfo, ParsingStateDelta
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
+from pylatexenc.latexnodes.parsers import (
+    LatexTackOnInformationFieldMacrosParser,
+)
 from pylatexenc import macrospec
 
 from ..flmenvironment import FLMArgumentSpec, make_invocable_node_instance
@@ -22,6 +25,19 @@ optional_text_arg = FLMArgumentSpec(
 
 
 
+thmlabel_arg = FLMArgumentSpec(
+    parser=LatexTackOnInformationFieldMacrosParser(
+        ['label', 'noproofref'],
+        allow_multiple=True,
+        macro_arg_parsers={'noproofref': None},
+    ),
+    argname='thmlabel',
+    flm_doc=(r'A following \verbcode+\label{…}+ macro attaches a label to '
+             r'this macro call; a following \noproofref indicates that there is '
+             r'no corresponding {proof} environment to look for in the document.')
+)
+
+
 class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
     
     is_block_level = True
@@ -34,8 +50,8 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             environmentname,
             arguments_spec_list=[
                 optional_text_arg,
-                flmspecinfo.label_arg
-                ### TODO: Allow also \noproofref instruction
+                #flmspecinfo.label_arg
+                thmlabel_arg
             ],
         )
         self.theorem_spec = theorem_spec
@@ -58,7 +74,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
     def postprocess_parsed_node(self, node):
         
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-            ('thmtitle', 'label'),
+            ('thmtitle', 'thmlabel'),
         )
 
         thmtitle_nodelist = None
@@ -102,9 +118,27 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             'relation_ref_show_ref': relation_ref_show_ref,
         }
 
+        # go over the 'thmlabel' argument macro decorators:
+        has_noproofref = None
+        node_args_thmlabel = node_args['thmlabel']
+        if node_args_thmlabel.was_provided():
+            argnodes = node_args_thmlabel.get_content_nodelist()
+            for argnode in argnodes:
+                if argnode.delimiters[0] == r'\label':
+                    continue # will take care of later
+                elif argnode.delimiters[0] == r'\noproofref':
+                    has_noproofref = True
+                else:
+                    raise LatexWalkerParseError(
+                        f"Bad information field macro ‘{argnode.delimiters[0]}’",
+                        pos=argnode.pos
+                    )
+        node.flmarg_has_noproofref = has_noproofref
+        # Now, also collect \label arguments:
         node.flmarg_labels = flmspecinfo.helper_collect_labels(
-            node_args['label'],
+            node_args_thmlabel, #node_args['thmlabel']
             self.allowed_ref_label_prefixes,
+            allow_unknown_macros=True,
         )
 
         return node
