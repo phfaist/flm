@@ -988,12 +988,11 @@ version = "3.0a31"
 description = "Simple LaTeX parser providing latex-to-unicode and unicode-to-latex conversion"
 category = "main"
 optional = false
-python-versions = "*"
-files = []
-
-[package.source]
-type = "file"
-url = "../pylatexenc/dist/pylatexenc-3.0a31-py3-none-any.whl"
+python-versions = "<4.0,>=3.8"
+files = [
+    {file = "pylatexenc-3.0a31-py3-none-any.whl", hash = "sha256:406dd97a157e76a925c3f6b06afe35654505bcf9047bd6725b374d20e422dd1e"},
+    {file = "pylatexenc-3.0a31.tar.gz", hash = "sha256:d098df0b25f126f4fbc711e018393c60e485e4e9cdfcbb2aeb429d2bf7e5e057"},
+]
 
 [[package]]
 name = "pypdf"
