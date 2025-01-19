@@ -778,13 +778,13 @@ _rx_delayed_markers = re.compile(r'<FLM:DLYD:(?P<key>\d+)\s*/>')
 # ------------------------------------------------------------------------------
 
 _html_css_global = r"""
-p, ul, ol {
+p, ul, ol, .p-block {
   margin: 1em 0px;
 }
-p:first-child, ul:first-child, ol:first-child {
+p:first-child, ul:first-child, ol:first-child, .p-block:first-child {
   margin-top: 0px;
 }
-p:last-child, ul:last-child, ol:last-child {
+p:last-child, ul:last-child, ol:last-child, .p-block:last-child {
   margin-bottom: 0px;
 }
 dd > p, dd > p:first-child, dd > p:last-child {
@@ -867,10 +867,6 @@ h3 {
   display: inline-block;
   margin: 0px .12em 0px 0px;
   content: '.';
-}
-
-div.theoremlike, div.definitionlike, div.prooflike {
-  margin: 1em 0px;
 }
 
 div.prooflike > p > .heading-level-theorem,

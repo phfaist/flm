@@ -34,7 +34,7 @@ is defined as the subspace stabilizerd by a Pauli stabilizer group.\end{defterm}
         self.assertEqual(
             result,
             r"""
-<div id="defterm-stabilizer_20Xcode" class="defterm">
+<div id="defterm-stabilizer_20Xcode" class="defterm p-block">
 <p><span class="defterm-term">stabilizer code: </span>A code is called a <span class="defterm-term term-in-defining-defterm">stabilizer code</span> if it is defined as the subspace stabilizerd by a Pauli stabilizer group.</p>
 </div>
 """.strip() .replace('\n', '')
@@ -61,7 +61,7 @@ is defined as the subspace stabilizerd by a Pauli stabilizer group.\end{defterm}
             result,
             r"""
 <p>Ref: <a href="#defterm-stabilizer_20Xcode" class="href-term">stabilizer code</a>.</p>
-<div id="defterm-stabilizer_20Xcode" class="defterm">
+<div id="defterm-stabilizer_20Xcode" class="defterm p-block">
 <p><span class="defterm-term">stabilizer code: </span>A code is called a <span class="defterm-term term-in-defining-defterm">stabilizer code</span> if it is defined as the subspace stabilizerd by a Pauli stabilizer group.</p>
 </div>
 """.strip() .replace('\n', '')
@@ -85,10 +85,10 @@ is defined as the subspace stabilizerd by a Pauli stabilizer group.\end{defterm}
         self.assertEqual(
             result,
             r"""
-<div id="defterm-a" class="defterm">
+<div id="defterm-a" class="defterm p-block">
 <p>Definition of <span class="defterm-term term-in-defining-defterm">a</span>, related to <a href="#defterm-b" class="href-term">b</a>.</p>
 </div>
-<div id="defterm-b" class="defterm">
+<div id="defterm-b" class="defterm p-block">
 <p>Definition of <span class="defterm-term term-in-defining-defterm">b</span>, related to <a href="#defterm-a" class="href-term">a</a>.</p>
 </div>
 """.strip() .replace('\n', '')

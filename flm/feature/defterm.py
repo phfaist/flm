@@ -162,6 +162,7 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
                 role='defterm',
                 render_context=render_context,
                 target_id=node.flm_referenceable_infos[0].get_target_id(),
+                annotations=['p-block'],
             )
 
             logger.debug("End of logical state push/")

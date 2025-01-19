@@ -90,12 +90,12 @@ def flm_rendered_html():
 <dl class="enumeration itemize"><dt>•</dt><dd><p>cool things?</p></dd><dt>•</dt><dd><p>more stuff?</p></dd><dt>!!!</dt><dd><p>Fun stuff??</p></dd></dl>
 <h1 id="sec--First-section" class="heading-level-1">First section</h1>
 <p>From there to here, funny things are everywhere.</p>
-<div id="defterm-Pauli_20Xmatrices" class="defterm"><p><span class="defterm-term">Pauli matrices: </span>The <span class="textit">Pauli matrices</span> are defined as <span id="equation-1" class="display-math env-align">\begin{align}
+<div id="defterm-Pauli_20Xmatrices" class="defterm p-block"><p><span class="defterm-term">Pauli matrices: </span>The <span class="textit">Pauli matrices</span> are defined as <span id="equation-1" class="display-math env-align">\begin{align}
     \sigma_X = \begin{pmatrix} 0 &amp; 1\\1 &amp; 0\end{pmatrix}\ ;
     \sigma_Y = \begin{pmatrix} 0 &amp; -i\\i &amp; 0\end{pmatrix}\ ;
     \sigma_Z = \begin{pmatrix} 1 &amp; 0\\0 &amp; -1\end{pmatrix}\ .
   \tag*{(1)}\end{align}</span></p></div>
-<div id="defterm-qu_5cX_28Xd_5cX_29Xit" class="defterm"><p><span class="defterm-term">qu<span class="inline-math">\(d\)</span>it: </span>A <span class="textit">qu<span class="inline-math">\(d\)</span>it</span> is a <span class="inline-math">\(d\)</span>-dimensional quantum system.</p></div>
+<div id="defterm-qu_5cX_28Xd_5cX_29Xit" class="defterm p-block"><p><span class="defterm-term">qu<span class="inline-math">\(d\)</span>it: </span>A <span class="textit">qu<span class="inline-math">\(d\)</span>it</span> is a <span class="inline-math">\(d\)</span>-dimensional quantum system.</p></div>
 <p>Here&#x27;s a display equation: <span id="equation-2" class="display-math env-align">\begin{align}
   a + b = c\ .
   \label{eq:my-equation}
@@ -115,7 +115,7 @@ as <span>\</span>{is.<span>\</span>end{verbatim<span>\</span> ha no, gotcha pars
 <h1 id="sec-test-label-another-sec" class="heading-level-1">Another section</h1>
 <p>We can try to add some footnotes, too.<a href="#footnote-1" class="href-endnote endnote footnote endnote-marks">a</a> Does it work?</p>
 <p>See also the topic <a href="#defterm-qu_5cX_28Xd_5cX_29Xit" class="href-ref ref-topic">qu<span class="inline-math">\(d\)</span>it</a>.</p>
-<div class="theoremlike theorem"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1</span> In Euclidean geometry, the sides <span class="inline-math">\(a\)</span>, <span class="inline-math">\(b\)</span>, and <span class="inline-math">\(c\)</span> of a right triangle, <span class="inline-math">\(c\)</span> being the length of the hypothenuse, obey the equation <span class="inline-math">\(a^2 + b^2 = c^2\)</span>.</p></div>
+<div class="theoremlike theorem p-block"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1</span> In Euclidean geometry, the sides <span class="inline-math">\(a\)</span>, <span class="inline-math">\(b\)</span>, and <span class="inline-math">\(c\)</span> of a right triangle, <span class="inline-math">\(c\)</span> being the length of the hypothenuse, obey the equation <span class="inline-math">\(a^2 + b^2 = c^2\)</span>.</p></div>
 <h1 class="heading-level-1">Footnotes</h1>
 <dl class="enumeration footnote-list"><dt id="footnote-1">a</dt><dd>Like this! Does it work?</dd></dl>
 """.strip()

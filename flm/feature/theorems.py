@@ -354,7 +354,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             rendered_contents, #fragment_renderer.render_join(rendered_parts, render_context),
             self.theorem_spec['theorem_type'],
             render_context,
-            annotations=[ self.environmentname ],
+            annotations=[ self.environmentname, 'p-block' ],
         )
 
     def recompose_pure_latex(self, node, recomposer, visited_results_arguments,

@@ -35,7 +35,7 @@ class TestFeatureTheorems(unittest.TestCase):
         self.assertEqual(
             result,
             r"""
-<div class="theoremlike theorem"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1</span> The square root of two is irrational.</p></div>
+<div class="theoremlike theorem p-block"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1</span> The square root of two is irrational.</p></div>
 """.strip() .replace('\n', '')
         )
 
@@ -57,7 +57,7 @@ The square root of two is irrational.
         self.assertEqual(
             result,
             r"""
-<div class="theoremlike theorem"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1</span> The square root of two is irrational.</p></div>
+<div class="theoremlike theorem p-block"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1</span> The square root of two is irrational.</p></div>
 """.strip() .replace('\n', '')
         )
 
@@ -80,7 +80,7 @@ The square root of two is irrational.
         self.assertEqual(
             result,
             r"""
-<div class="theoremlike theorem"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1 (Irrationality of the square root of two)</span> The square root of two is irrational.</p></div>
+<div class="theoremlike theorem p-block"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1 (Irrationality of the square root of two)</span> The square root of two is irrational.</p></div>
 """.strip()
         )
 
@@ -111,9 +111,9 @@ The square root of four is rational.
         self.assertEqual(
             result,
             r"""
-<div class="theoremlike theorem"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1</span> The square root of two is irrational.</p></div>
-<div class="theoremlike lemma"><p><span id="lemma-2" class="heading-level-theorem heading-inline">Lemma&nbsp;2</span> The square root of three is irrational.</p></div>
-<div class="theoremlike proposition"><p><span id="proposition-3" class="heading-level-theorem heading-inline">Proposition&nbsp;3</span> The square root of four is rational.</p></div>
+<div class="theoremlike theorem p-block"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1</span> The square root of two is irrational.</p></div>
+<div class="theoremlike lemma p-block"><p><span id="lemma-2" class="heading-level-theorem heading-inline">Lemma&nbsp;2</span> The square root of three is irrational.</p></div>
+<div class="theoremlike proposition p-block"><p><span id="proposition-3" class="heading-level-theorem heading-inline">Proposition&nbsp;3</span> The square root of four is rational.</p></div>
 """.strip()
         )
 
@@ -171,9 +171,9 @@ The square root of four is rational.
         self.assertEqual(
             result,
             r"""
-<div class="theoremlike theorem"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;I</span> The square root of two is irrational.</p></div>
-<div class="lemmaandproplike lemma"><p><span id="lemma-1" class="heading-level-theorem heading-inline">Lemma&nbsp;a</span> The square root of three is irrational.</p></div>
-<div class="lemmaandproplike proposition"><p><span id="proposition-2" class="heading-level-theorem heading-inline">Proposition&nbsp;b</span> The square root of four is rational.</p></div>
+<div class="theoremlike theorem p-block"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;I</span> The square root of two is irrational.</p></div>
+<div class="lemmaandproplike lemma p-block"><p><span id="lemma-1" class="heading-level-theorem heading-inline">Lemma&nbsp;a</span> The square root of three is irrational.</p></div>
+<div class="lemmaandproplike proposition p-block"><p><span id="proposition-2" class="heading-level-theorem heading-inline">Proposition&nbsp;b</span> The square root of four is rational.</p></div>
 """.strip()
         )
 
@@ -211,9 +211,9 @@ Ref: \ref{thm:sqrt2,thm:sqrt4,thm:sqrt3}
         self.assertEqual(
             result,
             r"""
-<div class="theoremlike theorem"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1</span> The square root of two is irrational.</p></div>
-<div class="theoremlike theorem"><p><span id="theorem-2" class="heading-level-theorem heading-inline">Theorem&nbsp;2</span> The square root of three is irrational.</p></div>
-<div class="theoremlike proposition"><p><span id="proposition-3" class="heading-level-theorem heading-inline">Proposition&nbsp;3</span> The square root of four is rational.</p></div>
+<div class="theoremlike theorem p-block"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1</span> The square root of two is irrational.</p></div>
+<div class="theoremlike theorem p-block"><p><span id="theorem-2" class="heading-level-theorem heading-inline">Theorem&nbsp;2</span> The square root of three is irrational.</p></div>
+<div class="theoremlike proposition p-block"><p><span id="proposition-3" class="heading-level-theorem heading-inline">Proposition&nbsp;3</span> The square root of four is rational.</p></div>
 <p>Ref: <a href="#theorem-1" class="href-ref refcnt-theorem">Theorems&nbsp;</a><a href="#theorem-1" class="href-ref refcnt-theorem">1</a> and&nbsp;<a href="#theorem-2" class="href-ref refcnt-theorem">2</a>, <a href="#proposition-3" class="href-ref refcnt-proposition">Proposition&nbsp;3</a></p>
 """.strip()
         )
