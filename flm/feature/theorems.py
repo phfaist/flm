@@ -375,6 +375,9 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             s += safe_label_info['safe_label']
             s += ']'
 
+        if node.flmarg_has_noproofref:
+            s += r'\noproofref '
+
         # any pinned label(s), if applicable
         for ref_type, ref_label in node.flmarg_labels:
             safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
