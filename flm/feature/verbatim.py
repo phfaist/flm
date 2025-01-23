@@ -69,7 +69,7 @@ class VerbatimSpecInfo(FLMSpecInfo):
 
             # check for verbatim_lang
             node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-                ('verbatim_lang'),
+                ('verbatim_lang',),
                 skip_nonexistent_arguments=True,
             )
             if 'verbatim_lang' in node_args:
@@ -80,7 +80,7 @@ class VerbatimSpecInfo(FLMSpecInfo):
             is_inline = True
 
             node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
-                ('verbatim_content', 'verbatim_lang'),
+                ('verbatim_content', 'verbatim_lang',),
                 skip_nonexistent_arguments=True,
             )
 

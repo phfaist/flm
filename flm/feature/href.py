@@ -152,7 +152,7 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
 
         s_macro_args = []
 
-        rx = re.compile(r'[\\#%{}]')
+        rx = re.compile(r'[#%{}\\]')
 
         for (argname, recomposed_arg_value) in \
             zip(self.command_argnames, visited_results_arguments):
@@ -167,7 +167,8 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
             else:
                 s_macro_args.append(recomposed_arg_value)
 
-        return s + "".join(s_macro_args)
+        recomposed = s + "".join(s_macro_args)
+        return recomposed
 
 
 

@@ -194,6 +194,8 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     def render_verbatim(self, value, render_context, *,
                         is_block_level=False, annotations=None, target_id=None):
+        if 'verbatimcode' in annotations:
+            return r'\begin{verbatim}' + '\n' + value + r'\end{verbatim}'
         # what to do with annotations / target_id ??
         if self.latex_wrap_verbatim_macro:
             return "\\" + self.latex_wrap_verbatim_macro + "{" + self.latexescape(value) + "}"
@@ -412,11 +414,12 @@ class LatexFragmentRenderer(FragmentRenderer):
             return display_content
         return (
             r'\hyperref[{' + self.latex_label_prefix + to_target_id + '}]{'
-            + display_content + '}'
+            + display_content + '}%\n'
         )
 
     def render_latex_link_href(self, display_content, href):
-        return r'\href{' + href.replace(r'%',r'\%') + r'}{' + display_content + r'}'
+        escaped_url = re.sub(r'[#%{}\\]', lambda m: '\\'+m.group(0), href)
+        return r'\href{' + escaped_url + r'}{' + display_content + r'}%\n'
     
     def render_delayed_marker(self, node, delayed_key, render_context):
         return r"\FLMDLYD{" + str(delayed_key) + "}"
