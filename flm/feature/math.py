@@ -639,8 +639,6 @@ class MathEqrefMacro(FLMMacroSpecBase):
 
     def recompose_pure_latex(self, node, recomposer):
         
-        # use raw label, not safe label for now.  FIXME: convert all to safe labels...
-
         safe_label_info = recomposer.make_safe_label(
             'ref', node.flmarg_ref[0], node.flmarg_ref[1]
         )
