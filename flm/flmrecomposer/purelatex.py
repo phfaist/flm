@@ -3,7 +3,10 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 
-from pylatexenc.latexnodes.nodes import LatexGroupNode
+from pylatexenc.latexnodes.nodes import (
+    LatexGroupNode,
+    LatexCharsNode
+)
 
 from ._recomposer import FLMNodesFlmRecomposer
 
@@ -142,6 +145,10 @@ class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
                and n.nodelist[0].delimiters[0] == '{':
                 # all ok, we already have inner protective braces
                 need_protective_braces = False
+            elif len(n.nodelist) == 1 and n.nodelist[0].isNodeType(LatexCharsNode) \
+                 and _rx_safe_chars_optarg.match(n.nodelist[0].chars) is not None:
+                # all ok, we only have safe chars
+                need_protective_braces = False
             else:
                 need_protective_braces = True
         if need_protective_braces:
@@ -153,3 +160,7 @@ class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
 
     recompose_specinfo_method = 'recompose_pure_latex'
 
+
+
+
+_rx_safe_chars_optarg = re.compile(r'''[-a-zA-Z0-9_+ !@#$&*()<>,./:;"'|]*''')

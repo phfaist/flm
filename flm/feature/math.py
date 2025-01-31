@@ -238,7 +238,16 @@ class MathEnvironment(FLMEnvironmentSpecBase):
                                 argname='text',
                             ),
                         ]),
-                        MacroSpec('\\', arguments_spec_list=[]),
+                        MacroSpec('\\', arguments_spec_list=[
+                            FLMArgumentSpec(
+                                parser=latexnodes_parsers.LatexDelimitedGroupParser(
+                                    delimiters=('[',']',),
+                                    optional=True,
+                                    allow_pre_space=False,
+                                ),
+                                argname='vertical_spacing',
+                            ),
+                        ]),
                     ],
                 )
             )
@@ -459,7 +468,7 @@ class MathEnvironment(FLMEnvironmentSpecBase):
             for n in line_infos['line_nodelist']:
                 s_line += recomposer.recompose_pure_latex( n ) ["latex"]
 
-            s_line = s_line.strip()  # ??
+            #s_line = s_line.strip()  # ??  No, bad idea
 
             if line_infos['custom_tag_flm_text'] is not None:
                 s_line += r'\tag*{' + recomposer.recompose_pure_latex(
@@ -474,11 +483,16 @@ class MathEnvironment(FLMEnvironmentSpecBase):
             if line_infos['nonumber']:
                 s_line += r'\nonumber '
 
+            if line_infos['newline_node']:
+                s_line += recomposer.recompose_pure_latex(
+                    line_infos['newline_node']
+                ) ["latex"]
+
             logger.debug("adding line = \n%r\n... from line_infos=%r", s_line, line_infos)
 
             s_lines.append(s_line)
 
-        s += '\\\\\n'.join( s_lines )
+        s += ''.join( s_lines )
 
         s += r'\end{' + node.environmentname + '}'
 

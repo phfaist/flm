@@ -41,6 +41,36 @@ class TestFLMPureLatexRecomposer(unittest.TestCase):
         )
 
 
+    def test_simple_macro(self):
+        
+        env = mk_flm_environ()
+
+        s = r'''Single-char macro.\@;
+\begin{align}
+  x &= 0; \\[1ex]
+  z &= 1.
+\end{align}'''
+
+        frag = env.make_fragment(
+            s,
+            what='example text fragment'
+        )
+
+        recomposer = FLMPureLatexRecomposer({})
+
+        result = recomposer.recompose_pure_latex(frag.nodes)
+
+        print("*** s=")
+        print(s)
+        print("*** result=")
+        print(result['latex'])
+
+        self.assertEqual(
+            result["latex"],
+            s
+        )
+
+
 
     def test_escape_chars(self):
 
