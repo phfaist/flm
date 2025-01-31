@@ -266,15 +266,12 @@ class Enumeration(FLMEnvironmentSpecBase):
         return result
 
 
-    def recompose_pure_latex(self, node, recomposer, visited_results_arguments,
-                             visited_results_body, **kwargs):
+    def recompose_pure_latex(self, node, recomposer):
 
         # we'll have to recompose body again, oh well
 
         s = r'\begin{' + node.environmentname + '}'
-        for arg in visited_results_arguments:
-            if arg is not None:
-                s += arg
+        s += recomposer.descend_into_parsed_arguments(node.nodeargd)
 
         for (item_macro, item_content_nodelist) in node.flm_enumeration_items:
             
@@ -285,9 +282,9 @@ class Enumeration(FLMEnvironmentSpecBase):
             s += r'\item '
 
             if 'custom_tag' in item_node_args and item_node_args['custom_tag'].was_provided():
-                s += recomposer.recompose_pure_latex(
+                s += recomposer.subrecompose(
                     item_node_args['custom_tag'].get_content_nodelist()
-                )["latex"]
+                )
             if 'label' in item_node_args and item_node_args['label'].was_provided():
                 items_custom_labels = helper_collect_labels(
                     item_node_args['label'],
@@ -297,7 +294,7 @@ class Enumeration(FLMEnvironmentSpecBase):
                     safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
                     s += r'\label{' + safe_label_info['safe_label'] + '}'
 
-            s += recomposer.recompose_pure_latex( item_content_nodelist )["latex"]
+            s += recomposer.subrecompose( item_content_nodelist )
 
         s += r'\end{' + node.environmentname + '}'
         return s

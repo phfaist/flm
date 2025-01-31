@@ -172,13 +172,13 @@ class _ProxyNodeWithRecomposedLatex:
         # fake specinfo for recomposer
         self.flm_specinfo = _EmptyClass()
         self.flm_specinfo.recompose_flm_text = \
-            lambda node, recomposer, **kw: \
-                self.recompose_flm_text(node, recomposer=recomposer, **kw)
+            lambda node, recomposer: \
+                self.recompose_flm_text(node, recomposer=recomposer)
 
     def accept_node_visitor(self, visitor):
         return visitor.visit_unknown_node(self)
 
-    def recompose_flm_text(self, node, recomposer, **kwargs):
+    def recompose_flm_text(self, node, recomposer):
         return self._verbatim
 
     def latex_verbatim(self):
@@ -452,13 +452,12 @@ class MathEnvironment(FLMEnvironmentSpecBase):
         )
 
 
-    def recompose_pure_latex(self, node, recomposer, visited_results_arguments, 
-                             visited_results_body, **kwargs):
+    def recompose_pure_latex(self, node, recomposer):
 
         # we'll have to recompose the body again, oh well ...
 
         s = r'\begin{' + node.environmentname + '}'
-        s += "".join([ x for x in visited_results_arguments if x is not None ])
+        s += recomposer.descend_into_parsed_arguments(node.nodeargd)
 
         # do the body line-by-line, correcting labels as necessary.
         s_lines = []
@@ -468,7 +467,7 @@ class MathEnvironment(FLMEnvironmentSpecBase):
             s_line = ''
 
             for n in line_infos['line_nodelist']:
-                s_line += recomposer.recompose_pure_latex( n ) ["latex"]
+                s_line += recomposer.subrecompose( n )
 
             #s_line = s_line.strip()  # ??  Sounds like a bad idea
 
@@ -515,9 +514,9 @@ class MathEnvironment(FLMEnvironmentSpecBase):
             # print("****")
 
             if line_infos['custom_tag_flm_text'] is not None:
-                s_line += r'\tag*{' + recomposer.recompose_pure_latex(
+                s_line += r'\tag*{' + recomposer.subrecompose(
                     line_infos['custom_tag_flm_text']
-                ) ["latex"] + '}'
+                ) + '}'
 
             for label_info in line_infos['labels']:
                 (ref_type, ref_label) = label_info['label']
@@ -528,9 +527,9 @@ class MathEnvironment(FLMEnvironmentSpecBase):
                 s_line += r'\nonumber '
 
             if line_infos['newline_node']:
-                s_line += recomposer.recompose_pure_latex(
+                s_line += recomposer.subrecompose(
                     line_infos['newline_node']
-                ) ["latex"]
+                )
 
             #s_line += '\n' # for readability
 
@@ -638,7 +637,7 @@ class MathEqrefMacro(FLMMacroSpecBase):
                 pos=node.pos,
             )
 
-    def recompose_pure_latex(self, node, recomposer, visited_results_arguments, **kwargs):
+    def recompose_pure_latex(self, node, recomposer):
         
         # use raw label, not safe label for now.  FIXME: convert all to safe labels...
 

@@ -38,6 +38,10 @@ _href_arg_specs = {
 }
 
 
+_rx_url_unsafe = re.compile(r'[#%{}\\]')
+
+
+
 class HrefHyperlinkMacro(FLMMacroSpecBase):
 
     allowed_in_standalone_mode = True
@@ -141,7 +145,7 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
         )
 
 
-    def recompose_pure_latex(self, node, recomposer, visited_results_arguments, **kwargs):
+    def recompose_pure_latex(self, node, recomposer):
 
         s = '\\' + node.macroname
 
@@ -152,20 +156,30 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
 
         s_macro_args = []
 
-        rx = re.compile(r'[#%{}\\]')
+        if node.nodeargd is not None:
 
-        for (argname, recomposed_arg_value) in \
-            zip(self.command_argnames, visited_results_arguments):
+            for (argname, nodearg) in \
+                zip(self.command_argnames, node.nodeargd.argnlist):
 
-            if argname in ('target_href', 'target_email'):
-                slenm1 = len(recomposed_arg_value) - 1
-                s_macro_args.append(
-                    recomposed_arg_value[0]
-                    + rx.sub(lambda m: '\\'+m.group(0), recomposed_arg_value[1:slenm1])
-                    + recomposed_arg_value[slenm1]
-                )
-            else:
-                s_macro_args.append(recomposed_arg_value)
+                ### FIXME: This is an ugly hack, rather we need to implement
+                ### subrecompose() with subrecomposer-specific option overrides
+                ### (sub-recomposer object) where we can specify additional
+                ### characters that need to be explicitly escaped!
+
+                recomposed_arg_value = recomposer.subrecompose(nodearg)
+
+                if argname in ('target_href', 'target_email'):
+                    slenm1 = len(recomposed_arg_value) - 1
+                    s_macro_args.append(
+                        recomposed_arg_value[0]
+                        + _rx_url_unsafe.sub(
+                            lambda m: '\\'+m.group(0),
+                            recomposed_arg_value[1:slenm1]
+                        )
+                        + recomposed_arg_value[slenm1]
+                    )
+                else:
+                    s_macro_args.append(recomposed_arg_value)
 
         recomposed = s + "".join(s_macro_args)
         return recomposed

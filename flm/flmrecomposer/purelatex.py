@@ -138,7 +138,7 @@ class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
     # --
 
     # make safer optional argument values:
-    def recompose_delimited_nodelist(self, delimiters, recomposed_list, n):
+    def recompose_delimited_nodelist(self, delimiters, nodelist, n):
         need_protective_braces = False
         if delimiters[0] == '[' and delimiters[1] == ']':
             if len(n.nodelist) == 1 and n.nodelist[0].isNodeType(LatexGroupNode) \
@@ -151,9 +151,11 @@ class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
                 need_protective_braces = False
             else:
                 need_protective_braces = True
+
         if need_protective_braces:
             delimiters = ('[{', '}]')
-        return super().recompose_delimited_nodelist(delimiters, recomposed_list, n)
+
+        return super().recompose_delimited_nodelist(delimiters, nodelist, n)
 
 
     # --

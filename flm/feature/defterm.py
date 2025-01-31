@@ -71,8 +71,9 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
                 ('term','label'),
             )
 
-        term_flm_ref_label_verbatim = \
-            get_term_ref_label_verbatim(node_args['term'].get_content_nodelist())
+        node.flmarg_term = node_args['term'].get_content_nodelist()
+
+        term_flm_ref_label_verbatim = get_term_ref_label_verbatim(node.flmarg_term)
         node.flmarg_term_flm_ref_label_verbatim = term_flm_ref_label_verbatim
         #node.flmarg_term_safe_target_id = get_term_safe_target_id(term_flm_ref_label_verbatim)
 
@@ -136,7 +137,8 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
                     macro_post_space='',
                     parsing_state=term_fragment.nodes.parsing_state,
                     nodeargd=ParsedArguments(
-                        arguments_spec_list=self.render_term_text_format_spec.arguments_spec_list,
+                        arguments_spec_list=
+                            self.render_term_text_format_spec.arguments_spec_list,
                         argnlist=[
                             term_fragment.nodes,
                         ]
@@ -170,8 +172,7 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
         return result
 
 
-    def recompose_pure_latex(self, node, recomposer, visited_results_arguments,
-                             visited_results_body, **kwargs):
+    def recompose_pure_latex(self, node, recomposer):
 
         # produce \begin{defterm}{The Term}\label{one}\label{two}
         # ... \end{defterm}, as per the original FLM code, but make sure that
@@ -186,8 +187,10 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
         
         # flm_environment = node.latex_walker.flm_environment
 
+        term_recomposed = recomposer.subrecompose(node.flmarg_term)
+
         s = r'\begin{' + str(node.environmentname) + '}'
-        s += str(visited_results_arguments[0]) # first mandatory argument, the term itself
+        s += '{' + term_recomposed + '}' # first mandatory argument, the term itself
 
         # term label itself is already in flm_referenceable_infos and will be
         # turned into a safe label --
@@ -197,7 +200,7 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
                 safe_label = safe_label_info['safe_label']
                 s += r'\label{' + str(safe_label) + '}'
             
-        s += recomposer.recompose_nodelist(visited_results_body, node)
+        s += recomposer.recompose_nodelist(node.nodelist, node)
         s += r'\end{' + str(node.environmentname) + '}'
 
         return s
@@ -247,15 +250,18 @@ class RefTermMacro(FLMMacroSpecBase):
                 ('ref_term', 'term',),
             )
         
+        term_nodelist = node_args['term'].get_content_nodelist()
+
         if node_args['ref_term'].was_provided():
-            node.flm_term_flm_show_term_nodelist = \
-                node_args['term'].get_content_nodelist()
+            node.flmarg_ref_term = node_args['ref_term'].get_content_nodelist()
+            node.flm_term_flm_show_term_nodelist = term_nodelist
             node.flm_term_flm_ref_label_verbatim = \
-                get_term_ref_label_verbatim(node_args['ref_term'].get_content_nodelist())
+                get_term_ref_label_verbatim(node.flmarg_ref_term)
         else:
-            node.flm_term_flm_show_term_nodelist = node_args['term'].get_content_nodelist()
+            node.flmarg_ref_term = None
+            node.flm_term_flm_show_term_nodelist = term_nodelist
             node.flm_term_flm_ref_label_verbatim = \
-                get_term_ref_label_verbatim(node.flm_term_flm_show_term_nodelist)
+                get_term_ref_label_verbatim(term_nodelist)
         
         node.flmarg_ref = (self.defterm_ref_type, node.flm_term_flm_ref_label_verbatim)
         node.flm_ref_info = {
@@ -332,7 +338,7 @@ class RefTermMacro(FLMMacroSpecBase):
             annotations=[],
         )
 
-    def recompose_pure_latex(self, node, recomposer, visited_results_arguments, **kwargs):
+    def recompose_pure_latex(self, node, recomposer):
 
         ref_type = self.defterm_ref_type
         ref_label = node.flm_term_flm_ref_label_verbatim
@@ -340,11 +346,23 @@ class RefTermMacro(FLMMacroSpecBase):
         safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
         safe_label = safe_label_info['safe_label']
 
+        term_flm_show_term_nodelist = node.flm_term_flm_show_term_nodelist
+        show_term_recomposed = recomposer.subrecompose(
+            term_flm_show_term_nodelist
+        )
+
+        ref_term_recomposed = None
+        if node.flmarg_ref_term is not None:
+            ref_term_recomposed = recomposer.subrecompose(
+                node.flmarg_ref_term
+            )
+        term_flm_ref_label_verbatim = node.flm_term_flm_ref_label_verbatim
+
         return (
             '\\flmTerm{' + node.macroname + '}{'+safe_label+'}'
-            + ('{' + visited_results_arguments[0] + '}'
-               if visited_results_arguments[0] else '{}')
-            + visited_results_arguments[1]
+            + ('{' + ref_term_recomposed + '}'
+               if ref_term_recomposed else '{}')
+            + '{' + show_term_recomposed + '}'
         )
 
 

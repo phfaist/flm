@@ -210,7 +210,7 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
     # recompose pure latex
     #
 
-    def recompose_pure_latex(self, node, recomposer, **kwargs):
+    def recompose_pure_latex(self, node, recomposer):
 
         magnification = None
 

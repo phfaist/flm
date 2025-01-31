@@ -50,8 +50,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             environmentname,
             arguments_spec_list=[
                 optional_text_arg,
-                #flmspecinfo.label_arg
-                thmlabel_arg
+                thmlabel_arg,
             ],
         )
         self.theorem_spec = theorem_spec
@@ -357,15 +356,14 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             annotations=[ self.environmentname, 'p-block' ],
         )
 
-    def recompose_pure_latex(self, node, recomposer, visited_results_arguments,
-                             visited_results_body, **kwargs):
+    def recompose_pure_latex(self, node, recomposer):
 
         s = r'\begin{' + node.environmentname + '}'
 
         if not node.flmarg_thmtitle['has_relation_ref']:
             # a simple title.
-            if visited_results_arguments[0] is not None:
-                s += visited_results_arguments[0]
+            if node.flmarg_thmtitle['nodelist'] is not None:
+                s += '[{' + recomposer.subrecompose( node.flmarg_thmtitle['nodelist'] ) + '}]'
         else:
             rel_ref_type, rel_ref_label = node.flmarg_thmtitle['relation_ref_target']
             safe_label_info = recomposer.make_safe_label('ref', rel_ref_type, rel_ref_label)
@@ -383,7 +381,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
             s += r'\label{' + safe_label_info['safe_label'] + '}'
 
-        s += "".join(visited_results_body)
+        s += recomposer.recompose_nodelist(node.nodelist, node)
 
         s += r'\end{' + node.environmentname + '}'
         

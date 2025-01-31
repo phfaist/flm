@@ -117,7 +117,7 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
         )
 
 
-    def recompose_pure_latex(self, node, recomposer, visited_results_arguments, **kwargs):
+    def recompose_pure_latex(self, node, recomposer):
 
         heading_macroname = node.macroname
 
@@ -135,11 +135,13 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
         #     flmspecinfo.label_arg
         # ],
         
-        if visited_results_arguments[0] is not None:
-            s += visited_results_arguments[0] # star
+        if node.nodeargd is not None:
 
-        if visited_results_arguments[1] is not None:
-            s += visited_results_arguments[1] # text argument
+            if node.nodeargd.argnlist[0] is not None:
+                s += recomposer.subrecompose( node.nodeargd.argnlist[0] ) # star
+
+            if node.nodeargd.argnlist[1] is not None:
+                s += recomposer.subrecompose( node.nodeargd.argnlist[1] ) # text argument
 
         # add labels
         for ref_type, ref_label in node.flmarg_labels:

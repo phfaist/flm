@@ -41,6 +41,17 @@ class FLMNodesFlmRecomposer(LatexNodesLatexRecomposer):
         return self.rx_escape_chars_text.sub(lambda m: '\\'+m.group(), chars)
 
 
+    def subrecompose(self, node):
+        r"""
+        Helper method for calling within FLMSpecInfo `recompose_***()` functions.
+
+        [In the future, we should add possibilities to create a sub-recomposer
+        object/visitor where new sub-options can be set just for recomposing
+        this specific node and its children.]
+        """
+        return node.accept_node_visitor(self)
+
+
     # ---
 
     def _attempt_node_specinfo_recompose(self, node, **kwargs):
@@ -61,23 +72,23 @@ class FLMNodesFlmRecomposer(LatexNodesLatexRecomposer):
         return self.escape_chars(chars, n.parsing_state)
 
 
-    def visit_macro_node(self, node, **kwargs):
-        recomposed = self._attempt_node_specinfo_recompose(node, **kwargs)
+    def node_standard_process_macro(self, node):
+        recomposed = self._attempt_node_specinfo_recompose(node)
         if recomposed is not False:
             return recomposed
-        return super().visit_macro_node(node, **kwargs)
+        return super().node_standard_process_macro(node)
 
-    def visit_environment_node(self, node, **kwargs):
-        recomposed = self._attempt_node_specinfo_recompose(node, **kwargs)
+    def node_standard_process_environment(self, node):
+        recomposed = self._attempt_node_specinfo_recompose(node)
         if recomposed is not False:
             return recomposed
-        return super().visit_environment_node(node, **kwargs)
+        return super().node_standard_process_environment(node)
 
-    def visit_specials_node(self, node, **kwargs):
-        recomposed = self._attempt_node_specinfo_recompose(node, **kwargs)
+    def node_standard_process_specials(self, node):
+        recomposed = self._attempt_node_specinfo_recompose(node)
         if recomposed is not False:
             return recomposed
-        return super().visit_specials_node(node, **kwargs)
+        return super().node_standard_process_specials(node)
 
     def visit_unknown_node(self, node, **kwargs):
         recomposed = self._attempt_node_specinfo_recompose(node, **kwargs)

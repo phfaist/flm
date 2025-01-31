@@ -882,7 +882,7 @@ class CellsEnvironment(FLMEnvironmentSpecBase):
     # recompose pure latex
     #
 
-    def recompose_pure_latex(self, node, recomposer, **kwargs):
+    def recompose_pure_latex(self, node, recomposer):
 
         recopt_cells = recomposer.get_options('cells')
         if recopt_cells.get('keep_as_is', False):
@@ -905,7 +905,7 @@ class CellsEnvironment(FLMEnvironmentSpecBase):
             render_context=render_context,            
             render_cell_nodelist_contents_fn= (
                 lambda nodelist, render_context:
-                recomposer.recompose_flm_text(nodelist)
+                recomposer.subrecompose(nodelist)
             )
         )
 

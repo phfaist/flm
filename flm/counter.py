@@ -45,7 +45,7 @@ def romancounter(n, lower=True, zero=''):
     Returns a string representing the number `n` as a roman numeral (I, II,
     III, IV, etc.).
     
-    If `lower=True` (the defualt), then lowercase letters are used; uppercase
+    If `lower=True` (the default), then lowercase letters are used; uppercase
     letters are used if `lower=False`.
 
     The argument `zero` is a string to return in case `n` is equal to zero (by

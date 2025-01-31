@@ -343,9 +343,7 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
     # recompose pure latex
     #
 
-    def recompose_pure_latex(self, node, recomposer,
-                             visited_results_arguments,
-                             visited_results_body, **kwargs):
+    def recompose_pure_latex(self, node, recomposer):
 
         recopt_floats = recomposer.get_options('floats')
         if recopt_floats.get('keep_as_is', False):
@@ -373,17 +371,16 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
                 env_args += "{Bare}"
 
         s = r'\begin{' + env_name + r'}' + env_args
-        s += "".join(visited_results_arguments)
+        s += recomposer.descend_into_parsed_arguments(node.nodeargd)
 
-        # we'll have to recompose body ourselves, oh well (esp. because of label)
-        #s += "".join(visited_results_body)  # nope...
+        # we'll have to recompose body ourselves (esp. because of label)
 
-        s += recomposer.recompose_pure_latex(node.flm_float_content_nodelist) ["latex"]
+        s += recomposer.subrecompose(node.flm_float_content_nodelist)
         
         if has_caption:
-            s += recomposer.recompose_pure_latex(
+            s += recomposer.subrecompose(
                 node.flm_float_caption['caption_node']
-            ) ["latex"]
+            )
 
         if has_label:
             ref_type = node.flm_float_label['ref_label_prefix']

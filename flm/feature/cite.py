@@ -549,7 +549,7 @@ class CiteMacro(FLMMacroSpecBase):
             node,
         )
 
-    def recompose_pure_latex(self, node, recomposer, **kwargs):
+    def recompose_pure_latex(self, node, recomposer):
 
         # Some processing to do here.
         cite_items = node.flmarg_cite_items
@@ -593,9 +593,9 @@ class CiteMacro(FLMMacroSpecBase):
 
         if len(cite_extras):
             for safe_label, extra in cite_extras:
-                extra_latex_info = recomposer.recompose_pure_latex(extra)
+                extra_latex_info = recomposer.subrecompose(extra)
                 s += (
-                    '\\protect\\cite[{' + extra_latex_info["latex"] + '}]{'
+                    '\\protect\\cite[{' + extra_latex_info + '}]{'
                     + safe_label + '}'
                 )
 
