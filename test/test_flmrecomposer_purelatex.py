@@ -41,7 +41,7 @@ class TestFLMPureLatexRecomposer(unittest.TestCase):
         )
 
 
-    def test_simple_macro(self):
+    def test_simple_math(self):
         
         env = mk_flm_environ()
 
@@ -49,7 +49,35 @@ class TestFLMPureLatexRecomposer(unittest.TestCase):
 \begin{align}
   x &= 0; \\[1ex]
   z &= 1.
-\end{align}'''
+\end{align}
+'''
+
+        frag = env.make_fragment(
+            s,
+            what='example text fragment'
+        )
+
+        recomposer = FLMPureLatexRecomposer({})
+
+        result = recomposer.recompose_pure_latex(frag.nodes)
+
+        self.assertEqual(
+            result["latex"],
+            s
+        )
+
+    def test_simple_math_2(self):
+        
+        env = mk_flm_environ()
+
+        s = r'''
+\begin{align}
+   x &= 0;
+   \label{eq:one}\\
+   z &= 1;
+   \label{eq:two}
+\end{align}
+'''.strip()
 
         frag = env.make_fragment(
             s,
@@ -67,7 +95,7 @@ class TestFLMPureLatexRecomposer(unittest.TestCase):
 
         self.assertEqual(
             result["latex"],
-            s
+            s.replace('eq:one', 'ref1').replace('eq:two', 'ref2')
         )
 
 

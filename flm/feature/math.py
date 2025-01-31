@@ -1,4 +1,5 @@
 
+import re
 import logging
 logger = logging.getLogger(__name__)
 
@@ -468,7 +469,14 @@ class MathEnvironment(FLMEnvironmentSpecBase):
             for n in line_infos['line_nodelist']:
                 s_line += recomposer.recompose_pure_latex( n ) ["latex"]
 
-            #s_line = s_line.strip()  # ??  No, bad idea
+            #s_line = s_line.strip()  # ??  Sounds like a bad idea
+
+            # remove only newlines, avoid
+            # accidentally inserting a paragraph
+            line_has_final_newline = False
+            while s_line[len(s_line)-1] == '\n':
+                line_has_final_newline = True #s_line[len(s_line)-1] + line_final_newlines
+                s_line = s_line[:len(s_line)-1]
 
             if line_infos['custom_tag_flm_text'] is not None:
                 s_line += r'\tag*{' + recomposer.recompose_pure_latex(
@@ -488,6 +496,12 @@ class MathEnvironment(FLMEnvironmentSpecBase):
                     line_infos['newline_node']
                 ) ["latex"]
 
+            #s_line += '\n' # for readability
+
+            # restore existing newline char for readability
+            if line_has_final_newline:
+                s_line += '\n'
+
             logger.debug("adding line = \n%r\n... from line_infos=%r", s_line, line_infos)
 
             s_lines.append(s_line)
@@ -497,6 +511,7 @@ class MathEnvironment(FLMEnvironmentSpecBase):
         s += r'\end{' + node.environmentname + '}'
 
         return s
+
 
 
 class MathEqrefMacro(FLMMacroSpecBase):
