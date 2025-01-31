@@ -462,6 +462,7 @@ class MathEnvironment(FLMEnvironmentSpecBase):
 
         # do the body line-by-line, correcting labels as necessary.
         s_lines = []
+        last_line_already_has_newline = False
         for line_infos in node.flm_equation_lines_labels_infos:
 
             s_line = ''
@@ -471,12 +472,47 @@ class MathEnvironment(FLMEnvironmentSpecBase):
 
             #s_line = s_line.strip()  # ??  Sounds like a bad idea
 
-            # remove only newlines, avoid
-            # accidentally inserting a paragraph
-            line_has_final_newline = False
-            while s_line[len(s_line)-1] == '\n':
-                line_has_final_newline = True #s_line[len(s_line)-1] + line_final_newlines
-                s_line = s_line[:len(s_line)-1]
+            # remove
+            # s_line_lstripped = s_line.lstrip()
+            # initial_newlines = s_line[:len(s_line)-len(s_line_lstripped)]
+            # if not is_first_line:
+            #     # strip initial newlines
+            #     s_line = s_line_lstripped
+
+            edge_newlines_info = {
+                'initial': '',
+                'final': '',
+            }
+
+            def _repl_newline(m):
+                nlindent = '\n'+m.group('indent')
+                if m.start() == 0:
+                    if last_line_already_has_newline:
+                        edge_newlines_info['initial'] = nlindent
+                        return ''
+                    return nlindent
+                if m.end() == len(s_line):
+                    edge_newlines_info['final'] = nlindent
+                    return ''
+                return nlindent
+            
+            # print("****DEBUG**** s_line=")
+            # print("|" + s_line + "|")
+            # print("****")
+
+            # simplify all newlines -- avoid two subsequent newlines, e.g., caused by
+            # removing a \label{} command that was on its own line.
+            #s_line = _rx_newline_spaces.sub(lambda m: '\n'+m.group('indent'), s_line)
+            s_line = _rx_newline_spaces.sub(_repl_newline, s_line)
+
+            # # remove
+            # s_line_rstripped = s_line.rstrip()
+            # final_newlines = s_line[len(s_line_rstripped):]
+            # s_line = s_line_rstripped
+
+            # print("****DEBUG**** s_line=")
+            # print("|" + s_line + "|")
+            # print("****")
 
             if line_infos['custom_tag_flm_text'] is not None:
                 s_line += r'\tag*{' + recomposer.recompose_pure_latex(
@@ -499,18 +535,22 @@ class MathEnvironment(FLMEnvironmentSpecBase):
             #s_line += '\n' # for readability
 
             # restore existing newline char for readability
-            if line_has_final_newline:
-                s_line += '\n'
+            final_newlines = edge_newlines_info['final']
+            s_line += final_newlines
 
             logger.debug("adding line = \n%r\n... from line_infos=%r", s_line, line_infos)
 
             s_lines.append(s_line)
+            last_line_already_has_newline = True if len(final_newlines) else False
 
         s += ''.join( s_lines )
 
         s += r'\end{' + node.environmentname + '}'
 
         return s
+
+
+_rx_newline_spaces = re.compile(r'([ \t]*?\n)+(?P<indent>[ \t]*)')
 
 
 

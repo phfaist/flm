@@ -79,6 +79,13 @@ class TestFLMPureLatexRecomposer(unittest.TestCase):
 \end{align}
 '''.strip()
 
+        result_expected = r'''
+\begin{align}
+   x &= 0;\label{ref1}\\
+   z &= 1;\label{ref2}
+\end{align}
+'''.strip()
+
         frag = env.make_fragment(
             s,
             what='example text fragment'
@@ -92,10 +99,50 @@ class TestFLMPureLatexRecomposer(unittest.TestCase):
         print(s)
         print("*** result=")
         print(result['latex'])
+        print("*** result_expected=")
+        print(result_expected)
 
         self.assertEqual(
             result["latex"],
-            s.replace('eq:one', 'ref1').replace('eq:two', 'ref2')
+            result_expected
+        )
+
+    def test_simple_math_3(self):
+        
+        env = mk_flm_environ()
+
+        s = r'''
+\begin{align}
+   \label{eq:MyEquation}
+   x &= 0.
+\end{align}
+'''.strip()
+
+        result_expected = r'''
+\begin{align}
+   x &= 0.\label{ref1}
+\end{align}
+'''.strip()
+
+        frag = env.make_fragment(
+            s,
+            what='example text fragment'
+        )
+
+        recomposer = FLMPureLatexRecomposer({})
+
+        result = recomposer.recompose_pure_latex(frag.nodes)
+
+        print("*** s=")
+        print(s)
+        print("*** result=")
+        print(result['latex'])
+        print("*** result_expected=")
+        print(result_expected)
+
+        self.assertEqual(
+            result["latex"],
+            result_expected
         )
 
 
@@ -160,7 +207,10 @@ An equation:
 \begin{align}A + B = C\ .\label{eq:MyFancyEquation}\end{align}
 
 Another equation:
-\begin{align}A + B = C\ .\label{eq:MySecondFancyEquation}\end{align}
+\begin{align}
+\label{eq:MySecondFancyEquation}
+  A + B = C\ .
+\end{align}
 
 Test reference to~\eqref{eq:MyFancyEquation}.
 
@@ -187,7 +237,18 @@ More text.
         result = recomposer.recompose_pure_latex(frag.nodes)
 
         result_latex_correct = s \
-            .replace( 'eq:MySecondFancyEquation', 'ref1' ) \
+            .replace(
+                r"""\begin{align}
+\label{eq:MySecondFancyEquation}
+  A + B = C\ .
+\end{align}""",
+                r"""\begin{align}
+  A + B = C\ .\label{ref1}
+\end{align}""",
+            ) \
+            .replace(
+                'eq:MySecondFancyEquation', 'ref1'
+            ) \
             .replace( 'eq:MyFancyEquation', 'ref2' ) \
             .replace( r'\ref{sec:mySubSection}',
                       r'\NoCaseChange{\protect\cref{sec:mySubSection}}' )
