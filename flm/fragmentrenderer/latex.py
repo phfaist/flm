@@ -718,7 +718,7 @@ class LatexFragmentRenderer(FragmentRenderer):
             stab_contents += '&'.join(stab_rowitems) + '\\\\' + '\n'
 
         s = (
-            r'\begin{center}' + '\n'
+            r'\flmCellsBeginCenter' + '\n'
             # Hack for automatic width detection -- typeset table once with 'c'
             # column types; if the width exceeds a maximum set width
             # (0.96\linewidth), then re-typeset the table with 'X[-1]' column
@@ -750,7 +750,7 @@ class LatexFragmentRenderer(FragmentRenderer):
                 + ('X[-1]' * tabwidth) + r'}}' + '\n'
             + r'\fi' + '\n'
         )
-        s += r'\end{center}'
+        s += r'\flmCellsEndCenter '
 
         return s
 
@@ -829,6 +829,8 @@ _latex_preamble_suggested_defs = r"""
 \definecolor{flmTabCellColorYellow}{RGB}{255,255,200}
 \definecolor{flmTabCellColorRed}{RGB}{255,200,200}
 \providecommand\flmCellsHeaderFont{\bfseries}
+\providecommand\flmCellsBeginCenter{\begin{center}}
+\providecommand\flmCellsEndCenter{\end{center}}
 
 
 \providecommand\flmFloatCaption[1]{%
