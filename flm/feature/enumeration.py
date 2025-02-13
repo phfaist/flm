@@ -291,7 +291,9 @@ class Enumeration(FLMEnvironmentSpecBase):
                     self.allowed_item_label_prefixes,
                 )
                 for ref_type, ref_label in items_custom_labels:
-                    safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
+                    safe_label_info = recomposer.make_safe_label(
+                        'ref', ref_type, ref_label, node.latex_walker.resource_info
+                    )
                     s += r'\label{' + safe_label_info['safe_label'] + '}'
 
             s += recomposer.subrecompose( item_content_nodelist )

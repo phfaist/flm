@@ -145,7 +145,9 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
 
         # add labels
         for ref_type, ref_label in node.flmarg_labels:
-            safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
+            safe_label_info = recomposer.make_safe_label(
+                'ref', ref_type, ref_label, node.latex_walker.resource_info
+            )
             s += r'\label{' + safe_label_info['safe_label'] + '}'
 
         return s

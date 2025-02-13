@@ -520,7 +520,9 @@ class MathEnvironment(FLMEnvironmentSpecBase):
 
             for label_info in line_infos['labels']:
                 (ref_type, ref_label) = label_info['label']
-                safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
+                safe_label_info = recomposer.make_safe_label(
+                    'ref', ref_type, ref_label, node.latex_walker.resource_info
+                )
                 s_line += r'\label{' + safe_label_info['safe_label'] + '}'
 
             if line_infos['nonumber']:
@@ -640,7 +642,7 @@ class MathEqrefMacro(FLMMacroSpecBase):
     def recompose_pure_latex(self, node, recomposer):
         
         safe_label_info = recomposer.make_safe_label(
-            'ref', node.flmarg_ref[0], node.flmarg_ref[1]
+            'ref', node.flmarg_ref[0], node.flmarg_ref[1], node.latex_walker.resource_info
         )
 
         return r'\eqref{' + safe_label_info['safe_label'] + '}'

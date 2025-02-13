@@ -529,7 +529,9 @@ class RefMacro(FLMMacroSpecBase):
         safe_ref_labels = []
         for ref_type, ref_label in node.flm_ref_info['ref_list']:
             safe_ref_labels.append(
-                recomposer.make_safe_label('ref', ref_type, ref_label)
+                recomposer.make_safe_label(
+                    'ref', ref_type, ref_label, node.latex_walker.resource_info
+                )
             )
         display_content_nodelist = node.flm_ref_info['display_content_nodelist']
         if display_content_nodelist is not None \

@@ -385,7 +385,9 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
         if has_label:
             ref_type = node.flm_float_label['ref_label_prefix']
             ref_label = node.flm_float_label['ref_label']
-            safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
+            safe_label_info = recomposer.make_safe_label(
+                'ref', ref_type, ref_label, node.latex_walker.resource_info
+            )
             s += r'\label{' + safe_label_info['safe_label'] + '}'
 
         s += r'\end{' + env_name + r'}'

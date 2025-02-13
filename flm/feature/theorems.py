@@ -366,7 +366,9 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
                 s += '[{' + recomposer.subrecompose( node.flmarg_thmtitle['nodelist'] ) + '}]'
         else:
             rel_ref_type, rel_ref_label = node.flmarg_thmtitle['relation_ref_target']
-            safe_label_info = recomposer.make_safe_label('ref', rel_ref_type, rel_ref_label)
+            safe_label_info = recomposer.make_safe_label(
+                'ref', rel_ref_type, rel_ref_label, node.latex_walker.resource_info
+            )
             s += '[*'
             if not node.flmarg_thmtitle['relation_ref_show_ref']:
                 s += '*'
@@ -378,7 +380,9 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
 
         # any pinned label(s), if applicable
         for ref_type, ref_label in node.flmarg_labels:
-            safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
+            safe_label_info = recomposer.make_safe_label(
+                'ref', ref_type, ref_label, node.latex_walker.resource_info
+            )
             s += r'\label{' + safe_label_info['safe_label'] + '}'
 
         s += recomposer.recompose_nodelist(node.nodelist, node)

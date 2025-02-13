@@ -105,21 +105,40 @@ class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
             f"pure latex FLM export: ‘{self.packages[packagename]['options']}’ ≠ ‘{options}’"
         )
 
-    def make_safe_label(self, ref_domain, ref_type, ref_label):
+    def make_safe_label(self, ref_domain, ref_type, ref_label, resource_info):
         # ref_domain is like 'ref' or 'cite'
 
-        ref_full_label = f"{ref_type}:{ref_label}"
+        use_raw = False
+        ref_to_global_key = lambda ref_domain, ref_type, ref_label, resource_info: \
+            f"{ref_type}:{ref_label}"
 
-        if ref_domain in self.safe_ref_types and self.safe_ref_types[ref_domain].get(ref_type):
-            # ref is automatically safe, return it as is
-            return {'safe_label': ref_full_label}
+        if ref_domain in self.safe_ref_types:
+            d = self.safe_ref_types[ref_domain].get(ref_type)
+            if not d:
+                pass
+            elif d is True or d is False:
+                use_raw = d
+            else:
+                # config dictionary
+                if 'use_raw' in d:
+                    use_raw = d['use_raw']
+                if 'ref_to_global_key' in d and d['ref_to_global_key']:
+                    ref_to_global_key = d['ref_to_global_key']
+
+        if use_raw:
+            # ref is known to already be safe, return it as is
+            return {'safe_label': f"{ref_type}:{ref_label}"}
+
+        ref_global_key = ref_to_global_key(
+            ref_domain, ref_type, ref_label, resource_info
+        )
 
         if ref_domain not in self.label_to_safe:
             self.label_to_safe[ref_domain] = _Dict()
             self.safe_to_label[ref_domain] = _Dict()
 
         label_to_safe_map = self.label_to_safe[ref_domain]
-        value = label_to_safe_map.get(ref_full_label, None)
+        value = label_to_safe_map.get(ref_global_key, None)
         if value is not None:
             # we already have a safe version of this label
             return value
@@ -127,10 +146,15 @@ class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
         safe = f"{ref_domain}{str(self.safe_label_counter)}"
         self.safe_label_counter += 1
 
-        sinfo = {'safe_label': safe}
+        sinfo = { 'safe_label': safe }
 
-        self.label_to_safe[ref_domain][ref_full_label] = sinfo
-        self.safe_to_label[ref_domain][safe] = ref_full_label
+        self.label_to_safe[ref_domain][ref_global_key] = sinfo
+        self.safe_to_label[ref_domain][safe] = {
+            "ref_global_key": ref_global_key,
+            "ref_type": ref_type,
+            "ref_label": ref_label,
+            "resource_info": resource_info,
+        }
 
         return sinfo
 

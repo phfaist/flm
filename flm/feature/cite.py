@@ -576,7 +576,9 @@ class CiteMacro(FLMMacroSpecBase):
             cite_label = f"{cite_prefix}:{cite_key}"
 
             if use_safe_labels:
-                safe_info = recomposer.make_safe_label('cite', cite_prefix, cite_key)
+                safe_info = recomposer.make_safe_label(
+                    'cite', cite_prefix, cite_key, node.latex_walker.resource_info
+                )
                 #safe_label = safe_info["safe_label"]
                 cite_label = safe_info["safe_label"]
 

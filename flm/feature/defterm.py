@@ -196,7 +196,9 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
         # turned into a safe label --
         for referenceable_info in node.flm_referenceable_infos:
             for ref_type, ref_label in referenceable_info.labels:
-                safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
+                safe_label_info = recomposer.make_safe_label(
+                    'ref', ref_type, ref_label, node.latex_walker.resource_info
+                )
                 safe_label = safe_label_info['safe_label']
                 s += r'\label{' + str(safe_label) + '}'
             
@@ -343,7 +345,9 @@ class RefTermMacro(FLMMacroSpecBase):
         ref_type = self.defterm_ref_type
         ref_label = node.flm_term_flm_ref_label_verbatim
 
-        safe_label_info = recomposer.make_safe_label('ref', ref_type, ref_label)
+        safe_label_info = recomposer.make_safe_label(
+            'ref', ref_type, ref_label, node.latex_walker.resource_info
+        )
         safe_label = safe_label_info['safe_label']
 
         term_flm_show_term_nodelist = node.flm_term_flm_show_term_nodelist
