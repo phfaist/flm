@@ -346,7 +346,10 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
     def recompose_pure_latex(self, node, recomposer):
 
         recopt_floats = recomposer.get_options('floats')
-        if recopt_floats.get('keep_as_is', False):
+        keep_as_is = recopt_floats.get('keep_as_is', False)
+        captioncmd_for_num_only = recopt_floats.get('captioncmd_for_num_only', r'\caption{}')
+
+        if keep_as_is:
             return False # use default recomposer.
 
         # determine if the float has a number and a caption
@@ -383,6 +386,10 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
             )
 
         if has_label:
+            if not has_caption:
+                # we need a \caption{} command in LaTeX to force the figure number
+                # to be shown!
+                s += captioncmd_for_num_only
             ref_type = node.flm_float_label['ref_label_prefix']
             ref_label = node.flm_float_label['ref_label']
             safe_label_info = recomposer.make_safe_label(
