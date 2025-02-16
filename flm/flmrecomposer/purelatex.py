@@ -346,8 +346,6 @@ default_purelatex_defs_makeatletter = r"""
   \fi
   \endgroup
 }
-\providecommand\flmverbatimFormatDefault{}
-
 
 
 \def\flmInlineVerb#1#2{% cf. \verb definition in LaTeX sources latex.ltx
@@ -421,7 +419,7 @@ default_purelatex_defs_makeatletter = r"""
   \newenvironment{verbatimtext}{\flmLInlineVerbatimEnv{verbatimtext}}{}
 \fi
 
-\providecommand\flmInlineVerbatimFormatDefault[1]{}
+\providecommand\flmInlineVerbatimFormatDefault[1]{#1}
 
 
 \def\verba{\flmInlineVerb{\itshape}{}}
