@@ -1,6 +1,9 @@
 
 from ...fragmentrenderer._base import FragmentRenderer
-from ...flmrecomposer.purelatex import FLMPureLatexRecomposer
+from ...flmrecomposer.purelatex import (
+    FLMPureLatexRecomposer,
+    default_purelatex_defs_makeatletter,
+)
 
 from ._base import RenderWorkflow
 from .templatebasedworkflow import TemplateBasedRenderWorkflow
@@ -35,7 +38,12 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
 
     def get_wstyle_information(self):
         return {
-            'preamble_suggested_defs': _latex_wstyle_suggested_preamble_defs,
+            'package_suggested_defs': default_purelatex_defs_makeatletter,
+            'preamble_suggested_defs': (
+                r'\makeatletter' + '\n'
+                + default_purelatex_defs_makeatletter
+                + '\n' + r'\makeatother' + '\n'
+            ),
         }
 
     def recompose_fragment(self, recomposer, fragment):
@@ -121,111 +129,6 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
         return final_content
 
 
-# --------
-
-_latex_wstyle_suggested_preamble_defs = r"""
-\makeatletter
-
-\providecommand\flmFinalPreambleSetup{}
-
-% For references -- pin down custom labels wherever we want for \cref
-\NewDocumentCommand{\flmL@crefCustomLabel}{O{flmLCustomLabel}m+m}{%
-  \begingroup
-    \cref@constructprefix{#1}{\cref@result}%
-    \protected@edef\@currentlabel{%
-      #3}%
-    \protected@edef\@currentlabelname{#3}%
-    \protected@edef\cref@currentlabel{%
-      [#1][][\cref@result]%
-      #3%
-    }%
-    \flmL@cref@label[#1]{#2}%
-  \endgroup
-}
-\g@addto@macro\flmFinalPreambleSetup{%
-  \ifcsname crefname\noexpand\endcsname
-    \crefname{flmLCustomLabel}{}{}%
-    \Crefname{flmLCustomLabel}{}{}%
-  \fi}
-\newcommand\flmLDefLabelText[2]{%
-  \begingroup
-    \let\flmL@cref@label\label
-    \def\label##1{%
-      \flmL@crefCustomLabel{##1}{#1}%
-    }%
-    #2%
-  \endgroup
-}
-
-
-% For defterms -- 
-
-\newif\ifdeftermShowTerm
-\deftermShowTermfalse
-\def\defterm#1\label#2{%
-  \begingroup
-  \par\vspace{\abovedisplayskip}%
-  \flmDeftermFormat
-  \phantomsection
-  \label{#2}%
-  \edef\flmL@cur@defterm@label{\flmL@cur@defterm@label,#2,}%
-  \ifdeftermShowTerm \flmDisplayTerm{#1: }\fi
-}
-\def\flmL@cur@defterm@label{}
-\def\enddefterm{%
-  \par
-  \vspace{\belowdisplayskip}%
-  \endgroup
-}
-\def\flmTerm#1#2#3#4{%
-  \edef\x{\noexpand\in@{,#2,}{\flmL@cur@defterm@label}}%
-  \x\ifin@
-    \termDisplayInDefterm{#4}%
-  \else
-    \flmDisplayTermRef{#2}{#4}%
-  \fi
-}
-\robustify\flmTerm
-\def\flmDisplayTermRef#1#2{%
-  \hyperref[#1]{\termDisplay{#2}}%
-}
-\def\termDisplayInDefterm#1{%
-  \textbf{\textit{#1}}%
-}
-\def\termDisplay#1{%
-  #1%
-}
-\def\flmFloat#1#2{%
-  \edef\flmFloat@curfloatenv{#1}%
-  \edef\flmFloat@usefloatenv{#1}%
-  \edef\flmFloat@useenvargs{\csname flmFloatPlacementArgs#2\endcsname}%
-  \ifcsname flmFloatSetUseEnv#1\endcsname
-    \csname flmFloatSetUseEnv#1\endcsname
-  \fi
-  \ifcsname flmFloatSetUseConfig#2\endcsname
-    \csname flmFloatSetUseConfig#2\endcsname
-  \fi
-  \edef\x{%
-    \noexpand\begin{\flmFloat@usefloatenv}\expandonce\flmFloat@useenvargs}%
-  \x
-  \centering
-}
-\def\endflmFloat{%
-  \expandafter\end\expandafter{\flmFloat@usefloatenv}%
-}
-\def\flmFloatPlacementArgsNumCap{[tbph]}
-\def\flmFloatPlacementArgsNumOnly{[tbph]}
-\def\flmFloatPlacementArgsCapOnly{[h]}
-\def\flmFloatPlacementArgsBare{[h]}
-\def\flmFloatSetUseConfigBare{%
-  \edef\flmFloat@usefloatenv{center}%
-  \def\flmFloat@useenvargs{%
-    \edef\@captype{\flmFloat@curfloatenv}%
-  }%
-}
-\let\flmFloatSetUseConfigCapOnly\flmFloatSetUseConfigBare
-\makeatother
-"""
 
 
 # --------

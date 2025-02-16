@@ -770,11 +770,13 @@ _rx_delayed_markers = re.compile(r'\\FLMDLYD\{(?P<key>\d+)\}')
 
 _latex_preamble_suggested_defs = r"""
 
-\usepackage{amsmath}
-\usepackage{amssymb}
+\providecommand\flmRequirePackage[2][]{\usepackage[#1]{#2}}
 
-\usepackage{graphicx}
-\usepackage{xcolor}
+\flmRequirePackage{amsmath}
+\flmRequirePackage{amssymb}
+
+\flmRequirePackage{graphicx}
+\flmRequirePackage{xcolor}
 
 \providecommand\flmFinalPreambleSetup{}
 
@@ -822,7 +824,7 @@ _latex_preamble_suggested_defs = r"""
 \fi
 
 % for cells/tables
-\usepackage{tabularray}
+\flmRequirePackage{tabularray}
 \UseTblrLibrary{booktabs}
 \definecolor{flmTabCellColorGreen}{RGB}{200,255,200}
 \definecolor{flmTabCellColorBlue}{RGB}{200,220,255}
@@ -853,7 +855,8 @@ class FragmentRendererInformation:
     @staticmethod
     def get_style_information(fragment_renderer):
         return {
-            'preamble_suggested_defs': _latex_preamble_suggested_defs
+            'package_suggested_defs': _latex_preamble_suggested_defs,
+            'preamble_suggested_defs': _latex_preamble_suggested_defs,
         }
 
     format_name = 'latex'
