@@ -235,7 +235,7 @@ default_purelatex_defs_makeatletter = r"""
 % For defterms -- 
 
 \newif\ifdeftermShowTerm
-\deftermShowTermfalse
+\deftermShowTermtrue
 \def\flmL@defterm#1\label#2{%
   \begingroup
   \par\vspace{\abovedisplayskip}%
