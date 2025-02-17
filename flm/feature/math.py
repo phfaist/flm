@@ -262,8 +262,9 @@ class MathEnvironment(FLMEnvironmentSpecBase):
         # find and register and \label nodes
         node.flm_equation_lines_labels_infos = []
 
-        if not self.is_numbered:
-            return node
+        # ### No, we want to split lines also in unnumbered equations...
+        # if not self.is_numbered:
+        #     return node
 
         def init_last_line_info():
             return {
@@ -344,7 +345,7 @@ class MathEnvironment(FLMEnvironmentSpecBase):
         # a consistency check -- check that we don't have \label and \nonumber
         # on the same line
         for linej, lineinfo in enumerate(node.flm_equation_lines_labels_infos):
-            if lineinfo['nonumber'] and \
+            if (not self.is_numbered or lineinfo['nonumber']) and \
                (len(lineinfo['labels']) or lineinfo['custom_tag_flm_text']):
                 found_stuff_list = []
                 if len(lineinfo['labels']):
@@ -360,7 +361,7 @@ class MathEnvironment(FLMEnvironmentSpecBase):
                 found_stuff = " and ".join(found_stuff_list)
                 raise LatexWalkerParseError(
                     f"You can't have \\nonumber and \\label/\\tag on the same equation line, "
-                    f"found {found_stuff}",
+                    f"found {found_stuff} in environment ‘{node.environmentname}’",
                     pos=(lineinfo['newline_node'] or node).pos
                 )
 
@@ -458,13 +459,22 @@ class MathEnvironment(FLMEnvironmentSpecBase):
 
         recopt_math = recomposer.get_options('math')
         surround_display_math = recopt_math.get('surround_display_math', ('', '') )
+        emit_flm_math_environment_macro = recopt_math.get(
+            'emit_flm_math_environment_macro',
+            False
+        )
 
         s += surround_display_math[0]
 
         # we'll have to recompose the body again, oh well ...
 
-        s += r'\begin{' + node.environmentname + '}'
-        s += recomposer.descend_into_parsed_arguments(node.nodeargd)
+        if emit_flm_math_environment_macro:
+            s += r'\flmMathEnvironment{' + node.environmentname + '}{'
+            s +=   recomposer.descend_into_parsed_arguments(node.nodeargd)
+            s += '}{'
+        else:
+            s += r'\begin{' + node.environmentname + '}'
+            s += recomposer.descend_into_parsed_arguments(node.nodeargd)
 
         # do the body line-by-line, correcting labels as necessary.
         s_lines = []
@@ -553,7 +563,10 @@ class MathEnvironment(FLMEnvironmentSpecBase):
 
         s += ''.join( s_lines )
 
-        s += r'\end{' + node.environmentname + '}'
+        if emit_flm_math_environment_macro:
+            s += '}'
+        else:
+            s += r'\end{' + node.environmentname + '}'
 
         s += surround_display_math[1]
 

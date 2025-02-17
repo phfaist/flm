@@ -66,6 +66,32 @@ class TestFLMPureLatexRecomposer(unittest.TestCase):
             s
         )
 
+
+    def test_simple_math_1a(self):
+        
+        env = mk_flm_environ()
+
+        s = r'''Single-char macro.\@;
+\begin{align*}
+  x &= 0; \\[1ex]
+  z &= 1.
+\end{align*}
+'''
+
+        frag = env.make_fragment(
+            s,
+            what='example text fragment'
+        )
+
+        recomposer = FLMPureLatexRecomposer({})
+
+        result = recomposer.recompose_pure_latex(frag.nodes)
+
+        self.assertEqual(
+            result["latex"],
+            s
+        )
+
     def test_simple_math_1b(self):
         
         env = mk_flm_environ()
@@ -85,6 +111,27 @@ class TestFLMPureLatexRecomposer(unittest.TestCase):
         self.assertEqual(
             result["latex"],
             r'\mathbefore ' + s + r'\mathafter '
+        )
+
+    def test_simple_math_1c(self):
+        
+        env = mk_flm_environ()
+
+        s = r'''\begin{align*} ABC\end{align*}'''
+
+        frag = env.make_fragment( s, what='example text fragment' )
+
+        recomposer = FLMPureLatexRecomposer({
+            "math": {
+                "emit_flm_math_environment_macro": True,
+            },
+        })
+
+        result = recomposer.recompose_pure_latex(frag.nodes)
+
+        self.assertEqual(
+            result["latex"],
+            r'\flmMathEnvironment{align*}{}{ ABC}'
         )
 
     def test_simple_math_2(self):
