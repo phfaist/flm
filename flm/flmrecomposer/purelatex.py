@@ -232,33 +232,57 @@ default_purelatex_defs_makeatletter = r"""
   \endgroup
 }
 
+
+
+\def\flmL@parse@labels#1{%
+  \def\flmL@val@labels{}%
+  \def\flmL@val@firstlabel{}%
+  \flmL@parse@labels@maybelbl{#1}%
+}
+\def\flmL@val@labels{}%
+\def\flmL@val@firstlabel{}%
+\def\flmL@parse@labels@maybelbl#1{%
+  \@ifnextchar\label{\flmL@parse@labels@lbl{#1}}{#1}%
+}
+\def\flmL@parse@labels@lbl#1\label#2{%
+  \if\relax\detokenize\expandafter{\flmL@val@firstlabel}\relax
+    % first label
+    \def\flmL@val@firstlabel{#2}%
+    \def\flmL@val@labels{#2}%
+  \else
+    \edef\flmL@val@labels{\expandafter\noexpand\flmL@val@labels,#2}%
+  \fi
+  \flmL@parse@labels@maybelbl{#1}%
+}
+
+
+
+
 % For defterms -- 
 
 \newif\ifdeftermShowTerm
 \deftermShowTermtrue
 \def\flmL@defterm#1{%
   \begingroup
-  \def\flmL@tmp@deftermterm{#1}%
-  \def\flmL@tmp@deftermfirstlabel{}%
+  \def\flmL@val@deftermterm{#1}%
   \par\vspace{\abovedisplayskip}%
   \flmDeftermFormat
   \phantomsection
-  \flmL@defterm@maybelbl
-}
-\def\flmL@defterm@maybelbl{%
-  \@ifnextchar\label{\flmL@defterm@lbl}{\flmL@defterm@next}%
-}
-\def\flmL@defterm@lbl\label#1{%
-  \if\relax\detokenize\expandafter{\flmL@tmp@deftermfirstlabel}\relax
-    \def\flmL@tmp@deftermfirstlabel{#1}%
-  \fi
-  \flmLDefLabelText{\flmL@tmp@deftermterm}{\label{#1}}%
-  \flmL@defterm@maybelbl
+  \flmL@parse@labels\flmL@defterm@next
 }
 \def\flmL@defterm@next{%
-  \edef\flmL@cur@defterm@label{\flmL@cur@defterm@label,\flmL@tmp@deftermfirstlabel,}%
-  \ifdeftermShowTerm \flmDisplayTerm{\flmL@tmp@deftermterm: }\fi
+  \expandafter\flmL@defterm@dolabels\expandafter{\flmL@val@labels}%
+  \edef\flmL@cur@defterm@label{\flmL@cur@defterm@label,\flmL@val@firstlabel,}%
+  \ifdeftermShowTerm \flmDisplayTerm{\flmL@val@deftermterm: }\fi
   \flmL@defterm@done
+}
+\def\flmL@defterm@dolabels#1{%
+  \@for\flmL@tmp:={#1}\do{%
+    \expandafter\flmL@defterm@dolabel\expandafter{\flmL@tmp}%
+  }%
+}
+\def\flmL@defterm@dolabel#1{%
+  \flmLDefLabelText{\flmL@val@deftermterm}{\label{#1}}%
 }
 \def\flmL@defterm@done{}
 %
