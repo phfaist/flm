@@ -454,9 +454,16 @@ class MathEnvironment(FLMEnvironmentSpecBase):
 
     def recompose_pure_latex(self, node, recomposer):
 
+        s = ""
+
+        recopt_math = recomposer.get_options('math')
+        surround_display_math = recopt_math.get('surround_display_math', ('', '') )
+
+        s += surround_display_math[0]
+
         # we'll have to recompose the body again, oh well ...
 
-        s = r'\begin{' + node.environmentname + '}'
+        s += r'\begin{' + node.environmentname + '}'
         s += recomposer.descend_into_parsed_arguments(node.nodeargd)
 
         # do the body line-by-line, correcting labels as necessary.
@@ -547,6 +554,8 @@ class MathEnvironment(FLMEnvironmentSpecBase):
         s += ''.join( s_lines )
 
         s += r'\end{' + node.environmentname + '}'
+
+        s += surround_display_math[1]
 
         return s
 

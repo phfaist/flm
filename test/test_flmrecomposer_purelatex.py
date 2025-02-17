@@ -66,6 +66,27 @@ class TestFLMPureLatexRecomposer(unittest.TestCase):
             s
         )
 
+    def test_simple_math_1b(self):
+        
+        env = mk_flm_environ()
+
+        s = r'''\begin{align}ABC\end{align}'''
+
+        frag = env.make_fragment( s, what='example text fragment' )
+
+        recomposer = FLMPureLatexRecomposer({
+            "math": {
+                "surround_display_math": [r'\mathbefore ', r'\mathafter '],
+            },
+        })
+
+        result = recomposer.recompose_pure_latex(frag.nodes)
+
+        self.assertEqual(
+            result["latex"],
+            r'\mathbefore ' + s + r'\mathafter '
+        )
+
     def test_simple_math_2(self):
         
         env = mk_flm_environ()
