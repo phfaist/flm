@@ -259,6 +259,84 @@ More text.
         )
 
 
+    def test_refs_1(self):
+
+        env = mk_flm_environ()
+
+        s = r'''\ref{figure:one}'''
+
+        frag = env.make_fragment( s, what='example text fragment' )
+
+        recomposer = FLMPureLatexRecomposer({})
+
+        result = recomposer.recompose_pure_latex(frag.nodes)
+
+        self.assertEqual(
+            result["latex"],
+            r"""\NoCaseChange{\protect\cref{ref1}}"""
+        )
+
+    def test_refs_1b(self):
+
+        env = mk_flm_environ()
+
+        s = r'''\hyperref[figure:one]{Figure One}'''
+
+        frag = env.make_fragment( s, what='example text fragment' )
+
+        recomposer = FLMPureLatexRecomposer({})
+
+        result = recomposer.recompose_pure_latex(frag.nodes)
+
+        self.assertEqual(
+            result["latex"],
+            r"""\NoCaseChange{\protect\hyperref[{ref1}]{Figure One}}"""
+        )
+
+    def test_refs_2a(self):
+
+        env = mk_flm_environ()
+
+        s = r'''\ref{figure:one} | \hyperref[figure:two]{Figure Two}'''
+
+        frag = env.make_fragment( s, what='example text fragment' )
+
+        recomposer = FLMPureLatexRecomposer({
+            'refs': {
+                'protect_surround': ('', ''),
+            }
+        })
+
+        result = recomposer.recompose_pure_latex(frag.nodes)
+
+        self.assertEqual(
+            result["latex"],
+            r"""\cref{ref1} | \hyperref[{ref2}]{Figure Two}"""
+        )
+
+    def test_refs_3(self):
+
+        env = mk_flm_environ()
+
+        s = r'''\ref{figure:one} | \hyperref[figure:two]{Figure Two}'''
+
+        frag = env.make_fragment( s, what='example text fragment' )
+
+        recomposer = FLMPureLatexRecomposer({
+            'refs': {
+                'emit_flm_macro': True,
+            }
+        })
+
+        result = recomposer.recompose_pure_latex(frag.nodes)
+
+        self.assertEqual(
+            result["latex"],
+            r"""\flmRefsCref{ref1} | \flmRefsHyperref{ref2}{Figure Two}"""
+        )
+
+
+
 
     def test_float(self):
 

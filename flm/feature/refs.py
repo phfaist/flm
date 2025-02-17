@@ -520,6 +520,15 @@ class RefMacro(FLMMacroSpecBase):
     # Rules for conversion to pure LaTeX code
 
     def recompose_pure_latex(self, node, recomposer, **kwargs):
+
+        recopt_refs = recomposer.get_options('refs')
+        logger.debug(f"recomposer refs options = %r", recopt_refs)
+        protect_surround = recopt_refs.get(
+            'protect_surround',
+            (r'\NoCaseChange{\protect', '}')
+        )
+        emit_flm_macro = recopt_refs.get('emit_flm_macro', False)
+
         if node.flm_ref_info is None:
             raise LatexWalkerLocatedError(
                 "Recomposing pure LaTeX: Invalid ref info in node "
@@ -544,21 +553,32 @@ class RefMacro(FLMMacroSpecBase):
                     pos=node.pos
                 )
             safe_label = safe_ref_labels[0]['safe_label']
-            disp_latex_info = recomposer.recompose_pure_latex(display_content_nodelist)
-            disp_latex = disp_latex_info['latex']
+            disp_latex = recomposer.subrecompose(display_content_nodelist)
+            if emit_flm_macro:
+                return r'\flmRefsHyperref{' + str(safe_label) + '}{' + str(disp_latex) + '}'
             # \usepackage information is already stored in the recomposer,
             # because it's the same object
             return (
-                r'\NoCaseChange{\protect\hyperref[' + str(safe_label) + ']{'
-                + str(disp_latex) + '}}'
+                protect_surround[0]
+                + r'\hyperref[{' + str(safe_label) + '}]{' + str(disp_latex) + '}'
+                + protect_surround[1]
             )
+
+        safe_labels_comma = ",".join([
+            safe_label_info['safe_label']
+            for safe_label_info in safe_ref_labels
+        ])
+
+        if emit_flm_macro:
+            return r'\flmRefsCref{' + safe_labels_comma + '}'
         
         recomposer.ensure_latex_package('cleveref')
         return (
-            r'\NoCaseChange{\protect\cref{'
-            + ",".join([ safe_label_info['safe_label']
-                         for safe_label_info in safe_ref_labels ])
-            + '}}'
+            protect_surround[0]
+            + r'\cref{'
+            + safe_labels_comma
+            + '}'
+            + protect_surround[1]
         )
 
 
