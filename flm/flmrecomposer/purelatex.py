@@ -236,15 +236,32 @@ default_purelatex_defs_makeatletter = r"""
 
 \newif\ifdeftermShowTerm
 \deftermShowTermtrue
-\def\flmL@defterm#1\label#2{%
+\def\flmL@defterm#1{%
   \begingroup
+  \def\flmL@tmp@deftermterm{#1}%
+  \def\flmL@tmp@deftermfirstlabel{}%
   \par\vspace{\abovedisplayskip}%
   \flmDeftermFormat
   \phantomsection
-  \label{#2}%
-  \edef\flmL@cur@defterm@label{\flmL@cur@defterm@label,#2,}%
-  \ifdeftermShowTerm \flmDisplayTerm{#1: }\fi
+  \flmL@defterm@maybelbl
 }
+\def\flmL@defterm@maybelbl{%
+  \@ifnextchar\label{\flmL@defterm@lbl}{\flmL@defterm@next}%
+}
+\def\flmL@defterm@lbl\label#1{%
+  \if\relax\detokenize\expandafter{\flmL@tmp@deftermfirstlabel}\relax
+    \def\flmL@tmp@deftermfirstlabel{#1}%
+  \fi
+  \flmLDefLabelText{\flmL@tmp@deftermterm}{\label{#1}}%
+  \flmL@defterm@maybelbl
+}
+\def\flmL@defterm@next{%
+  \edef\flmL@cur@defterm@label{\flmL@cur@defterm@label,\flmL@tmp@deftermfirstlabel,}%
+  \ifdeftermShowTerm \flmDisplayTerm{\flmL@tmp@deftermterm: }\fi
+  \flmL@defterm@done
+}
+\def\flmL@defterm@done{}
+%
 \def\flmL@cur@defterm@label{}
 \def\endflmL@defterm{%
   \par
