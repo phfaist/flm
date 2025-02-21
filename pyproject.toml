@@ -16,13 +16,13 @@ flm = 'flm.__main__:run_main'
 [tool.poetry.dependencies]
 python = "^3.9"
 pylatexenc = { version = "^3.0a32", allow-prereleases = true }
-websockets = "^15.0"
 
 [tool.poetry.group.maincmdl]
 optional = false
 
 [tool.poetry.group.maincmdl.dependencies]
-watchfiles = "^0.22.0"
+websockets = "^15.0"
+watchfiles = "^1.0.4"
 python-frontmatter = "^1.0.0"
 PyYAML = ">=5.0"
 colorlog = "^6.7.0"
