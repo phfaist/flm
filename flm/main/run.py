@@ -500,201 +500,241 @@ def load_workflow_environment(*,
 
 
 
+class Run:
+    def __init__(self, flm_content,
+                 *,
+                 flm_run_info,
+                 run_config,
+                 default_configs=None,
+                 add_builtin_default_configs=True):
+        super().__init__()
 
+        self.flm_content = flm_content
+        self.flm_run_info = flm_run_info
+        self.run_config = run_config
+        self.default_configs = default_configs
+        self.add_builtin_default_configs = add_builtin_default_configs
 
-def run(flm_content,
-        *,
-        flm_run_info,
-        run_config,
-        default_configs=None,
-        add_builtin_default_configs=True):
+        resource_accessor = flm_run_info['resource_accessor']
 
-    resource_accessor = flm_run_info['resource_accessor']
+        wenv = load_workflow_environment(
+            flm_run_info=flm_run_info,
+            run_config=run_config,
+            default_configs=default_configs,
+            add_builtin_default_configs=add_builtin_default_configs
+        )
 
-    wenv = load_workflow_environment(
-        flm_run_info=flm_run_info,
-        run_config=run_config,
-        default_configs=default_configs,
-        add_builtin_default_configs=add_builtin_default_configs
-    )
+        environment = wenv.environment
+        config = wenv.config
+        workflow = wenv.workflow
+        fragment_renderer_name = wenv.fragment_renderer_name
 
-    environment = wenv.environment
-    config = wenv.config
-    workflow = wenv.workflow
-    fragment_renderer_name = wenv.fragment_renderer_name
+        #
+        # Prepare document metadata
+        #
+        doc_metadata = configmerger.recursive_assign_defaults([
+            {
+                '_flm_config': config['flm'],
+                '_flm_workflow': workflow,
+                '_flm_run_info': flm_run_info,
+            },
+            flm_run_info.get('metadata', {}),
+            { k: v for (k,v) in config.items() if k != 'flm' }
+        ])
 
-
-    #
-    # Set up the fragment (MAIN fragment in case of content-chapters)
-    #
-    silent = True # we'll report errors ourselves
-    if logging.getLogger('flm').isEnabledFor(logging.DEBUG):
-        # verbose logging is enabled, so don't be silent
-        silent = False
-
-    what = flm_run_info.get('input_source', None)
-    fragment = environment.make_fragment(
-        flm_content,
-        #is_block_level is already set in parsing_state
-        silent=silent,
-        input_lineno_colno_offsets=flm_run_info.get('input_lineno_colno_offsets', {}),
-        what=what,
-        resource_info=ResourceInfo(
-            source_path=flm_run_info.get('input_source', None)
-        ),
-    )
-
-
-    #
-    # Prepare document metadata
-    #
-    doc_metadata = configmerger.recursive_assign_defaults([
-        {
-            '_flm_config': config['flm'],
-            '_flm_workflow': workflow,
-            '_flm_run_info': flm_run_info,
-        },
-        flm_run_info.get('metadata', {}),
-        { k: v for (k,v) in config.items() if k != 'flm' }
-    ])
-
-
-    #
-    # Find any "child" documents (CONTENT PARTS) and compile them, too.
-    #
-    content_parts_infos = {
-        'parts': [],
-        'by_type': {},
-        # 'type_flm_spec_infos': {},
-    }
-    document_parts_fragments = []
-    if 'content_parts' in config:
-        for content_part_info in config['content_parts']:
-            if 'input' not in content_part_info:
-                raise ValueError("Expected 'input:' in each entry in 'content_parts:' list")
-            in_input_fname = content_part_info['input']
-            in_input_content = resource_accessor.read_file(
-                flm_run_info.get('cwd', None),
-                in_input_fname,
-                'content_part',
-                flm_run_info
-            )
-
-            # parse content/frontmatter and keep line number offset
-            in_frontmatter_metadata, in_flm_content, in_line_number_offset = \
-                parse_frontmatter_content_linenumberoffset(in_input_content)
-
-
-            in_type = None
-            if 'type' in content_part_info:
-                in_type = content_part_info['type']
-                in_label = content_part_info.get('label', None)
-                in_frontmatter_title = (in_frontmatter_metadata or {}).get(
-                    'title',
-                    '[part title not specified in included FLM file front matter]'
+        #
+        # Find any "child" documents (CONTENT PARTS) and compile them, too.
+        #
+        content_parts_infos = {
+            'parts': [],
+            'by_type': {},
+            # 'type_flm_spec_infos': {},
+        }
+        if 'content_parts' in config:
+            for content_part_info in config['content_parts']:
+                if 'input' not in content_part_info:
+                    raise ValueError("Expected 'input:' in each entry in 'content_parts:' list")
+                in_input_fname = content_part_info['input']
+                in_input_content = resource_accessor.read_file(
+                    flm_run_info.get('cwd', None),
+                    in_input_fname,
+                    'content_part',
+                    flm_run_info
                 )
 
-                head_flm_content = (
-                    '\\' + str(in_type) + '{' + in_frontmatter_title + '}'
-                )
-                if in_label:
-                    head_flm_content += '\\label{' + str(in_label) + '}'
-                head_flm_content += '\n'
+                # parse content/frontmatter and keep line number offset
+                in_frontmatter_metadata, in_flm_content, in_line_number_offset = \
+                    parse_frontmatter_content_linenumberoffset(in_input_content)
 
-                in_flm_content = head_flm_content + in_flm_content
-                in_line_number_offset -= head_flm_content.count('\n')
 
-            in_input_lineno_colno_offsets = {
-                'line_number_offset': in_line_number_offset,
-            }
-            
-            logger.debug('Document part FLM with auto-generated part type header:\n%s',
-                         in_flm_content)
+                in_type = None
+                if 'type' in content_part_info:
+                    in_type = content_part_info['type']
+                    in_label = content_part_info.get('label', None)
+                    in_frontmatter_title = (in_frontmatter_metadata or {}).get(
+                        'title',
+                        '[part title not specified in included FLM file front matter]'
+                    )
+
+                    head_flm_content = (
+                        '\\' + str(in_type) + '{' + in_frontmatter_title + '}'
+                    )
+                    if in_label:
+                        head_flm_content += '\\label{' + str(in_label) + '}'
+                    head_flm_content += '\n'
+
+                    in_flm_content = head_flm_content + in_flm_content
+                    in_line_number_offset -= head_flm_content.count('\n')
+
+                in_input_lineno_colno_offsets = {
+                    'line_number_offset': in_line_number_offset,
+                }
+
+                logger.debug('Document part FLM with auto-generated part type header:\n%s',
+                             in_flm_content)
+
+                cpinfo = dict(content_part_info)
+                cpinfo['input_source'] = in_input_fname
+                cpinfo['fragment'] = in_fragment
+                cpinfo['flm_content'] = in_flm_content
+                cpinfo['frontmatter_metadata'] = in_frontmatter_metadata
+                cpinfo['input_lineno_colno_offsets'] = in_input_lineno_colno_offsets
+
+                content_parts_infos['parts'].append( cpinfo )
+                if in_type:
+                    if in_type not in content_parts_infos['by_type']:
+                        content_parts_infos['by_type'][in_type] = []
+                        # mspec = environment.latex_context.get_macro_spec(
+                        #     in_type, raise_if_not_found=True
+                        # )
+                        # content_parts_infos['type_flm_spec_infos'][in_type] = mspec
+
+                    content_parts_infos['by_type'][in_type].append( cpinfo )
+
+        self.content_parts_infos = content_parts_infos
+        self.doc_metadata = doc_metadata
+        self.resource_accessor = resource_accessor
+        self.wenv = wenv
+
+
+    def run(self):
+
+        flm_content = self.flm_content
+        flm_run_info = self.flm_run_info
+        run_config = self.run_config
+        default_configs = self.default_configs
+        add_builtin_default_configs = self.add_builtin_default_configs
+
+        content_parts_infos = self.content_parts_infos
+        doc_metadata = self.doc_metadata
+        resource_accessor = self.resource_accessor
+        wenv = self.wenv
+
+        environment = wenv.environment
+        config = wenv.config
+        workflow = wenv.workflow
+        fragment_renderer_name = wenv.fragment_renderer_name
+
+        #
+        # Set up the fragment (MAIN fragment in case of content-chapters)
+        #
+        silent = True # we'll report errors ourselves
+        if logging.getLogger('flm').isEnabledFor(logging.DEBUG):
+            # verbose logging is enabled, so don't be silent
+            silent = False
+
+
+        #
+        # Compile main document fragment
+        #
+
+        what = flm_run_info.get('input_source', None)
+        fragment = environment.make_fragment(
+            flm_content,
+            #is_block_level is already set in parsing_state
+            silent=silent,
+            input_lineno_colno_offsets=flm_run_info.get('input_lineno_colno_offsets', {}),
+            what=what,
+            resource_info=ResourceInfo(
+                source_path=flm_run_info.get('input_source', None)
+            ),
+        )
+
+        #
+        # Compile document fragments
+        #
+
+        document_parts_fragments = []
+        for cpinfo in content_parts_infos['parts']:
 
             in_fragment = environment.make_fragment(
-                in_flm_content,
+                cpinfo['flm_content'],
                 silent=silent,
-                input_lineno_colno_offsets=in_input_lineno_colno_offsets,
-                what=f"Document Part ‘{in_input_fname}’",
+                input_lineno_colno_offsets=cpinfo['input_lineno_colno_offsets'],
+                what=f"Document Part ‘{cpinfo['input_source']}’",
                 resource_info=ResourceInfo(
-                    source_path=in_input_fname
+                    source_path=cpinfo['input_source']
                 ),
             )
 
             document_parts_fragments.append(in_fragment)
 
-            cpinfo = dict(content_part_info)
-            cpinfo['input_source'] = in_input_fname
-            cpinfo['fragment'] = in_fragment
-            cpinfo['flm_content'] = in_flm_content
-            cpinfo['frontmatter_metadata'] = in_frontmatter_metadata
-            cpinfo['input_lineno_colno_offsets'] = in_input_lineno_colno_offsets
 
-            content_parts_infos['parts'].append( cpinfo )
-            if in_type:
-                if in_type not in content_parts_infos['by_type']:
-                    content_parts_infos['by_type'][in_type] = []
-                    # mspec = environment.latex_context.get_macro_spec(
-                    #     in_type, raise_if_not_found=True
-                    # )
-                    # content_parts_infos['type_flm_spec_infos'][in_type] = mspec
-                        
-                content_parts_infos['by_type'][in_type].append( cpinfo )
-            
-    
-    #
-    # Build the document, with the rendering function from the workflow.
-    #
-    doc = environment.make_document(
-        lambda render_context:
-            workflow.render_document_fragment_callback(
-                fragment, render_context,
-                content_parts_infos=content_parts_infos,
-            ),
-        metadata=doc_metadata,
-    )
-    
-    doc.document_fragments = [ fragment ]
+        #
+        # Build the document, with the rendering function from the workflow.
+        #
+        doc = environment.make_document(
+            lambda render_context:
+                workflow.render_document_fragment_callback(
+                    fragment, render_context,
+                    content_parts_infos=content_parts_infos,
+                ),
+            metadata=doc_metadata,
+        )
 
-
-    
-    #
-    # Allow features prime access to the document and the fragment, in case they
-    # want to scan stuff (e.g., for citations)
-    #
-    for feature_name, feature_document_manager in doc.feature_document_managers:
-        if hasattr(feature_document_manager, 'flm_main_scan_fragment'):
-            feature_document_manager.flm_main_scan_fragment(
-                fragment,
-                document_parts_fragments=document_parts_fragments,
-            )
-
-
-    #
-    # Render the document according to the workflow
-    #
-
-    result = workflow.render_document(doc, content_parts_infos=content_parts_infos)
-
-
-    #
-    # Prepare some information about the rendering & its result
-    #
-    result_info = {
-        'environment': environment,
-        'fragment_renderer_name': fragment_renderer_name,
-        #'fragment_renderer': fragment_renderer, # use workflow.fragment_renderer
-        'workflow': workflow,
-        'binary_output': workflow.binary_output,
-        'content_parts_infos': content_parts_infos,
-        'document_parts_fragments': document_parts_fragments,
-    }
-
-    #
-    # Done!
-    #
-    return result, result_info
+        doc.document_fragments = [ fragment ]
 
 
 
+        #
+        # Allow features prime access to the document and the fragment, in case they
+        # want to scan stuff (e.g., for citations)
+        #
+        for feature_name, feature_document_manager in doc.feature_document_managers:
+            if hasattr(feature_document_manager, 'flm_main_scan_fragment'):
+                feature_document_manager.flm_main_scan_fragment(
+                    fragment,
+                    document_parts_fragments=document_parts_fragments,
+                )
 
+
+        #
+        # Render the document according to the workflow
+        #
+
+        result = workflow.render_document(doc, content_parts_infos=content_parts_infos)
+
+
+        #
+        # Prepare some information about the rendering & its result
+        #
+        result_info = {
+            'environment': environment,
+            'fragment_renderer_name': fragment_renderer_name,
+            #'fragment_renderer': fragment_renderer, # use workflow.fragment_renderer
+            'workflow': workflow,
+            'binary_output': workflow.binary_output,
+            'content_parts_infos': content_parts_infos,
+            'document_parts_fragments': document_parts_fragments,
+        }
+
+        #
+        # Done!
+        #
+        return result, result_info
+
+
+
+def run(*args, **kwargs):
+    R = Run(*args, **kwargs)
+    return R.run()

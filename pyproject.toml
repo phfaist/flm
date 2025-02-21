@@ -14,8 +14,9 @@ packages = [
 flm = 'flm.__main__:run_main'
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 pylatexenc = { version = "^3.0a32", allow-prereleases = true }
+websockets = "^15.0"
 
 [tool.poetry.group.maincmdl]
 optional = false

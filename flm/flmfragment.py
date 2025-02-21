@@ -100,6 +100,19 @@ class FLMFragment:
                     input_lineno_colno_offsets=input_lineno_colno_offsets,
                 )
         except latexnodes.LatexWalkerLocatedError as e:
+            # tag on the information about resource_info and what
+            e.flm_fragment_resource_info = self.resource_info
+            e.flm_fragment_what = self.what
+            # add an open context about parsing this fragment
+            if not hasattr(e, 'open_contexts') or not e.open_contexts:
+                e.open_contexts = []
+            e.open_contexts.insert(
+                0,
+                ('parsing '+str(self.what), None,
+                 '',
+                 None,
+                 )
+            )
             if not self.silent:
                 error_message = self.environment.get_located_error_message(e)
                 logger.error(

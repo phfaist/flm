@@ -599,13 +599,20 @@ class FeatureRefs(Feature):
 
     RenderManager = FeatureRefsRenderManager
 
-    def __init__(self, external_ref_resolvers=None):
+    def __init__(self, external_ref_resolvers=None, allow_unresolved_refs=False):
         super().__init__()
         # e.g., resolve a reference to a different code page in the EC zoo!
         if external_ref_resolvers is not None:
             self.external_ref_resolvers = list(external_ref_resolvers)
         else:
             self.external_ref_resolvers = []
+        
+        if allow_unresolved_refs:
+            if allow_unresolved_refs is True:
+                allow_unresolved_refs = {}
+            unknown_ref_resolver = AllowedUnresolvedRefResolver(**allow_unresolved_refs)
+            self.external_ref_resolvers.append(unknown_ref_resolver)
+
         logger.debug(f"Created FeatureRefs with external_ref_resolvers = "
                      f"{repr(external_ref_resolvers)}")
 
@@ -643,6 +650,39 @@ class FeatureRefs(Feature):
 
 
             
+
+
+def _display_unresolved_verbatim(ref_type, ref_label):
+    return (
+        r'\textbf{<\begin{verbatimtext}'
+        + (ref_type + ':'  if ref_type is not None else '')
+        + ref_label
+        + r'\end{verbatimtext}>}'
+    )
+
+
+class AllowedUnresolvedRefResolver:
+    def __init__(self, display_unresolved=_display_unresolved_verbatim):
+        super().__init__()
+        self.display_unresolved = display_unresolved
+
+    def get_ref(self, ref_type, ref_label, resource_info, render_context):
+
+        if callable(self.display_unresolved):
+            display_flm_text = self.display_unresolved(ref_type, ref_label)
+        else:
+            display_flm_text = str(self.display_unresolved)
+
+        return RefInstance(
+            ref_type=ref_type,
+            ref_label=ref_label,
+            formatted_ref_flm_text=display_flm_text,
+            target_href=r'javascript:alert("Unresolved reference!")',
+            counter_value=None,
+            counter_formatter_id=None,
+        )
+
+
 
 
 # ------------------------------------------------

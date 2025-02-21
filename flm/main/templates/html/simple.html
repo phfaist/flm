@@ -88,10 +88,11 @@ ${style.extra_css}
 <script type="text/javascript">
 ${if:display_toc}
 // cf. https://stackoverflow.com/a/41085566/1694896
-window.addEventListener('load', function(){
-    var rootEl = document.getElementById('MainArticle');
+window.flmBuildToc = function() {
+    var rootEl = document.getElementById('Main');
     var headings = rootEl.querySelectorAll('h1, h2');
     var tocEl = document.getElementById('TOC');
+    tocEl.innerHTML = '<h1>Contents:</h1>';
     headings.forEach(function (heading, index) {
         var ref;
         if (heading.hasAttribute('id')) {
@@ -108,6 +109,16 @@ window.addEventListener('load', function(){
     });
 });
 ${endif}
+window.flmSetup = function() {
+${if:display_toc}
+    flmBuildToc();
+${endif}
+    if (window.MathJax) {
+        window.MathJax.texReset && window.MathJax.texReset();
+        window.MathJax.typesetPromise();
+    }
+};
+window.addEventListener('load', window.flmSetup);
 ${style.js_local}
 ${style.extra_js}
 </script>
@@ -125,11 +136,11 @@ ${if:render_header}
   </header>
 ${endif}
 ${if:display_toc}
-<div id="TOC"><h1>Contents:</h1></div>
+<div id="TOC"></div>
 ${endif}
-<article id="MainArticle">
+<article id="Main"><!-- FLM_HOT_RELOAD_BEGIN_CONTENT -->
 ${content}
-</article>
+<!-- FLM_HOT_RELOAD_END_CONTENT --></article>
 ${style.body_end_js_scripts}
 </body>
 </html>

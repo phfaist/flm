@@ -7,7 +7,7 @@ from pylatexenc.latexnodes import LatexWalkerError
 import colorlog
 
 from .main.main import main as _main
-from .main.main import main_watch as _main_watch
+from .main.watch import main_watch as _main_watch
 from .main import oshelper as flm_main_oshelper
 from flm import __version__ as flm_version
 

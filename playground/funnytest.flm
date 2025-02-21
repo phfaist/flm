@@ -34,7 +34,7 @@ flm:
      #     #include_headings_at_level: 2
      #     #endnotes_heading_title: 'Endnotes'
 ---
-Hello, world. \emph{Here I am.} What would you like
+A Hello, world. \emph{Here I am.} What would you like
 to    see?
 
     \begin{itemize}
