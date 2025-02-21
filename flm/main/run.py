@@ -595,7 +595,6 @@ class Run:
 
                 cpinfo = dict(content_part_info)
                 cpinfo['input_source'] = in_input_fname
-                cpinfo['fragment'] = in_fragment
                 cpinfo['flm_content'] = in_flm_content
                 cpinfo['frontmatter_metadata'] = in_frontmatter_metadata
                 cpinfo['input_lineno_colno_offsets'] = in_input_lineno_colno_offsets
@@ -676,6 +675,8 @@ class Run:
                     source_path=cpinfo['input_source']
                 ),
             )
+
+            cpinfo['fragment'] = in_fragment
 
             document_parts_fragments.append(in_fragment)
 
