@@ -156,7 +156,7 @@ def main_watch(**kwargs):
                     "action": "update-content",
                     "content_html": content_html,
                 }
-                logger.info("Preparing to send update to clients.")
+                #logger.info("Preparing to send update to clients.")
                 asyncio.run_coroutine_threadsafe(
                     ws_notify_update_queue.put(json.dumps(update_info)),
                     ws_loop_info['loop'],
@@ -247,7 +247,7 @@ def main_watch(**kwargs):
                         client.send(message)
                         for client in ws_connected_clients
                     ])
-                    logger.info(f"Sent update to {len(ws_connected_clients)} clients")
+                    logger.info(f"Sent websocket update to {len(ws_connected_clients)} clients")
 
         async def ws_handler(client, path=None):
             # Handles new WebSocket connections.

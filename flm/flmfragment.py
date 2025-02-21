@@ -106,8 +106,7 @@ class FLMFragment:
             # add an open context about parsing this fragment
             if not hasattr(e, 'open_contexts') or not e.open_contexts:
                 e.open_contexts = []
-            e.open_contexts.insert(
-                0,
+            e.open_contexts.append(
                 ('parsing '+str(self.what), None,
                  '',
                  None,
