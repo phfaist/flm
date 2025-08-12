@@ -35,7 +35,7 @@ class TestFeatureAnnotations(unittest.TestCase):
         self.assertEqual(
             result,
             r"""
-<div class="annotation annotation-inline annotation-highlight annotation-0"><span class="annotation-initials">PhF</span>Test highlighted text</div>
+<span class="annotation annotation-highlight annotation-0"><span class="annotation-initials">PhF</span>Test highlighted text</span>
 """.strip() .replace('\n', '')
         )
 
@@ -56,7 +56,7 @@ class TestFeatureAnnotations(unittest.TestCase):
         self.assertEqual(
             result,
             r"""
-<div class="annotation annotation-inline annotation-highlight annotation-0"><span class="annotation-initials">PhF</span>Test highlighted text</div>
+<span class="annotation annotation-highlight annotation-0"><span class="annotation-initials">PhF</span>Test highlighted text</span>
 """.strip() .replace('\n', '')
         )
 
@@ -77,7 +77,7 @@ class TestFeatureAnnotations(unittest.TestCase):
         self.assertEqual(
             result,
             r"""
-<div class="annotation annotation-inline annotation-comment annotation-0"><span class="annotation-initials">PhF</span>Test comment here</div>
+<span class="annotation annotation-comment annotation-0"><span class="annotation-initials">PhF</span>Test comment here</span>
 """.strip() .replace('\n', '')
         )
 
@@ -104,7 +104,7 @@ Test highlight
         self.assertEqual(
             result .replace('\n', ''),
             r"""
-<div class="annotation annotation-block annotation-highlight annotation-0"><span class="annotation-initials">PhF</span><p>Test highlight</p><dl class="enumeration itemize"><dt>•</dt><dd><p>one</p></dd></dl></div>
+<div class="annotation annotation-highlight annotation-0"><span class="annotation-initials">PhF</span><p>Test highlight</p><dl class="enumeration itemize"><dt>•</dt><dd><p>one</p></dd></dl></div>
 """.strip() .replace('\n', '')
         )
 
@@ -125,7 +125,7 @@ Test highlight
         self.assertEqual(
             result,
             r"""
-<p><div class="annotation annotation-inline annotation-comment annotation-1"><span class="annotation-initials">A.B.C.</span>Test comment here</div></p>
+<p><span class="annotation annotation-comment annotation-1"><span class="annotation-initials">A.B.C.</span>Test comment here</span></p>
 """.strip() .replace('\n', '')
         )
 
