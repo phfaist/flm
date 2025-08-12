@@ -55,7 +55,8 @@ class FLMSpecInfo(macrospec.CallableSpec):
     r"""
     True if this node's sole purpose is to split paragraphs.  Use this for
     ``\n\n`` breaks or maybe if the user would like to introduce support for
-    ``\par`` macros.
+    ``\par`` macros.  If ``is_paragraph_break_marker = True`` then you must also
+    set ``is_block_level=True``.
     """
     
     allowed_in_standalone_mode = False
@@ -167,9 +168,15 @@ class FLMSpecInfo(macrospec.CallableSpec):
             )
             raise 
 
-        node.flm_is_block_level = self.is_block_level
-        node.flm_is_block_heading = self.is_block_heading
-        node.flm_is_paragraph_break_marker = self.is_paragraph_break_marker
+        # maybe these properties have already been set by the custom
+        # self.postprocess_parsed_node(), so don't overwrite them if they've
+        # already been set.
+        if not hasattr(node, 'flm_is_block_level') and self.is_block_level is not None:
+            node.flm_is_block_level = self.is_block_level
+        if not hasattr(node, 'flm_is_block_heading'):
+            node.flm_is_block_heading = self.is_block_heading
+        if not hasattr(node, 'flm_is_paragraph_break_marker'):
+            node.flm_is_paragraph_break_marker = self.is_paragraph_break_marker
 
         logger.debug("finalize_node(): Finalized node %r.  substitute? %r",
                      node, getattr(node, 'flm_SUBSTITUTE_NODE', None))
@@ -405,7 +412,8 @@ class TextFormatMacro(FLMMacroSpecBase):
 
     allowed_in_standalone_mode = True
 
-    # internal, used when truncating fragments to a certain number of characters
+    # internal; used when truncating fragments to a certain number of characters
+    # to determine where to look for text to truncate within formatting commands
     # (see fragment.truncate_to())
     _flm_main_text_argument = 'text'
 

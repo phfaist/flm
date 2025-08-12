@@ -503,6 +503,48 @@ class HtmlFragmentRenderer(FragmentRenderer):
             class_names=[ f"href-{ref_type}" ] + (annotations if annotations else [])
         )
 
+    def render_annotation_comment(
+            self,
+            display_nodelist, 
+            render_context,
+            is_block_level=False,
+            color_index=0,
+            initials=None,
+    ):
+        content = self.render_nodelist(display_nodelist, render_context)
+        if initials:
+            content = '<span class="annotation-initials">'+initials+'</span>' + content
+
+        return self.wrap_in_tag(
+            'div' if is_block_level else 'span',
+            content,
+            class_names=[ 'annotation',
+                          #'annotation-' + ('block' if is_block_level else 'inline'),
+                          'annotation-comment',
+                          f'annotation-{color_index}' ],
+        )
+
+    def render_annotation_highlight(
+            self,
+            display_nodelist, 
+            render_context,
+            is_block_level=False,
+            color_index=0,
+            initials=None
+    ):
+        content = self.render_nodelist(display_nodelist, render_context)
+        if initials:
+            content = '<span class="annotation-initials">'+initials+'</span>' + content
+
+        return self.wrap_in_tag(
+            'div' if is_block_level else 'span',
+            content,
+            class_names=[ 'annotation',
+                          #'annotation-' + ('block' if is_block_level else 'inline'),
+                          'annotation-highlight',
+                          f'annotation-{color_index}' ],
+        )
+
     
     def render_delayed_marker(self, node, delayed_key, render_context):
         return f"<FLM:DLYD:{delayed_key}/>"
@@ -1053,6 +1095,61 @@ dl.citation-list > dt, dl.footnote-list > dt {
   vertical-align: 0.3em;
   margin-top: -0.3em;
 }
+
+.annotation {
+  color: var(--annotation-color);
+}
+.annotation-comment {
+  padding: 3pt 0px;
+  font-weight: 600;
+  font-family: sans-serif;
+}
+.annotation-comment::before {
+  content: '['
+}
+.annotation-comment::after {
+  content: ']'
+}
+.annotation-initials {
+  display: inline-block;
+  margin-right: 0.3em;
+  font-family: sans-serif;
+  font-size: .8em;
+  font-weight: normal;
+  font-style: normal;
+  line-height: .9;
+  padding: .5pt;
+  border: solid .4pt var(--annotation-color);
+  border-radius: 2pt;
+
+  float: right;
+  margin-right: -4em;
+}
+.annotation-0 {
+  --annotation-color: rgb(148,7,24); /* dark red / burgundy */
+}
+.annotation-1 {
+  --annotation-color: rgb(0,148,240); /* blue-y */
+}
+.annotation-2 {
+  --annotation-color: rgb(242,108,13); /* orange-brown-y */
+}
+.annotation-3 {
+  --annotation-color: rgb(65,149,42); /* green-y */
+}
+.annotation-4 {
+  --annotation-color: rgb(128,55,134); /* purple-y */
+}
+.annotation-5 {
+  --annotation-color: rgb(0,129,129); /* blue-green-y */
+}
+.annotation-6 {
+  --annotation-color: rgb(160,120,0); /* brownish */
+}
+.annotation-7 {
+  --annotation-color: rgb(35,195,155); /* aqua-ish */
+}
+
 """
 
 

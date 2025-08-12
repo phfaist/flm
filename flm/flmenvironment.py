@@ -67,7 +67,9 @@ class FLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
 # ------------------------------------------------------------------------------
 
 
-def FLMArgumentSpec(parser, argname, is_block_level=False, flm_doc=None,
+_NotProvided = object()
+
+def FLMArgumentSpec(parser, argname, is_block_level=_NotProvided, flm_doc=None,
                     parsing_state_delta=None):
     r"""
     Doc..........
@@ -76,12 +78,14 @@ def FLMArgumentSpec(parser, argname, is_block_level=False, flm_doc=None,
     the future.
     """
     if parsing_state_delta is None:
+        if is_block_level is _NotProvided:
+            is_block_level = False
         if is_block_level is not None:
             parsing_state_delta = FLMParsingStateDeltaSetBlockLevel(
                 is_block_level=is_block_level
             )
     else:
-        if is_block_level is not None \
+        if is_block_level is not _NotProvided \
            and parsing_state_delta.set_attributes.get('is_block_level', None) != is_block_level:
             raise ValueError(
                 "You specified a parsing_state_delta= to FLMArgumentSpec(...) which "
@@ -342,6 +346,9 @@ class NodesFinalizer:
           store the relevant information in a property `flm_blocks_info`
         """
         
+        # REMEMBER: Transcrypt does not seem to support getattr() with the
+        # argument default value -> need to use hasattr() followed by getattr().
+
         if hasattr(latexnodelist, 'flm_nodelist_finalized') \
            and getattr(latexnodelist, 'flm_nodelist_finalized'):
             return latexnodelist
@@ -360,7 +367,7 @@ class NodesFinalizer:
         if not is_block_level:
             # make sure there are no block-level nodes in the list
             for n in latexnodelist:
-                #if getattr(n, 'flm_is_block_level', None):
+                #if getattr(n, 'flm_is_block_level', None): # transcrypt!
                 if hasattr(n, 'flm_is_block_level') and getattr(n, 'flm_is_block_level'):
                     raise LatexWalkerParseError(
                         msg=
@@ -369,6 +376,11 @@ class NodesFinalizer:
                         pos=n.pos,
                     )
         # ---
+
+        # logger.debug(
+        #     "FLMEnvironment->NodesFinalizer->finalize_nodelist(): %r -> is_block_level=%r",
+        #     latexnodelist, is_block_level,
+        # )
 
         # prepare the node list into blocks (e.g., paragraphs or other
         # block-level items like enumeration lists)
@@ -405,6 +417,10 @@ class NodesFinalizer:
                 if hasattr(n, 'flm_is_block_level')
                 else None
             )
+            # note that it suffices to check for flm_is_block_level to tell if
+            # the node is block-level; the properties flm_is_block_heading and
+            # flm_is_paragraph_break_marker can only be set if
+            # flm_is_block_level is also set.
             if n_is_block_level:
                 return True
         return False
@@ -733,7 +749,7 @@ class FLMEnvironment:
 
         self.tolerant_parsing = tolerant_parsing
 
-        self._nodes_finalizer = NodesFinalizer()
+        self.nodes_finalizer = NodesFinalizer()
 
         if self.parsing_state.latex_context is None:
 
@@ -928,7 +944,7 @@ class FLMEnvironment:
 
 
     def finalize_nodelist(self, nodelist):
-        nl = self._nodes_finalizer.finalize_nodelist(nodelist)
+        nl = self.nodes_finalizer.finalize_nodelist(nodelist)
         return nl
 
     def finalize_node(self, node):
@@ -938,7 +954,7 @@ class FLMEnvironment:
         ### !!!! present method is unrelated.
 
         # finalize node using nodes finalizer
-        node = self._nodes_finalizer.finalize_node(node)
+        node = self.nodes_finalizer.finalize_node(node)
 
         # attach a node ID, given by the object ID of the node use
         # _flm_... prefix with leading underscore, not flm_..., because we don't

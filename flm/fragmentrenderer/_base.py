@@ -423,6 +423,12 @@ class FragmentRenderer:
         """
         raise RuntimeError("Subclasses need to reimplement this method")
 
+    def render_annotation_comment(self, display_nodelist, 
+                                  render_context,
+                                  color_index=0,
+                                  initials=None):
+        raise RuntimeError("Subclasses need to reimplement this method")
+
 
     # extras:
 
