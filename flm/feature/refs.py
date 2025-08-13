@@ -60,17 +60,18 @@ class ReferenceableInfo:
 
 class RefInstance:
     def __init__(self, ref_type, ref_label, formatted_ref_flm_text, target_href,
-                 counter_value, counter_formatter_id):
+                 counter_value, counter_numprefix, counter_formatter_id):
         super().__init__()
         self.ref_type = ref_type
         self.ref_label = ref_label
         self.formatted_ref_flm_text = formatted_ref_flm_text
         self.target_href = target_href
         self.counter_value = counter_value
+        self.counter_numprefix = counter_numprefix
         self.counter_formatter_id = counter_formatter_id
 
         self._fields = ('ref_type', 'ref_label', 'formatted_ref_flm_text', 'target_href',
-                        'counter_value', 'counter_formatter_id',)
+                        'counter_value', 'counter_numprefix', 'counter_formatter_id',)
 
     def asdict(self):
         return {k: getattr(self, k) for k in self._fields}
@@ -156,6 +157,8 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             counter_with_prefix=True,
             counter_prefix_variant=None, counter_with_delimiters=True):
         
+        # TODO: CHANGE TO COUNTER-IFACE OBJECTS WITH allocate_item()
+
         node_id = self.get_node_id(node)
         kk = (node_id, ref_type, ref_label)
         if kk in self.registered_references:
@@ -170,7 +173,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         )
 
         if target_href_fn is not None:
-            target_href = target_href_fn(counter.value)
+            target_href = target_href_fn(counter.value, numprefix=None)
         else:
             target_href = None
 
@@ -180,13 +183,15 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             formatted_ref_flm_text=formatted_ref_flm_text,
             target_href=target_href,
             counter_value=counter.value,
+            counter_numprefix=None,
             counter_formatter_id=counter.formatter.counter_formatter_id
         )
 
 
     def register_reference(self, ref_type, ref_label, *,
                            node, formatted_ref_flm_text, target_href,
-                           counter_value=None, counter_formatter_id=None):
+                           counter_value=None, counter_numprefix=None,
+                           counter_formatter_id=None):
         r"""
         ........
         
@@ -216,6 +221,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             formatted_ref_flm_text=formatted_ref_flm_text,
             target_href=target_href,
             counter_value=counter_value,
+            counter_numprefix=counter_numprefix,
             counter_formatter_id=counter_formatter_id,
         )
 
@@ -318,10 +324,14 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             if (ri.counter_value is None or ri.counter_formatter_id is None):
                 ref_instances_nocounter.append(ri)
                 continue
-            if ri.counter_formatter_id not in ref_instances_by_counter_formatter_id:
-                ref_instances_by_counter_formatter_id[ri.counter_formatter_id] = {}
-
-            ref_instances_by_counter_formatter_id[ri.counter_formatter_id][ri.counter_value] = ri
+            ricfid = ri.counter_formatter_id
+            if ricfid not in ref_instances_by_counter_formatter_id:
+                ref_instances_by_counter_formatter_id[ricfid] = {}
+            
+            c_numprefix, c_value = ri.counter_numprefix, ri.counter_value
+            if c_numprefix not in ref_instances_by_counter_formatter_id[ricfid]:
+                ref_instances_by_counter_formatter_id[ricfid][c_numprefix] = {}
+            ref_instances_by_counter_formatter_id[ricfid][c_numprefix][ri.counter_value] = ri
 
         s_final_blocks = []
 
@@ -330,7 +340,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             counter_formatter = self.registered_counter_formatters[counter_formatter_id]
             #
             s_items = counter_formatter.format_many_flm(
-                rcdict.keys(),
+                [ (np, list(ribyvalue.keys())) for np, ribyvalue in rcdict.items() ],
                 prefix_variant=counter_prefix_variant,
                 with_delimiters=counter_with_delimiters,
                 with_prefix=counter_with_prefix,

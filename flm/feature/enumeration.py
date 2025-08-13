@@ -186,7 +186,7 @@ class Enumeration(FLMEnvironmentSpecBase):
             tag_template_chars = node_args['tag_template'].get_content_as_chars()
             counter_formatter_spec = tag_template_chars
 
-        counter_formatter = counter.parse_counter_formatter(
+        counter_formatter = counter.parse_counter_format_num(
             counter_formatter_spec,
             str_use_tag_template=True,
         )

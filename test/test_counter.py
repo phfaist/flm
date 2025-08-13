@@ -169,7 +169,7 @@ class TestCounterFormatter(unittest.TestCase):
         )
 
 
-        def wrap_link_fn(n, s, numprefix=None):
+        def wrap_link_fn(n, s, **kwargs):
             return r'\mylink{' + str(n) + '}{' + s + '}'
 
         self.assertEqual(
@@ -226,7 +226,7 @@ class TestCounterFormatter(unittest.TestCase):
             name_in_link=True
         )
 
-        def wrap_link_fn(n, s, numprefix=None):
+        def wrap_link_fn(n, s, **kwargs):
             return r'\mylink{' + str(n) + '}{' + s + '}'
 
         self.assertEqual(
@@ -322,7 +322,7 @@ class TestCounterFormatter(unittest.TestCase):
             "Equation~!<! <A.I> !>!"
         )
 
-        def wrap_link_fn(*, n, s, numprefix):
+        def wrap_link_fn(*, n, s, numprefix, **kwargs):
             return r'\mylink{p/' + (numprefix or '') + str(n) + '}{' + s + '}'
 
         self.assertEqual(
@@ -432,7 +432,7 @@ class TestCounterFormatter(unittest.TestCase):
             "Equation~!<! <A.I> !>!"
         )
 
-        def wrap_link_fn(*, n, s, numprefix):
+        def wrap_link_fn(*, n, s, numprefix, **kwargs):
             return r'\mylink{p/' + (numprefix or '') + str(n) + '}{' + s + '}'
 
         self.assertEqual(
@@ -463,6 +463,117 @@ class TestCounterFormatter(unittest.TestCase):
             ),
             r"\mylink{p/B-1}{Equations~}!<! <<[[\mylink{p/B-1}{B-I}--\mylink{p/B-3}{B-III}]];[[\mylink{p/B-98}{B-XCVIII}|\mylink{p/B-99}{B-XCIX}]];&\mylink{p/A-54}{A-LIV}>> !>!"
         )
+
+
+
+
+    def test_join_withsubnums(self):
+        
+        jspec = {
+            'one_pre': '<',
+            'one_post': '>',
+            'pair_pre': '((',
+            'pair_mid': '||',
+            'pair_post': '))',
+            'range_pre': '[[',
+            'range_mid': '--',
+            'range_pairmid': '|',
+            'range_post': ']]',
+            'list_pre': '<<',
+            'list_mid': ';',
+            'list_midlast': ';&',
+            'list_post': '>>',
+        }
+
+        f = counter.CounterFormatter(
+            {'template': "${Roman}"},
+            prefix_display={
+                'singular': "eq.~",
+                'plural': "eqs.~",
+                'capital': {
+                    'singular': "Equation~",
+                    'plural': "Equations~",
+                    4: "Quartet of Equations~",
+                },
+            },
+            delimiters=('!<! ', ' !>!'),
+            join_spec=jspec,
+            name_in_link=True,
+            subnums_format_nums=(
+                {'format_num': {'template': "${alph}"}, 'prefix': '.'},
+                {'format_num': {'template': "${roman}"}, 'prefix': '.'},
+            ),
+        )
+
+        V = counter.ValueWithSubNums
+        
+        self.assertEqual(
+            f.format_many_flm( [('A-', [V(1,(2,3))])] ),
+            "eq.~!<! <A-I.b.iii> !>!"
+        )
+        self.assertEqual(
+            f.format_many_flm( [('A-', [V(1,(2,))])] ),
+            "eq.~!<! <A-I.b> !>!"
+        )
+        self.assertEqual(
+            f.format_flm( 1, valuenumprefix='A-', valuesubnums=(2,3,) ),
+            "eq.~!<! A-I.b.iii !>!"
+        )
+        self.assertEqual(
+            f.format_flm( 1, valuenumprefix='A-', valuesubnums=(3,) ),
+            "eq.~!<! A-I.c !>!"
+        )
+        self.assertEqual(
+            f.format_many_flm( [('A-', [V(2,(3,)),V(1,(3,1))])] ),
+            "eqs.~!<! ((A-I.c.i||A-II.c)) !>!"
+        )
+        self.assertEqual(
+            f.format_many_flm( [('A-', [V(2,)]), ('B-', [V(1,)])] ),
+            "eqs.~!<! ((A-II||B-I)) !>!"
+        )
+        self.assertEqual(
+            f.format_many_flm( [('A-', [V(2,)]), ('B-', [V(1,),V(1,(1,))])] ),
+            "eqs.~!<! <<A-II;B-I;&B-I.a>> !>!"
+        )
+        self.assertEqual(
+            f.format_many_flm( [('A.', [2,V(3,(1,)),1])] ),
+            "eqs.~!<! (([[A.I|A.II]]||A.III.a)) !>!"
+        )
+        self.assertEqual(
+            f.format_many_flm( [('A.', [V(2,(2,)),V(2,(3,)),1]), ('B.', [1])] ),
+            "eqs.~!<! <<A.I;[[A.II.b|A.II.c]];&B.I>> !>!"
+        )
+        self.assertEqual(
+            f.format_many_flm( [('A.', [V(2,(2,)),V(2,(5,)),V(2,(4,)),V(2,(3,)),1]), ('B.', [1])] ),
+            "eqs.~!<! <<A.I;[[A.II.b--e]];&B.I>> !>!"
+        )
+
+        def wrap_link_fn(*, n, s, numprefix, subnums):
+            if subnums is None:
+                subnums = ()
+            return r'\mylink{p/' + (numprefix or '') + str(n) + ''.join([f'.{s}' for s in subnums]) + '}{' + s + '}'
+
+        self.assertEqual(
+            f.format_flm( 1, valuenumprefix='A-', wrap_link_fn=wrap_link_fn),
+            "\mylink{p/A-1}{eq.~!<! A-I !>!}"
+        )
+        self.assertEqual(
+            f.format_flm( 1, valuesubnums=(2,1,), valuenumprefix='A-', wrap_link_fn=wrap_link_fn),
+            "\mylink{p/A-1.2.1}{eq.~!<! A-I.b.i !>!}"
+        )
+        self.assertEqual(
+            f.format_many_flm( [('A-', [V(1,(1,))])] , wrap_link_fn=wrap_link_fn),
+            r"\mylink{p/A-1.1}{eq.~!<! <A-I.a> !>!}"
+        )
+        self.assertEqual(
+            f.format_many_flm(
+                [('B-', [1,3,V(99,(3,)),2,V(99,(2,))]), ('A-',[54])],
+                wrap_link_fn=wrap_link_fn,
+                prefix_variant='capital'
+            ),
+            r"\mylink{p/B-1}{Equations~}!<! <<[[\mylink{p/B-1}{B-I}--\mylink{p/B-3}{III}]];[[\mylink{p/B-99.2}{B-XCIX.b}|\mylink{p/B-99.3}{B-XCIX.c}]];&\mylink{p/A-54}{A-LIV}>> !>!"
+        )
+
 
 
 
