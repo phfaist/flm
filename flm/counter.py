@@ -183,7 +183,8 @@ _rx_dollar_template = re.compile(r'\$\{([a-zA-Z0-9_.]+)\}')
 def _replace_dollar_template(x, vrs):
     return _rx_dollar_template.sub(lambda m: vrs[m.group(1)], x)
 def _replace_dollar_template_delayed(x, vrs):
-    return lambda arg: (
+    return lambda arg, numprefix=None: (
+        (numprefix or '') +
         _rx_dollar_template.sub(lambda m: vrs[m.group(1)] (arg) , x)
     )
 
@@ -203,7 +204,9 @@ def parse_counter_formatter(
         return counter_formatter
     if isinstance(counter_formatter, str):
         if counter_formatter in named_counter_formatters:
-            return named_counter_formatters[counter_formatter]
+            return lambda n, numprefix=None: (
+                (numprefix or '') + named_counter_formatters[counter_formatter](n)
+            )
         if str_use_tag_template:
             return _parse_counter_formatter_from_tag_template(
                 counter_formatter,
@@ -235,10 +238,12 @@ def _parse_counter_formatter_from_tag_template(
         left = tag_template[:m.start()]
         right = tag_template[m.end():]
         counter_formatter = tag_template_initials_counters[m.group()]
-        return lambda n: (left + counter_formatter(n) + right)
+        return lambda n, numprefix=None: (
+            (numprefix or '') + (left + counter_formatter(n) + right)
+        )
 
     # no counter. E.g., a bullet symbol
-    return lambda n: tag_template
+    return lambda n, numprefix=None: tag_template
 
 
 
@@ -331,8 +336,10 @@ class CounterFormatter:
 
     def __init__(self, format_num, prefix_display=None, 
                  delimiters=None, join_spec=None, name_in_link=True,
+                 repeat_numprefix_in_range=False,
                  counter_formatter_id=None):
 
+        self.format_num = format_num
         self._format_num_fn = parse_counter_formatter(format_num)
         if prefix_display is None:
             prefix_display = {
@@ -357,18 +364,23 @@ class CounterFormatter:
             for (k,v) in jd.items()
         }
         self.name_in_link = name_in_link
+        self.repeat_numprefix_in_range = repeat_numprefix_in_range
 
         self.counter_formatter_id = counter_formatter_id
 
-        # FIXME: 'format_num' cannot be a field, it's a method .... :(
+        # note that if the format_num arg of the constructor is a method,
+        # then the field format_num is that function and this object cannot
+        # be serialized.  To serialize this method, better pass a template dict
+        # like {'$template': ...}.
         self._fields = (
-            'format_num', 
+            'format_num',
             'prefix_display', 'delimiters', 'join_spec',
-            'name_in_link', 'counter_formatter_id',
+            'name_in_link', 'repeat_numprefix_in_range',
+            'counter_formatter_id',
         )
 
-    def format_num(self, n):
-        return self._format_num_fn(n)
+    def format_number(self, n, numprefix=None):
+        return self._format_num_fn(n, numprefix=numprefix)
 
     def asdict(self):
         return {k: getattr(self, k) for k in self._fields}
@@ -380,20 +392,27 @@ class CounterFormatter:
             + ")"
         )
 
-    def format_flm(self, value, prefix_variant=None, with_delimiters=True, with_prefix=True,
+    def format_flm(self, value, valuenumprefix=None,
+                   prefix_variant=None, with_delimiters=True, with_prefix=True,
                    wrap_format_num=None, wrap_link_fn=None):
+        r"""
+        Doc.......
+        
+        Value is an integer, any numprefix should be specified separately via
+        the `numprefix` arg. ..............
+        """
         prefix, pre, post = self._get_format_pre_post(
             with_delimiters,
             with_prefix,
             1,
             prefix_variant,
         )
-        s_num = self.format_num(value)
+        s_num = self.format_number(value, numprefix=valuenumprefix)
         if wrap_format_num is not None:
             s_num = wrap_format_num(s_num)
         s = prefix + pre + s_num + post
         if wrap_link_fn is not None:
-            return wrap_link_fn(value, s)
+            return wrap_link_fn(n=value, s=s, numprefix=valuenumprefix)
         return s
 
     def _get_format_pre_post(self, with_delimiters, with_prefix,
@@ -418,9 +437,15 @@ class CounterFormatter:
         return prefix, pre, post
 
 
-    def format_many_flm(self, values, prefix_variant=None, with_delimiters=True,
+    def format_many_flm(self, values,
+                        prefix_variant=None, with_delimiters=True,
                         with_prefix=True, wrap_link_fn=None,
                         wrap_format_num=None, get_raw_s_items=False, s_items_join=None):
+        r"""
+        DOC..........
+        
+        Here, values may include a "numprefix".
+        """
 
         join_spec = self.join_spec
         name_in_link = self.name_in_link
@@ -428,87 +453,114 @@ class CounterFormatter:
         if s_items_join is None:
             s_items_join = lambda a, b: a + b
 
+        values = list(values) # make sure we collect any items of some iterable
+
         if len(values) == 0:
             return join_spec['empty']
 
-        values = [ _expect_int(v) for v in values ]
+        if not isinstance(values[0], int) and len(values[0]) == 2 \
+           and isinstance(values[0][0], str):
+            # `values` is a list of values sorted by numprefix.  All good,
+            # continue.
+            pass
+        else:
+            # pack values into a single dummy numprefix 'None'.
+            values = [(None, values)]
 
-        # key= appears to be required for Transcrypt(), so that a comparison
-        # function is provided in the JS code, otherwise JavaScript's sort()
-        # converts to string and sorts alphabetically ... :/
-        values = sorted(values, key=int) #lambda x: int(x))
+        # key= in sorted() appears to be required for Transcrypt(), so that a
+        # comparison function is provided in the JS code, otherwise JavaScript's
+        # sort() converts to string and sorts alphabetically ... :/
+        values = [
+            (valuenumprefix, sorted([_expect_int(v) for v in valuelist], key=int))
+            for (valuenumprefix, valuelist) in values
+        ]
 
-        num_values = len(values)
+        num_values = sum([len(valuelist) for _, valuelist in values])
 
         only_one_value = False
         if num_values == 1:
             only_one_value = True
 
-        list_of_ranges = []
-        cur_range = None
-        for v in values:
-            if not cur_range:
+        list_of_ranges_with_numprefix = []
+        for numprefix, valuelist in values:
+            cur_range = None
+            for v in valuelist:
+                if cur_range is None:
+                    cur_range = (v, v)
+                    continue
+                if v == cur_range[1]+1:
+                    cur_range = (cur_range[0], v)
+                    continue
+                list_of_ranges_with_numprefix.append( (numprefix, cur_range) )
                 cur_range = (v, v)
-                continue
-            if v == cur_range[1]+1:
-                cur_range = (cur_range[0], v)
-                continue
-            list_of_ranges.append(cur_range)
-            cur_range = (v, v)
+            list_of_ranges_with_numprefix.append( (numprefix, cur_range) )
 
-        list_of_ranges.append(cur_range)
-        if len(list_of_ranges) == 1:
-            if list_of_ranges[0][0] + 1 == list_of_ranges[0][1]:
+        if len(list_of_ranges_with_numprefix) == 1:
+            numprefix, single_range = list_of_ranges_with_numprefix[0]
+            if single_range[0] + 1 == single_range[1]:
                 # single pair of consecutive values -> format as pair of values,
-                # each value seen as a range
-                list_of_ranges = [ (list_of_ranges[0][0], list_of_ranges[0][0]),
-                                   (list_of_ranges[0][1], list_of_ranges[0][1]), ]
+                # each single value seen as a "range"
+                list_of_ranges_with_numprefix = [
+                    (numprefix, (single_range[0],single_range[0])),
+                    (numprefix, (single_range[1],single_range[1])),
+                ]
 
-        def _format_num(n):
+        def _format_num(n, *, numprefix):
             if wrap_format_num is not None:
-                return wrap_format_num( self.format_num(n) )
-            return self.format_num(n)
+                return wrap_format_num( self.format_number(n, numprefix=numprefix),
+                                        numprefix=numprefix )
+            return self.format_number(n, numprefix=numprefix)
 
-        def _render_range_items(a, b):
+        def _render_range_items(a, b, numprefix):
             if a == b:
-                return [ { 's': _format_num(a), 'n': a } ]
-            s_a = _format_num(a)
-            s_b = _format_num(b)
-            if b == a + 1:
+                return [ { 's': _format_num(a, numprefix=numprefix), 'n': a, 'np': numprefix } ]
+            is_pairmid = (b == a+1)
+            s_a = _format_num(a, numprefix=numprefix)
+            s_b = _format_num(b, numprefix=(
+                numprefix if (is_pairmid or self.repeat_numprefix_in_range) else None
+            ))
+            if is_pairmid:
                 mid = join_spec['range_pairmid']
             else:
                 mid = join_spec['range_mid']
             return [
                 { 's': join_spec['range_pre'], 'n': False },
-                { 's': s_a, 'n': a },
+                { 's': s_a, 'n': a, 'np': numprefix },
                 { 's': mid, 'n': False },
-                { 's': s_b, 'n': b },
+                { 's': s_b, 'n': b, 'np': numprefix },
                 { 's': join_spec['range_post'], 'n': False },
             ]
 
-        if len(list_of_ranges) == 1:
+        if len(list_of_ranges_with_numprefix) == 1:
+            numprefix, single_range = list_of_ranges_with_numprefix[0]
             s_items = (
                 [ { 's': join_spec['one_pre'], 'n': None } ]
-                + _render_range_items(*list_of_ranges[0])
+                + _render_range_items(*single_range, numprefix=numprefix)
                 + [ { 's': join_spec['one_post'], 'n': None } ]
             )
-        elif len(list_of_ranges) == 2:
+        elif len(list_of_ranges_with_numprefix) == 2:
+            first_numprefix, first_range = list_of_ranges_with_numprefix[0]
+            second_numprefix, second_range = list_of_ranges_with_numprefix[1]
             s_items = (
                 [ { 's': join_spec['pair_pre'], 'n': False } ]
-                + _render_range_items(*list_of_ranges[0])
+                + _render_range_items(*first_range, numprefix=first_numprefix)
                 + [ { 's': join_spec['pair_mid'], 'n': False } ]
-                + _render_range_items(*list_of_ranges[1])
+                + _render_range_items(*second_range, numprefix=second_numprefix)
                 + [ { 's':  join_spec['pair_post'], 'n': False } ]
             )
         else:
             s_items = [ { 's': join_spec['list_pre'], 'n': False } ]
-            for rngj, rng in enumerate(list_of_ranges[:-1]):
+            for rngj, rnginfo in enumerate(list_of_ranges_with_numprefix[:-1]):
+                numprefix, rng = rnginfo
                 if rngj > 0:
                     s_items += [ { 's': join_spec['list_mid'], 'n': False } ]
-                s_items += _render_range_items(*rng)
+                s_items += _render_range_items(*rng, numprefix=numprefix)
+            last_numprefix, last_range = \
+                list_of_ranges_with_numprefix[len(list_of_ranges_with_numprefix)-1]
+                # ^^^ unsure if Transcryprt accepts [-1].
             s_items += (
                 [ { 's': join_spec['list_midlast'], 'n': False } ]
-                + _render_range_items(*list_of_ranges[-1])
+                + _render_range_items(*last_range, numprefix=last_numprefix)
                 + [ { 's': join_spec['list_post'], 'n': False } ]
             )
 
@@ -517,6 +569,7 @@ class CounterFormatter:
         )
 
         first_n = None
+        first_numprefix = None
         if not name_in_link:
             first_n = False
         else:
@@ -524,11 +577,12 @@ class CounterFormatter:
                 nn = si.get('n', None)
                 if nn is not None and nn is not False:
                     first_n = nn
+                    first_numprefix = si['np']
                     break
 
         s_pre_items = []
         if len(s_prefix):
-            s_pre_items.append( { 's': s_prefix, 'n': first_n } )
+            s_pre_items.append( { 's': s_prefix, 'n': first_n, 'np': first_numprefix } )
         s_pre_items.append(
             { 's': s_pre,
               'n': None if (name_in_link and only_one_value) else False }
@@ -548,15 +602,19 @@ class CounterFormatter:
             s_all = []
             cur_s = None
             cur_n = False
+            cur_np = None
             for s_item in s_items:
                 si = s_item['s']
                 ni = s_item.get('n', None)
+                np = s_item.get('np', None)
                 if ni is False and cur_n is False and cur_s is not None:
                     cur_s = s_items_join(cur_s, si)
                     continue
-                if cur_n is not False and (ni is None or cur_n is None or ni == cur_n):
+                if cur_n is not False and (ni is None or cur_n is None
+                                           or (ni == cur_n and _eqfornone(np, cur_np))):
                     if ni is not None and cur_n is None:
                         cur_n = ni
+                        cur_np = np
                     # add to current link
                     if cur_s is None:
                         cur_s = si
@@ -566,24 +624,25 @@ class CounterFormatter:
                     continue
                 # end link here
                 if cur_s is not None:
-                    s_all.append({'s': cur_s, 'n': cur_n})
+                    s_all.append({'s': cur_s, 'n': cur_n, 'np': cur_np})
                 # start anew
                 cur_s = si
                 cur_n = ni
+                cur_np = np
 
             if cur_s is not None:
-                s_all.append({'s': cur_s, 'n': cur_n})
+                s_all.append({'s': cur_s, 'n': cur_n, 'np': cur_np})
 
             s_items = s_all
 
-        #print('compressed s_items = ', s_items) # DEBUG
+        # print('compressed s_items = ', s_items) # DEBUG
 
         if get_raw_s_items:
             return s_items
 
         if wrap_link_fn is not None:
             s = "".join([
-                ( wrap_link_fn(x['n'], x['s'])
+                ( wrap_link_fn(n=x['n'], s=x['s'], numprefix=x['np'])
                   if (x['n'] is not None and x['n'] is not False)
                   else  x['s'] )
                 for x in s_items
@@ -594,6 +653,13 @@ class CounterFormatter:
 
         return s
 
+
+def _eqfornone(a, b):
+    return (
+        ((a is None) and (b is None))
+        or
+        (a == b)
+    )
 
 
 def _expect_int(v):
