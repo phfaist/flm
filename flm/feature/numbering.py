@@ -210,6 +210,28 @@ class _DocCounterState:
 
     def _impl_register_item(self):
 
+        self._update_state_from_doc_state()
+
+        self.cur_counter_state['value'] = self.cur_counter_state['value'].incremented()
+
+        cur_value = self.cur_counter_state['value']
+        cur_numprefix = self.cur_counter_state['numprefix']
+        formatted_value = self.formatter.format_flm(
+            cur_value.get_num(),
+            numprefix=cur_numprefix,
+            subnums=cur_value.get_subnums(),
+            with_prefix=False,
+        )
+        return {
+            'value': cur_value,
+            'number': cur_value.get_num(),
+            'subnums': cur_value.get_subnums(),
+            'numprefix': cur_numprefix,
+            'formatted_value': formatted_value,
+        }
+
+    def _update_state_from_doc_state(self):
+
         new_filtered_doc_state = self.get_filtered_doc_state()
         if new_filtered_doc_state == self.cur_filtered_doc_state:
             # no document state changes, can simply increase our current counter
@@ -244,28 +266,21 @@ class _DocCounterState:
             self.counter_by_filtered_doc_states[new_filtered_doc_state] = new_counter_state
             self.cur_counter_state = new_counter_state
 
-        self.cur_counter_state['value'] = self.cur_counter_state['value'].incremented()
-
-        cur_value = self.cur_counter_state['value']
-        cur_numprefix = self.cur_counter_state['numprefix']
-        formatted_value = self.formatter.format_flm(
-            cur_value.get_num(),
-            numprefix=cur_numprefix,
-            subnums=cur_value.get_subnums(),
-            with_prefix=False,
-        )
-        return {
-            'value': cur_value,
-            'number': cur_value.get_num(),
-            'subnums': cur_value.get_subnums(),
-            'numprefix': cur_numprefix,
-            'formatted_value': formatted_value,
-        }
-
     def get_formatted_counter_value(
             self,
             **kwargs
     ):
+        if self.cur_counter_state is None:
+            raise ValueError(
+                f"Attempt to obtain formatted counter value of ‘{self.counter_name}’, "
+                f"but no value was set as of yet."
+            )
+        
+        # needed in case the doc state has changed since we last registered an
+        # item for this counter.  This call might be needed, e.g., if we have a
+        # \subsubsection immediately inside a \section.
+        self._update_state_from_doc_state()
+
         return self.formatter.format_flm(
             value=self.cur_counter_state['value'].get_num(),
             subnums=self.cur_counter_state['value'].get_subnums(),
@@ -414,7 +429,10 @@ class FeatureNumbering(Feature):
                 self, counter_name,
                 **kwargs
         ):
-            return self.counters[counter_name].get_formatted_counter_value(**kwargs)
+            counter = self.counters[counter_name]
+            if counter is None:
+                raise ValueError(f"Invalid counter: {counter_name}")
+            return counter.get_formatted_counter_value(**kwargs)
 
 
 

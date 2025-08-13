@@ -102,6 +102,10 @@ Here's another display equation:
   \label{eq:my-equation-2}
 \end{align}
 
+\section{Second section here}
+
+Just testing this out!
+
 \subsection{A subsection with an enumeration list}
 
 \begin{enumerate}[{(a.)}]
@@ -137,6 +141,10 @@ Don't forget how the \term{Pauli matrices} are defined.  Also, \(\sigma_X\) is a
 matrices]{Pauli matrix}).  Recall the definition of a \term{qu\(d\)it}, noting
 that a qubit is also a \term[qu\(d\)it]{qu\((d=2)\)it}.
 
+
+\subsection{Another subsection here}
+
+More subsection content here.
 
 
 \section{Another section}
