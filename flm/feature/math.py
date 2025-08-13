@@ -21,7 +21,9 @@ from ..flmenvironment import FLMArgumentSpec
 
 from ._base import Feature
 
-from ..counter import build_counter_formatter, Counter
+from ..counter import build_counter_formatter
+from . import numbering
+from .numbering import Counter
 
 
 
@@ -38,7 +40,7 @@ _default_math_environment_names = (
 
 
 eq_default_counter_formatter_spec = {
-    'format_num': { 'template': '(${arabic})' },
+    'format_num': { 'template': '${arabic}' },
     'prefix_display': {
         'singular': 'Eq.~',
         'plural': 'Eqs.~',
@@ -47,7 +49,7 @@ eq_default_counter_formatter_spec = {
             'plural': 'Equations',
         },
     },
-    'delimiters': ('',''),
+    'delimiters': ('(',')'),
     'join_spec': 'compact',
 }
 
@@ -68,7 +70,7 @@ class FeatureMath(Feature):
             + self.eqref_ref_type + r""":}."""
         )
 
-    feature_optional_dependencies = [ 'refs' ]
+    feature_optional_dependencies = [ 'refs', 'numbering' ]
 
     feature_default_config = {
         'counter_formatter': eq_default_counter_formatter_spec,
@@ -103,15 +105,27 @@ class FeatureMath(Feature):
             pass
             
     class RenderManager(Feature.RenderManager):
-        def initialize(self):
-            self.equation_counter = Counter(self.feature.counter_formatter)
+        def initialize(self, counter_formatter=None):
+
+            if counter_formatter is not None:
+                self.counter_formatter = build_counter_formatter(
+                    counter_formatter,
+                    eq_default_counter_formatter_spec,
+                    counter_formatter_id='eq',
+                )
+            else:
+                self.counter_formatter = self.feature.counter_formatter
+
+            self.equation_counter_iface = numbering.get_document_render_counter(
+                self.render_context, 'equation', self.counter_formatter
+            )
 
             self.equation_info_by_node = {}
 
             if self.render_context.supports_feature('refs'):
                 refs_mgr = self.render_context.feature_render_manager('refs')
                 refs_mgr.register_counter_formatter(
-                    counter_formatter=self.feature.counter_formatter
+                    counter_formatter=self.counter_formatter
                 )
 
         def new_numbered_display_math(self, node, lineno, custom_tag_flm_text=None):
@@ -125,13 +139,16 @@ class FeatureMath(Feature):
                 eq_id = f"_{key[0]}"
                 if lineno:
                     eq_id += f"-{lineno}"
-                eq_counter_number = None
+                eq_counter_value = None
+                eq_counter_numprefix = None
             else:
-                eq_id, formatted_ref_flm_text = \
-                    self.equation_counter.step_and_format_flm()
-                eq_counter_number = eq_id
+                eq_info = self.equation_counter_iface.register_item()
+                eq_counter_value = eq_info['value']
+                eq_counter_numprefix = eq_info['numprefix']
+                formatted_ref_flm_text = eq_info['formatted_value']
+                eq_id = '.'.join([str(x) for x in eq_counter_value.astuple()])
 
-            info = (eq_id, formatted_ref_flm_text, eq_counter_number)
+            info = (eq_id, formatted_ref_flm_text, eq_counter_numprefix, eq_counter_value)
             self.equation_info_by_node[key] = info
             return info
 
@@ -398,7 +415,7 @@ class MathEnvironment(FLMEnvironmentSpecBase):
             custom_tag_flm_text = line_infos['custom_tag_flm_text']
 
             # add equation instance
-            eq_id, formatted_ref_flm_text, eq_counter_number = \
+            eq_id, formatted_ref_flm_text, eq_counter_numprefix, eq_counter_value = \
                 math_mgr.new_numbered_display_math(node, lineno, custom_tag_flm_text)
 
             this_target_id = f'equation-{eq_id}'
@@ -431,12 +448,13 @@ class MathEnvironment(FLMEnvironmentSpecBase):
                 for label_info in line_infos['labels']:
                     (ref_type, ref_label) = label_info['label']
                     counter_formatter_id = \
-                        math_mgr.feature.counter_formatter.counter_formatter_id
+                        math_mgr.counter_formatter.counter_formatter_id
                     refs_mgr.register_reference(
                         ref_type, ref_label,
                         node=node, formatted_ref_flm_text=formatted_ref_flm_text,
                         target_href=f'#{this_target_id}',
-                        counter_value=eq_counter_number,
+                        counter_value=eq_counter_value,
+                        counter_numprefix=eq_counter_numprefix,
                         counter_formatter_id=counter_formatter_id
                     )
 

@@ -9,7 +9,8 @@ from ..flmenvironment import FLMArgumentSpec
 from ..flmfragment import FLMFragment
 
 from ._base import Feature
-from ..counter import build_counter_formatter, Counter
+from ..counter import build_counter_formatter
+from .numbering import Counter
 
 
 
@@ -224,6 +225,9 @@ class FeatureEndnotes(Feature):
             number, fmtvalue_flm_text = \
                 self.endnote_counters[category_name].step_and_format_flm()
 
+            logger.debug('add_endnote: number=%r, fmtvalue_flm_text=%r',
+                         number, fmtvalue_flm_text)
+
             fmtvalue_flm = self.render_context.doc.environment.make_fragment(
                 fmtvalue_flm_text,
                 is_block_level=False,
@@ -256,6 +260,8 @@ class FeatureEndnotes(Feature):
 
             if self.inhibit_render_endnote_marks:
                 return self.render_context.fragment_renderer.render_nothing(self.render_context)
+
+            logger.debug("render_endnote_mark: endnote=%r", endnote)
 
             endnote_link_href = f"#{endnote.category_name}-{endnote.number}"
 
@@ -331,7 +337,7 @@ class FeatureEndnotes(Feature):
                     if sit['n'] is None or sit['n'] is False:
                         s += fragment_renderer.render_fragment(s_frag, render_context)
                     else:
-                        endnote_link_href = f"#{category_name}-{sit['n']}"
+                        endnote_link_href = f"#{category_name}-{sit['n'].get_num()}"
 
                         s += fragment_renderer.render_link(
                             'endnote',

@@ -264,4 +264,6 @@ Citation <span class="citation-marks">[<a href="#citation-1" class="href-endnote
 
 
 if __name__ == '__main__':
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
     unittest.main()

@@ -23,6 +23,15 @@ flm:
 
    features:
      theorems: {}
+     numbering:
+       number_within:
+         equation:
+           reset_at: section
+           numprefix: '${section}.'
+
+     headings:
+       numbering_section_depth: 3
+
      # ### Will override format-specific FLM defaults
      # endnotes:
      #   categories:

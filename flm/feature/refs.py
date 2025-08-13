@@ -14,7 +14,7 @@ from ..flmspecinfo import FLMMacroSpecBase
 from ..flmenvironment import FLMArgumentSpec
 
 from ._base import Feature
-
+from ..counter import ValueWithSubNums
 
 
 
@@ -328,10 +328,13 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             if ricfid not in ref_instances_by_counter_formatter_id:
                 ref_instances_by_counter_formatter_id[ricfid] = {}
             
-            c_numprefix, c_value = ri.counter_numprefix, ri.counter_value
+            c_numprefix, c_value = ri.counter_numprefix, ValueWithSubNums(ri.counter_value)
             if c_numprefix not in ref_instances_by_counter_formatter_id[ricfid]:
-                ref_instances_by_counter_formatter_id[ricfid][c_numprefix] = {}
-            ref_instances_by_counter_formatter_id[ricfid][c_numprefix][ri.counter_value] = ri
+                ref_instances_by_counter_formatter_id[ricfid][c_numprefix] = []
+            ref_instances_by_counter_formatter_id[ricfid][c_numprefix].append({
+                'value': c_value,
+                'ri': ri,
+            })
 
         s_final_blocks = []
 
@@ -340,7 +343,8 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             counter_formatter = self.registered_counter_formatters[counter_formatter_id]
             #
             s_items = counter_formatter.format_many_flm(
-                [ (np, list(ribyvalue.keys())) for np, ribyvalue in rcdict.items() ],
+                [ (np, [d['value'] for d in rivaluelist])
+                  for np, rivaluelist in rcdict.items() ],
                 prefix_variant=counter_prefix_variant,
                 with_delimiters=counter_with_delimiters,
                 with_prefix=counter_with_prefix,
@@ -356,7 +360,12 @@ class FeatureRefsRenderManager(Feature.RenderManager):
                 if sit['n'] is None or sit['n'] is False:
                     s += fragment_renderer.render_fragment(s_frag, render_context)
                 else:
-                    rinst = rcdict[sit['n']]
+                    #print("***DEBUG: rcdict=", repr(rcdict), "; sit=", repr(sit))
+                    rinst = None
+                    for rivalue in rcdict[sit['np']]:
+                        if rivalue['value'].equals(sit['n']):
+                            rinst = rivalue['ri']
+                            break
                     s += fragment_renderer.render_link(
                         'ref',
                         rinst.target_href,

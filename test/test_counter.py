@@ -284,7 +284,7 @@ class TestCounterFormatter(unittest.TestCase):
             "eq.~!<! <A-I> !>!"
         )
         self.assertEqual(
-            f.format_flm( 1, valuenumprefix='A-' ),
+            f.format_flm( 1, numprefix='A-' ),
             "eq.~!<! A-I !>!"
         )
         self.assertEqual(
@@ -326,8 +326,8 @@ class TestCounterFormatter(unittest.TestCase):
             return r'\mylink{p/' + (numprefix or '') + str(n) + '}{' + s + '}'
 
         self.assertEqual(
-            f.format_flm( 1, valuenumprefix='A-', wrap_link_fn=wrap_link_fn),
-            "\mylink{p/A-1}{eq.~!<! A-I !>!}"
+            f.format_flm( 1, numprefix='A-', wrap_link_fn=wrap_link_fn),
+            r"\mylink{p/A-1}{eq.~!<! A-I !>!}"
         )
         self.assertEqual(
             f.format_many_flm( [('A-', [1])] , wrap_link_fn=wrap_link_fn),
@@ -394,7 +394,7 @@ class TestCounterFormatter(unittest.TestCase):
             "eq.~!<! <A-I> !>!"
         )
         self.assertEqual(
-            f.format_flm( 1, valuenumprefix='A-' ),
+            f.format_flm( 1, numprefix='A-' ),
             "eq.~!<! A-I !>!"
         )
         self.assertEqual(
@@ -436,8 +436,8 @@ class TestCounterFormatter(unittest.TestCase):
             return r'\mylink{p/' + (numprefix or '') + str(n) + '}{' + s + '}'
 
         self.assertEqual(
-            f.format_flm( 1, valuenumprefix='A-', wrap_link_fn=wrap_link_fn),
-            "\mylink{p/A-1}{eq.~!<! A-I !>!}"
+            f.format_flm( 1, numprefix='A-', wrap_link_fn=wrap_link_fn),
+            r"\mylink{p/A-1}{eq.~!<! A-I !>!}"
         )
         self.assertEqual(
             f.format_many_flm( [('A-', [1])] , wrap_link_fn=wrap_link_fn),
@@ -516,11 +516,11 @@ class TestCounterFormatter(unittest.TestCase):
             "eq.~!<! <A-I.b> !>!"
         )
         self.assertEqual(
-            f.format_flm( 1, valuenumprefix='A-', valuesubnums=(2,3,) ),
+            f.format_flm( 1, numprefix='A-', subnums=(2,3,) ),
             "eq.~!<! A-I.b.iii !>!"
         )
         self.assertEqual(
-            f.format_flm( 1, valuenumprefix='A-', valuesubnums=(3,) ),
+            f.format_flm( 1, numprefix='A-', subnums=(3,) ),
             "eq.~!<! A-I.c !>!"
         )
         self.assertEqual(
@@ -554,12 +554,12 @@ class TestCounterFormatter(unittest.TestCase):
             return r'\mylink{p/' + (numprefix or '') + str(n) + ''.join([f'.{s}' for s in subnums]) + '}{' + s + '}'
 
         self.assertEqual(
-            f.format_flm( 1, valuenumprefix='A-', wrap_link_fn=wrap_link_fn),
-            "\mylink{p/A-1}{eq.~!<! A-I !>!}"
+            f.format_flm( 1, numprefix='A-', wrap_link_fn=wrap_link_fn),
+            r"\mylink{p/A-1}{eq.~!<! A-I !>!}"
         )
         self.assertEqual(
-            f.format_flm( 1, valuesubnums=(2,1,), valuenumprefix='A-', wrap_link_fn=wrap_link_fn),
-            "\mylink{p/A-1.2.1}{eq.~!<! A-I.b.i !>!}"
+            f.format_flm( 1, subnums=(2,1,), numprefix='A-', wrap_link_fn=wrap_link_fn),
+            r"\mylink{p/A-1.2.1}{eq.~!<! A-I.b.i !>!}"
         )
         self.assertEqual(
             f.format_many_flm( [('A-', [V(1,(1,))])] , wrap_link_fn=wrap_link_fn),

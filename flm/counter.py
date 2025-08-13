@@ -341,10 +341,19 @@ def build_counter_formatter(counter_formatter, default_counter_formatter_spec, *
 
 class ValueWithSubNums:
     def __init__(self, value, subnums=()):
+        self.values_tuple = None
         if hasattr(value, 'values_tuple'):
             self.values_tuple = tuple(value.values_tuple)
         else:
             self.values_tuple = tuple([_expect_int(value), *subnums])
+
+    def get_num(self):
+        return self.values_tuple[0]
+    def get_subnums(self):
+        return self.values_tuple[1:]
+
+    def astuple(self):
+        return self.values_tuple
 
     def does_immediately_succeed(self, val2):
         val2p1 = list(val2.values_tuple)
@@ -354,6 +363,23 @@ class ValueWithSubNums:
 
     def equals(self, val2):
         return self.values_tuple == val2.values_tuple
+
+    def incremented(self, subnum_level=None):
+
+        if subnum_level is None:
+            subnum_level = len(self.values_tuple)-1
+
+        new_values_list = list(self.values_tuple)
+        new_values_list[subnum_level] += 1
+        for j in range(subnum_level+1, len(new_values_list)):
+            new_values_list[j] = 0
+
+        return ValueWithSubNums(new_values_list[0], new_values_list[1:])
+
+    def extended_by_one(self, subnum_value=0):
+        new_value = ValueWithSubNums(self)
+        new_value.values_tuple = tuple(list(new_value.values_tuple) + [ subnum_value ])
+        return new_value
 
     def __repr__(self):
         return "V{"+repr(self.values_tuple)+"}"
@@ -459,7 +485,7 @@ class CounterFormatter:
             + ")"
         )
 
-    def format_flm(self, value, valuenumprefix=None, valuesubnums=None,
+    def format_flm(self, value, numprefix=None, subnums=None,
                    prefix_variant=None, with_delimiters=True, with_prefix=True,
                    wrap_format_num=None, wrap_link_fn=None):
         r"""
@@ -474,12 +500,12 @@ class CounterFormatter:
             1,
             prefix_variant,
         )
-        s_num = self.format_number(value, numprefix=valuenumprefix, subnums=valuesubnums)
+        s_num = self.format_number(value, numprefix=numprefix, subnums=subnums)
         if wrap_format_num is not None:
             s_num = wrap_format_num(s_num)
         s = prefix + pre + s_num + post
         if wrap_link_fn is not None:
-            return wrap_link_fn(n=value, s=s, numprefix=valuenumprefix, subnums=valuesubnums)
+            return wrap_link_fn(n=value, s=s, numprefix=numprefix, subnums=subnums)
         return s
 
     def _get_format_pre_post(self, with_delimiters, with_prefix,
@@ -526,13 +552,15 @@ class CounterFormatter:
         if s_items_join is None:
             s_items_join = lambda a, b: a + b
 
+        # print("***DEBUG: values=", values)
+
         values = list(values) # make sure we collect any items of some iterable
 
         if len(values) == 0:
             return join_spec['empty']
 
         if not isinstance(values[0], (int,ValueWithSubNums)) and len(values[0]) == 2 \
-           and isinstance(values[0][0], str):
+           and (isinstance(values[0][0], str) or values[0][0] is None):
             # `values` is a list of values sorted by numprefix.  All good,
             # continue.
             pass
@@ -552,7 +580,7 @@ class CounterFormatter:
             for (valuenumprefix, valuelist) in values
         ]
 
-        print("***DEBUG: sanitized values = ", repr(values))
+        # print("***DEBUG: sanitized values = ", repr(values))
 
         num_values = sum([len(valuelist) for _, valuelist in values])
 

@@ -9,7 +9,8 @@ from pylatexenc import macrospec
 from ..flmenvironment import FLMArgumentSpec, make_invocable_node_instance
 from .. import flmspecinfo
 
-from ..counter import Counter, CounterAlias, build_counter_formatter
+from ..counter import build_counter_formatter
+from .numbering import Counter, CounterAlias
 
 from ._base import Feature
 from . import headings
@@ -164,7 +165,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             ref_instance = refs_mgr.register_reference_step_counter(
                 node=node,
                 counter=counter,
-                target_href_fn=lambda n: f'#{self.environmentname}-{n}',
+                target_href_fn=lambda n, *, numprefix=None, subnums=(): f'#{self.environmentname}-{numprefix or ""}{n}{"".join(["."+str(s) for s in subnums])}',
                 counter_with_prefix=True,
                 counter_prefix_variant=prefix_variant
             )

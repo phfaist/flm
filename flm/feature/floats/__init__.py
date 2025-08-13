@@ -12,9 +12,10 @@ from pylatexenc.macrospec import (
 
 from ...flmenvironment import FLMArgumentSpec
 from ...flmspecinfo import FLMEnvironmentSpecBase, make_verb_argument
-from ...counter import build_counter_formatter, Counter
+from ...counter import build_counter_formatter
 
 from .._base import Feature
+from ..numbering import Counter
 from ..graphics import SimpleIncludeGraphicsMacro
 from ..cells import CellsEnvironment
 

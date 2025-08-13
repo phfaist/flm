@@ -589,6 +589,7 @@ Hello world~\cite{arxiv:1234.56789}.
                             formatted_ref_flm_text=r'Kitaev \emph{surface} code',
                             target_href='https://errorcorrectionzoo.org/c/surface',
                             counter_value=None,
+                            counter_numprefix=None,
                             counter_formatter_id=None,
                         )
                     if ref_label == 'self':
@@ -598,6 +599,7 @@ Hello world~\cite{arxiv:1234.56789}.
                             formatted_ref_flm_text=r'(\textbf{this} exact code)',
                             target_href='#',
                             counter_value=None,
+                            counter_numprefix=None,
                             counter_formatter_id=None,
                         )
                     raise ValueError(f"Invalid ref target: ‘{ref_type}:{ref_label}’")

@@ -7,11 +7,11 @@ from pylatexenc.latexnodes import (
 )
 
 from .. import flmspecinfo
+from ..counter import build_counter_formatter
 
 from ._base import Feature
 
-from . import refs
-
+from . import refs, numbering
 
 
 
@@ -83,37 +83,19 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
 
         headings_mgr = render_context.feature_render_manager('headings')
 
-        target_id = None
-
-        if hasattr(node, 'flm_heading_target_id'):
-            # used to set the target_id when an internally generated heading is
-            # needed and a HeadingMacro macro instance is internally created
-            # (e.g., for theorems)
-            target_id = node.flm_heading_target_id
-
-        else:
-            target_id = node.flm_referenceable_infos[0].get_target_id()
-            if target_id is None:
-                target_id = headings_mgr.get_default_target_id(
-                    node.flmarg_labels,
-                    node.flmarg_heading_content_nodelist,
-                    node=node,
-                )
-
-        if render_context.supports_feature('refs') and render_context.is_first_pass:
-            refs_mgr = render_context.feature_render_manager('refs')
-            for flm_referenceable_info in node.flm_referenceable_infos:
-                refs_mgr.register_reference_referenceable(
-                    node=node,
-                    referenceable_info=flm_referenceable_info,
-                )
+        heading_info = headings_mgr.new_heading(
+            node=node,
+            heading_level=self.heading_level,
+            labels=node.flmarg_labels,
+            heading_content_nodelist=node.flmarg_heading_content_nodelist,
+        )
 
         return render_context.fragment_renderer.render_heading(
-            node.flmarg_heading_content_nodelist,
+            heading_info['content_nodelist'],
             render_context=render_context,
             heading_level=self.heading_level,
             inline_heading=self.inline_heading,
-            target_id=target_id
+            target_id=heading_info['target_id'],
         )
 
 
@@ -153,6 +135,20 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
         return s
 
 
+sec_default_counter_formatter_spec = {
+    'format_num': { 'template': '${arabic}' },
+    'prefix_display': {
+        'singular': '§ ',
+        'plural': '§ ',
+        # 'capital': {
+        #     'singular': 'Equation',
+        #     'plural': 'Equations',
+        # },
+    },
+    'delimiters': ('',''),
+    'join_spec': 'compact',
+}
+
 
 class FeatureHeadings(Feature):
     r"""
@@ -163,16 +159,142 @@ class FeatureHeadings(Feature):
     feature_name = 'headings'
     feature_title = 'Headings: sections, paragraphs'
 
-    feature_optional_dependencies = [ 'refs' ]
-
+    feature_optional_dependencies = [ 'refs', 'numbering', ]
 
     class RenderManager(Feature.RenderManager):
         # the render manager will take care of generating render-context-unique
         # target id's for headers
-        def initialize(self):
+        def initialize(
+                self,
+                numbering_section_depth=None,
+                section_numbering_by_level=None,
+                counter_formatter=None,
+        ):
             self.target_id_counters = {}
             self.target_ids = {}
 
+            if numbering_section_depth is not None:
+                self.numbering_section_depth = numbering_section_depth
+            else:
+                self.numbering_section_depth = self.feature.numbering_section_depth
+
+            if section_numbering_by_level is not None:
+                self.section_numbering_by_level = {
+                    level: self.feature._make_section_numbering_info(x)
+                    for level, x in dict(section_numbering_by_level).items()
+                }
+            else:
+                self.section_numbering_by_level = self.feature.section_numbering_by_level
+
+            if counter_formatter is not None:
+                self.counter_formatter = build_counter_formatter(
+                    counter_formatter,
+                    sec_default_counter_formatter_spec,
+                    counter_formatter_id='section',
+                )
+            else:
+                self.counter_formatter = self.feature.counter_formatter
+
+            self.section_counter_ifaces = {}
+            last_counter_name = None
+            if self.numbering_section_depth is not False:
+                for j in sorted(self.section_numbering_by_level.keys(), key=int):
+                    if j > self.numbering_section_depth:
+                        break
+                    counter_name = self.feature.section_commands_by_level[j].cmdname
+                    numbering_info = self.section_numbering_by_level[j]
+                    always_number_within = None
+                    if last_counter_name is not None:
+                        always_number_within = {
+                            'reset_at': last_counter_name,
+                            'numprefix': numbering_info.numprefix,
+                        }
+                    counter_iface = numbering.get_document_render_counter(
+                        self.render_context, counter_name, self.counter_formatter,
+                        always_number_within=always_number_within
+                    )
+                    self.section_counter_ifaces[j] = counter_iface
+                    last_counter_name = counter_name
+
+        def new_heading(self, node, heading_level,
+                        labels, heading_content_nodelist, target_id=None):
+
+            if target_id is None:
+                if hasattr(node, 'flm_heading_target_id'):
+                    # used to set the target_id when an internally generated heading is
+                    # needed and a HeadingMacro macro instance is internally created
+                    # (e.g., for theorems)
+                    target_id = node.flm_heading_target_id
+                elif len(node.flm_referenceable_infos):
+                    target_id = node.flm_referenceable_infos[0].get_target_id()
+
+            if target_id is None:
+                target_id = self.get_default_target_id(
+                    labels,
+                    heading_content_nodelist,
+                    node=node,
+                )
+
+            refs_mgr = None
+            if self.render_context.supports_feature('refs') \
+               and self.render_context.is_first_pass:
+                refs_mgr = self.render_context.feature_render_manager('refs')
+
+            # get section number, if applicable.
+            sec_num_info = None
+            if heading_level in self.section_counter_ifaces:
+                counter_iface = self.section_counter_ifaces[heading_level]
+                numbering_info = self.section_numbering_by_level[heading_level]
+
+                sec_num_info = counter_iface.register_item()
+
+                heading_joiner = numbering_info.heading_joiner
+
+                heading_number_fragment = self.render_context.doc.environment.make_fragment(
+                    sec_num_info['formatted_value'] + heading_joiner,
+                    is_block_level=False,
+                    what=f"section-{heading_level} counter",
+                )
+
+                full_heading_nodelist = (
+                    []
+                    + heading_number_fragment.nodes.nodelist
+                    + heading_content_nodelist.nodelist
+                )
+
+                if refs_mgr is not None:
+                    for label_info in labels:
+                        (ref_type, ref_label) = label_info
+                        counter_formatter_id = self.counter_formatter.counter_formatter_id
+                        refs_mgr.register_reference(
+                            ref_type, ref_label,
+                            node=node,
+                            formatted_ref_flm_text=self.counter_formatter.format_flm(
+                                sec_num_info['value'].get_num(),
+                                subnums=sec_num_info['value'].get_subnums(),
+                                numprefix=sec_num_info['numprefix'],
+                                with_prefix=True,
+                            ),
+                            target_href=f'#{target_id}',
+                            counter_value=sec_num_info['value'],
+                            counter_numprefix=sec_num_info['numprefix'],
+                            counter_formatter_id=counter_formatter_id
+                        )
+            else:
+                full_heading_nodelist = heading_content_nodelist
+
+                if refs_mgr is not None:
+                    for flm_referenceable_info in node.flm_referenceable_infos:
+                        refs_mgr.register_reference_referenceable(
+                            node=node,
+                            referenceable_info=flm_referenceable_info,
+                        )
+
+            return {
+                'target_id': target_id,
+                'content_nodelist': full_heading_nodelist,
+                'sec_num_info': sec_num_info,
+            }
 
         def get_default_target_id(self, heading_labels, heading_content_nodelist, *, node):
 
@@ -208,21 +330,91 @@ class FeatureHeadings(Feature):
 
         def __repr__(self):
             return (
-                f"{self.__class__.__name__}(cmdname={self.cmdname!r}, "
-                f"inline={self.inline!r})"
+                f"{self.__class__.__name__}(cmdname={repr(self.cmdname)}, "
+                f"inline={repr(self.inline)})"
             )
 
-    def __init__(self, section_commands_by_level=None):
+    class SectionNumberingInfo:
+        def __init__(self, format_num, numprefix=None, heading_joiner=' '):
+            super().__init__()
+            self.format_num = format_num
+            self.numprefix = numprefix
+            self.heading_joiner = heading_joiner
+
+        def __repr__(self):
+            return (
+                f"{self.__class__.__name__}(format_num={repr(self.format_num)}, "
+                f"numprefix={repr(self.numprefix)}, "
+                f"heading_joiner={repr(self.heading_joiner)}"
+            )
+
+
+    feature_default_config = {
+        'counter_formatter': sec_default_counter_formatter_spec,
+        'section_commands_by_level': {
+            1: dict(cmdname=r"section"),
+            2: dict(cmdname=r"subsection"),
+            3: dict(cmdname=r"subsubsection"),
+            4: dict(cmdname=r"paragraph", inline=True),
+            5: dict(cmdname=r"subparagraph", inline=True),
+            6: dict(cmdname=r"subsubparagraph", inline=True),
+        },
+        'section_numbering_by_level': {
+            1: dict(
+                format_num={'template': '${arabic}'},
+                numprefix=None,
+                heading_joiner='. '
+            ),
+            2: dict(
+                format_num={'template': '${arabic}'},
+                numprefix='${section}.',
+                heading_joiner='. '
+            ),
+            3: dict(
+                format_num={'template': '${arabic}'},
+                numprefix='${section}.${subsection}.',
+                heading_joiner='. '
+            ),
+            4: dict(
+                format_num={'template': '${alph}'},
+                numprefix=None,
+                heading_joiner='. '
+            ),
+            5: dict(
+                format_num={'template': '${alph}'},
+                numprefix='${paragraph}.',
+                heading_joiner='. '
+            ),
+            6: dict(
+                format_num={'template': '${alph}'},
+                numprefix='${paragraph}.${subparagraph}.',
+                heading_joiner='. '
+            ),
+        }
+    }
+
+    def __init__(
+            self,
+            section_commands_by_level=None,
+            numbering_section_depth=False,
+            counter_formatter=None,
+            section_numbering_by_level=None,
+    ):
         super().__init__()
+
         if section_commands_by_level is None:
-            section_commands_by_level = {
-                1: self.SectionCommandInfo(r"section"),
-                2: self.SectionCommandInfo(r"subsection"),
-                3: self.SectionCommandInfo(r"subsubsection"),
-                4: self.SectionCommandInfo(r"paragraph", inline=True),
-                5: self.SectionCommandInfo(r"subparagraph", inline=True),
-                6: self.SectionCommandInfo(r"subsubparagraph", inline=True),
-            }
+            section_commands_by_level = self.feature_default_config['section_commands_by_level']
+        if section_numbering_by_level is None:
+            section_numbering_by_level = \
+                self.feature_default_config['section_numbering_by_level']
+        if counter_formatter is None:
+            counter_formatter = self.feature_default_config['counter_formatter']
+        counter_formatter = build_counter_formatter(
+            counter_formatter,
+            sec_default_counter_formatter_spec,
+            counter_formatter_id='section',
+        )
+        self.counter_formatter = counter_formatter
 
         # below, dict(...) seems to be needed to force a python-style dict
         # object when using Transcrypt.
@@ -230,6 +422,15 @@ class FeatureHeadings(Feature):
             level: self._make_section_command_info(x)
             for level, x in dict(section_commands_by_level).items()
         }
+        self.section_numbering_by_level = {
+            level: self._make_section_numbering_info(x)
+            for level, x in dict(section_numbering_by_level).items()
+        }
+
+        # all section headings with level <= numbering_section_depth will be
+        # numbered.
+        self.numbering_section_depth = numbering_section_depth
+
 
     def _make_section_command_info(self, x):
         r"""
@@ -242,6 +443,11 @@ class FeatureHeadings(Feature):
         if isinstance(x, str):
             return self.SectionCommandInfo(x)
         return self.SectionCommandInfo(**x)
+
+    def _make_section_numbering_info(self, x):
+        if isinstance(x, self.SectionNumberingInfo):
+            return x
+        return self.SectionNumberingInfo(**x)
 
     def add_latex_context_definitions(self):
         return dict(
