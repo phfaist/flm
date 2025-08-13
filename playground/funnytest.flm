@@ -26,8 +26,8 @@ flm:
      numbering:
        number_within:
          equation:
-           reset_at: section
-           numprefix: '${section}.'
+           reset_at: subsection
+           numprefix: '${subsection}.'
 
      headings:
        numbering_section_depth: 3
@@ -120,6 +120,13 @@ Just testing this out!
   \end{enumerate}
 
 \item Second nice thing!  Check also \eqref{eq:my-equation} and \ref{figure:my-figure}.
+
+\item Equations may also appear in enumeration lists:
+  Here's a display equation:
+  \begin{align}
+    a + b = c\ .
+    \label{eq:abc-again}
+  \end{align}
 \end{enumerate}
 
 \paragraph{A paragraph-level sectioning command}

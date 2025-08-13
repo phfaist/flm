@@ -373,7 +373,7 @@ class FeatureHeadings(Feature):
             ),
             3: dict(
                 format_num={'template': '${arabic}'},
-                numprefix='${section}.${subsection}.',
+                numprefix='${subsection}.',
                 heading_joiner='. '
             ),
             4: dict(
@@ -388,7 +388,7 @@ class FeatureHeadings(Feature):
             ),
             6: dict(
                 format_num={'template': '${alph}'},
-                numprefix='${paragraph}.${subparagraph}.',
+                numprefix='${subparagraph}.',
                 heading_joiner='. '
             ),
         }

@@ -270,12 +270,6 @@ class _DocCounterState:
             self,
             **kwargs
     ):
-        if self.cur_counter_state is None:
-            raise ValueError(
-                f"Attempt to obtain formatted counter value of ‘{self.counter_name}’, "
-                f"but no value was set as of yet."
-            )
-        
         # needed in case the doc state has changed since we last registered an
         # item for this counter.  This call might be needed, e.g., if we have a
         # \subsubsection immediately inside a \section.
@@ -371,13 +365,18 @@ class FeatureNumbering(Feature):
                         return lambda dummyarg: (
                             dcstate.get_formatted_counter_value(with_prefix=False)
                         )
-                    numprefix = counter._replace_dollar_template_delayed(
-                        numprefix_template,
-                        dict([
-                            (dcname, _mkfmtfunc(dcstate))
-                            for dcname, dcstate in self.counters.items()
-                        ])
-                    ) (None)
+                    if callable(numprefix_template):
+                        numprefix = numprefix_template(
+                            counters=self.counters
+                        )
+                    else:
+                        numprefix = counter._replace_dollar_template_delayed(
+                            numprefix_template,
+                            dict([
+                                (dcname, _mkfmtfunc(dcstate))
+                                for dcname, dcstate in self.counters.items()
+                            ])
+                        ) (None)
                 else:
                     numprefix = None
 
