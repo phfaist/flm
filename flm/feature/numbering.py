@@ -177,7 +177,7 @@ def get_document_render_counter(
 
 class _DocCounterState:
     def __init__(self, formatter, rdr_mgr, counter_name,
-                 use_doc_state_keys,
+                 base_use_doc_state_keys,
                  numprefix_and_value_for_doc_state):
 
         self.formatter = formatter
@@ -191,7 +191,11 @@ class _DocCounterState:
         self.cur_counter_state = None
         # { 'value': 0, 'numprefix': None|'Blah-' }
 
-        self.use_doc_state_keys = list(use_doc_state_keys)
+        self.base_use_doc_state_keys = list(base_use_doc_state_keys or [])
+        # will be updated upon first use to include number_within info that is
+        # complete only after the initialize() phase
+        self.use_doc_state_keys = None
+
         self.numprefix_and_value_for_doc_state = numprefix_and_value_for_doc_state
 
     def __repr__(self):
@@ -230,7 +234,17 @@ class _DocCounterState:
             'formatted_value': formatted_value,
         }
 
+    def _ensure_use_doc_state_keys(self):
+        if self.use_doc_state_keys is not None:
+            return
+
+        self.use_doc_state_keys = self.rdr_mgr.compute_use_doc_state_keys(self.counter_name)
+
+        logger.debug("Counter iface ‘%s’ has computed use_doc_state_keys=%r",
+                     self.counter_name, self.use_doc_state_keys)
+
     def _update_state_from_doc_state(self):
+        self._ensure_use_doc_state_keys()
 
         new_filtered_doc_state = self.get_filtered_doc_state()
         if new_filtered_doc_state == self.cur_filtered_doc_state:
@@ -295,6 +309,8 @@ class FeatureNumbering(Feature):
             
             self.render_doc_states = dict()
 
+            self.render_doc_states_clear_dependants = dict()
+
             # number_within = {
             #   'equation': {'reset_at': 'subsection', 'numprefix': '${subsection}.'}
             # }
@@ -303,14 +319,14 @@ class FeatureNumbering(Feature):
             else:
                 self.number_within = self.feature.number_within
 
-            self.number_within_dependants = {
-                v['reset_at']: [
-                    k2
-                    for (k2,v2) in self.number_within.items()
-                    if v2['reset_at'] == v['reset_at']
-                ]
-                for v in self.number_within.values()
-            }
+            # self.number_within_dependants = {
+            #     v['reset_at']: [
+            #         k2
+            #         for (k2,v2) in self.number_within.items()
+            #         if v2['reset_at'] == v['reset_at']
+            #     ]
+            #     for v in self.number_within.values()
+            # }
 
             logger.debug("FeatureNumbering.RenderManager, using number_within=%r",
                          self.number_within)
@@ -346,10 +362,10 @@ class FeatureNumbering(Feature):
                     counter_name, self.number_within[counter_name]
                 )
 
-            use_doc_state_keys = []
-            if counter_name in self.number_within:
-                parent_counter = self.number_within[counter_name]['reset_at']
-                use_doc_state_keys.append( f'cnt-{parent_counter}' )
+            # use_doc_state_keys = []
+            # if counter_name in self.number_within:
+            #     parent_counter = self.number_within[counter_name]['reset_at']
+            #     use_doc_state_keys.append( f'cnt-{parent_counter}' )
 
             def _numprefix_and_value_for_doc_state(rs):
                 if numprefix_for_doc_state_fn is not None:
@@ -361,15 +377,15 @@ class FeatureNumbering(Feature):
                         f"{counter_name=}, {rs=}, {self.number_within[counter_name]=}, "
                         f"{self.counters=}"
                     )
-                    def _mkfmtfunc(dcstate):
-                        return lambda dummyarg: (
-                            dcstate.get_formatted_counter_value(with_prefix=False)
-                        )
                     if callable(numprefix_template):
                         numprefix = numprefix_template(
                             counters=self.counters
                         )
                     else:
+                        def _mkfmtfunc(dcstate):
+                            return lambda dummyarg: (
+                                dcstate.get_formatted_counter_value(with_prefix=False)
+                            )
                         numprefix = counter._replace_dollar_template_delayed(
                             numprefix_template,
                             dict([
@@ -391,17 +407,69 @@ class FeatureNumbering(Feature):
                 formatter=counter_formatter,
                 rdr_mgr=self,
                 counter_name=counter_name,
-                use_doc_state_keys=use_doc_state_keys,
+                base_use_doc_state_keys=use_doc_state_keys,
                 numprefix_and_value_for_doc_state=_numprefix_and_value_for_doc_state,
             )
 
             return self.counters[counter_name]
 
-        def set_render_doc_state(self, state_type, state_value):
+        def _number_within_parent_counters(self, c):
+            if c not in self.number_within:
+                return []
+
+            pc = self.number_within[c]['reset_at']
+            parent_counters = [pc]
+            while pc in self.number_within:
+                pc = self.number_within[pc]['reset_at']
+                parent_counters.append(pc)
+            return parent_counters
+
+        def compute_use_doc_state_keys(self, counter_name):
+
+            use_doc_state_keys = list(self.counters[counter_name].base_use_doc_state_keys)
+
+            for parent_counter in self._number_within_parent_counters(counter_name):
+                use_doc_state_keys.append(f'cnt-{parent_counter}')
+
+            return use_doc_state_keys
+
+        def set_render_doc_state(self, state_type, state_value,
+                                 clear_self_upon_change=None):
+
+            logger.debug("Entering render doc state ‘%s’ -> %r  (clear_self_upon_change=%r)",
+                         state_type, state_value, clear_self_upon_change)
             self.render_doc_states[state_type] = state_value
+            # clear any dependant states for this state change:
+            if state_type in self.render_doc_states_clear_dependants:
+                for dep in self.render_doc_states_clear_dependants[state_type]:
+                    logger.debug("Clearing dependent render_doc_state ‘%s’", dep)
+                    self.set_render_doc_state(
+                        dep,
+                        None #('__cleared_as_dependant', (state_type, state_value))
+                    )
+            
+            if clear_self_upon_change:
+                for pdep in clear_self_upon_change:
+                    if pdep not in self.render_doc_states_clear_dependants:
+                        self.render_doc_states_clear_dependants[pdep] = set()
+                    self.render_doc_states_clear_dependants[pdep].add(state_type)
+
+                logging.debug("\tthis state will be cleared to a unique state if "
+                              "any of the following states are changed: %r;  "
+                              "->  self.render_doc_states_clear_dependants=%r",
+                              clear_self_upon_change, self.render_doc_states_clear_dependants)
 
         def clear_render_doc_state(self, state_type):
+            logger.debug("Clearing render doc state ‘%s’", state_type)
             del self.render_doc_states[state_type]
+            # clear any dependant states for this state change:
+            if state_type in self.render_doc_states_clear_dependants:
+                for dep in self.render_doc_states_clear_dependants[state_type]:
+                    logger.debug("Clearing dependent render_doc_state ‘%s’", dep)
+                    self.set_render_doc_state(
+                        dep,
+                        None, #('__cleared_as_dependant', (state_type, ))
+                    )
 
         def register_item(self, counter_name, custom_label=None):
 
@@ -417,7 +485,50 @@ class FeatureNumbering(Feature):
                 item_info = self.counters[counter_name]._impl_register_item()
             
             # update the render doc state, in case we have dependants.
-            self.set_render_doc_state(f'cnt-{counter_name}', item_info['formatted_value'])
+
+            our_full_parents = None
+            if counter_name in self.number_within:
+                pc = self.number_within[counter_name]['reset_at']
+                our_full_parents = [ pc ]
+                while pc in self.number_within:
+                    pc = self.number_within[pc]['reset_at']
+                    our_full_parents.append( pc )
+
+            # # recalculate this here, because we might have missed dependants
+            # # when specifying always_number_within in register_counter() ...
+            # number_within_dependants = {
+            #     v['reset_at']: [
+            #         k2
+            #         for (k2,v2) in self.number_within.items()
+            #         if v2['reset_at'] == v['reset_at']
+            #     ]
+            #     for v in self.number_within.values()
+            # }
+            # our_full_dependants = None
+            # if counter_name in number_within_dependants:
+            #     our_full_dependants = set(number_within_dependants[counter_name])
+            #     add_dependants = list(our_full_dependants)
+            #     while len(add_dependants):
+            #         last_add_dependants = add_dependants
+            #         add_dependants = []
+            #         for d in last_add_dependants:
+            #             if d in number_within_dependants:
+            #                 for d2 in number_within_dependants[d]:
+            #                     if d2 not in our_full_dependants:
+            #                         add_dependants.append(d2)
+            #         for d in add_dependants:
+            #             our_full_dependants.add(d)
+
+            # if counter_name in self.number_within_dependants:
+            #     our_number_within_dependants = self.number_within_dependants[counter_name]
+            self.set_render_doc_state(
+                f'cnt-{counter_name}', item_info['formatted_value'],
+                clear_self_upon_change=(
+                    [ f'cnt-{pcntname}' for pcntname in our_full_parents ]
+                    if our_full_parents
+                    else None
+                )
+            )
 
             logger.debug("registered numbered ‘%s’ item -> %r", counter_name, item_info)
             logger.debug("render_doc_states is now %r", self.render_doc_states)

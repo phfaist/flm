@@ -196,11 +196,21 @@ class FeatureHeadings(Feature):
             else:
                 self.counter_formatter = self.feature.counter_formatter
 
+            logger.debug(
+                "Initialize FeatureHeadings.RenderManager; using:\n"
+                "    numbering_section_depth=%r\n"
+                "    section_commands_by_level=%r\n"
+                "    section_numbering_by_level=%r\n"
+                "    counter_formatter=%r",
+                self.numbering_section_depth, self.feature.section_commands_by_level,
+                self.section_numbering_by_level, self.counter_formatter)
+
             self.section_counter_ifaces = {}
             last_counter_name = None
             if self.numbering_section_depth is not False:
                 for j in sorted(self.section_numbering_by_level.keys(), key=int):
-                    if j > self.numbering_section_depth:
+                    if (self.numbering_section_depth is not True
+                        and j > self.numbering_section_depth):
                         break
                     counter_name = self.feature.section_commands_by_level[j].cmdname
                     numbering_info = self.section_numbering_by_level[j]
@@ -216,6 +226,11 @@ class FeatureHeadings(Feature):
                     )
                     self.section_counter_ifaces[j] = counter_iface
                     last_counter_name = counter_name
+            
+                logging.debug(
+                    "Set up counter interfaces: %r",
+                    self.section_counter_ifaces
+                )
 
         def new_heading(self, node, heading_level,
                         labels, heading_content_nodelist, target_id=None):
