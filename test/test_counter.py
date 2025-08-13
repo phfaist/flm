@@ -2,8 +2,63 @@ import unittest
 
 from flm import counter
 
+
+# this is just much shorter & easier...
+V = counter.ValueWithSubNums
+
+        
+class TestValueWithSubNums(unittest.TestCase):
+
+    def test_construct_1(self):
+        v = V(1)
+        self.assertEqual(len(v.values_tuple), 1)
+        self.assertEqual(v.values_tuple, (1,) )
+
+    def test_construct_2(self):
+        v = V(1, (2,3,))
+        self.assertEqual(len(v.values_tuple), 3)
+        self.assertEqual(v.values_tuple, (1,2,3,) )
+
+
+    def test_astuple(self):
+        self.assertEqual(V(1).astuple(), (1,))
+        self.assertEqual(V(1, ()).astuple(), (1,))
+        self.assertEqual(V(1, (0,)).astuple(), (1,0,))
+        self.assertEqual(V(1, (2,3,)).astuple(), (1,2,3))
+
+    def test_does_immediately_succeed(self):
+        self.assertTrue(
+            V(1).does_immediately_succeed(V(0))
+        )
+        self.assertTrue(
+            V(124).does_immediately_succeed(V(123))
+        )
+        self.assertFalse(
+            V(1).does_immediately_succeed(V(1))
+        )
+        self.assertFalse(
+            V(3).does_immediately_succeed(V(1))
+        )
+        self.assertFalse(
+            V(2, (1,)).does_immediately_succeed(V(1))
+        )
+        self.assertFalse(
+            V(2).does_immediately_succeed(V(1,(9,)))
+        )
+        self.assertTrue(
+            V(2, (3,4,)).does_immediately_succeed(V(2, (3,3,)))
+        )
+        self.assertFalse(
+            V(1, (1,)).does_immediately_succeed(V(1, (1,)))
+        )
+        self.assertFalse(
+            V(1, (1,2,1)).does_immediately_succeed(V(1, (1,2)))
+        )
+
+
+
 class TestStandardCounterFormatters(unittest.TestCase):
-    
+
     def test_roman(self):
         roman = counter.standard_counter_formatters['roman']
         self.assertEqual(roman(1), 'i')
@@ -505,8 +560,6 @@ class TestCounterFormatter(unittest.TestCase):
             ),
         )
 
-        V = counter.ValueWithSubNums
-        
         self.assertEqual(
             f.format_many_flm( [('A-', [V(1,(2,3))])] ),
             "eq.~!<! <A-I.b.iii> !>!"
@@ -573,7 +626,6 @@ class TestCounterFormatter(unittest.TestCase):
             ),
             r"\mylink{p/B-1}{Equations~}!<! <<[[\mylink{p/B-1}{B-I}--\mylink{p/B-3}{III}]];[[\mylink{p/B-99.2}{B-XCIX.b}|\mylink{p/B-99.3}{B-XCIX.c}]];&\mylink{p/A-54}{A-LIV}>> !>!"
         )
-
 
 
 

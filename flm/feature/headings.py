@@ -11,7 +11,8 @@ from ..counter import build_counter_formatter
 
 from ._base import Feature
 
-from . import refs, numbering
+from . import refs
+from . import numbering
 
 
 

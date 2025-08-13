@@ -345,7 +345,10 @@ class ValueWithSubNums:
         if hasattr(value, 'values_tuple'):
             self.values_tuple = tuple(value.values_tuple)
         else:
-            self.values_tuple = tuple([_expect_int(value), *subnums])
+            # avoid "tuple([_expect_int(value), *subnums])" because of issues with Transcrypt.
+            values_list = [_expect_int(value)]
+            values_list += list(subnums)
+            self.values_tuple = tuple(values_list)
 
     def get_num(self):
         return self.values_tuple[0]
@@ -464,7 +467,7 @@ class CounterFormatter:
                 n, numprefix=numprefix, subnums=subnums
             )
             for j in range(len(subnums)):
-                if subnums[j] is not None:
+                if subnums[j]:
                     sfmtted = subnums_format_nums[j] ( subnums[j] )
                     if not skipprefix:
                         s += sfmtted['prefix']

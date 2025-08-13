@@ -109,13 +109,13 @@ def run_main():
     if args.compile_tests:
 
         # Generate the test runner script
-        runtests_js = genutils.generate_runtests_script(
+        runtests_py = genutils.generate_runtests_script(
             os.path.join(flm_src_dir, 'test'),
         )
 
         # Transcrypt it
         genutils.run_transcrypt(
-            runtests_js,
+            runtests_py,
             add_import_paths=[
                 os.path.join(args.preprocess_lib_output_dir, 'test')
             ],
