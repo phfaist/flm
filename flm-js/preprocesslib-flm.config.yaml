@@ -8,6 +8,7 @@ module_list:
   - 'flm'
   - 'flm.feature'
   - 'flm.stdfeatures'
+  - 'flm.feature.annotations'
   - 'flm.flmenvironment'
   - 'flm.flmdocument'
   - 'flm.flmfragment'

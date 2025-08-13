@@ -14,6 +14,7 @@ import pylatexenc.latexwalker
 
 import flm
 import flm.feature
+import flm.feature.annotations
 import flm.stdfeatures
 import flm.flmenvironment
 import flm.flmdocument
@@ -32,8 +33,3 @@ import flm.flmrecomposer.purelatex
 import logging
 import collections
 
-
-# customjspatches is no longer needed, we're now directly patching the
-# Transcrypt runtime at JS sources generation time (see generate_flm_js.py)
-#
-#import customjspatches

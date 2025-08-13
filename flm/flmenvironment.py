@@ -67,7 +67,8 @@ class FLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
 # ------------------------------------------------------------------------------
 
 
-_NotProvided = object()
+class _NotProvided:
+    pass
 
 def FLMArgumentSpec(parser, argname, is_block_level=_NotProvided, flm_doc=None,
                     parsing_state_delta=None):
