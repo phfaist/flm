@@ -406,7 +406,7 @@ class FeatureNumbering(Feature):
                 raise ValueError(f"Counter ‘{counter_name}’ already registered!")
 
             if always_number_within is not None:
-                if self.alias_counter:
+                if alias_counter:
                     raise ValueError(
                         f"register_counter(): Cannot specify both alias_counter and "
                         f"always_number_within, got "
