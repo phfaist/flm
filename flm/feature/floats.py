@@ -10,14 +10,15 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from ...flmenvironment import FLMArgumentSpec
-from ...flmspecinfo import FLMEnvironmentSpecBase, make_verb_argument
-from ...counter import build_counter_formatter
+from ..flmenvironment import FLMArgumentSpec
+from ..flmspecinfo import FLMEnvironmentSpecBase, make_verb_argument
+from ..counter import build_counter_formatter
 
-from .._base import Feature
-from ..numbering import Counter
-from ..graphics import SimpleIncludeGraphicsMacro
-from ..cells import CellsEnvironment
+from ._base import Feature
+from . import numbering
+from .numbering import Counter
+from .graphics import SimpleIncludeGraphicsMacro
+from .cells import CellsEnvironment
 
 
 
