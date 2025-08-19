@@ -606,7 +606,8 @@ class FeatureTheorems(Feature):
 
     feature_name = 'theorems'
 
-    feature_dependencies = [ 'refs' ]
+    feature_dependencies = [ 'refs', ]
+    feature_optional_dependencies = [ 'numbering', ]
 
     feature_default_config = {
         'environments': default_theorem_environments['defaultset'],

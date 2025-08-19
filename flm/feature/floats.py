@@ -548,7 +548,7 @@ class FeatureFloats(Feature):
     feature_name = 'floats'
     feature_title = 'Floating elements (figures & tables)'
 
-    feature_optional_dependencies = [ 'refs' ]
+    feature_optional_dependencies = [ 'refs', 'numbering' ]
 
     def __init__(self, float_types=None):
         super().__init__()
