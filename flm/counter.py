@@ -365,7 +365,7 @@ class ValueWithSubNums:
         return self.values_tuple
 
     def targetidstr(self):
-        return ".".join([str(x) for x in self.values_tuple])
+        return "-".join([str(x) for x in self.values_tuple])
 
     def does_immediately_succeed(self, val2):
         val2p1 = list(val2.values_tuple)

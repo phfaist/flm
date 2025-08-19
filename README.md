@@ -25,9 +25,15 @@ typesetting is fully customizable, e.g., through CSS styling of its HTML output
 I intended to call this project "LLM" as an acronym for Latex-Like Markup, but
 had to revise my choice after the astronomical growth of large language models.
 
-You can install FLM with pip:
+You can install the essential FLM python library with pip:
 ```bash
 $ pip install flm-core
+```
+
+To get started with the command-line `flm` tool along with some convenient
+packages to write documents, try:
+```bash
+$ pip install flm-core[maincmdl] flm-citations flm-templates flm-htmlplus
 ```
 
 Example `mydocument.flm`:

@@ -29,8 +29,8 @@ class TestValueWithSubNums(unittest.TestCase):
     def test_targetidstr(self):
         self.assertEqual(V(1).targetidstr(), "1")
         self.assertEqual(V(1, ()).targetidstr(), "1")
-        self.assertEqual(V(1, (0,)).targetidstr(), "1.0")
-        self.assertEqual(V(1, (2,3,)).targetidstr(), "1.2.3")
+        self.assertEqual(V(1, (0,)).targetidstr(), "1-0")
+        self.assertEqual(V(1, (2,3,)).targetidstr(), "1-2-3")
 
 
     def test_does_immediately_succeed(self):
