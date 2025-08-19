@@ -467,7 +467,7 @@ class LatexFragmentRenderer(FragmentRenderer):
 
         full_figcaption_rendered_list = []
         float_designator = None
-        if float_instance.number is not None:
+        if float_instance.counter_value is not None:
             has_number = True
             # numbered float -- generate the "Figure X" part
             float_designator = (

@@ -10,14 +10,14 @@ from flm.fragmentrenderer.text import TextFragmentRenderer
 from flm.fragmentrenderer.markdown import MarkdownFragmentRenderer
 
 
-
 def mk_flm_environ(**kwargs):
     features = standard_features(**kwargs)
     return make_standard_environment(features)
 
 
 from .cases import (
-    frag1, frag2,
+    frag1,
+    frag2,
 )
 
 
@@ -37,9 +37,14 @@ class TestFlmCases(unittest.TestCase):
 
 def run_test_case(test_case_obj, case_info):
 
-    environ = mk_flm_environ( **dict( case_info.get('standard_features', {}) ) )
+    standard_features_options = dict(case_info.get('standard_features', {}))
+
+    environ = mk_flm_environ( **standard_features_options )
 
     fragment = environ.make_fragment( case_info['source'] () )
+
+    print(f"Running FLM test case: {case_info['source']=}\n\t{standard_features_options=}\n"
+          f"\t{case_info['render_to']=}\t{case_info['endnotes']=}\n")
 
     result = render_fragment(
         environ,
@@ -105,3 +110,9 @@ def render_fragment(environment, fragment, *, render_to='html', endnotes=False):
 
 
     return result
+
+
+if __name__ == '__main__':
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    unittest.main()

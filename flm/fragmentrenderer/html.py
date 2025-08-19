@@ -570,7 +570,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
             figattrs['id'] = float_instance.target_id
 
         full_figcaption_rendered_list = []
-        if float_instance.number is not None:
+        if float_instance.counter_value is not None:
             # numbered float -- generate the "Figure X" part
             full_figcaption_rendered_list.append(
                 self.wrap_in_tag(

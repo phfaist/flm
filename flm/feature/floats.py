@@ -416,7 +416,8 @@ class FloatInstance:
                  *,
                  float_type=None,
                  float_type_info=None,
-                 number=None,
+                 counter_value=None,
+                 counter_numprefix=None,
                  formatted_counter_value_flm=None,
                  ref_label_prefix=None,
                  ref_label=None,
@@ -427,14 +428,16 @@ class FloatInstance:
         super().__init__()
         self.float_type = float_type
         self.float_type_info = float_type_info
-        self.number = number
+        self.counter_value = counter_value
+        self.counter_numprefix = counter_numprefix
         self.formatted_counter_value_flm = formatted_counter_value_flm
         self.ref_label_prefix = ref_label_prefix
         self.ref_label = ref_label
         self.target_id = target_id
         self.caption_nodelist = caption_nodelist
         self.content_nodelist = content_nodelist
-        self._fields = ('float_type', 'float_type_info', 'number',
+        self._fields = ('float_type', 'float_type_info',
+                        'counter_value', 'counter_numprefix',
                         'formatted_counter_value_flm',
                         'ref_label_prefix', 'ref_label', 'target_id',
                         'caption_nodelist', 'content_nodelist',)
@@ -475,7 +478,7 @@ def _float_default_counter_formatter_spec(float_type):
         prefix_display = {
             'singular': float_type_cap + '~',
             'plural': float_type_cap + 's~',
-        },
+        }
     return {
         'format_num': { 'template': '${Roman}' },
         'prefix_display': prefix_display,
@@ -502,9 +505,6 @@ class FloatType:
             float_caption_name = float_type
 
         self.float_caption_name = float_caption_name
-
-        if counter_formatter is None:
-            counter_formatter = {'format_num': 'arabic'}
 
         self.counter_formatter = build_counter_formatter(
             counter_formatter,
@@ -552,17 +552,22 @@ class FeatureFloats(Feature):
 
     def __init__(self, float_types=None):
         super().__init__()
+        logger.debug('FeatureFloats: param float_types=%r', float_types)
         if float_types is None:
             float_types = _default_float_types
         def _mkfloattypeobj(x):
             if isinstance(x, FloatType):
-                return x
-            return FloatType(**x)
+                ft = x
+            else:
+                ft = FloatType(**x)
+            logger.debug("Initialized float type: %r", ft)
+            return ft
         self.float_types_list = [ _mkfloattypeobj(x) for x in float_types ]
         self.float_types = {
             ft.float_type: ft
             for ft in self.float_types_list
         }
+        logger.debug('FeatureFloats: init. Defined float types = %r', self.float_types)
 
     def make_float_environment_spec(self, float_type):
         return FloatEnvironment(
@@ -585,18 +590,24 @@ class FeatureFloats(Feature):
                 float_type: []
                 for float_type, ftinfo in self.feature.float_types.items()
             }
-            self.float_counters = {
-                float_type: 0
-                for float_type, ftinfo in self.feature.float_types.items()
-            }
-            self.float_instances = {} # node_id -> float_instance
-        
+            refs_mgr = None
             if self.render_context.supports_feature('refs'):
                 refs_mgr = self.render_context.feature_render_manager('refs')
-                for float_type, ftinfo in self.feature.float_types.items():
+
+            self.float_counter_ifaces = {}
+            for float_type, ftinfo in self.feature.float_types.items():
+                self.float_counter_ifaces[float_type] = numbering.get_document_render_counter(
+                    self.render_context,
+                    counter_name=ftinfo.counter_formatter.counter_formatter_id,
+                    counter_formatter=ftinfo.counter_formatter,
+                )
+                if refs_mgr is not None:
                     refs_mgr.register_counter_formatter(
-                        counter_formatter=ftinfo.counter_formatter,
+                        counter_formatter=self.float_counter_ifaces[float_type].formatter,
                     )
+
+            self.float_instances = {} # node_id -> float_instance
+        
 
         def register_float(
                 self,
@@ -621,32 +632,37 @@ class FeatureFloats(Feature):
             logger.debug("registering float ... ")
 
             if numbered:
-                fmtcounter = float_type_info.counter_formatter
-                self.float_counters[float_type] += 1
-                number = self.float_counters[float_type]
 
-                fmtvalue_flm_text = fmtcounter.format_flm(number, with_prefix=False)
+                value_info = self.float_counter_ifaces[float_type].register_item()
+                value = value_info['value']
+                numprefix = value_info['numprefix']
+
+                fmtvalue_flm_text = value_info['formatted_value']
                 fmtvalue_flm = self.render_context.doc.environment.make_fragment(
                     fmtvalue_flm_text,
                     is_block_level=False,
-                    what=f"{float_type} {number} counter value",
+                    what=f"{float_type} {numprefix or ''}{value.targetidstr()} counter value",
                 )
 
+                fmtcounter = self.float_counter_ifaces[float_type].formatter
                 fmtcounter_id = fmtcounter.counter_formatter_id
 
             else:
-                number = None
+
+                value = None
+                numprefix = None
                 fmtvalue_flm = None
                 fmtcounter_id = None
 
             target_id = None
-            if number is not None:
-                target_id = f"{float_type}-{number}"
+            if value is not None:
+                target_id = f"{float_type}-{numprefix or ''}{value.targetidstr()}"
 
             float_instance = FloatInstance(
                 float_type=float_type,
                 float_type_info=float_type_info,
-                number=number,
+                counter_value=value,
+                counter_numprefix=numprefix,
                 formatted_counter_value_flm=fmtvalue_flm,
                 ref_label_prefix=ref_label_prefix,
                 ref_label=ref_label,
@@ -660,7 +676,7 @@ class FeatureFloats(Feature):
             self.floats[float_type].append( float_instance )
 
             # register also the reference in the 'refs' manager, if applicable
-            if number is not None and self.render_context.supports_feature('refs'):
+            if value is not None and self.render_context.supports_feature('refs'):
 
                 #logger.debug("maybe registering numbered float in refs manager")
 
@@ -678,7 +694,8 @@ class FeatureFloats(Feature):
                         node=node,
                         formatted_ref_flm_text=formatted_ref_flm_text,
                         target_href=f'#{target_id}',
-                        counter_value=number,
+                        counter_value=value,
+                        counter_numprefix=numprefix,
                         counter_formatter_id=fmtcounter_id,
                     )
 
@@ -686,10 +703,15 @@ class FeatureFloats(Feature):
             return float_instance
 
         def get_formatted_ref_flm_text(self, float_instance):
-            return (
-                float_instance.float_type_info.float_caption_name + '~' +
-                float_instance.formatted_counter_value_flm.flm_text
+            return self.float_counter_ifaces[float_instance.float_type].formatter.format_flm(
+                float_instance.counter_value,
+                numprefix=float_instance.counter_numprefix,
+                with_prefix=True,
             )
+            # return (
+            #     float_instance.float_type_info.float_caption_name + '~' +
+            #     float_instance.formatted_counter_value_flm.flm_text
+            # )
 
 
     # -----

@@ -245,7 +245,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
         # see flm.feature.floats for FloatInstance
 
         full_figcaption_rendered_list = []
-        if float_instance.number is not None:
+        if float_instance.counter_value is not None:
             full_figcaption_rendered_list.append(
                 self.render_join([
                     float_instance.float_type_info.float_caption_name,

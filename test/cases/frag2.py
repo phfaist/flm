@@ -131,5 +131,36 @@ case_info = {
     'endnotes': True,
     'standard_features': {
         'theorems': True,
+        'floats': True,
+        'float_types': [
+            {
+                'float_type': 'figure',
+                'float_caption_name': 'Figure',
+                'counter_formatter': {
+                    'format_num': { 'template': '${arabic}' },
+                    'prefix_display': {
+                        'singular': 'Figure~',
+                        'plural': 'Figures~',
+                    },
+                    'delimiters': ('',''),
+                    'join_spec': 'compact',
+                },
+                'content_handlers': ['includegraphics'],
+            },
+            {
+                'float_type': 'table',
+                'float_caption_name': 'Table',
+                'counter_formatter': {
+                    'format_num': { 'template': '${arabic}' },
+                    'prefix_display': {
+                        'singular': 'Table~',
+                        'plural': 'Tables~',
+                    },
+                    'delimiters': ('',''),
+                    'join_spec': 'compact',
+                },
+                'content_handlers': ['cells', 'includegraphics'],
+            },
+        ],
     },
 }
