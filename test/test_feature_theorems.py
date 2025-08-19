@@ -6,6 +6,7 @@ from flm.stdfeatures import standard_features
 from flm.fragmentrenderer.html import HtmlFragmentRenderer
 
 from flm.feature import theorems as feature_theorems
+from flm.feature import numbering as feature_numbering
 
 
 def mk_flm_environ_wthms(**kwargs):
@@ -219,9 +220,62 @@ Ref: \ref{thm:sqrt2,thm:sqrt4,thm:sqrt3}
         )
 
 
+    def test_numbering_by_section(self):
+
+        features = standard_features(
+            heading_numbering_section_depth=1
+        )
+        features.append( feature_numbering.FeatureNumbering(
+            number_within={
+                '_theorems_shared': {'reset_at': 'section', 'numprefix': '${section}.'},
+            }
+        ) )
+        features.append( feature_theorems.FeatureTheorems() )
+        environ = make_standard_environment(features)
+
+        frag1 = environ.make_fragment(r"""
+\section{One}
+\begin{theorem}
+\label{thm:sqrt2}
+The square root of two is irrational.
+\end{theorem}
+
+\section{Two}
+\begin{theorem}
+\label{thm:sqrt3}
+The square root of three is irrational.
+\end{theorem}
+
+\begin{proposition}
+\label{thm:sqrt4}
+The square root of four is rational.
+\end{proposition}
+
+Ref: \ref{thm:sqrt2,thm:sqrt4,thm:sqrt3}
+        """ .strip())
+
+        doc = environ.make_document(frag1.render)
+
+        fr = HtmlFragmentRenderer()
+        result, _ = doc.render(fr)
+        print(result)
+        self.assertEqual(
+            result,
+            r"""
+<h1 id="sec--One" class="heading-level-1">1. One</h1>
+<div class="theoremlike theorem p-block"><p><span id="theorem-1.1" class="heading-level-theorem heading-inline">Theorem&nbsp;1.1</span> The square root of two is irrational.</p></div>
+<h1 id="sec--Two" class="heading-level-1">2. Two</h1>
+<div class="theoremlike theorem p-block"><p><span id="theorem-2.1" class="heading-level-theorem heading-inline">Theorem&nbsp;2.1</span> The square root of three is irrational.</p></div>
+<div class="theoremlike proposition p-block"><p><span id="proposition-2.2" class="heading-level-theorem heading-inline">Proposition&nbsp;2.2</span> The square root of four is rational.</p></div>
+<p>Ref: <a href="#theorem-1.1" class="href-ref refcnt-theorem">Theorems&nbsp;</a><a href="#theorem-1.1" class="href-ref refcnt-theorem">1.1</a> and&nbsp;<a href="#theorem-2.1" class="href-ref refcnt-theorem">2.1</a>, <a href="#proposition-2.2" class="href-ref refcnt-proposition">Proposition&nbsp;2.2</a></p>
+""".strip()
+        )
+
 
 
 
 
 if __name__ == '__main__':
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
     unittest.main()

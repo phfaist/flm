@@ -88,6 +88,7 @@ class _CounterIface:
     def __init__(self, counter_name, simple_counter=None, numbering_render_manager=None):
         self.counter_name = counter_name
         self.simple_counter = simple_counter
+        self.formatter = simple_counter.formatter
         self.numbering_render_manager = numbering_render_manager
 
     def register_item(self, custom_label=None):
@@ -144,7 +145,7 @@ def get_document_render_counter(
                 counter_name,
                 simple_counter=CounterAlias(
                     counter_formatter,
-                    alias_counter,
+                    alias_counter.simple_counter,
                 )
             )
         return _CounterIface(
@@ -161,7 +162,8 @@ def get_document_render_counter(
     numbering_mgr = render_context.feature_render_manager('numbering')
 
     return numbering_mgr.register_counter(
-        counter_name, counter_formatter, alias_counter=alias_counter,
+        counter_name, counter_formatter,
+        alias_counter=alias_counter,
         always_number_within=always_number_within,
     )
 
@@ -218,12 +220,16 @@ class _DocCounterState:
 
         self.cur_counter_state['value'] = self.cur_counter_state['value'].incremented()
 
+        logger.debug(
+            "Counter iface ‘%s’ (w/ numbering feature), registered new item -> %r",
+            self.counter_name, self.cur_counter_state
+        )
+
         cur_value = self.cur_counter_state['value']
         cur_numprefix = self.cur_counter_state['numprefix']
         formatted_value = self.formatter.format_flm(
-            cur_value.get_num(),
+            cur_value,
             numprefix=cur_numprefix,
-            subnums=cur_value.get_subnums(),
             with_prefix=False,
         )
         return {
@@ -280,21 +286,60 @@ class _DocCounterState:
             self.counter_by_filtered_doc_states[new_filtered_doc_state] = new_counter_state
             self.cur_counter_state = new_counter_state
 
-    def get_formatted_counter_value(
-            self,
-            **kwargs
-    ):
+    def _get_cur_counter_state(self):
         # needed in case the doc state has changed since we last registered an
         # item for this counter.  This call might be needed, e.g., if we have a
         # \subsubsection immediately inside a \section.
         self._update_state_from_doc_state()
+        return self.cur_counter_state
 
+    def get_formatted_counter_value(
+            self,
+            **kwargs
+    ):
+        cur_counter_state = self._get_cur_counter_state()
         return self.formatter.format_flm(
-            value=self.cur_counter_state['value'].get_num(),
-            subnums=self.cur_counter_state['value'].get_subnums(),
-            numprefix=self.cur_counter_state['numprefix'],
+            value=cur_counter_state['value'].get_num(),
+            subnums=cur_counter_state['value'].get_subnums(),
+            numprefix=cur_counter_state['numprefix'],
             **kwargs
         )
+
+
+class _DocCounterStateAliasCounter:
+    def __init__(self, alias_counter, formatter, counter_name):
+        super().__init__()
+        self.alias_counter = alias_counter
+        self.counter_name = counter_name
+        self.formatter = formatter
+
+    def register_item(self, **kwargs):
+        count_info = self.alias_counter.register_item(**kwargs)
+        formatted_value = self.formatter.format_flm(
+            count_info['value'],
+            numprefix=count_info['numprefix'],
+            with_prefix=False,
+        )
+        count_info['formatted_value'] = formatted_value
+        logger.debug(
+            "Alias counter iface ‘%s’ (w/ numbering feature), registered new item -> "
+            "return value = %r",
+            self.counter_name, count_info
+        )
+        return count_info
+
+    def get_formatted_counter_value(
+            self,
+            **kwargs
+    ):
+        cur_counter_state = self.alias_counter._get_cur_counter_state()
+        return self.formatter.format_flm(
+            value=cur_counter_state['value'].get_num(),
+            subnums=cur_counter_state['value'].get_subnums(),
+            numprefix=cur_counter_state['numprefix'],
+            **kwargs
+        )
+
 
 
 class FeatureNumbering(Feature):
@@ -318,6 +363,16 @@ class FeatureNumbering(Feature):
                 self.number_within = number_within
             else:
                 self.number_within = self.feature.number_within
+
+            if self.number_within is not None:
+                for k, v in self.number_within.items():
+                    if 'reset_at' not in v:
+                        raise ValueError(
+                            f"numering feature config: number_within should be a dict "
+                            f"of the type dict(equation=dict(reset_at='section', "
+                            f"numprefix='${{subsection}}.'), ...).' .  Got "
+                            f"{repr(self.number_within)}"
+                        )
 
             # self.number_within_dependants = {
             #     v['reset_at']: [
@@ -344,10 +399,19 @@ class FeatureNumbering(Feature):
         ):
             # use_subcounter_doc_states = None | { 'doc_state_keys': ..., 'sub_formatter':  }
 
+            if not counter_name:
+                raise ValueError(f"register_counter(), please specify a counter_name")
+
             if counter_name in self.counters:
                 raise ValueError(f"Counter ‘{counter_name}’ already registered!")
 
             if always_number_within is not None:
+                if self.alias_counter:
+                    raise ValueError(
+                        f"register_counter(): Cannot specify both alias_counter and "
+                        f"always_number_within, got "
+                        f"{alias_counter=} and {always_number_within=}"
+                    )
                 if counter_name in self.number_within:
                     self.number_within[counter_name]['reset_at'] = \
                         always_number_within['reset_at']
@@ -361,6 +425,16 @@ class FeatureNumbering(Feature):
                     "another counter, config=%r",
                     counter_name, self.number_within[counter_name]
                 )
+
+            if alias_counter:
+                # alias_counter should be a counter_iface object previously
+                # returned by register_counter() or get_document_render_counter()
+                self.counters[counter_name] = _DocCounterStateAliasCounter(
+                    alias_counter=alias_counter,
+                    formatter=counter_formatter,
+                    counter_name=counter_name,
+                )
+                return self.counters[counter_name]
 
             # use_doc_state_keys = []
             # if counter_name in self.number_within:
@@ -386,13 +460,19 @@ class FeatureNumbering(Feature):
                             return lambda dummyarg: (
                                 dcstate.get_formatted_counter_value(with_prefix=False)
                             )
-                        numprefix = counter._replace_dollar_template_delayed(
-                            numprefix_template,
-                            dict([
-                                (dcname, _mkfmtfunc(dcstate))
-                                for dcname, dcstate in self.counters.items()
-                            ])
-                        ) (None)
+                        try:
+                            numprefix = counter._replace_dollar_template_delayed(
+                                numprefix_template,
+                                dict([
+                                    (dcname, _mkfmtfunc(dcstate))
+                                    for dcname, dcstate in self.counters.items()
+                                ])
+                            ) (None)
+                        except KeyError as e:
+                            raise ValueError(
+                                f"In numprefix_template of number_within for ‘{counter_name}’: "
+                                f"Cannot find value for counter: {e}"
+                            )
                 else:
                     numprefix = None
 

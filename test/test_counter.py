@@ -26,6 +26,13 @@ class TestValueWithSubNums(unittest.TestCase):
         self.assertEqual(V(1, (0,)).astuple(), (1,0,))
         self.assertEqual(V(1, (2,3,)).astuple(), (1,2,3))
 
+    def test_targetidstr(self):
+        self.assertEqual(V(1).targetidstr(), "1")
+        self.assertEqual(V(1, ()).targetidstr(), "1")
+        self.assertEqual(V(1, (0,)).targetidstr(), "1.0")
+        self.assertEqual(V(1, (2,3,)).targetidstr(), "1.2.3")
+
+
     def test_does_immediately_succeed(self):
         self.assertTrue(
             V(1).does_immediately_succeed(V(0))
@@ -131,6 +138,14 @@ class TestCounterFormatter(unittest.TestCase):
             "Eq.~[(-992)]"
         )
         self.assertEqual(
+            f.format_flm(V(1)),
+            "Eq.~[(1)]"
+        )
+        self.assertEqual(
+            f.format_flm(V(-992)),
+            "Eq.~[(-992)]"
+        )
+        self.assertEqual(
             f.format_many_flm([1]),
             "Eq.~[(1)]"
         )
@@ -187,6 +202,10 @@ class TestCounterFormatter(unittest.TestCase):
         
         self.assertEqual(
             f.format_flm(1),
+            "eq.~!<! I !>!"
+        )
+        self.assertEqual(
+            f.format_flm(V(1)),
             "eq.~!<! I !>!"
         )
         self.assertEqual(
@@ -576,6 +595,17 @@ class TestCounterFormatter(unittest.TestCase):
             f.format_flm( 1, numprefix='A-', subnums=(3,) ),
             "eq.~!<! A-I.c !>!"
         )
+        self.assertEqual(
+            f.format_flm( V(1, (2,3)), numprefix='A-' ),
+            "eq.~!<! A-I.b.iii !>!"
+        )
+        self.assertEqual(
+            f.format_flm( V(1, (3,)), numprefix='A-' ),
+            "eq.~!<! A-I.c !>!"
+        )
+        with self.assertRaises(ValueError):
+            f.format_flm( V(1, (3,)), numprefix='A-', subnums=(3,) ),
+
         self.assertEqual(
             f.format_many_flm( [('A-', [V(2,(3,)),V(1,(3,1))])] ),
             "eqs.~!<! ((A-I.c.i||A-II.c)) !>!"

@@ -152,28 +152,40 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         self.registered_counter_formatters[counter_formatter_id] = counter_formatter
 
     def register_reference_step_counter(
-            self, ref_type=None, ref_label=None, *,
-            node, counter, target_href_fn=None,
+            self,
+            *,
+            node,
+            counter_iface,
+            ref_type=None, ref_label=None,
+            target_href_fn=None,
             counter_with_prefix=True,
-            counter_prefix_variant=None, counter_with_delimiters=True):
+            counter_prefix_variant=None,
+            counter_with_delimiters=True,
+    ):
         
-        # TODO: CHANGE TO COUNTER-IFACE OBJECTS WITH allocate_item()
-
         node_id = self.get_node_id(node)
         kk = (node_id, ref_type, ref_label)
         if kk in self.registered_references:
             return self.registered_references[kk]
 
-        counter.step()
+        cnt_info = counter_iface.register_item()
+        # cnt_info['value'], ['numprefix'], ['formatted_value'].  Instead of
+        # cnt_info['value'] (a ValueWithSubNums) we can directly reference
+        # cnt_info['number'] and cnt_info['subnums'].
 
-        formatted_ref_flm_text = counter.format_flm(
+        formatted_ref_flm_text = counter_iface.formatter.format_flm(
+            cnt_info['value'],
+            numprefix=cnt_info['numprefix'],
             with_prefix=counter_with_prefix,
             prefix_variant=counter_prefix_variant,
             with_delimiters=counter_with_delimiters,
         )
 
         if target_href_fn is not None:
-            target_href = target_href_fn(counter.value, numprefix=None)
+            target_href = target_href_fn(
+                cnt_info['value'],
+                numprefix=cnt_info['numprefix'],
+            )
         else:
             target_href = None
 
@@ -182,9 +194,9 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             node=node,
             formatted_ref_flm_text=formatted_ref_flm_text,
             target_href=target_href,
-            counter_value=counter.value,
-            counter_numprefix=None,
-            counter_formatter_id=counter.formatter.counter_formatter_id
+            counter_value=cnt_info['value'],
+            counter_numprefix=cnt_info['numprefix'],
+            counter_formatter_id=counter_iface.formatter.counter_formatter_id
         )
 
 
@@ -202,6 +214,8 @@ class FeatureRefsRenderManager(Feature.RenderManager):
 
         `formatted_ref_flm_text` is FLM code given as a string or as a
         FLMFragment instance.
+
+        `counter_value` can be a ValueWithSubNums instance! .......
         """
 
         node_id = self.get_node_id(node)
@@ -360,7 +374,6 @@ class FeatureRefsRenderManager(Feature.RenderManager):
                 if sit['n'] is None or sit['n'] is False:
                     s += fragment_renderer.render_fragment(s_frag, render_context)
                 else:
-                    #print("***DEBUG: rcdict=", repr(rcdict), "; sit=", repr(sit))
                     rinst = None
                     for rivalue in rcdict[sit['np']]:
                         if rivalue['value'].equals(sit['n']):

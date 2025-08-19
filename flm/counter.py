@@ -312,10 +312,16 @@ def build_counter_formatter(counter_formatter, default_counter_formatter_spec, *
     """
 
     if isinstance(counter_formatter, CounterFormatter):
-        return counter_formatter
+        f = counter_formatter
+        if f.counter_formatter_id is None:
+            f.counter_formatter_id = counter_formatter_id
+        return f
 
     if counter_formatter is None:
-        return CounterFormatter(**default_counter_formatter_spec)
+        f = CounterFormatter(**default_counter_formatter_spec)
+        if f.counter_formatter_id is None:
+            f.counter_formatter_id = counter_formatter_id
+        return f
 
     default_counter_formatter_spec = dict(default_counter_formatter_spec)
 
@@ -358,10 +364,12 @@ class ValueWithSubNums:
     def astuple(self):
         return self.values_tuple
 
+    def targetidstr(self):
+        return ".".join([str(x) for x in self.values_tuple])
+
     def does_immediately_succeed(self, val2):
         val2p1 = list(val2.values_tuple)
         val2p1[len(val2p1)-1] += 1
-        # print(f"***DEBUG: does_immediately_succeed({repr(self.values_tuple)},{repr(val2.values_tuple)}) -> {val2p1=}; {self.values_tuple == tuple(val2p1)}")
         return ( self.values_tuple == tuple(val2p1) )
 
     def equals(self, val2):
@@ -503,6 +511,16 @@ class CounterFormatter:
             1,
             prefix_variant,
         )
+
+        if isinstance(value, ValueWithSubNums):
+            if subnums is not None:
+                raise ValueError(
+                    f"format_flm(): cannot specify both "
+                    f"ValueWithSubNums instance and subnums= argument; "
+                    f"got format_flm({repr(value)}, subnums={repr(subnums)})"
+                )
+            value, subnums = value.get_num(), value.get_subnums()
+
         s_num = self.format_number(value, numprefix=numprefix, subnums=subnums)
         if wrap_format_num is not None:
             s_num = wrap_format_num(s_num)

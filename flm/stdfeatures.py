@@ -29,6 +29,9 @@ def standard_features(
         math=True,
         headings=True,
         heading_section_commands_by_level=None,
+        heading_numbering_section_depth=None,
+        heading_section_numbering_by_level=None,
+        heading_counter_formatter=None,
         refs=True,
         external_ref_resolvers=None,
         enumeration_environments=True,
@@ -94,6 +97,9 @@ def standard_features(
         features.append(
             FeatureHeadings(
                 section_commands_by_level=heading_section_commands_by_level,
+                numbering_section_depth=heading_numbering_section_depth,
+                section_numbering_by_level=heading_section_numbering_by_level,
+                counter_formatter=heading_counter_formatter,
             )
         )
 

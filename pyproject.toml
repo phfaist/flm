@@ -13,24 +13,26 @@ packages = [
 [tool.poetry.scripts]
 flm = 'flm.__main__:run_main'
 
+# define extras by pointing to the group
+[tool.poetry.extras]
+maincmdl = ['websockets', 'watchfiles', 'python-frontmatter', 'PyYAML', 'colorlog', 'pillow', 'cairosvg', 'pypdf']
+
+
 [tool.poetry.dependencies]
 python = "^3.9"
 pylatexenc = { version = "^3.0a32", allow-prereleases = true }
 
-[tool.poetry.group.maincmdl]
-optional = false
+# for maincmdl:
+websockets = { version = "^15.0", optional = true }
+watchfiles = { version = "^1.0.4", optional = true }
+python-frontmatter = { version = "^1.0.0", optional = true }
+PyYAML = { version = ">=5.0", optional = true }
+colorlog = { version = "^6.7.0", optional = true }
+pillow = { version = "^10.4.0", optional = true }
+cairosvg = { version = "^2.7.1", optional = true }
+pypdf = { version = "^4.3.1", optional = true }
 
-[tool.poetry.group.maincmdl.dependencies]
-websockets = "^15.0"
-watchfiles = "^1.0.4"
-python-frontmatter = "^1.0.0"
-PyYAML = ">=5.0"
-colorlog = "^6.7.0"
-pillow = "^10.4.0"
-cairosvg = "^2.7.1"
-pypdf = "^4.3.1"
-
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "^7.1.2"
 ipython = "^8.3.0"
 toml = "^0.10.2"

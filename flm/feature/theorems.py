@@ -10,6 +10,7 @@ from ..flmenvironment import FLMArgumentSpec, make_invocable_node_instance
 from .. import flmspecinfo
 
 from ..counter import build_counter_formatter
+from . import numbering
 from .numbering import Counter, CounterAlias
 
 from ._base import Feature
@@ -159,22 +160,23 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
 
         if self.theorem_type_spec['numbered']:
 
-            counter = thms_mgr.counters[self.environmentname]
+            counter_iface = thms_mgr.counter_ifaces[self.environmentname]
             prefix_variant = 'capital'
+
+            def _target_href_fn(value, *, numprefix=None):
+                return f'#{self.environmentname}-{numprefix or ""}{value.targetidstr()}'
 
             ref_instance = refs_mgr.register_reference_step_counter(
                 node=node,
-                counter=counter,
-                target_href_fn=lambda n, *, numprefix=None, subnums=(): f'#{self.environmentname}-{numprefix or ""}{n}{"".join(["."+str(s) for s in subnums])}',
+                counter_iface=counter_iface,
+                target_href_fn=_target_href_fn,
                 counter_with_prefix=True,
-                counter_prefix_variant=prefix_variant
+                counter_prefix_variant=prefix_variant,
             )
             
             counter_value = ref_instance.counter_value
 
             title_heading_formatted_flm = ref_instance.formatted_ref_flm_text
-
-            target_id = f'{self.environmentname}-{counter_value}'
 
             title_heading_formatted_flm_frag = render_context.make_standalone_fragment(
                 title_heading_formatted_flm,
@@ -188,10 +190,13 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
                     ref_type, ref_label,
                     node=node,
                     formatted_ref_flm_text=title_heading_formatted_flm_frag,
-                    target_href='#' + target_id,
+                    target_href=ref_instance.target_href,
                     counter_value=counter_value,
-                    counter_formatter_id=counter.formatter.counter_formatter_id
+                    counter_numprefix=ref_instance.counter_numprefix,
+                    counter_formatter_id=counter_iface.formatter.counter_formatter_id
                 )
+
+            target_id = ref_instance.target_href[1:] or None # strip leading '#'
 
         else:
 
@@ -615,23 +620,30 @@ class FeatureTheorems(Feature):
     class RenderManager(Feature.RenderManager):
 
         def initialize(self):
-            self.shared_counter = Counter(self.feature.shared_counter_formatter)
+
+            self.shared_counter_iface = numbering.get_document_render_counter(
+                self.render_context,
+                counter_name=self.feature.shared_counter_formatter.counter_formatter_id,
+                counter_formatter=self.feature.shared_counter_formatter,
+            )
 
             refs_mgr = self.render_context.feature_render_manager('refs')
 
-            self.counters = {}
+            self.counter_ifaces = {}
             for env_name, counter_formatter in self.feature.thm_counter_formatters.items():
                 thm_spec = self.feature.environments[env_name]
                 thm_type_spec = self.feature.theorem_types[ thm_spec['theorem_type'] ]
+
+                use_alias_counter = None
                 if thm_type_spec['shared_numbering']:
-                    self.counters[env_name] = CounterAlias(
-                        counter_formatter=counter_formatter,
-                        alias_counter=self.shared_counter
-                    )
-                else:
-                    self.counters[env_name] = Counter(
-                        counter_formatter=counter_formatter,
-                    )
+                    use_alias_counter = self.shared_counter_iface
+
+                self.counter_ifaces[env_name] = numbering.get_document_render_counter(
+                    self.render_context,
+                    counter_name=counter_formatter.counter_formatter_id,
+                    counter_formatter=counter_formatter,
+                    alias_counter=use_alias_counter
+                )
 
                 # register the counter_formatter in our refs manager
                 refs_mgr.register_counter_formatter(counter_formatter=counter_formatter)

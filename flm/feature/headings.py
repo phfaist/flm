@@ -446,6 +446,8 @@ class FeatureHeadings(Feature):
         # all section headings with level <= numbering_section_depth will be
         # numbered.
         self.numbering_section_depth = numbering_section_depth
+        if self.numbering_section_depth is None:
+            self.numbering_section_depth = False
 
 
     def _make_section_command_info(self, x):
