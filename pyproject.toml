@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "flm-core"
-version = "0.3.0alpha000021" # ALSO BUMP IN flm/flm/__init__.py
+version = "0.3.0alpha000022" # ALSO BUMP IN flm/flm/__init__.py
 description = "Flexible Latex-like Markup"
 authors = ["Philippe Faist"]
 license = "MIT"
