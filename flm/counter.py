@@ -345,6 +345,8 @@ def build_counter_formatter(counter_formatter, default_counter_formatter_spec, *
     raise ValueError("Invalid counter_formatter specification: " + repr(counter_formatter))
 
 
+_rx_safenumprefix = re.compile(r'[^A-Za-z0-9_-]+')
+
 class ValueWithSubNums:
     def __init__(self, value, subnums=()):
         self.values_tuple = None
@@ -364,8 +366,11 @@ class ValueWithSubNums:
     def astuple(self):
         return self.values_tuple
 
-    def targetidstr(self):
-        return "-".join([str(x) for x in self.values_tuple])
+    def targetidstr(self, numprefix=None):
+        return (
+            _rx_safenumprefix.sub('-', numprefix or '')
+            + "-".join([str(x) for x in self.values_tuple])
+        )
 
     def does_immediately_succeed(self, val2):
         val2p1 = list(val2.values_tuple)

@@ -164,7 +164,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             prefix_variant = 'capital'
 
             def _target_href_fn(value, *, numprefix=None):
-                return f'#{self.environmentname}-{numprefix or ""}{value.targetidstr()}'
+                return f'#{self.environmentname}-{value.targetidstr(numprefix=numprefix)}'
 
             ref_instance = refs_mgr.register_reference_step_counter(
                 node=node,

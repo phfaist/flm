@@ -641,7 +641,7 @@ class FeatureFloats(Feature):
                 fmtvalue_flm = self.render_context.doc.environment.make_fragment(
                     fmtvalue_flm_text,
                     is_block_level=False,
-                    what=f"{float_type} {numprefix or ''}{value.targetidstr()} counter value",
+                    what=f"{float_type} {value.targetidstr(numprefix=numprefix)} counter value",
                 )
 
                 fmtcounter = self.float_counter_ifaces[float_type].formatter
@@ -656,7 +656,7 @@ class FeatureFloats(Feature):
 
             target_id = None
             if value is not None:
-                target_id = f"{float_type}-{numprefix or ''}{value.targetidstr()}"
+                target_id = f"{float_type}-{value.targetidstr(numprefix=numprefix)}"
 
             float_instance = FloatInstance(
                 float_type=float_type,

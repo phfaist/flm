@@ -146,7 +146,7 @@ class FeatureMath(Feature):
                 eq_counter_value = eq_info['value']
                 eq_counter_numprefix = eq_info['numprefix']
                 formatted_ref_flm_text = eq_info['formatted_value']
-                eq_id = '.'.join([str(x) for x in eq_counter_value.astuple()])
+                eq_id = eq_counter_value.targetidstr(numprefix=eq_counter_numprefix)
 
             info = (eq_id, formatted_ref_flm_text, eq_counter_numprefix, eq_counter_value)
             self.equation_info_by_node[key] = info
