@@ -292,7 +292,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             flm_spec=headings.HeadingMacro(
                 macroname=None,
                 heading_level=self.theorem_type_spec['theorem_heading_level'],
-                inline_heading=True
+                inline_heading=True,
             ),
             args={
                 'text': heading_nodelist,

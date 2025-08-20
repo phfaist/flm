@@ -141,10 +141,6 @@ sec_default_counter_formatter_spec = {
     'prefix_display': {
         'singular': '§ ',
         'plural': '§ ',
-        # 'capital': {
-        #     'singular': 'Equation',
-        #     'plural': 'Equations',
-        # },
     },
     'delimiters': ('',''),
     'join_spec': 'compact',
@@ -227,7 +223,7 @@ class FeatureHeadings(Feature):
                     self.section_counter_ifaces[j] = counter_iface
                     last_counter_name = counter_name
             
-                logging.debug(
+                logger.debug(
                     "Set up counter interfaces: %r",
                     self.section_counter_ifaces
                 )

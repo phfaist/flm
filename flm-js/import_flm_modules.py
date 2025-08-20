@@ -14,6 +14,7 @@ import pylatexenc.latexwalker
 
 import flm
 import flm.feature
+import flm.feature.numbering
 import flm.feature.annotations
 import flm.stdfeatures
 import flm.flmenvironment

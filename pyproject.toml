@@ -41,7 +41,7 @@ toml = "^0.10.2"
 optional = true
 
 [tool.poetry.group.buildjslib.dependencies]
-Transcrypt = ">=3.9.0"
+Transcrypt = "==3.9.3"
 PyYAML = ">=5.0"
 
 [tool.poetry.group.builddoc]

@@ -332,7 +332,10 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             self._get_ref_instance(ref_type, ref_label, resource_info)
             for (ref_type, ref_label) in ref_type_label_list
         ]
-        ref_instances_by_counter_formatter_id = {}
+        # Note: numprefix=None is a possible value; Transcrypt doesn't seem to
+        # like non-string dict keys.
+        ref_instances_by_counter_formatter_id = dict()
+        ref_instances_by_counter_formatter_id_numprefixes = dict()
         ref_instances_nocounter = []
         for ri in ref_instances:
             if (ri.counter_value is None or ri.counter_formatter_id is None):
@@ -341,24 +344,31 @@ class FeatureRefsRenderManager(Feature.RenderManager):
             ricfid = ri.counter_formatter_id
             if ricfid not in ref_instances_by_counter_formatter_id:
                 ref_instances_by_counter_formatter_id[ricfid] = {}
+                ref_instances_by_counter_formatter_id_numprefixes[ricfid] = []
             
-            c_numprefix, c_value = ri.counter_numprefix, ValueWithSubNums(ri.counter_value)
-            if c_numprefix not in ref_instances_by_counter_formatter_id[ricfid]:
-                ref_instances_by_counter_formatter_id[ricfid][c_numprefix] = []
-            ref_instances_by_counter_formatter_id[ricfid][c_numprefix].append({
+            c_numprefix = ri.counter_numprefix
+            c_numprefix_s = repr(c_numprefix)
+            c_value = ValueWithSubNums(ri.counter_value)
+            if c_numprefix not in ref_instances_by_counter_formatter_id_numprefixes[ricfid]:
+                ref_instances_by_counter_formatter_id_numprefixes[ricfid].append(c_numprefix)
+                ref_instances_by_counter_formatter_id[ricfid][c_numprefix_s] = []
+            ref_instances_by_counter_formatter_id[ricfid][c_numprefix_s].append({
                 'value': c_value,
                 'ri': ri,
             })
 
         s_final_blocks = []
 
-        for counter_formatter_id, rcdict in ref_instances_by_counter_formatter_id.items():
+        for counter_formatter_id, rcnumprefixes in ref_instances_by_counter_formatter_id_numprefixes.items():
+            rcdict = ref_instances_by_counter_formatter_id[counter_formatter_id]
             #
             counter_formatter = self.registered_counter_formatters[counter_formatter_id]
             #
             s_items = counter_formatter.format_many_flm(
-                [ (np, [d['value'] for d in rivaluelist])
-                  for np, rivaluelist in rcdict.items() ],
+                [ (np, [d['value'] for d in rcdict[repr(np)]])
+                  for np in rcnumprefixes ],
+                # [ (np, [d['value'] for d in rivaluelist])
+                #   for np, rivaluelist in rcdict.items() ],
                 prefix_variant=counter_prefix_variant,
                 with_delimiters=counter_with_delimiters,
                 with_prefix=counter_with_prefix,
@@ -375,7 +385,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
                     s += fragment_renderer.render_fragment(s_frag, render_context)
                 else:
                     rinst = None
-                    for rivalue in rcdict[sit['np']]:
+                    for rivalue in rcdict[repr(sit['np'])]:
                         if rivalue['value'].equals(sit['n']):
                             rinst = rivalue['ri']
                             break

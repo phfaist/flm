@@ -368,10 +368,10 @@ class FeatureNumbering(Feature):
                 for k, v in self.number_within.items():
                     if 'reset_at' not in v:
                         raise ValueError(
-                            f"numering feature config: number_within should be a dict "
-                            f"of the type dict(equation=dict(reset_at='section', "
-                            f"numprefix='${{subsection}}.'), ...).' .  Got "
-                            f"{repr(self.number_within)}"
+                            "numering feature config: number_within should be a dict "
+                            "of the type dict(equation=dict(reset_at='section', "
+                            "numprefix='${{subsection}}.'), ...).' .  Got "
+                            + repr(self.number_within)
                         )
 
             # self.number_within_dependants = {
@@ -408,9 +408,9 @@ class FeatureNumbering(Feature):
             if always_number_within is not None:
                 if alias_counter:
                     raise ValueError(
-                        f"register_counter(): Cannot specify both alias_counter and "
-                        f"always_number_within, got "
-                        f"{alias_counter=} and {always_number_within=}"
+                        "register_counter(): Cannot specify both alias_counter and "
+                        "always_number_within, got "
+                        + f"{alias_counter=} and {always_number_within=}"
                     )
                 if counter_name in self.number_within:
                     self.number_within[counter_name]['reset_at'] = \
@@ -534,10 +534,10 @@ class FeatureNumbering(Feature):
                         self.render_doc_states_clear_dependants[pdep] = set()
                     self.render_doc_states_clear_dependants[pdep].add(state_type)
 
-                logging.debug("\tthis state will be cleared to a unique state if "
-                              "any of the following states are changed: %r;  "
-                              "->  self.render_doc_states_clear_dependants=%r",
-                              clear_self_upon_change, self.render_doc_states_clear_dependants)
+                logger.debug("\tthis state will be cleared to a unique state if "
+                             "any of the following states are changed: %r;  "
+                             "->  self.render_doc_states_clear_dependants=%r",
+                             clear_self_upon_change, self.render_doc_states_clear_dependants)
 
         def clear_render_doc_state(self, state_type):
             logger.debug("Clearing render doc state ‘%s’", state_type)

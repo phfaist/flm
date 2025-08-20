@@ -401,8 +401,16 @@ class ValueWithSubNums:
         return "V{"+repr(self.values_tuple)+"}"
 
         
-def _keyValueWithSubNums(v):
-    return v.values_tuple
+
+
+#__pragma__('skip')
+def _sorted_values(a):
+    return sorted(a, key=lambda v: v.values_tuple)
+#__pragma__('noskip')
+
+#__pragma__("js", "{}", "var _lexicographical_array_cmp = (a, b) => { for (let i = 0; i < a.length && i < b.length; ++i) { if (a[i] < b[i]) { return -1; } if (a[i] > b[i]) { return +1; } } return a.length - b.length; }")
+#__pragma__("js", "{}", "var _sorted_values = (vals) => { let va = [...vals]; va.sort( (a, b) => _lexicographical_array_cmp(a.values_tuple, b.values_tuple) ); return va; };")
+
 
 
 class CounterFormatter:
@@ -601,8 +609,7 @@ class CounterFormatter:
         # a comparison function is provided in the JS code, otherwise
         # JavaScript's sort() converts to string and sorts alphabetically ... :/
         values = [
-            (valuenumprefix, sorted([ValueWithSubNums(v) for v in valuelist],
-                                    key=_keyValueWithSubNums))
+            (valuenumprefix, _sorted_values([ValueWithSubNums(v) for v in valuelist]))
             for (valuenumprefix, valuelist) in values
         ]
 
@@ -759,8 +766,10 @@ class CounterFormatter:
                 if ni is False and cur_n is False and cur_s is not None:
                     cur_s = s_items_join(cur_s, si)
                     continue
-                if cur_n is not False and (ni is None or cur_n is None
-                                           or (ni == cur_n and _eqfornone(np, cur_np))):
+                if cur_n is not False and ni is not False and (
+                        ni is None or cur_n is None
+                        or (ni == cur_n and _eqfornone(np, cur_np))
+                ):
                     if ni is not None and cur_n is None:
                         cur_n = ni
                         cur_np = np

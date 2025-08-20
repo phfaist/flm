@@ -80,7 +80,7 @@ def run_main():
         }
     )
 
-    override_enabled_features = None
+    override_enabled_features = {}
     if args.enable_debug:
         override_enabled_features['keep_logger_debug'] = True
 
