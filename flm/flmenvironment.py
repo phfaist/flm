@@ -347,22 +347,25 @@ class NodesFinalizer:
             text_processing_options = {}
         auto = text_processing_options.get('auto', True)
         if auto is True or auto is False:
-            auto_uni = auto
+            auto_uni_quotes = auto
             ligatures_uni = auto
-        elif auto == 'auto-unicode':
-            auto_uni = True
+        elif auto == 'quotes':
+            auto_uni_quotes = True
             ligatures_uni = False
         elif auto == 'ligatures':
-            auto_uni = False
+            auto_uni_quotes = False
             ligatures_uni = True
         else:
             raise ValueError("Invalid text_processing_options['auto']="+repr(auto))
 
         self.simplify_whitespace = text_processing_options.get('simplify_whitespace', True)
-        self.auto_unicode_quotes = text_processing_options.get('auto_unicode_quotes', auto_uni)
+        self.auto_unicode_quotes = text_processing_options.get(
+            'auto_unicode_quotes',
+            auto_uni_quotes
+        )
         self.ligature_unicode_quotes = text_processing_options.get(
             'ligature_unicode_quotes',
-            ligatures_uni and not auto_uni
+            ligatures_uni
         )
         self.ligature_unicode_dashes = text_processing_options.get(
             'ligature_unicode_dashes',
@@ -452,19 +455,22 @@ class NodesFinalizer:
     def process_text(self, chars):
         if self.simplify_whitespace:
             chars = self.rx_inline_space.sub(' ', chars)
-            print('*** after simplify_whitespace -> ', repr(chars))
+            #print('*** after simplify_whitespace -> ', repr(chars))
+        if self.ligature_unicode_quotes: # double quotes before auto-quotes
+            chars = _autounichars.convert_ligature_double_quotes(chars)
+            #print('*** after ligature_quotes (double) -> ', repr(chars))
         if self.auto_unicode_quotes:
             chars = _autounichars.convert_auto_quotes(chars)
-            print('*** after auto_quotes -> ', repr(chars))
-        if self.ligature_unicode_quotes:
-            chars = _autounichars.convert_ligature_quotes(chars)
-            print('*** after ligature_quotes -> ', repr(chars))
+            #print('*** after auto_quotes -> ', repr(chars))
+        if self.ligature_unicode_quotes: # single quotes after auto-quotes
+            chars = _autounichars.convert_ligature_single_quotes(chars)
+            #print('*** after ligature_quotes (single) -> ', repr(chars))
         if self.ligature_unicode_dashes:
             chars = _autounichars.convert_ligature_dashes(chars)
-            print('*** after ligature_dashes -> ', repr(chars))
+            #print('*** after ligature_dashes -> ', repr(chars))
         if self.ligature_unicode_ellipses:
             chars = _autounichars.convert_ligature_ellipses(chars)
-            print('*** after ligature_ellipses -> ', repr(chars))
+            #print('*** after ligature_ellipses -> ', repr(chars))
         return chars
 
     def infer_is_block_level_nodelist(self, latexnodelist):

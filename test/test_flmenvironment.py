@@ -235,7 +235,7 @@ It does---doesn't it? Maybe...
         )
 
         frag1 = environ.make_fragment(r"""
-Hello 'world'. Does this "work" or does it "function?"
+Hello 'world'. Does this "work" or does it ``function?''
 
 It does---doesn't it? Maybe...
 """)

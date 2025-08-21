@@ -92,7 +92,7 @@ def convert_auto_quotes(text):
     Convert quotes in `text` into unicode curly quote entities.
     """
 
-    punct_class = r"""[!"#\$\%'()*+,-.\/:;<=>?\@\[\\\]\^_`{|}~]"""
+    punct_class = r"""[!"#$%'()*+,./:;<=>?@\[\\\]^_`{|}~-]"""
 
     #uni8216 = '‘' # 8216 = 0x2018
     #uni8217 = '’' # 8217 = 0x2019
@@ -102,8 +102,8 @@ def convert_auto_quotes(text):
     # Special case if the very first character is a quote
     # followed by punctuation at a non-word-break. Close the quotes by brute
     # force:
-    text = re.sub(r"""^'(?=%s\\B)""" % (punct_class,), '’', text)
-    text = re.sub(r"""^"(?=%s\\B)""" % (punct_class,), '”', text)
+    text = re.sub(r"""^'(?="""+punct_class+r"""\\B)""", '’', text)
+    text = re.sub(r"""^"(?="""+punct_class+r"""\\B)""", '”', text)
 
     # Special case for double sets of quotes, e.g.:
     #   <p>He said, "'Quoted' words in a larger quote."</p>
@@ -113,74 +113,51 @@ def convert_auto_quotes(text):
     # Special case for decade abbreviations (the '80s):
     text = re.sub(r"""\b'(?=\d{2}s)""", '’', text)
 
-    close_class = r'[^\ \t\r\n\[\{\(\-]'
-    #dec_dashes = '–|—'
+    close_class = r'[^ \t\r\n\[{(-]'
     # &#8211; -> 0x2013
     # &#8212; -> 0x2014
 
     # Get most opening single quotes:
-    opening_single_quotes_regex = re.compile(r"""
-            (
-                \s          |   # a whitespace char, or
-                [ ]         |   # a non-breaking space entity, or
-                --          |   # dashes, or
-                [–—-]           # unicode dashes
-            )
-            '                 # the quote
-            (?=\w)            # followed by a word character
-            """, re.VERBOSE)
-    text = opening_single_quotes_regex.sub(r'\1‘', text)
+    opening_single_quotes_regex = re.compile(
+        # whitespace, quote, followed by a word character
+        r"""(\s|[ ]|--|[–—-])'(?=\w)"""
+    )
+    text = opening_single_quotes_regex.sub(lambda m: m.group(1) + r'‘', text)
 
-    closing_single_quotes_regex = re.compile(r"""
-            (%s)
-            '
-            (?!\s | s\b | \d)
-            """ % (close_class,), re.VERBOSE)
-    text = closing_single_quotes_regex.sub(r'\1’', text)
+    closing_single_quotes_regex = re.compile(
+        r"""(""" + close_class + r""")'(?!\s|s\b|\d)"""
+    )
+    text = closing_single_quotes_regex.sub(lambda m: m.group(1) + r'’', text)
 
-    closing_single_quotes_regex = re.compile(r"""
-            (%s)
-            '
-            (\s | s\b)
-            """ % (close_class,), re.VERBOSE)
-    text = closing_single_quotes_regex.sub(r'\1’\2', text)
+    closing_single_quotes_regex = re.compile(
+        r"""(""" + close_class + r""")'(\s|s\b)"""
+    )
+    text = closing_single_quotes_regex.sub(lambda m: m.group(1) + r'’' + m.group(2), text)
 
     # Any remaining single quotes should be opening ones:
     text = re.sub("'", '‘', text)
 
     # Get most opening double quotes:
-    opening_double_quotes_regex = re.compile(r"""
-            (
-                \s          |   # a whitespace char, or
-                [ ]         |   # a non-breaking space entity, or
-                --          |   # dashes, or
-                [–—-]           # unicode dashes
-            )
-            "                 # the quote
-            (?=\w)            # followed by a word character
-            """, re.VERBOSE)
-    text = opening_double_quotes_regex.sub(r'\1“', text)
+    opening_double_quotes_regex = re.compile(
+        r"""(\s|[ ]|--|[–—-])"(?=\w)"""
+    ) # whitespace, quote, followed by a word character
+    text = opening_double_quotes_regex.sub(lambda m: m.group(1) + r'“', text)
 
     # Double closing quotes:
-    closing_double_quotes_regex = re.compile(r"""
-            #(%s)?   # character that indicates the quote should be closing
-            "
-            (?=\s)
-            """ % (close_class,), re.VERBOSE)
+    closing_double_quotes_regex = re.compile(
+        r""""(?=\s)"""
+    )
     text = closing_double_quotes_regex.sub('”', text)
 
-    closing_double_quotes_regex = re.compile(r"""
-            ^
-            "
-            (?=%s)
-            """ % (punct_class,), re.VERBOSE)
+    closing_double_quotes_regex = re.compile(
+        r"""^"(?=""" + punct_class + r""")"""
+    )
     text = closing_double_quotes_regex.sub('”', text)
 
-    closing_double_quotes_regex = re.compile(r"""
-            (%s)   # character that indicates the quote should be closing
-            "
-            """ % (close_class,), re.VERBOSE)
-    text = closing_double_quotes_regex.sub(r'\1”', text)
+    closing_double_quotes_regex = re.compile(
+        r'''(''' + close_class + r''')"'''
+    )
+    text = closing_double_quotes_regex.sub(lambda m: m.group(1) + r'”', text)
 
     # Any remaining quotes should be opening ones.
     text = re.sub('"', '“', text)
@@ -189,16 +166,25 @@ def convert_auto_quotes(text):
 
 
 
-def convert_ligature_quotes(text):
+def convert_ligature_single_quotes(text):
     """
-    Convert ````backticks''``-style singel and double quotes in `text` into
+    Convert ```backticks'``-style single quotes in `text` into
+    unicode curly quote entities.
+    """
+
+    text = re.sub('`', '‘', text)
+    text = re.sub("'", '’', text)
+    return text
+
+
+def convert_ligature_double_quotes(text):
+    """
+    Convert ````backticks''``-style double quotes in `text` into
     unicode curly quote entities.
     """
 
     text = re.sub('``', '“', text)
     text = re.sub("''", '”', text)
-    text = re.sub('`', '‘', text)
-    text = re.sub("'", '’', text)
     return text
 
 
