@@ -12,7 +12,10 @@ from flm.fragmentrenderer.markdown import MarkdownFragmentRenderer
 
 def mk_flm_environ(**kwargs):
     features = standard_features(**kwargs)
-    return make_standard_environment(features)
+    return make_standard_environment(
+        features,
+        flm_environment_options=dict(text_processing_options=dict(auto=False)),
+    )
 
 
 from .cases import (

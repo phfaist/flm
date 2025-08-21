@@ -15,6 +15,7 @@ from pylatexenc import latexwalker
 from .flmfragment import FLMFragment
 from .flmdocument import FLMDocument
 
+from . import _autounichars
 
 
 ### BEGINPATCH_UNIQUE_OBJECT_ID
@@ -132,11 +133,12 @@ class BlocksBuilder:
     rx_space = re.compile(r'[ \t\n\r]+')
     rx_only_space = re.compile(r'^[ \t\n\r]+$')
 
-    def __init__(self, latexnodelist):
+    def __init__(self, latexnodelist, simplify_whitespace=True):
         super().__init__()
         self.latexnodelist = latexnodelist
         self.pending_paragraph_nodes = []
         self.blocks = []
+        self.simplify_whitespace = simplify_whitespace
 
     def flush_paragraph(self):
         if not self.pending_paragraph_nodes:
@@ -156,7 +158,10 @@ class BlocksBuilder:
         self.pending_paragraph_nodes = []
 
     def simplify_whitespace_chars(self, chars, is_head=False, is_tail=False):
-        newchars = self.rx_space.sub(' ', chars)
+        if not self.simplify_whitespace:
+            newchars = chars
+        else:
+            newchars = self.rx_space.sub(' ', chars)
         if is_head:
             newchars = newchars.lstrip()
         if is_tail:
@@ -223,8 +228,11 @@ class BlocksBuilder:
             # FLMFragment().truncate_to() produces a new list that contains
             # existing node instances.  ---> Whenever we'd like to add/change a
             # node attribute, create a new instance.
+            chars = (char_node.flm_chars_value
+                     if hasattr(char_node, 'flm_chars_value')
+                     else char_node.chars)
             new_flm_chars_value = self.simplify_whitespace_chars(
-                char_node.chars,
+                chars,
                 is_head=info['is_head'],
                 is_tail=info['is_tail'],
             )
@@ -332,6 +340,40 @@ class NodesFinalizer:
     set/modify any attributes on existing child nodes instances (we should clone
     them if necessary).
     """
+    
+    def __init__(self, text_processing_options=None):
+        super().__init__()
+        if not text_processing_options:
+            text_processing_options = {}
+        auto = text_processing_options.get('auto', True)
+        if auto is True or auto is False:
+            auto_uni = auto
+            ligatures_uni = auto
+        elif auto == 'auto-unicode':
+            auto_uni = True
+            ligatures_uni = False
+        elif auto == 'ligatures':
+            auto_uni = False
+            ligatures_uni = True
+        else:
+            raise ValueError("Invalid text_processing_options['auto']="+repr(auto))
+
+        self.simplify_whitespace = text_processing_options.get('simplify_whitespace', True)
+        self.auto_unicode_quotes = text_processing_options.get('auto_unicode_quotes', auto_uni)
+        self.ligature_unicode_quotes = text_processing_options.get(
+            'ligature_unicode_quotes',
+            ligatures_uni and not auto_uni
+        )
+        self.ligature_unicode_dashes = text_processing_options.get(
+            'ligature_unicode_dashes',
+            ligatures_uni
+        )
+        self.ligature_unicode_ellipses = text_processing_options.get(
+            'ligature_unicode_ellipses',
+            ligatures_uni
+        )
+
+
     def finalize_nodelist(self, latexnodelist):
         r"""
         Inspect the node list and set information about whether or not it is block level.
@@ -404,11 +446,26 @@ class NodesFinalizer:
             # node list.  This is because the char node might have been replaced
             # by another one to fix whitespace coming from the decomposition of
             # the list into blocks.  Careful ;)
-            node.flm_chars_value = self.simplify_whitespace_chars_inline(
-                node.chars
-            )
+            node.flm_chars_value = self.process_text(node.chars)
         return node
 
+    def process_text(self, chars):
+        if self.simplify_whitespace:
+            chars = self.rx_inline_space.sub(' ', chars)
+            print('*** after simplify_whitespace -> ', repr(chars))
+        if self.auto_unicode_quotes:
+            chars = _autounichars.convert_auto_quotes(chars)
+            print('*** after auto_quotes -> ', repr(chars))
+        if self.ligature_unicode_quotes:
+            chars = _autounichars.convert_ligature_quotes(chars)
+            print('*** after ligature_quotes -> ', repr(chars))
+        if self.ligature_unicode_dashes:
+            chars = _autounichars.convert_ligature_dashes(chars)
+            print('*** after ligature_dashes -> ', repr(chars))
+        if self.ligature_unicode_ellipses:
+            chars = _autounichars.convert_ligature_ellipses(chars)
+            print('*** after ligature_ellipses -> ', repr(chars))
+        return chars
 
     def infer_is_block_level_nodelist(self, latexnodelist):
         for n in latexnodelist:
@@ -426,10 +483,10 @@ class NodesFinalizer:
                 return True
         return False
 
-    def simplify_whitespace_chars_inline(self, chars):
-        return self.rx_inline_space.sub(' ', chars)
+    # def simplify_whitespace_chars_inline(self, chars):
 
-    make_blocks_builder = BlocksBuilder
+    def make_blocks_builder(self, latexnodelist):
+        return BlocksBuilder(latexnodelist, simplify_whitespace=self.simplify_whitespace)
                     
     rx_inline_space = BlocksBuilder.rx_space
 
@@ -734,6 +791,7 @@ class FLMEnvironment:
             *,
             tolerant_parsing=False,
             parsing_mode_deltas=None,
+            text_processing_options=None,
     ):
         super().__init__()
 
@@ -750,7 +808,9 @@ class FLMEnvironment:
 
         self.tolerant_parsing = tolerant_parsing
 
-        self.nodes_finalizer = NodesFinalizer()
+        self.nodes_finalizer = NodesFinalizer(
+            text_processing_options=text_processing_options
+        )
 
         if self.parsing_state.latex_context is None:
 
@@ -1142,7 +1202,7 @@ def standard_environment_get_located_error_message(exception_object):
 
 def make_standard_environment(features, parsing_state=None, latex_context=None,
                               flm_environment_options=None,
-                              parsing_state_options=None):
+                              parsing_state_options=None,):
 
     if latex_context is None:
         latex_context = macrospec.LatexContextDb()

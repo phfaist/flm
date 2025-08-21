@@ -128,6 +128,33 @@ class TestBlocksBuilder(unittest.TestCase):
         self.assertEqual(nn5.flm_chars_value, 'More text content.')
 
 
+    def test_handles_white_space_correctly_disabledsimplifywhitespace(self):
+        n1 = LatexCharsNode(chars='\n  Hello  \tworld. \n ')
+        n2 = LatexMacroNode(macroname='somemacro')
+        n2.flm_is_block_level = False
+        n3 = LatexCharsNode(chars=' .  That\'s it!  ')
+        n4 = LatexEnvironmentNode(environmentname='enumerate', nodelist=None)
+        n4.flm_is_block_level = True
+        n5 = LatexCharsNode(chars='\r\tMore  text content.  ')
+
+        bb = flmenvironment.BlocksBuilder(
+            LatexNodeList([ n1, n2, n3, n4, n5 ]),
+            simplify_whitespace=False
+        )
+
+        blocks = bb.build_blocks()
+
+        self.assertEqual(len(blocks), 3)
+
+        nn1 = blocks[0].nodelist[0]
+        nn3 = blocks[0].nodelist[2]
+        nn5 = blocks[2].nodelist[0]
+
+        self.assertEqual(nn1.flm_chars_value, 'Hello  \tworld. \n ')
+        self.assertEqual(nn3.flm_chars_value, ' .  That\'s it!')
+        self.assertEqual(nn5.flm_chars_value, 'More  text content.')
+
+
 class TestFLMEnvironment(unittest.TestCase):
 
     def test_blocks_paragraphs_correct_number(self):
@@ -163,6 +190,94 @@ work?
         self.assertEqual(len(frag1.nodes.flm_blocks), 4)
 
         
+
+    def test_chars_options_no_auto(self):
+
+        latex_context = make_simple_context()
+        environ = flmenvironment.FLMEnvironment(
+            latex_context=latex_context,
+            parsing_state=flmenvironment.FLMParsingState(),
+            features=[],
+            text_processing_options={'auto': False},
+        )
+
+        frag1 = environ.make_fragment(r"""
+Hello 'world'. Does this "work" or does it ``function?''
+
+It does---doesn't it? Maybe...
+""")
+
+        self.assertEqual(frag1.nodes.flm_blocks[0][0].flm_chars_value, r"""
+Hello 'world'. Does this "work" or does it ``function?''
+""".strip())
+        self.assertEqual(frag1.nodes.flm_blocks[1][0].flm_chars_value, r"""
+It does---doesn't it? Maybe...
+""".strip())
+
+    def test_autounichars(self):
+        from flm.flmenvironment import _autounichars
+        self.assertEqual(
+            _autounichars.convert_auto_quotes(
+                '''Hello 'world'. Does this "work" or does it "function?"'''
+            ),
+            """Hello ‘world’. Does this “work” or does it “function?”"""
+        )
+
+
+    def test_chars_options_auto(self):
+
+        latex_context = make_simple_context()
+        environ = flmenvironment.FLMEnvironment(
+            latex_context=latex_context,
+            parsing_state=flmenvironment.FLMParsingState(),
+            features=[],
+            text_processing_options={'auto': True},
+        )
+
+        frag1 = environ.make_fragment(r"""
+Hello 'world'. Does this "work" or does it "function?"
+
+It does---doesn't it? Maybe...
+""")
+
+        self.assertEqual(frag1.nodes.flm_blocks[0][0].flm_chars_value, r"""
+Hello ‘world’. Does this “work” or does it “function?”
+""".strip())
+        self.assertEqual(frag1.nodes.flm_blocks[1][0].flm_chars_value, r"""
+It does—doesn’t it? Maybe…
+""".strip())
+
+    def test_chars_options_ligonly(self):
+
+        latex_context = make_simple_context()
+        environ = flmenvironment.FLMEnvironment(
+            latex_context=latex_context,
+            parsing_state=flmenvironment.FLMParsingState(),
+            features=[],
+            text_processing_options={
+                'auto': False,
+                'ligature_unicode_quotes': True,
+                'ligature_unicode_dashes': True,
+                'ligature_unicode_ellipses': True,
+            },
+        )
+
+        frag1 = environ.make_fragment(r"""
+Hello `world'. Does this "work" or does it ``function?''
+
+It does---doesn't it? Maybe...
+""")
+
+        self.assertEqual(frag1.nodes.flm_blocks[0][0].flm_chars_value, r"""
+Hello ‘world’. Does this "work" or does it “function?”
+""".strip())
+        self.assertEqual(frag1.nodes.flm_blocks[1][0].flm_chars_value, r"""
+It does—doesn’t it? Maybe…
+""".strip())
+
+
+
+
 
 
 

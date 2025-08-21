@@ -26,7 +26,10 @@ from .test_flm_cases import render_fragment
 
 def mk_flm_environ(**kwargs):
     features = standard_features(**kwargs)
-    return make_standard_environment(features)
+    return make_standard_environment(
+        features,
+        flm_environment_options=dict(text_processing_options=dict(auto=False)),
+    )
 
 
 
