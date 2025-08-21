@@ -383,5 +383,5 @@ class _TrivialContextManager:
     def __enter__(self):
         return self.value
 
-    def __exit__(*args):
+    def __exit__(self, *args):
         pass

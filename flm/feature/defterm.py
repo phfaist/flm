@@ -360,7 +360,8 @@ class RefTermMacro(FLMMacroSpecBase):
             ref_term_recomposed = recomposer.subrecompose(
                 node.flmarg_ref_term
             )
-        term_flm_ref_label_verbatim = node.flm_term_flm_ref_label_verbatim
+
+        # term_flm_ref_label_verbatim = node.flm_term_flm_ref_label_verbatim
 
         return (
             '\\flmTerm{' + node.macroname + '}{'+safe_label+'}'

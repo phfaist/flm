@@ -23,7 +23,6 @@ from ._base import Feature
 
 from ..counter import build_counter_formatter
 from . import numbering
-from .numbering import Counter
 
 
 
@@ -279,9 +278,8 @@ class MathEnvironment(FLMEnvironmentSpecBase):
         # find and register and \label nodes
         node.flm_equation_lines_labels_infos = []
 
-        # ### No, we want to split lines also in unnumbered equations...
-        # if not self.is_numbered:
-        #     return node
+        # Note: we want to split lines also in unnumbered equations.
+        # if not self.is_numbered: return node # Nope.
 
         def init_last_line_info():
             return {

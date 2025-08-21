@@ -188,9 +188,9 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
 
         fragment_renderer = render_context.fragment_renderer
 
-        graphics_options_value = node.flmarg_graphics_options_value
+        # graphics_options_value = node.flmarg_graphics_options_value
         graphics_path = node.flmarg_graphics_path
-        
+
         if not render_context.supports_feature('graphics_resource_provider'):
             raise RuntimeError(
                 "FLM's ‘SimpleIncludeGraphicsSpecInfo’ (‘\\includegraphics’) requires a "

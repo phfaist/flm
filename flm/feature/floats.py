@@ -16,7 +16,6 @@ from ..counter import build_counter_formatter
 
 from ._base import Feature
 from . import numbering
-from .numbering import Counter
 from .graphics import SimpleIncludeGraphicsMacro
 from .cells import CellsEnvironment
 

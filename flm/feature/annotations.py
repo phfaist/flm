@@ -1,6 +1,6 @@
 
 from pylatexenc.latexnodes import (
-    LatexWalkerParseError,
+    # LatexWalkerParseError,
     ParsedArgumentsInfo,
 )
 from pylatexenc.latexnodes.nodes import LatexGroupNode
@@ -15,8 +15,7 @@ from ..flmenvironment import (
     FLMParsingStateDeltaSetBlockLevel,
 )
 from ..flmspecinfo import (
-    TextFormatMacro,
-    FLMMacroSpecBase
+    FLMMacroSpecBase,
 )
 
 from ._base import Feature
@@ -196,7 +195,6 @@ class FeatureAnnotations(Feature):
         color_index = 0
 
         for macroname, annotdef in self.macrodefs.items():
-            kwargs = dict(annotdef)
             macros.append(
                 AnnotationMacro(
                     macroname=macroname,

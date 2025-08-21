@@ -218,7 +218,7 @@ class Enumeration(FLMEnvironmentSpecBase):
         enum_items_target_ids = {}
         if len(items_custom_labels) and render_context.supports_feature('refs'):
             # register any label refs
-            mgr_enum = render_context.feature_render_manager('enumeration')
+            # mgr_enum = render_context.feature_render_manager('enumeration')
             mgr_refs = render_context.feature_render_manager('refs')
 
             # register labels to the full enumeration

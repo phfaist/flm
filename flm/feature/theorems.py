@@ -11,7 +11,6 @@ from .. import flmspecinfo
 
 from ..counter import build_counter_formatter
 from . import numbering
-from .numbering import Counter, CounterAlias
 
 from ._base import Feature
 from . import headings

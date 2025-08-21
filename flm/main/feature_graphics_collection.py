@@ -1,7 +1,6 @@
 import os
 import os.path
 import string # string.Template
-import tempfile
 import shutil
 import subprocess
 

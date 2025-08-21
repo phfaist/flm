@@ -1,7 +1,6 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from pylatexenc.latexnodes.nodes import LatexMacroNode
 
 from .._util import abbrev_value_str
 
@@ -51,7 +50,7 @@ class RenderWorkflow:
                      abbrev_value_str(workflow_config, maxstrlen=512))
 
 
-    def render_document(self, document, **kwargs):
+    def render_document(self, document, content_parts_infos=None, **kwargs):
 
         rendered_content, render_context = self.render_document_fragments(document)
 

@@ -4,7 +4,6 @@ from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
 from flm.fragmentrenderer.html import HtmlFragmentRenderer
 
-from flm.feature import defterm as feature_defterm
 
 
 def mk_flm_environ(**kwargs):

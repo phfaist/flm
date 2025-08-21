@@ -721,6 +721,7 @@ class AllowedUnresolvedRefResolver:
             formatted_ref_flm_text=display_flm_text,
             target_href=r'javascript:alert("Unresolved reference!")',
             counter_value=None,
+            counter_numprefix=None,
             counter_formatter_id=None,
         )
 

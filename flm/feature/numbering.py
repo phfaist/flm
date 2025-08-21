@@ -4,7 +4,11 @@ logger = logging.getLogger(__name__)
 
 from ._base import Feature
 
-from ..counter import CounterFormatter, build_counter_formatter, ValueWithSubNums
+from ..counter import (
+    # CounterFormatter, 
+    # build_counter_formatter,
+    ValueWithSubNums,
+)
 from .. import counter
 
 
@@ -114,14 +118,6 @@ def get_document_render_counter(
         render_context, counter_name, counter_formatter, alias_counter=None,
         always_number_within=None
 ):
-    # if counter_name != counter_formatter.counter_formatter_id:
-    #     raise ValueError(
-    #         "get_document_render_counter(): Please use the "
-    #         "same counter_name as the counter_formatter's internal "
-    #         "counter_formatter_id.  We might run into weird bugs if you don't."
-    #     )
-    # ### headings/section: all section types use the same counter formatter
-    # ### despite different "counters"...
     
     if not render_context.supports_feature('numbering'):
 
@@ -525,7 +521,7 @@ class FeatureNumbering(Feature):
                     logger.debug("Clearing dependent render_doc_state ‘%s’", dep)
                     self.set_render_doc_state(
                         dep,
-                        None #('__cleared_as_dependant', (state_type, state_value))
+                        None,
                     )
             
             if clear_self_upon_change:
@@ -548,7 +544,7 @@ class FeatureNumbering(Feature):
                     logger.debug("Clearing dependent render_doc_state ‘%s’", dep)
                     self.set_render_doc_state(
                         dep,
-                        None, #('__cleared_as_dependant', (state_type, ))
+                        None,
                     )
 
         def register_item(self, counter_name, custom_label=None):
@@ -574,33 +570,6 @@ class FeatureNumbering(Feature):
                     pc = self.number_within[pc]['reset_at']
                     our_full_parents.append( pc )
 
-            # # recalculate this here, because we might have missed dependants
-            # # when specifying always_number_within in register_counter() ...
-            # number_within_dependants = {
-            #     v['reset_at']: [
-            #         k2
-            #         for (k2,v2) in self.number_within.items()
-            #         if v2['reset_at'] == v['reset_at']
-            #     ]
-            #     for v in self.number_within.values()
-            # }
-            # our_full_dependants = None
-            # if counter_name in number_within_dependants:
-            #     our_full_dependants = set(number_within_dependants[counter_name])
-            #     add_dependants = list(our_full_dependants)
-            #     while len(add_dependants):
-            #         last_add_dependants = add_dependants
-            #         add_dependants = []
-            #         for d in last_add_dependants:
-            #             if d in number_within_dependants:
-            #                 for d2 in number_within_dependants[d]:
-            #                     if d2 not in our_full_dependants:
-            #                         add_dependants.append(d2)
-            #         for d in add_dependants:
-            #             our_full_dependants.add(d)
-
-            # if counter_name in self.number_within_dependants:
-            #     our_number_within_dependants = self.number_within_dependants[counter_name]
             self.set_render_doc_state(
                 f'cnt-{counter_name}', item_info['formatted_value'],
                 clear_self_upon_change=(

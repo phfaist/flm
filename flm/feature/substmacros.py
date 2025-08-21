@@ -3,12 +3,13 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import (
     ParsedArgumentsInfo,
-    SingleParsedArgumentInfo,
     LatexWalkerLocatedError,
-    ParsingStateDelta,
 )
 from pylatexenc.latexnodes.parsers import LatexParserBase
-from pylatexenc.latexnodes.nodes import LatexNodeList, LatexGroupNode, LatexEnvironmentNode
+from pylatexenc.latexnodes.nodes import (
+    LatexNodeList,
+    LatexGroupNode,
+)
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.macrospec import ParsingStateDeltaExtendLatexContextDb
 

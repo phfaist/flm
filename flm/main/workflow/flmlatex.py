@@ -1,11 +1,10 @@
 
-from ...fragmentrenderer._base import FragmentRenderer
+# from ...fragmentrenderer._base import FragmentRenderer
 from ...flmrecomposer.purelatex import (
     FLMPureLatexRecomposer,
     default_purelatex_defs_makeatletter,
 )
 
-from ._base import RenderWorkflow
 from .templatebasedworkflow import TemplateBasedRenderWorkflow
 
 
