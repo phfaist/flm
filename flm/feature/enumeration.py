@@ -279,12 +279,18 @@ class Enumeration(FLMEnvironmentSpecBase):
                 ('custom_tag', 'label', ),
             )
 
-            s += r'\item '
+            s += r'\item'
 
             if 'custom_tag' in item_node_args and item_node_args['custom_tag'].was_provided():
-                s += recomposer.subrecompose(
-                    item_node_args['custom_tag'].get_content_nodelist()
+                s += (
+                    '[{'
+                    + recomposer.subrecompose(
+                        item_node_args['custom_tag'].get_content_nodelist()
+                    )
+                    + '}]'
                 )
+            else:
+                s += ' ' # space after "\item" macro name
             if 'label' in item_node_args and item_node_args['label'].was_provided():
                 items_custom_labels = helper_collect_labels(
                     item_node_args['label'],
