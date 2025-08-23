@@ -3,6 +3,8 @@ import os.path
 import string # string.Template
 import shutil
 import subprocess
+import json
+import hashlib
 
 from urllib.parse import urlparse
 import urllib.request
@@ -576,6 +578,7 @@ class FeatureGraphicsCollection(Feature):
                 collect_graphics_relative_output_folder=None,
                 collect_graphics_filename_template=None,
                 collect_format_conversion_rules=None,
+                use_graphics_cache_file=True,
         ):
             self.src_url_resolver_fn = src_url_resolver_fn
 
@@ -629,6 +632,9 @@ class FeatureGraphicsCollection(Feature):
 
             self.graphics_to_collect = {}
 
+            self.use_graphics_cache_file = use_graphics_cache_file
+            if not self.collect_graphics_to_output_folder:
+                self.use_graphics_cache_file = False
 
             # reference folder for input relative paths
             self.reference_input_dir = self.feature_document_manager.reference_input_dir
@@ -740,7 +746,7 @@ class FeatureGraphicsCollection(Feature):
             }
 
             
-        def collect_graphics(self, source_key, collect_info):
+        def collect_graphics(self, source_key, collect_info, *, cache_info):
 
             source_type = collect_info['source_type']
             src_url = collect_info['src_url_resolved']
@@ -753,9 +759,26 @@ class FeatureGraphicsCollection(Feature):
 
             logger.debug('converter_info = %r', converter_info)
 
+            input_hash = None
+            if source_type == 'file':
+                with open(src_url, 'rb') as f:
+                    input_hash = hashlib.file_digest(f, 'sha256').hexdigest()
+
             if os.path.exists(target_path):
-                logger.error("Cowardly refusing to overwrite %s", target_path)
-                return
+                # check if the input file was updated since last run
+                if target_path in cache_info:
+                    old_input_hash = cache_info[target_path].get('input_hash', None)
+                    if input_hash is not None and input_hash == old_input_hash:
+                        logger.info(
+                            "  ... file ‘%s’ has not changed since last collected, skipping.",
+                            src_url
+                        )
+                        return
+                # logger.error("Cowardly refusing to overwrite %s", target_path)
+                # return
+
+            if input_hash is not None:
+                cache_info[target_path] = { 'input_hash': input_hash }
 
             if converter is not None:
 
@@ -845,23 +868,54 @@ class FeatureGraphicsCollection(Feature):
 
         def collect_all_graphics(self):
 
-            # collect graphics to output folder, if applicable
-            if self.collect_graphics_to_output_folder:
-                # make sure output folder exists
-                os.makedirs(
-                    os.path.realpath(
-                        os.path.join(
-                            self.reference_output_dir,
-                            self.collect_graphics_to_output_folder
-                        ),
-                    ),
-                    exist_ok=True
+            cache_file = None
+            cache_info = {}
+
+            if self.use_graphics_cache_file:
+                cache_file = os.path.join(
+                    self.reference_output_dir,
+                    self.collect_graphics_to_output_folder,
+                    '.flm-output-metainfo-cache.json',
                 )
+                try:
+                    with open(cache_file, 'r') as f:
+                        cache_info = json.load(f)
+                except IOError as e:
+                    logger.debug("Failed to read graphics cache file, no cache loaded: %s", e)
+                    pass
 
-                for source_key, collect_info in self.graphics_to_collect.items():
+            try:
 
-                    self.collect_graphics(source_key, collect_info)
+                # collect graphics to output folder, if applicable
+                if self.collect_graphics_to_output_folder:
+                    # make sure output folder exists
+                    os.makedirs(
+                        os.path.realpath(
+                            os.path.join(
+                                self.reference_output_dir,
+                                self.collect_graphics_to_output_folder
+                            ),
+                        ),
+                        exist_ok=True
+                    )
 
+                    for source_key, collect_info in self.graphics_to_collect.items():
+
+                        self.collect_graphics(
+                            source_key,
+                            collect_info,
+                            cache_info=cache_info
+                        )
+
+            finally:
+                if cache_file is not None:
+                    try:
+                        with open(cache_file, 'w') as f:
+                            json.dump(cache_info, f)
+                    except IOError as e:
+                        logger.debug("Failed to write to graphics cache file ‘%s’: %s",
+                                     cache_file, e)
+                        pass
 
 
     def __init__(
