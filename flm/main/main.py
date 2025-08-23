@@ -207,6 +207,14 @@ class Main:
             for line in fileinput.input(files=arg_files, encoding='utf-8'):
                 input_content += line
 
+        output_dirname = dirname
+        output_basename = None
+        output_jobname = None
+        output_jobnameext = None
+        if arg_output is not None:
+            if isinstance(arg_output, str) and arg_output != '-':
+                output_dirname, output_basename = os.path.split(arg_output)
+                output_jobname, output_jobnameext = os.path.splitext(basename)
 
         frontmatter_metadata, flm_content, line_number_offset = \
             run.parse_frontmatter_content_linenumberoffset(input_content)
@@ -258,6 +266,12 @@ class Main:
             'add_template_path': arg_template_path,
             'force_block_level': arg_force_block_level,
             'cwd': dirname,
+            'output_filepath': {
+                'dirname': output_dirname,
+                'basename': output_basename,
+                'jobname': output_jobname,
+                'jobnameext': output_jobnameext,
+            },
             'input_source': arg_files[0] if (arg_files and len(arg_files)) else None,
             'input_lineno_colno_offsets': {
                 'line_number_offset': line_number_offset,

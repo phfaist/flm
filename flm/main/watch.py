@@ -193,6 +193,11 @@ def main_watch(**kwargs):
                 fullpath = os.path.realpath(os.path.join(temp_dir, path))
 
                 if not fullpath.startswith(temp_dir):
+                    logger.warning(
+                        'Requested path %r is invalid as fullpath=%r does not start '
+                        'with temp_dir=%r',
+                        path, fullpath, temp_dir
+                    )
                     self.send_response(404)
                     self.wfile.write(bytes("<html><body>404</body></html>", 'utf-8'))
                     return
@@ -207,7 +212,11 @@ def main_watch(**kwargs):
                         self.end_headers()
                         self.wfile.write(f.read())
 
-                except IOError:
+                except IOError as e:
+                    logger.warning(
+                        'Could not retrieve requested path %r: %s',
+                        path, e
+                    )
                     self.send_response(404)
                     self.wfile.write(bytes(
                         f"<html><body>404 not found: {path}</body></html>",

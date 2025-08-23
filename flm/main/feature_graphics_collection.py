@@ -53,15 +53,56 @@ class ResourcesScanner(LatexNodesVisitor):
 # ------------------------------------------------------------------------------
 
 class GraphicsFormatConversionRule:
+    r"""
+    Specify a rule to convert one graphics format to another using specific
+    transformation requirements and options.
+
+    The rule can be constructed using a string, a dictionary, or another
+    GraphicsFormatConversionRule instance.
+
+    - If the argument is a string, it should be in the form
+      'from_format:to_format' (e.g. '.svg:.pdf').  In this case, `via` and
+      `options` are set to an empty list and `None`, respectively.
+
+    - If the argument is a dictionary, it should have the following structure::
+
+        { 'from': [..list of extensions..],
+          'to': [..list of extensions..],
+          'via': [..list of converter names..],
+          'options': <dict or None> }
+
+    Built-in converter names are: 'cairosvg', 'gs', 'pdftocairo', 'magick'.
+
+    Example rule in YAML::
+
+        collect_format_conversion_rules:
+          - from: '.pdf'
+            to: '.png'
+            options:
+              dpi: 192
+
+    """
+
     def __init__(self, rule):
         super().__init__()
+        if isinstance(rule, GraphicsFormatConversionRule):
+            other = rule
+            self.rule = other.rule
+            self.from_ext_list = list(other.from_ext_list)
+            self.to_ext_list = list(other.to_ext_list)
+            self.via_list = list(other.via_list)
+            self.options = dict(other.options) if other.options is not None else None
+            return
+
         self.rule = rule
         self._parse_set_rule(rule)
 
     def _parse_set_rule(self, rule):
 
         if isinstance(rule, str):
-            rule_from, rule_to = rule.split(':', maxsplit=1)
+            rule_from_s, rule_to_s = rule.split(':', maxsplit=1)
+            rule_from = rule_from_s.split(',')
+            rule_to = rule_to_s.split(',')
             rule_via = []
             rule_options = None
         else:
@@ -385,6 +426,11 @@ class FeatureGraphicsCollection(Feature):
     feature_name = 'graphics_resource_provider'
     feature_title = 'Process a collection of graphics that can be included in FLM content'
 
+    feature_flm_doc = r"""
+    Collect input graphics files into a specific output folder, while applying a series
+    of custom transformation rules to convert between chosen formats.
+    """
+
     class DocumentManager(Feature.DocumentManager):
 
         def initialize(self):
@@ -392,6 +438,9 @@ class FeatureGraphicsCollection(Feature):
 
             self.flm_run_info = self.doc.metadata['_flm_run_info']
             self.resource_accessor = self.flm_run_info['resource_accessor']
+
+            self.reference_input_dir = None
+            self.reference_output_dir = None
 
         def flm_main_scan_fragment(self, fragment, document_parts_fragments=None, **kwargs):
             
@@ -407,6 +456,21 @@ class FeatureGraphicsCollection(Feature):
             for resource in scanner.get_encountered_resources():
                 if resource.get('resource_type', None) == 'graphics_path':
                     self.inspect_add_graphics_resource(resource)
+            
+            self.reference_input_dir = \
+                (self.doc.metadata or {}).get('filepath', {}).get('dirname', None)
+            if self.reference_input_dir is None:
+                self.reference_input_dir = os.getcwd()
+                logger.warning(
+                    "Could not figure out document input file path, using system current "
+                    "working directory as input reference folder for "
+                    "relative paths, ‘%s’",
+                    self.reference_input_dir
+                )
+
+            if 'flm_run_info' in kwargs:
+                self.reference_output_dir = \
+                    kwargs['flm_run_info'].get('output_filepath', {}).get('dirname', None)
 
 
         def get_source_info(self, graphics_path, resource_info):
@@ -565,6 +629,33 @@ class FeatureGraphicsCollection(Feature):
 
             self.graphics_to_collect = {}
 
+
+            # reference folder for input relative paths
+            self.reference_input_dir = self.feature_document_manager.reference_input_dir
+
+            # reference folder for output relative paths
+            self.reference_output_dir = self.feature_document_manager.reference_output_dir
+            if self.reference_output_dir is None:
+                metadata = (self.feature_document_manager.doc.metadata or {})
+                thedir = metadata.get('filepath', {}).get('dirname', None)
+                if thedir is not None:
+                    self.reference_output_dir = thedir
+                    logger.warning(
+                        "Could not figure out output file path, using document "
+                        "input working directory as reference folder for "
+                        "relative outputs ‘%s’",
+                        self.reference_output_dir
+                    )
+                else:
+                    self.reference_output_dir = os.getcwd()
+                    logger.warning(
+                        "Could not figure out output file path, using system "
+                        "current working directory as reference folder for "
+                        "relative outputs ‘%s’",
+                        self.reference_output_dir
+                    )
+
+
             if self.collect_graphics_to_output_folder:
                 counter = 0
                 for source_key, source_info in \
@@ -579,6 +670,16 @@ class FeatureGraphicsCollection(Feature):
                         resolved_src_url=src_url,
                         counter=counter,
                     )
+
+            logger.debug(
+                "Initialized feature_graphics_collection RenderManager. "
+                "Using:  collect_graphics_to_output_folder = %r; "
+                "reference_output_dir = %r; "
+                "collect_format_conversion_rules = %r",
+                self.collect_graphics_to_output_folder,
+                self.reference_output_dir,
+                self.collect_format_conversion_rules,
+            )
 
 
         def prepare_collect_graphics_get_converter(self, source_info, resolved_src_url, ext):
@@ -613,6 +714,7 @@ class FeatureGraphicsCollection(Feature):
                 'counter': counter,
             })
             target_path = os.path.join(
+                self.reference_output_dir,
                 self.collect_graphics_to_output_folder,
                 target_fname
             )
@@ -620,6 +722,10 @@ class FeatureGraphicsCollection(Feature):
                 self.collect_graphics_relative_output_folder,
                 target_fname
             )
+
+            # make relative input path is relative to reference path
+            if source_type == 'file':
+                resolved_src_url = os.path.join(self.reference_input_dir, resolved_src_url)
 
             # prepare which files we have to collect
             self.graphics_to_collect[source_key] = {
@@ -656,7 +762,9 @@ class FeatureGraphicsCollection(Feature):
                 converter_options = converter_info['options']
 
                 converter.convert(
-                    source_type, src_url, target_path,
+                    source_type,
+                    src_url,
+                    target_path,
                     converter_info=converter_info,
                     options=converter_options,
                 )
@@ -741,7 +849,12 @@ class FeatureGraphicsCollection(Feature):
             if self.collect_graphics_to_output_folder:
                 # make sure output folder exists
                 os.makedirs(
-                    os.path.realpath(self.collect_graphics_to_output_folder),
+                    os.path.realpath(
+                        os.path.join(
+                            self.reference_output_dir,
+                            self.collect_graphics_to_output_folder
+                        ),
+                    ),
                     exist_ok=True
                 )
 
@@ -760,6 +873,23 @@ class FeatureGraphicsCollection(Feature):
             collect_format_conversion_rules=None,
             graphics_search_path=None,
     ):
+        r"""
+        If `collect_graphics_to_output_folder` is set, then graphics files
+        are transformed and collected to the given folder.  The path may be
+        relative or absolute.  (FIXME: RELATIVE PATHS RESOLVED W.R.T. WHAT???)
+
+        If `collect_graphics_relative_output_folder` is set, then this path is
+        used in the FLM output (e.g. HTML or LATEX code) to refer to the
+        collected graphic file.  This option is useful if you specify an
+        absolute output folder path but want a relative path to appear in the
+        FLM output to refer to the generated/collected file.
+
+        The `collect_format_conversion_rules` argument is a list of strings or
+        dicts or `GraphicsFormatConversionRule` instances.  Any string or dict
+        will be used to create a `GraphicsFormatConversionRule` instance.
+
+        More doc.......
+        """
         super().__init__()
 
         self.graphics_collection = {}

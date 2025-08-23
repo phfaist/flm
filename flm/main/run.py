@@ -143,6 +143,13 @@ class ResourceInfo:
 #     'add_template_path': .....
 
 #     'cwd': ..... # input CWD
+#     'output_filepath': {
+#         'dirname': output_dirname,
+#         'basename': output_basename,
+#         'jobname': output_jobname,
+#         'jobnameext': output_jobnameext,
+#     }
+#     'output_cwd': ..... # CWD of output file
 #     'input_lineno_colno_offsets': ..... # passed on to flmfragment, adjust line/col numbers
 #     'metadata': ..... # to be merged into the document's metadata. Can
 #                       # include information about the FLM source, etc.
@@ -706,6 +713,7 @@ class Run:
                 feature_document_manager.flm_main_scan_fragment(
                     fragment,
                     document_parts_fragments=document_parts_fragments,
+                    flm_run_info=self.flm_run_info
                 )
 
 
