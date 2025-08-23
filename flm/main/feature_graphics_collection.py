@@ -876,7 +876,12 @@ class FeatureGraphicsCollection(Feature):
         r"""
         If `collect_graphics_to_output_folder` is set, then graphics files
         are transformed and collected to the given folder.  The path may be
-        relative or absolute.  (FIXME: RELATIVE PATHS RESOLVED W.R.T. WHAT???)
+        relative or absolute.  Relative paths are interpreted as relative with
+        respect *to the output file*.  If the output directory is determined
+        from the information provided to `flm_main_scan_document()` via the
+        usual `flm.main` processing pipeline.  If it is unknown, a helpful
+        warning message is produced and the path is interpreted as relative to
+        the input document file (if known), or the current working directory.
 
         If `collect_graphics_relative_output_folder` is set, then this path is
         used in the FLM output (e.g. HTML or LATEX code) to refer to the
