@@ -99,10 +99,11 @@ def convert_auto_quotes(text):
     #uni8220 = '“' # 8220 = 0x201c
     #uni8221 = '”' # 8221 = 0x201d
 
-    # Special case if the very first character is a quote
-    # followed by punctuation at a non-word-break. Close the quotes by brute
-    # force:
-    text = re.sub(r"""^'(?="""+punct_class+r"""\\B)""", '’', text)
+    # Special case if the very first character is a quote followed by
+    # punctuation at a non-word-break. Close the quotes by brute force. Also
+    # catch "'s" at the beginning of a char string, as we encounter in "$A_j$'s"
+    # where the $..$ is a separate math node.
+    text = re.sub(r"""^'(?="""+punct_class+r"""\\B|s\b)""", '’', text)
     text = re.sub(r"""^"(?="""+punct_class+r"""\\B)""", '”', text)
 
     # Special case for double sets of quotes, e.g.:

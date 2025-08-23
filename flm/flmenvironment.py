@@ -343,9 +343,11 @@ class NodesFinalizer:
     
     def __init__(self, text_processing_options=None):
         super().__init__()
-        if not text_processing_options:
-            text_processing_options = {}
-        auto = text_processing_options.get('auto', True)
+        if text_processing_options:
+            text_processing_options = dict(text_processing_options)
+        else:
+            text_processing_options = dict()
+        auto = text_processing_options.pop('auto', True)
         if auto is True or auto is False:
             auto_uni_quotes = auto
             ligatures_uni = auto
@@ -358,23 +360,28 @@ class NodesFinalizer:
         else:
             raise ValueError("Invalid text_processing_options['auto']="+repr(auto))
 
-        self.simplify_whitespace = text_processing_options.get('simplify_whitespace', True)
-        self.auto_unicode_quotes = text_processing_options.get(
+        self.simplify_whitespace = text_processing_options.pop('simplify_whitespace', True)
+        self.auto_unicode_quotes = text_processing_options.pop(
             'auto_unicode_quotes',
             auto_uni_quotes
         )
-        self.ligature_unicode_quotes = text_processing_options.get(
+        self.ligature_unicode_quotes = text_processing_options.pop(
             'ligature_unicode_quotes',
             ligatures_uni
         )
-        self.ligature_unicode_dashes = text_processing_options.get(
+        self.ligature_unicode_dashes = text_processing_options.pop(
             'ligature_unicode_dashes',
             ligatures_uni
         )
-        self.ligature_unicode_ellipses = text_processing_options.get(
+        self.ligature_unicode_ellipses = text_processing_options.pop(
             'ligature_unicode_ellipses',
             ligatures_uni
         )
+        if len(text_processing_options.keys()):
+            raise ValueError(
+                "Invalid option(s) for text_processing_options: "
+                + repr(text_processing_options)
+            )
 
 
     def finalize_nodelist(self, latexnodelist):
