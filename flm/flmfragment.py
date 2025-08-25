@@ -112,17 +112,25 @@ class FLMFragment:
                  None,
                  )
             )
+            error_message = self.environment.get_located_error_message(e)
             if not self.silent:
-                error_message = self.environment.get_located_error_message(e)
+                errfmt = latexnodes.LatexWalkerLocatedErrorFormatter(e)
+                errmsg = errfmt.to_display_string()
+                if error_message is not None:
+                    errmsg = error_message + '\n' + errmsg
                 logger.error(
-                    f"Parse error in latex-like markup ‘{self.what}’: {error_message}\n"
-                    f"Given text was:\n‘{self.flm_text}’\n\n"
+                    f"Parse error in latex-like markup ‘{self.what}’: {errmsg}\n"
+                    f"Given text was:\n‘{_abbrevtext(self.flm_text)}’\n\n"
                 )
+            if error_message is not None:
+                e.msg = error_message
             raise
         except Exception as e:
             if not self.silent:
-                logger.error(f"Error parsing latex-like markup ‘{self.what}’: {e}\n"
-                             f"Given text was:\n‘{self.flm_text}’\n\n")
+                logger.error(
+                    f"Error parsing latex-like markup ‘{self.what}’: {e}\n"
+                    f"Given text was:\n‘{_abbrevtext(self.flm_text)}’\n\n"
+                )
             raise
 
 
@@ -453,3 +461,10 @@ class _NodeListTruncator:
             return 0
 
         return 0
+
+
+
+
+def _abbrevtext(x, maxlen=100):
+    x = str(x)
+    return x[:maxlen] + ('…' if len(x) > maxlen else '')

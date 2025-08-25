@@ -964,7 +964,7 @@ class FLMEnvironment:
             if not kwargs.get('silent', False):
                 logger.error(
                     "Error compiling fragment for {}\nContent was:\n‘{}’\n"
-                    .format( kwargs.get('what','(unknown)'), flm_text ),
+                    .format( kwargs.get('what','(unknown)'), _abbrevtext(flm_text) ),
                     exc_info=True
                 )
             raise
@@ -1012,7 +1012,7 @@ class FLMEnvironment:
 
     def get_located_error_message(self, exception_object):
         if self.environment_get_located_error_message is not None:
-            return self.environment_get_located_error_message(exception_object)
+            return self.environment_get_located_error_message(self, exception_object)
         return LatexWalkerLocatedErrorFormatter(exception_object).to_display_string()
 
 
@@ -1159,12 +1159,17 @@ class FLMLatexWalkerMathContextParsingStateEventHandler(
 # ------------------------------------------------------------------------------
 
 
-def standard_environment_get_located_error_message(exception_object):
+def standard_environment_get_located_error_message(environment, exception_object):
     r"""
     Presents a more refined, and hopefully helpful, error message, assuming
     a standard enough FLM environment, for the given error `exception_object`.
     The latter is assumed to be a
     :py:exc:`pylatexenc.latexnodes.LatexWalkerLocatedError` instance.
+
+    Does NOT include any FLM traceback, the return value is simply a potentially
+    more helpful string to use as the exception's main `msg` message.  Might
+    return `None` if no more meaningful message than `exception_object.msg` is
+    available.
 
     Some error messages are changed to make them more useful:
 
@@ -1199,14 +1204,13 @@ def standard_environment_get_located_error_message(exception_object):
                     r"\(...\) for inline math and \[...\] for unnumbered display "
                     r"equations. Use ‘\$’ for a literal dollar sign."
                 )
-    if not msg:
-        msg = exception_object.msg
+    # if not msg:
+    #     msg = exception_object.msg
+    # No, add the traceback etc. separately
+    # errfmt = latexnodes.LatexWalkerLocatedErrorFormatter(exception_object)
+    # msg += errfmt.format_full_traceback()
 
-    errfmt = latexnodes.LatexWalkerLocatedErrorFormatter(exception_object)
-
-    msg += errfmt.format_full_traceback()
-
-    return msg
+    return msg  # might be None
 
 
 
@@ -1381,3 +1385,9 @@ def make_invocable_node_instance(node_type, flm_spec, *,
     node = flm_spec.finalize_node(node)
 
     return node
+
+
+
+def _abbrevtext(x, maxlen=100):
+    x = str(x)
+    return x[:maxlen] + ('…' if len(x) > maxlen else '')
