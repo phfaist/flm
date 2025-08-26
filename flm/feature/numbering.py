@@ -447,6 +447,8 @@ class FeatureNumbering(Feature):
                         f"{counter_name=}, {rs=}, {self.number_within[counter_name]=}, "
                         f"{self.counters=}"
                     )
+                    if numprefix_template is None:
+                        numprefix_template = ''
                     if callable(numprefix_template):
                         numprefix = numprefix_template(
                             counters=self.counters

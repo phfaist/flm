@@ -562,29 +562,38 @@ class Run:
                 if 'input' not in content_part_info:
                     raise ValueError("Expected 'input:' in each entry in 'content_parts:' list")
                 in_input_fname = content_part_info['input']
-                in_input_content = resource_accessor.read_file(
-                    flm_run_info.get('cwd', None),
-                    in_input_fname,
-                    'content_part',
-                    flm_run_info
-                )
+                if in_input_fname is not None:
+                    in_input_content = resource_accessor.read_file(
+                        flm_run_info.get('cwd', None),
+                        in_input_fname,
+                        'content_part',
+                        flm_run_info
+                    )
+                    # parse content/frontmatter and keep line number offset
+                    in_frontmatter_metadata, in_flm_content, in_line_number_offset = \
+                        parse_frontmatter_content_linenumberoffset(in_input_content)
+                else:
+                    in_input_content = None
+                    in_frontmatter_metadata = None
+                    in_flm_content = ''
+                    in_line_number_offset = 0
 
-                # parse content/frontmatter and keep line number offset
-                in_frontmatter_metadata, in_flm_content, in_line_number_offset = \
-                    parse_frontmatter_content_linenumberoffset(in_input_content)
-
+                in_metadata = configmerger.recursive_assign_defaults([
+                    in_frontmatter_metadata or {},
+                    content_part_info.get('metadata', {}),
+                ])
 
                 in_type = None
                 if 'type' in content_part_info:
                     in_type = content_part_info['type']
                     in_label = content_part_info.get('label', None)
-                    in_frontmatter_title = (in_frontmatter_metadata or {}).get(
+                    in_metadata_title = in_metadata.get(
                         'title',
                         '[part title not specified in included FLM file front matter]'
                     )
 
                     head_flm_content = (
-                        '\\' + str(in_type) + '{' + in_frontmatter_title + '}'
+                        '\\' + str(in_type) + '{' + in_metadata_title + '}'
                     )
                     if in_label:
                         head_flm_content += '\\label{' + str(in_label) + '}'
@@ -603,6 +612,7 @@ class Run:
                 cpinfo = dict(content_part_info)
                 cpinfo['input_source'] = in_input_fname
                 cpinfo['flm_content'] = in_flm_content
+                cpinfo['metadata'] = in_metadata
                 cpinfo['frontmatter_metadata'] = in_frontmatter_metadata
                 cpinfo['input_lineno_colno_offsets'] = in_input_lineno_colno_offsets
 
@@ -673,19 +683,23 @@ class Run:
         document_parts_fragments = []
         for cpinfo in content_parts_infos['parts']:
 
-            in_fragment = environment.make_fragment(
-                cpinfo['flm_content'],
-                silent=silent,
-                input_lineno_colno_offsets=cpinfo['input_lineno_colno_offsets'],
-                what=f"Document Part ‘{cpinfo['input_source']}’",
-                resource_info=ResourceInfo(
-                    source_path=cpinfo['input_source']
-                ),
-            )
+            if cpinfo['flm_content'] is not None:
+                in_fragment = environment.make_fragment(
+                    cpinfo['flm_content'],
+                    silent=silent,
+                    input_lineno_colno_offsets=cpinfo['input_lineno_colno_offsets'],
+                    what=f"Document Part ‘{cpinfo['input_source']}’",
+                    resource_info=ResourceInfo(
+                        source_path=cpinfo['input_source']
+                    ),
+                )
+            else:
+                in_fragment = None
 
             cpinfo['fragment'] = in_fragment
 
-            document_parts_fragments.append(in_fragment)
+            if in_fragment is not None:
+                document_parts_fragments.append(in_fragment)
 
 
         #

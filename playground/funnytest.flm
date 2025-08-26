@@ -31,6 +31,26 @@ flm:
 
      headings:
        numbering_section_depth: 3
+       section_commands_by_level:
+         0: 'part'
+         # will merge in remaining dict from default options
+
+   renderer:
+     html:
+       heading_tags_by_level:
+         0: 'h1'
+         1: "h1"
+         2: "h2"
+         3: "h3"
+         # we use <span> instead of <h4> because these paragraph headings might
+         # be rendered inline within the <p> element, and <h4> isn't allowed
+         # within <p>...</p>
+         4: "span"
+         5: "span"
+         6: "span"
+         # special level for theorems:
+         theorem: "span"
+
 
      # ### Will override format-specific FLM defaults
      # endnotes:
@@ -62,6 +82,8 @@ to    see?
      \end{enumerate}
    \end{itemize}
 \end{itemize}
+
+\part{Initial part}
 
 \section{First section}
 
@@ -153,6 +175,8 @@ that a qubit is also a \term[qu\(d\)it]{qu\((d=2)\)it}.
 
 More subsection content here.
 
+
+\part{Final part}
 
 \section{Another section}
 \label{sec:test-label-another-sec}

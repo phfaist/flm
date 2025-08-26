@@ -85,6 +85,8 @@ class RenderWorkflow:
         for doc_part_info in doc_parts:
 
             fragment_part = doc_part_info['fragment']
+            if fragment_part is None:
+                continue
 
             # latex_walker = fragment_part.nodes.latex_walker
 

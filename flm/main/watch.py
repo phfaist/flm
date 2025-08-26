@@ -175,6 +175,7 @@ def main_watch(**kwargs):
             watch_files += [
                 cpinfo['input_source']
                 for cpinfo in info['result_info']['content_parts_infos']['parts']
+                if cpinfo['input_source']
             ]
 
         logger.info('Successfully compiled the FLM document.')

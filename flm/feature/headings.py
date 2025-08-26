@@ -210,10 +210,23 @@ class FeatureHeadings(Feature):
                         break
                     counter_name = self.feature.section_commands_by_level[j].cmdname
                     numbering_info = self.section_numbering_by_level[j]
+                    if not numbering_info:
+                        # non-numbered part/chapter/section. Can still contain
+                        # numbered sub-headings which will be numbered
+                        # throughout the current section level.  (E.g. this can
+                        # be a nonnumbered \part with \chapters numbered
+                        # throughout.)
+                        continue
                     always_number_within = None
-                    if last_counter_name is not None:
+                    number_within_reset_at = numbering_info.number_within_reset_at
+                    if number_within_reset_at:
+                        if number_within_reset_at is True:
+                            if last_counter_name is not None:
+                                number_within_reset_at = last_counter_name
+                            else:
+                                number_within_reset_at = None
                         always_number_within = {
-                            'reset_at': last_counter_name,
+                            'reset_at': number_within_reset_at,
                             'numprefix': numbering_info.numprefix,
                         }
                     counter_iface = numbering.get_document_render_counter(
@@ -347,17 +360,29 @@ class FeatureHeadings(Feature):
             )
 
     class SectionNumberingInfo:
-        def __init__(self, format_num, numprefix=None, heading_joiner=' '):
+        r"""
+        Doc...
+
+        The `number_within_reset_at` sets the parent counter to number this
+        heading level within.  If set to `None`, there will be no parent counter
+        and this section level is numbered throughout.  If set to `True`, then
+        the parent counter is determined automatically (no parent counter for
+        top-level heading and last numbered heading level for sub-headings).
+        """
+        def __init__(self, format_num, numprefix=None, heading_joiner=' ',
+                     number_within_reset_at=True):
             super().__init__()
             self.format_num = format_num
             self.numprefix = numprefix
             self.heading_joiner = heading_joiner
+            self.number_within_reset_at = number_within_reset_at
 
         def __repr__(self):
             return (
                 f"{self.__class__.__name__}(format_num={repr(self.format_num)}, "
                 f"numprefix={repr(self.numprefix)}, "
-                f"heading_joiner={repr(self.heading_joiner)}"
+                f"heading_joiner={repr(self.heading_joiner)}, "
+                f"number_within_reset_at={repr(self.number_within_reset_at)}"
             )
 
 
@@ -433,10 +458,12 @@ class FeatureHeadings(Feature):
         self.section_commands_by_level = {
             level: self._make_section_command_info(x)
             for level, x in dict(section_commands_by_level).items()
+            if x is not None
         }
         self.section_numbering_by_level = {
             level: self._make_section_numbering_info(x)
             for level, x in dict(section_numbering_by_level).items()
+            if x is not None
         }
 
         # all section headings with level <= numbering_section_depth will be
