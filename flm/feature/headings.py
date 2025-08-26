@@ -62,6 +62,8 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
             ('star', 'text', 'label') ,
         )
 
+        node.flmarg_skip_numbering = node_args['star'].was_provided()
+
         node.flmarg_heading_content_nodelist = node_args['text'].get_content_nodelist()
 
         node.flmarg_labels = flmspecinfo.helper_collect_labels(
@@ -89,6 +91,7 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
             heading_level=self.heading_level,
             labels=node.flmarg_labels,
             heading_content_nodelist=node.flmarg_heading_content_nodelist,
+            skip_numbering=node.flmarg_skip_numbering,
         )
 
         return render_context.fragment_renderer.render_heading(
@@ -242,7 +245,9 @@ class FeatureHeadings(Feature):
                 )
 
         def new_heading(self, node, heading_level,
-                        labels, heading_content_nodelist, target_id=None):
+                        labels, heading_content_nodelist,
+                        skip_numbering=False,
+                        target_id=None):
 
             if target_id is None:
                 if hasattr(node, 'flm_heading_target_id'):
@@ -267,7 +272,7 @@ class FeatureHeadings(Feature):
 
             # get section number, if applicable.
             sec_num_info = None
-            if heading_level in self.section_counter_ifaces:
+            if not skip_numbering and heading_level in self.section_counter_ifaces:
                 counter_iface = self.section_counter_ifaces[heading_level]
                 numbering_info = self.section_numbering_by_level[heading_level]
 
