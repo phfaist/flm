@@ -124,6 +124,10 @@ Here's another display equation:
   \label{eq:my-equation-2}
 \end{align}
 
+\section*{Unnumbered section here}
+
+Just testing this out!
+
 \section{Second section here}
 
 Just testing this out!
