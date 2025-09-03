@@ -117,6 +117,16 @@ class AnnotationMacro(FLMMacroSpecBase):
 
     def render(self, node, render_context):
 
+        rdr_mgr = render_context.feature_render_manager('annotations')
+        if rdr_mgr.hide_all_annotations:
+            if node.flmarg_text_delimiters[0] == '[':
+                return render_context.fragment_renderer.render_nothing(render_context)
+            return render_context.fragment_renderer.render_nodelist(
+                node.flmarg_text_nodelist,
+                render_context,
+                is_block_level=node.flm_is_block_level,
+            )
+
         if node.flmarg_text_delimiters[0] == '[':
             return render_context.fragment_renderer.render_annotation_comment(
                 node.flmarg_text_nodelist,
@@ -184,9 +194,11 @@ class FeatureAnnotations(Feature):
     def __init__(
             self,
             macrodefs=None,
+            hide_all_annotations=False,
     ):
         super().__init__()
         self.macrodefs = dict(macrodefs or {})
+        self.hide_all_annotations = hide_all_annotations
         
 
     def add_latex_context_definitions(self):
@@ -206,6 +218,12 @@ class FeatureAnnotations(Feature):
 
         return dict(macros=macros)
 
+    class RenderManager(Feature.RenderManager):
+        def initialize(self, hide_all_annotations=None):
+            if hide_all_annotations is not None:
+                self.hide_all_annotations = hide_all_annotations
+            else:
+                self.hide_all_annotations = self.feature.hide_all_annotations
 
 
 
