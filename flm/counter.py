@@ -180,13 +180,20 @@ _standard_tag_template_initials_formatters = {
 
 
 _rx_dollar_template = re.compile(r'\$\{([a-zA-Z0-9_.]+)\}')
+
 def _replace_dollar_template(x, vrs):
     return _rx_dollar_template.sub(lambda m: vrs[m.group(1)], x)
+
+def _replace_dollar_template_use_callable(x, get_var_value):
+    return _rx_dollar_template.sub(lambda m: get_var_value(m.group(1)), x)
+
 def _replace_dollar_template_delayed(x, vrs):
     return lambda arg, numprefix=None: (
         (numprefix or '') +
         _rx_dollar_template.sub(lambda m: vrs[m.group(1)] (arg) , x)
     )
+
+
 
 
 def parse_counter_format_num(

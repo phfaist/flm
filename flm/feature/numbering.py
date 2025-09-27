@@ -115,8 +115,11 @@ class _CounterIface:
 
 
 def get_document_render_counter(
-        render_context, counter_name, counter_formatter, alias_counter=None,
-        always_number_within=None
+        render_context,
+        counter_name,
+        counter_formatter,
+        alias_counter=None,
+        always_number_within=None,
 ):
     
     if not render_context.supports_feature('numbering'):
@@ -197,7 +200,14 @@ class _DocCounterState:
         self.numprefix_and_value_for_doc_state = numprefix_and_value_for_doc_state
 
     def __repr__(self):
-        return f"_DocCounterState<‘{self.counter_name}’ {repr(self.cur_counter_state)}>"
+        s = f"_DocCounterState<‘{self.counter_name}’ {repr(self.cur_counter_state)}"
+        if self.use_doc_state_keys is not None:
+            if len(self.use_doc_state_keys):
+                s += f" ⟨" + ", ".join(self.use_doc_state_keys) + "⟩"
+        elif len(self.base_use_doc_state_keys):
+            s += f" ⟨" + ", ".join(self.base_use_doc_state_keys) + "⟩"
+        s += f">"
+        return s
 
     def get_filtered_doc_state(self):
         r"""
@@ -259,6 +269,12 @@ class _DocCounterState:
             # subequations state).  Go back to the counter in that state.
             self.cur_filtered_doc_state = new_filtered_doc_state
             self.cur_counter_state = self.counter_by_filtered_doc_states[new_filtered_doc_state]
+            logger.debug(
+                "relevant doc state change for counter ‘%s’ → found existing "
+                "cur_counter_state=%r",
+                self.counter_name,
+                self.cur_counter_state
+            )
         else:
             # Document state has changed for the state keys that we're
             # monitoring (e.g. moved on to next section), and we haven't seen
@@ -267,7 +283,7 @@ class _DocCounterState:
             self.cur_filtered_doc_state = new_filtered_doc_state
 
             if self.numprefix_and_value_for_doc_state:
-                cur_numprefix, cur_value = self.numprefix_and_value_for_doc_state(
+                cur_numprefix, cur_value = self.numprefix_and_value_for_doc_state.compute(
                     self.rdr_mgr.render_doc_states
                 )
                 cur_value = ValueWithSubNums(cur_value) # ensure ValueWithSubNums instance
@@ -282,6 +298,13 @@ class _DocCounterState:
             self.counter_by_filtered_doc_states[new_filtered_doc_state] = new_counter_state
             self.cur_counter_state = new_counter_state
 
+            logger.debug(
+                "relevant doc state change for counter ‘%s’ → created new "
+                "cur_counter_state=%r",
+                self.counter_name,
+                self.cur_counter_state
+            )
+
     def _get_cur_counter_state(self):
         # needed in case the doc state has changed since we last registered an
         # item for this counter.  This call might be needed, e.g., if we have a
@@ -294,6 +317,11 @@ class _DocCounterState:
             **kwargs
     ):
         cur_counter_state = self._get_cur_counter_state()
+        if cur_counter_state is None or not cur_counter_state['value']:
+            logger.warning(
+                f"Requested counter ‘{self.counter_name}’'s value but none was set."
+            )
+            return ''
         return self.formatter.format_flm(
             value=cur_counter_state['value'].get_num(),
             subnums=cur_counter_state['value'].get_subnums(),
@@ -335,6 +363,60 @@ class _DocCounterStateAliasCounter:
             numprefix=cur_counter_state['numprefix'],
             **kwargs
         )
+
+
+
+
+class _NumprefixAndValueForDocStateCompute:
+    def __init__(self, numprefix_for_doc_state_fn, counter_name, counters, number_within,
+                 value_for_doc_state_fn):
+        self.numprefix_for_doc_state_fn = numprefix_for_doc_state_fn
+        self.counter_name = counter_name
+        self.counters = counters
+        self.number_within = number_within
+        self.value_for_doc_state_fn = value_for_doc_state_fn
+
+    def compute(self, rs):
+        if self.numprefix_for_doc_state_fn is not None:
+            numprefix = self.numprefix_for_doc_state_fn(rs, self)
+        elif self.counter_name in self.number_within:
+            numprefix_template = self.number_within[self.counter_name]['numprefix']
+            logger.debug(
+                f"_NumprefixAndValueForDocStateCompute.compute(): "
+                f"{self.counter_name=}, {rs=}, {self.number_within[self.counter_name]=}, "
+                f"{self.counters=}"
+            )
+            if numprefix_template is None:
+                numprefix_template = ''
+            if callable(numprefix_template):
+                numprefix = numprefix_template(
+                    counters=self.counters
+                )
+            else:
+                try:
+                    numprefix = counter._replace_dollar_template_use_callable(
+                        numprefix_template,
+                        self._get_counter_value
+                    )
+                except KeyError as e:
+                    raise ValueError(
+                        f"In numprefix_template of number_within for ‘{self.counter_name}’: "
+                        f"Cannot find value for counter: {e}"
+                    )
+        else:
+            numprefix = None
+
+        if self.value_for_doc_state_fn is not None:
+            value = self.value_for_doc_state_fn(rs, self)
+        else:
+            value = 0
+
+        return numprefix, value
+
+    def _get_counter_value(self, dcname):
+        dcstate = self.counters[dcname]
+        return dcstate.get_formatted_counter_value(with_prefix=False)
+
 
 
 
@@ -430,6 +512,8 @@ class FeatureNumbering(Feature):
                     formatter=counter_formatter,
                     counter_name=counter_name,
                 )
+                logger.debug("Registered alias counter ‘%s’ → %r",
+                             counter_name, alias_counter)
                 return self.counters[counter_name]
 
             # use_doc_state_keys = []
@@ -437,59 +521,26 @@ class FeatureNumbering(Feature):
             #     parent_counter = self.number_within[counter_name]['reset_at']
             #     use_doc_state_keys.append( f'cnt-{parent_counter}' )
 
-            def _numprefix_and_value_for_doc_state(rs):
-                if numprefix_for_doc_state_fn is not None:
-                    numprefix = numprefix_for_doc_state_fn(rs, self)
-                elif counter_name in self.number_within:
-                    numprefix_template = self.number_within[counter_name]['numprefix']
-                    logger.debug(
-                        f"_numprefix_and_value_for_doc_state: "
-                        f"{counter_name=}, {rs=}, {self.number_within[counter_name]=}, "
-                        f"{self.counters=}"
-                    )
-                    if numprefix_template is None:
-                        numprefix_template = ''
-                    if callable(numprefix_template):
-                        numprefix = numprefix_template(
-                            counters=self.counters
-                        )
-                    else:
-                        def _mkfmtfunc(dcstate):
-                            return lambda dummyarg: (
-                                dcstate.get_formatted_counter_value(with_prefix=False)
-                            )
-                        try:
-                            numprefix = counter._replace_dollar_template_delayed(
-                                numprefix_template,
-                                dict([
-                                    (dcname, _mkfmtfunc(dcstate))
-                                    for dcname, dcstate in self.counters.items()
-                                ])
-                            ) (None)
-                        except KeyError as e:
-                            raise ValueError(
-                                f"In numprefix_template of number_within for ‘{counter_name}’: "
-                                f"Cannot find value for counter: {e}"
-                            )
-                else:
-                    numprefix = None
+            _numprefix_and_value_for_doc_state = _NumprefixAndValueForDocStateCompute(
+                numprefix_for_doc_state_fn=numprefix_for_doc_state_fn,
+                counter_name=counter_name,
+                counters=self.counters,
+                number_within=self.number_within,
+                value_for_doc_state_fn=value_for_doc_state_fn,
+            )
 
-                if value_for_doc_state_fn is not None:
-                    value = value_for_doc_state_fn(rs, self)
-                else:
-                    value = 0
-
-                return numprefix, value
-
-            self.counters[counter_name] = _DocCounterState(
+            doc_counter_state = _DocCounterState(
                 formatter=counter_formatter,
                 rdr_mgr=self,
                 counter_name=counter_name,
                 base_use_doc_state_keys=use_doc_state_keys,
                 numprefix_and_value_for_doc_state=_numprefix_and_value_for_doc_state,
             )
+            self.counters[counter_name] = doc_counter_state
 
-            return self.counters[counter_name]
+            logger.debug("Registered new counter ‘%s’ : %r", counter_name, doc_counter_state)
+
+            return doc_counter_state
 
         def _number_within_parent_counters(self, c):
             if c not in self.number_within:
