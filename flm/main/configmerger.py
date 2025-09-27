@@ -24,7 +24,7 @@ class PresetKeepMarker:
         super().__init__()
         self.marker = marker
 
-    def process_property(self, configmerger, presetarg, result, obj, remaining_obj_list,
+    def process_property(self, configmerger, presetarg, result, obj, sub_merge_obj_list,
                          property_path, top_level_obj):
 
         obj[self.marker] = presetarg
@@ -39,11 +39,11 @@ class PresetDefaults:
             self.defaults_additional_sources = []
 
     def process_list_item(self, configmerger,
-                          presetarg, list_result, list_obj, j, list_obj_remaining,
+                          presetarg, list_result, list_obj, j, remaining_obj_list,
                           property_path, top_level_obj):
-        logger.debug(f"defaults! {list_result=} {list_obj=} {j=} {list_obj_remaining=}")
+        logger.debug(f"defaults! {list_result=} {list_obj=} {j=} {remaining_obj_list=}")
 
-        defaults_sources = list_obj_remaining + [
+        defaults_sources = remaining_obj_list + [
             defaults_source.fetch_defaults(property_path)
             for defaults_source in self.defaults_additional_sources
         ]
@@ -59,10 +59,10 @@ class PresetDefaults:
 # $merge-config
 class PresetMergeConfig:
     def process_list_item(self, configmerger,
-                          presetarg, list_result, list_obj, j, list_obj_remaining,
+                          presetarg, list_result, list_obj, j, remaining_obj_list,
                           property_path, top_level_obj):
         logger.debug(f"merge-config, process_list_item, {list_result=}, {repr(list_obj)=} "
-                     f"{j=} {repr(list_obj_remaining)=}")
+                     f"{j=} {repr(remaining_obj_list)=}")
         featurename = presetarg.get('name', None)
         if featurename is None:
             raise ValueError(
@@ -92,7 +92,7 @@ class PresetMergeConfig:
 
 class PresetRemoveItem:
     def process_list_item(self, configmerger,
-                          presetarg, list_result, list_obj, j, list_obj_remaining,
+                          presetarg, list_result, list_obj, j, remaining_obj_list,
                           property_path, top_level_obj):
         featurename = presetarg
         if featurename is None:
@@ -144,7 +144,7 @@ class PresetImport:
             #data['$_cwd'] = .... ???
             return data
 
-    def process_property(self, configmerger, presetarg, result, obj, remaining_obj_list,
+    def process_property(self, configmerger, presetarg, result, obj, sub_merge_obj_list,
                          property_path, top_level_obj):
         import_targets = presetarg
         # logger.debug("DEBUG! Processing $import into object properties ... %r\n    %r",
@@ -154,7 +154,7 @@ class PresetImport:
         for import_target in import_targets:
             target_data = self._fetch_import(import_target, top_level_obj.get('$_cwd', '.'))
             result.update(configmerger.recursive_assign_defaults_dict(
-                [ result, obj, target_data ] + remaining_obj_list,
+                [ result, obj, target_data ] + sub_merge_obj_list[1:],
                 property_path,
                 top_level_obj=top_level_obj
             ))
@@ -162,7 +162,7 @@ class PresetImport:
         
 
     def process_list_item(self, configmerger,
-                          presetarg, list_result, list_obj, j, list_obj_remaining,
+                          presetarg, list_result, list_obj, j, remaining_obj_list,
                           property_path, top_level_obj):
         import_targets = presetarg
         if isinstance(import_targets, str):
@@ -170,7 +170,7 @@ class PresetImport:
 
         for import_target in import_targets:
             target_data = self._fetch_import(import_target, top_level_obj.get('$_cwd', '.'))
-            if not isinstance(target_data, list):
+            if not isinstance(target_data, list): # NOT `abc.Sequence` (which a str also is)
                 target_data = [ target_data ]
 
             # call to recursive_assign_defaults_list() is important so we can
@@ -186,9 +186,9 @@ class PresetImport:
         logger.debug(f"processed list item $import -> {list_result=}")
 
 
-def get_default_presets():
+def get_default_presets(defaults_additional_sources=None):
     return {
-        '$defaults': PresetDefaults(),
+        '$defaults': PresetDefaults(defaults_additional_sources),
         '$merge-config': PresetMergeConfig(),
         '$remove-item': PresetRemoveItem(),
         '$import': PresetImport(),
@@ -200,22 +200,31 @@ def get_default_presets():
 
 
 def _get_preset_keyvals(d):
-    if not isinstance(d, dict):
+    if not isinstance(d, Mapping):
         return []
     return [(k,v) for (k,v) in d.items() if isinstance(k,str) and k.startswith('$')]
 
 
+
 class ConfigMerger:
-    def __init__(self, presets=None):
+    def __init__(self, presets=None, defaults_additional_sources=None):
         if presets is not None:
             self.presets = dict(presets)
         else:
-            self.presets = get_default_presets()
+            self.presets = get_default_presets(
+                defaults_additional_sources=defaults_additional_sources
+            )
 
     def recursive_assign_defaults(self, obj_list):
         return self.recursive_assign_defaults_dict(obj_list, [])
 
-    def recursive_assign_defaults_dict(self, obj_list, property_path, *, top_level_obj=None):
+    def recursive_assign_defaults_dict(
+            self,
+            obj_list,
+            property_path,
+            *,
+            top_level_obj=None,
+    ):
 
         # logger.debug(f"recursive_assign_defaults_dict({obj_list=}, {property_path=})")
 
@@ -223,16 +232,48 @@ class ConfigMerger:
             return {}
 
         result = {}
+        delayed_merges = {}
 
+        # first, go through all items, ensure that they are all dicts, and make
+        # shallow copies.  We make copies so that we can change the dict, e.g.,
+        # to remove preset keys.
+        new_obj_list = []
+        no_merge_index = None
         for j, obj in enumerate(obj_list):
-            remaining_obj_list = obj_list[j+1:]
-
             if not isinstance(obj, Mapping):
                 logger.warning(
                     "Incompatible config merge, ignoring value %r for ‘%s’ in chain %r",
                     obj, ".".join(property_path), obj_list
                 )
                 continue
+            obj = dict(obj) # shallow copy
+            # special case for non-mergeable dicts.  This can be a set of
+            # headings config, for instance, or a counter formatter default
+            # spec, which shouldn't be merged into any user-specified config.
+            if '$no-merge' in obj:
+                if obj['$no-merge'] is not True:
+                    raise ValueError("When used, `$no-merge` may only be set to `True`")
+                del obj['$no-merge']
+                if no_merge_index is None:
+                    no_merge_index = j
+            elif no_merge_index is not None and len(obj) and '$no-merge' not in obj:
+                logger.warning(
+                    "Merging config %s: Additional config object following "
+                    "a ‘$no-merge’ object will be ignored: %r",
+                    "›".join(property_path), obj
+                )
+            new_obj_list.append(obj)
+        obj_list = new_obj_list # back into 'obj_list'
+
+        def _get_sub_merge_obj_list(j):
+            if no_merge_index is None:
+                return obj_list[j:]
+            if j < no_merge_index:
+                return obj_list[j:no_merge_index]
+            # j == no_merge_index
+            return [ obj ]
+
+        for j, obj in enumerate(obj_list):
 
             if top_level_obj is None:
                 this_top_level_obj = obj
@@ -240,6 +281,22 @@ class ConfigMerger:
                 this_top_level_obj = top_level_obj
 
             #print("DEBUG: ** config merger, considering obj = ", obj)
+            if no_merge_index is not None:
+                if j > no_merge_index:
+                    # We're past no-merging!  No merging was set by the previous
+                    # object in this object config chain. We used that object's
+                    # value, so do not merge any further objects in the config
+                    # chain.
+                    break
+                if j == no_merge_index and len(result):
+                    # We reached the $no-merge point, and there is already a
+                    # value in result.  Do not merge this object and following
+                    # objects.
+                    break
+
+                # Otherwise, use this object (including if this object is the
+                # "$no-merge" object)
+
 
             # process any "meta"/preset keys
             for presetname, presetarg in _get_preset_keyvals(obj):
@@ -247,7 +304,7 @@ class ConfigMerger:
                 #print("DEBUG: ** got preset in object ", obj, ", handling ", presetname,
                 #      " with arg = ", presetarg)
                 self.presets[presetname].process_property(
-                    self, presetarg, result, obj, remaining_obj_list,
+                    self, presetarg, result, obj, _get_sub_merge_obj_list(j),
                     property_path,
                     top_level_obj=this_top_level_obj
                 )
@@ -258,33 +315,25 @@ class ConfigMerger:
                     # nothing to copy, value is already in result
                     continue
 
-                if isinstance(obj[k], dict):
+                if isinstance(obj[k], Mapping):
                     # recurse into sub-properties
                     # see if there are any presets to process
 
                     sub_result = self.recursive_assign_defaults_dict(
-                        [obj[k]] + [
-                            (o.get(k,{}) if isinstance(o,dict) else {})
-                            for o in remaining_obj_list
-                        ],
+                        [ o.get(k,{}) for o in _get_sub_merge_obj_list(j) ],
                         property_path + [k],
                         top_level_obj=this_top_level_obj
                     )
-
                     #logger.debug(f"Assigning default for property ‘{k}’ → {repr(sub_result)}")
                     result[k] = sub_result
 
-                elif isinstance(obj[k], list):
+                elif isinstance(obj[k], list): # NOT `abc.Sequence` (which a str also is)
 
                     list_result = self.recursive_assign_defaults_list(
-                        [obj[k]] + [
-                            (o.get(k,None) if isinstance(o,dict) else None)
-                            for o in remaining_obj_list
-                        ],
+                        [ o.get(k,None) for o in _get_sub_merge_obj_list(j) ],
                         property_path + [k],
                         top_level_obj=this_top_level_obj
                     )
-
                     #logger.debug(f"Assigning default for property ‘{k}’ → {repr(list_result)}")
                     result[k] = list_result
 

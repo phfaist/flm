@@ -480,8 +480,8 @@ class CounterFormatter:
             'format_num',
             'prefix_display', 'delimiters', 'join_spec',
             'name_in_link', 'repeat_numprefix_in_range',
-            'subnums_format_nums',
             'counter_formatter_id',
+            'subnums_format_nums',
         )
 
     def format_number(self, n, numprefix=None, subnums=None):

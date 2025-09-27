@@ -84,6 +84,102 @@ class TestRecursiveAssignDefaults(unittest.TestCase):
         })
 
 
+    def test_with_nomerge(self):
+
+        d = ConfigMerger().recursive_assign_defaults([
+            {
+                'k1': { 'A': 1, 'B': 2 },
+            },
+            {
+                'k1': { '$no-merge': True, 'A': 'A-DEFAULT', 'B': 'B-DEFAULT' },
+            },
+            {
+                'k1': { 'C': 'ignore-past-no-merge' }
+            },
+        ])
+
+        self.assertEqual(d, {
+            'k1': { 'A': 1, 'B': 2 }
+        })
+
+    def test_with_nomerge_2(self):
+
+        d = ConfigMerger().recursive_assign_defaults([
+            {
+                'k1': { },
+            },
+            {
+                'k1': { '$no-merge': True, 'A': 'A-DEFAULT', 'B': 'B-DEFAULT' },
+            },
+            {
+                'k1': { 'C': 'ignore-past-no-merge' }
+            },
+        ])
+
+        self.assertEqual(d, {
+            'k1': { 'A': 'A-DEFAULT', 'B': 'B-DEFAULT' }
+        })
+
+    def test_with_nomerge_3(self):
+
+        d = ConfigMerger().recursive_assign_defaults([
+            {
+            },
+            {
+                'k1': { '$no-merge': True, 'A': 'A-DEFAULT', 'B': 'B-DEFAULT' },
+            },
+            {
+                'k1': { 'C': 'ignore-past-no-merge' }
+            },
+        ])
+
+        self.assertEqual(d, {
+            'k1': { 'A': 'A-DEFAULT', 'B': 'B-DEFAULT' }
+        })
+
+
+    def test_with_nomerge_4(self):
+
+        d = ConfigMerger().recursive_assign_defaults([
+            {
+                'k1': None,
+            },
+            {
+                'k1': { '$no-merge': True, 'A': 'A-DEFAULT', 'B': 'B-DEFAULT' },
+            },
+            {
+                'k1': { 'C': 'ignore-past-no-merge' }
+            },
+        ])
+
+        self.assertEqual(d, {
+            'k1': None
+        })
+
+
+    def test_with_nomerge_rec(self):
+
+        d = ConfigMerger().recursive_assign_defaults([
+            {
+                'k1': { 'A': 1, 'B': { 'bbb': '222' } },
+            },
+            {
+                'k1': {
+                    '$no-merge': True,
+                    'A': 'A-DEFAULT', 'B': { 'ccc': '333' },
+                },
+            },
+            {
+                'k1': { 'B': { 'ddd': 'ignore-past-no-merge' } }
+            },
+        ])
+
+        self.assertEqual(d, {
+            'k1': { 'A': 1, 'B': { 'bbb': '222' } }
+        })
+
+
+
     # -- test presets --
 
     def test_preset_defaults(self):

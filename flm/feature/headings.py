@@ -7,7 +7,7 @@ from pylatexenc.latexnodes import (
 )
 
 from .. import flmspecinfo
-from ..counter import build_counter_formatter
+from ..counter import build_counter_formatter, CounterFormatter
 
 from ._base import Feature
 
@@ -139,7 +139,7 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
         return s
 
 
-sec_default_counter_formatter_spec = {
+_default_counter_formatter_spec = {
     'format_num': { 'template': '${arabic}' },
     'prefix_display': {
         'singular': '§ ',
@@ -148,6 +148,49 @@ sec_default_counter_formatter_spec = {
     'delimiters': ('',''),
     'join_spec': 'compact',
 }
+
+
+_default_section_commands_by_level = {
+    1: dict(cmdname=r"section"),
+    2: dict(cmdname=r"subsection"),
+    3: dict(cmdname=r"subsubsection"),
+    4: dict(cmdname=r"paragraph", inline=True),
+    5: dict(cmdname=r"subparagraph", inline=True),
+    6: dict(cmdname=r"subsubparagraph", inline=True),
+}
+_default_section_numbering_by_level = {
+    1: dict(
+        counter_formatter={'template': '${arabic}'},
+        numprefix=None,
+        heading_joiner='. '
+    ),
+    2: dict(
+        counter_formatter={'template': '${arabic}'},
+        numprefix='${section}.',
+        heading_joiner='. '
+    ),
+    3: dict(
+        counter_formatter={'template': '${arabic}'},
+        numprefix='${subsection}.',
+        heading_joiner='. '
+    ),
+    4: dict(
+        counter_formatter={'template': '${alph}'},
+        numprefix=None,
+        heading_joiner='. '
+    ),
+    5: dict(
+        counter_formatter={'template': '${alph}'},
+        numprefix='${paragraph}.',
+        heading_joiner='. '
+    ),
+    6: dict(
+        counter_formatter={'template': '${alph}'},
+        numprefix='${subparagraph}.',
+        heading_joiner='. '
+    ),
+}
+
 
 
 class FeatureHeadings(Feature):
@@ -186,27 +229,32 @@ class FeatureHeadings(Feature):
             else:
                 self.section_numbering_by_level = self.feature.section_numbering_by_level
 
+            logger.debug(
+                "Initializing FeatureHeadings.RenderManager; using:\n"
+                "    numbering_section_depth=%r\n"
+                "    section_commands_by_level=%r\n"
+                "    section_numbering_by_level=%r\n",
+                self.numbering_section_depth,
+                self.feature.section_commands_by_level,
+                self.section_numbering_by_level
+            )
+
             if counter_formatter is not None:
                 self.counter_formatter = build_counter_formatter(
                     counter_formatter,
-                    sec_default_counter_formatter_spec,
+                    _default_counter_formatter_spec,
                     counter_formatter_id='section',
                 )
             else:
                 self.counter_formatter = self.feature.counter_formatter
 
-            logger.debug(
-                "Initialize FeatureHeadings.RenderManager; using:\n"
-                "    numbering_section_depth=%r\n"
-                "    section_commands_by_level=%r\n"
-                "    section_numbering_by_level=%r\n"
-                "    counter_formatter=%r",
-                self.numbering_section_depth, self.feature.section_commands_by_level,
-                self.section_numbering_by_level, self.counter_formatter)
-
             self.section_counter_ifaces = {}
-            last_counter_name = None
+
             if self.numbering_section_depth is not False:
+
+                last_counter_name = None
+                base_counter_formatter_spec = self.counter_formatter.asdict()
+
                 for j in sorted(self.section_numbering_by_level.keys(), key=int):
                     if (self.numbering_section_depth is not True
                         and j > self.numbering_section_depth):
@@ -232,17 +280,29 @@ class FeatureHeadings(Feature):
                             'reset_at': number_within_reset_at,
                             'numprefix': numbering_info.numprefix,
                         }
+
+                    # Prepare the counter_formatter for this section level.
+                    sec_counter_formatter = build_counter_formatter(
+                        numbering_info.counter_formatter,
+                        base_counter_formatter_spec,
+                        # for hyper-references, etc.: keep 'section' for all
+                        # levels for internal counter formatter id.
+                        counter_formatter_id=self.counter_formatter.counter_formatter_id,
+                    )
+                    
                     counter_iface = numbering.get_document_render_counter(
-                        self.render_context, counter_name, self.counter_formatter,
+                        self.render_context, counter_name, sec_counter_formatter,
                         always_number_within=always_number_within
                     )
                     self.section_counter_ifaces[j] = counter_iface
+
                     last_counter_name = counter_name
-            
+
                 logger.debug(
                     "Set up counter interfaces: %r",
                     self.section_counter_ifaces
                 )
+
 
         def new_heading(self, node, heading_level,
                         labels, heading_content_nodelist,
@@ -374,64 +434,36 @@ class FeatureHeadings(Feature):
         the parent counter is determined automatically (no parent counter for
         top-level heading and last numbered heading level for sub-headings).
         """
-        def __init__(self, format_num, numprefix=None, heading_joiner=' ',
-                     number_within_reset_at=True):
+        def __init__(self, 
+                     numprefix=None,
+                     heading_joiner=' ',
+                     number_within_reset_at=True,
+                     counter_formatter=None,):
             super().__init__()
-            self.format_num = format_num
             self.numprefix = numprefix
             self.heading_joiner = heading_joiner
             self.number_within_reset_at = number_within_reset_at
+            self.counter_formatter = counter_formatter
 
         def __repr__(self):
             return (
-                f"{self.__class__.__name__}(format_num={repr(self.format_num)}, "
+                f"{self.__class__.__name__}("
                 f"numprefix={repr(self.numprefix)}, "
                 f"heading_joiner={repr(self.heading_joiner)}, "
                 f"number_within_reset_at={repr(self.number_within_reset_at)}"
+                f"counter_formatter={repr(self.counter_formatter)}"
+                f")"
             )
 
-
     feature_default_config = {
-        'counter_formatter': sec_default_counter_formatter_spec,
+        'counter_formatter': _default_counter_formatter_spec,
         'section_commands_by_level': {
-            1: dict(cmdname=r"section"),
-            2: dict(cmdname=r"subsection"),
-            3: dict(cmdname=r"subsubsection"),
-            4: dict(cmdname=r"paragraph", inline=True),
-            5: dict(cmdname=r"subparagraph", inline=True),
-            6: dict(cmdname=r"subsubparagraph", inline=True),
+            '$no-merge': True,
+            **_default_section_commands_by_level
         },
         'section_numbering_by_level': {
-            1: dict(
-                format_num={'template': '${arabic}'},
-                numprefix=None,
-                heading_joiner='. '
-            ),
-            2: dict(
-                format_num={'template': '${arabic}'},
-                numprefix='${section}.',
-                heading_joiner='. '
-            ),
-            3: dict(
-                format_num={'template': '${arabic}'},
-                numprefix='${subsection}.',
-                heading_joiner='. '
-            ),
-            4: dict(
-                format_num={'template': '${alph}'},
-                numprefix=None,
-                heading_joiner='. '
-            ),
-            5: dict(
-                format_num={'template': '${alph}'},
-                numprefix='${paragraph}.',
-                heading_joiner='. '
-            ),
-            6: dict(
-                format_num={'template': '${alph}'},
-                numprefix='${subparagraph}.',
-                heading_joiner='. '
-            ),
+            '$no-merge': True,
+            **_default_section_numbering_by_level
         }
     }
 
@@ -445,15 +477,14 @@ class FeatureHeadings(Feature):
         super().__init__()
 
         if section_commands_by_level is None:
-            section_commands_by_level = self.feature_default_config['section_commands_by_level']
+            section_commands_by_level = _default_section_commands_by_level
         if section_numbering_by_level is None:
-            section_numbering_by_level = \
-                self.feature_default_config['section_numbering_by_level']
+            section_numbering_by_level = _default_section_numbering_by_level
         if counter_formatter is None:
-            counter_formatter = self.feature_default_config['counter_formatter']
+            counter_formatter = _default_counter_formatter_spec
         counter_formatter = build_counter_formatter(
             counter_formatter,
-            sec_default_counter_formatter_spec,
+            _default_counter_formatter_spec,
             counter_formatter_id='section',
         )
         self.counter_formatter = counter_formatter
