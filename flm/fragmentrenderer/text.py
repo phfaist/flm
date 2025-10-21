@@ -150,6 +150,8 @@ class TextFragmentRenderer(FragmentRenderer):
         return display_content
 
 
+    float_caption_title_separator = ': '
+
     def render_float(self, float_instance, render_context):
 
         full_figcaption_rendered_list = []
@@ -171,7 +173,9 @@ class TextFragmentRenderer(FragmentRenderer):
         
         if float_instance.caption_nodelist:
             full_figcaption_rendered_list.append(
-                ": " # filler between the "Figure X" and the rest of the caption text.
+                # filler between the "Figure X" and the rest of the caption text.
+                # Typically ': ' or '. '
+                self.float_caption_title_separator
             )
             full_figcaption_rendered_list.append(
                 self.render_nodelist(

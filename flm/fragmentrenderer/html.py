@@ -561,6 +561,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     # --
 
+    float_caption_title_separator = ': '
+
     def render_float(self, float_instance, render_context):
         # see flm.features.floats for FloatInstance
         
@@ -613,7 +615,9 @@ class HtmlFragmentRenderer(FragmentRenderer):
             # rendered the "Figure X" or "Figure" so far.  So now we add the
             # caption text.
             full_figcaption_rendered_list.append(
-                ": " # filler between the "Figure X" and the rest of the caption text.
+                # filler between the "Figure X" and the rest of the caption text.
+                # Typically ': ' or '. '
+                self.float_caption_title_separator
             )
             full_figcaption_rendered_list.append(
                 self.render_nodelist(
