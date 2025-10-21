@@ -5,6 +5,18 @@ flm:
     comment_start: '%%'
   features:
     'flm.feature.cells.FeatureCells': true
+
+  renderer:
+    latex:
+      #cells_render_method: 'simple'
+      cells_render_method: 'fit_width_test'
+      #cells_render_method: 'fit_width_test_dupl'
+
+  workflow_config:
+    flmlatex:
+      recomposer_options:
+        verbatim:
+          use_fvextra: True
 #$
 ---
 
@@ -120,10 +132,6 @@ A & B & C \\
 
 
 
-
-
-
-
 \begin{cells}
 \celldata<H c>{ One Heading & Two Headings & Three Headings }
 \celldata<c>[-]{
@@ -133,3 +141,11 @@ A & B this is a really long cell with tons of content! We can add more content a
 \cell<green>{X}
 \cell<yellow>[\merge{+2}]{YZ}
 \end{cells}
+
+
+
+\begin{cells}
+\celldata<H c>{One & Two}
+\celldata<l>{Hi there & \verba{test_fragile_command} }
+\end{cells}
+

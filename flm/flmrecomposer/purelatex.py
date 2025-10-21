@@ -463,9 +463,20 @@ default_purelatex_defs_makeatletter = r"""
 \providecommand\flmInlineVerbatimFormatDefault[1]{#1}
 
 
-\def\verba{\flmInlineVerb{\itshape}{}}
-\def\verbtext{\flmInlineVerb{}{}}
-\def\verbcode{\flmInlineVerb{\ttfamily}{}}
+\def\flmFmtVRBverba{\itshape}
+\def\flmFmtVRBverbtext{}
+\def\flmFmtVRBverbcode{\ttfamily}
+\def\flmFmtVRB#1{%
+  \ifcsname flmFmtVRB#1\endcsname
+    \csname flmFmtVRB#1\endcsname
+  \else
+    \flmFmtVRBverbcode
+  \fi
+}
+
+\def\verba{\flmInlineVerb{\flmFmtVRBverba}{}}
+\def\verbtext{\flmInlineVerb{\flmFmtVRBverbtext}{}}
+\def\verbcode{\flmInlineVerb{\flmFmtVRBverbcode}{}}
 
 
 """

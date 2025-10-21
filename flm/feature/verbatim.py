@@ -1,3 +1,5 @@
+import re
+
 from pylatexenc.latexnodes import ParsedArgumentsInfo
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
@@ -45,12 +47,11 @@ class VerbatimSpecInfo(FLMSpecInfo):
             environment_name=environment_name
         )
 
-    def render(self, node, render_context):
 
-        # environment_node_name = None
+    def _get_verbatim_contents_info(self, node):
 
         verbatim_lang = None
-
+        verbatim_contents = None
         is_inline = False
         is_environment = False
 
@@ -89,6 +90,23 @@ class VerbatimSpecInfo(FLMSpecInfo):
             if 'verbatim_lang' in node_args:
                 verbatim_lang = node_args['verbatim_lang'].get_content_as_chars()
 
+        return {
+            'is_inline': is_inline,
+            'is_environment': is_environment,
+            'verbatim_contents': verbatim_contents,
+            'verbatim_lang': verbatim_lang
+        }
+
+    def render(self, node, render_context):
+
+        # environment_node_name = None
+
+        verbatim_info = self._get_verbatim_contents_info(node)
+        is_inline = verbatim_info['is_inline']
+        is_environment = verbatim_info['is_environment']
+        verbatim_contents = verbatim_info['verbatim_contents']
+        verbatim_lang = verbatim_info['verbatim_lang']
+
         annotations = self.annotations or []
 
         if self.verbatimtype is not None:
@@ -107,6 +125,36 @@ class VerbatimSpecInfo(FLMSpecInfo):
             is_block_level=self.is_block_level,
             annotations=annotations,
         )
+
+    def recompose_pure_latex(self, node, recomposer):
+
+        recopt_verbatim = recomposer.get_options('verbatim')
+        use_fvextra = recopt_verbatim.get('use_fvextra', None)
+
+        if not use_fvextra:
+            return False # ‘False’ means fall back onto standard recomposing method
+        
+        verbatim_info = self._get_verbatim_contents_info(node)
+        is_inline = verbatim_info['is_inline']
+        is_environment = verbatim_info['is_environment']
+        verbatim_contents = verbatim_info['verbatim_contents']
+        verbatim_lang = verbatim_info['verbatim_lang']
+
+        if is_environment:
+            return False # use standard method for environments
+
+        recomposer.ensure_latex_package('fvextra')
+
+        content_escaped = re.sub(r'[^a-zA-Z0-9]', lambda m: '\\'+m.group(), verbatim_contents)
+
+        recomposed = (
+            r'\EscVerb[formatcom=\flmFmtVRB{'+node.macroname+r'}]{'
+            + content_escaped
+            + '}'
+        )
+
+        return recomposed
+
 
     # FLM-doc
 

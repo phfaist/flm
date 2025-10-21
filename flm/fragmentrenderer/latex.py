@@ -196,6 +196,7 @@ class LatexFragmentRenderer(FragmentRenderer):
                         is_block_level=False, annotations=None, target_id=None):
         if 'verbatimcode' in annotations:
             return r'\begin{verbatim}' + '\n' + value + r'\end{verbatim}'
+        # TODO: Maybe provide an interface to use \EscVerb here?? (cf fvextra latex package)
         # what to do with annotations / target_id ??
         if self.latex_wrap_verbatim_macro:
             return "\\" + self.latex_wrap_verbatim_macro + "{" + self.latexescape(value) + "}"
@@ -615,6 +616,9 @@ class LatexFragmentRenderer(FragmentRenderer):
         return graphics_resource.src_url, whoptc
 
 
+    cells_max_width_latexdim = r'0.96\linewidth'
+    cells_render_method = 'fit_width_test'
+
     def render_cells(self, cells_model, render_context, target_id=None,
                      render_cell_nodelist_contents_fn=None):
 
@@ -717,44 +721,94 @@ class LatexFragmentRenderer(FragmentRenderer):
 
             stab_contents += '&'.join(stab_rowitems) + '\\\\' + '\n'
 
-        s = (
-            r'\flmCellsBeginCenter' + '\n'
+        def _typeset_table_contents(raw_args=None, colspec_one=None):
+            if raw_args is not None:
+                tblrargs = raw_args
+            else:
+                tblrargs = r'colspec={' + (colspec_one * tabwidth) + r'}'
+            return (
+                r'\begin{tblr}{' + tblrargs + r',' + '\n'
+                + r'  hspan=minimal'
+                + cell_spans_styles
+                + "".join([ ",\n  hline{"+rownrng+"}={"+colnrng+"}{"+lsty+"}"
+                             for (rownrng, colnrng, lsty) in cell_hlines ])
+                + "".join([ ",\n  vline{"+colnrng+"}={"+rownrng+"}{"+lsty+"}"
+                             for (rownrng, colnrng, lsty) in cell_vlines ])
+                + r'}%' + '\n'
+                + r'\toprule'
+                + '\n'
+                + stab_contents
+                + r'\bottomrule' + '\n'
+                + r'\end{tblr}%' + '\n'
+            )
+
+        if self.cells_render_method == 'simple':
+            s = (
+                r'\flmCellsBeginCenter' + '\n'
+                + _typeset_table_contents(colspec_one='c')
+                + r'\flmCellsEndCenter '
+            )
+            return s
+        
+        if self.cells_render_method == 'fit_width_test':
+            # Hack for automatic width detection -- typeset table once with 'c'
+            # column types; if the width exceeds a maximum set width
+            # (0.96\linewidth), then re-typeset the table with 'X[-1]' column
+            # types.  Store the typesetting code in a macro to be more compact.
+            s = (
+                r'\flmCellsBeginCenter' + '\n'
+                + r'\long\def\flmTempTypesetThisTable#1{%' + '\n'
+                + _typeset_table_contents(raw_args='#1')
+                + r'}%' + '\n'
+            )
+            # now, the code to automatically detect the correct width
+            s += (
+                r'\def\flmTmpMaxW{\dimexpr ' + self.cells_max_width_latexdim
+                                             + r'\relax}%' + '\n'
+                + r'\setbox0=\hbox{\flmTempTypesetThisTable{colspec={'
+                    + ('c' * tabwidth) + r'}}}%' + '\n'
+                + r'\ifdim\wd0<\flmTmpMaxW\relax' + '\n'
+                + r'  \leavevmode\box0 ' + '\n'
+                + r'\else' + '\n'
+                + r'  \flmTempTypesetThisTable{width=\flmTmpMaxW,colspec={'
+                    + ('X[-1]' * tabwidth) + r'}}' + '\n'
+                + r'\fi' + '\n'
+            )
+            s += r'\flmCellsEndCenter '
+            return s
+
+        if self.cells_render_method == 'fit_width_test_dupl':
             # Hack for automatic width detection -- typeset table once with 'c'
             # column types; if the width exceeds a maximum set width
             # (0.96\linewidth), then re-typeset the table with 'X[-1]' column
             # types.
-            r'\long\def\flmTempTypesetThisTable#1{%' + '\n'
-            r'\begin{tblr}{#1,' + '\n' + r'  hspan=minimal'
-            + cell_spans_styles
-            + "".join([ ",\n  hline{"+rownrng+"}={"+colnrng+"}{"+lsty+"}"
-                         for (rownrng, colnrng, lsty) in cell_hlines ])
-            + "".join([ ",\n  vline{"+colnrng+"}={"+rownrng+"}{"+lsty+"}"
-                         for (rownrng, colnrng, lsty) in cell_vlines ])
-            + r'}' + '\n'
-            + r'\toprule'
-            + '\n'
-        )
-        s += stab_contents
-        s += r'\bottomrule' + '\n'
-        s += r'\end{tblr}%' + '\n'
-        s += r'}%' + '\n'
-        # now, the code to automatically detect the correct width
-        s += (
-            r'\def\flmTmpMaxW{\dimexpr ' + self.max_table_width_latexdim + r'\relax}%' + '\n'
-            + r'\setbox0=\hbox{\flmTempTypesetThisTable{colspec={'
-                + ('c' * tabwidth) + r'}}}%' + '\n'
-            + r'\ifdim\wd0<\flmTmpMaxW\relax' + '\n'
-            + r'  \leavevmode\box0 ' + '\n'
-            + r'\else' + '\n'
-            + r'  \flmTempTypesetThisTable{width=\flmTmpMaxW,colspec={'
-                + ('X[-1]' * tabwidth) + r'}}' + '\n'
-            + r'\fi' + '\n'
-        )
-        s += r'\flmCellsEndCenter '
+            #
+            # But paste the code to typeset the table *TWICE* so that we do not
+            # have to use this ugly \def hack.  (Originally I thought that this
+            # would enable us to use fragile commands like \verba{...} (like
+            # \verb+...+) inside the table contents.  But it doesn't work,
+            # probably because of tblr itself.)
+            s = (
+                r'\flmCellsBeginCenter' + '\n'
+                + r'\def\flmTmpMaxW{\dimexpr ' + self.cells_max_width_latexdim
+                                               + r'\relax}%' + '\n'
+                + r'\setbox0=\hbox\bgroup'
+                + _typeset_table_contents(colspec_one='c')
+                + r'\egroup' + '\n'
+                + r'\ifdim\wd0<\flmTmpMaxW\relax' + '\n'
+                + r'  \leavevmode\box0 ' + '\n'
+                + r'\else' + '\n'
+                # Failed to typeset the table in the available width, try
+                # variable sizing instead.
+                +   _typeset_table_contents(colspec_one='X[-1]')
+                + r'\fi' + '\n'
+                + r'\flmCellsEndCenter '
+            )
+            return s
 
-        return s
+        raise ValueError("Invalid cells_render_method: "+repr(self.cells_render_method))
 
-    max_table_width_latexdim = r'0.96\linewidth'
+
 
 # ------------------
 
