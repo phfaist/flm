@@ -191,6 +191,13 @@ _default_section_numbering_by_level = {
     ),
 }
 
+# { '$no-merge': True, **other_dict } doesn't seem to be understood by Transcrypt.
+
+_default_section_commands_by_level_with_nomerge = dict(_default_section_commands_by_level)
+_default_section_commands_by_level_with_nomerge['$no-merge'] = True
+
+_default_section_numbering_by_level_with_nomerge = dict(_default_section_numbering_by_level)
+_default_section_numbering_by_level_with_nomerge['$no-merge'] = True
 
 
 class FeatureHeadings(Feature):
@@ -457,14 +464,8 @@ class FeatureHeadings(Feature):
 
     feature_default_config = {
         'counter_formatter': _default_counter_formatter_spec,
-        'section_commands_by_level': {
-            '$no-merge': True,
-            **_default_section_commands_by_level
-        },
-        'section_numbering_by_level': {
-            '$no-merge': True,
-            **_default_section_numbering_by_level
-        }
+        'section_commands_by_level': _default_section_commands_by_level_with_nomerge,
+        'section_numbering_by_level': _default_section_numbering_by_level_with_nomerge,
     }
 
     def __init__(
