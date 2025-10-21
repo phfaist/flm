@@ -1,3 +1,5 @@
+!!! I think this is an old playground document playing around with some syntax
+that I never implemented!  Don't expect it to compile. \ERROR
 %
 % 
 % \cell -- specify a single table cell.
@@ -78,7 +80,7 @@
 % \cellstyle<style>[cellspan]
 %
 \begin{cells}
-\htemplate{name,city,country,height}
+\htemplate{name,city,country,height} %%????
 \cell<H>[\merge{city,country}]{Location}
 \\
 % all the same -- 
@@ -104,7 +106,7 @@ Another Alien & \cell[\merge{city,country}]{N/A} & 45cm
 
 
 \begin{cells}
-\htemplate{ref,space,group,subgroup,relatedqecc}
+\htemplate{ref,space,group,subgroup,relatedqecc} %%????
 \celldata<H>[space-]{Space & Group & Subgroup & Related QECC}
 \celldata{
 [CLLZ21]

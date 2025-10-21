@@ -1,4 +1,10 @@
-
+---
+flm:
+  parsing:
+    comment_start: '%'
+  features:
+    cells: {}
+---
 
 % \cell<H> is a header cell
 %

@@ -33,7 +33,19 @@ flm:
        numbering_section_depth: 3
        section_commands_by_level:
          0: 'part'
-         # will merge in remaining dict from default options
+         # will NOT merge in remaining dict from default options.
+         1: 'section'
+         2: 'subsection'
+         3: 'subsubsection'
+         4:
+           cmdname: 'paragraph'
+           inline: True
+         5:
+           cmdname: 'subparagraph'
+           inline: True
+         6:
+           cmdname: 'subsubparagraph'
+           inline: True
 
    renderer:
      html:
