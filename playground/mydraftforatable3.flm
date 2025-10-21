@@ -4,7 +4,7 @@ flm:
     enable_comments: true
     comment_start: '%%'
   features:
-    'flm.feature.cells.FeatureProvideCells': true
+    'flm.feature.cells.FeatureCells': true
 #$
 ---
 

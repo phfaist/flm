@@ -916,7 +916,7 @@ class CellsEnvironment(FLMEnvironmentSpecBase):
 
 # ------------------------------------------------------------------------------
 
-class FeatureProvideCells(Feature):
+class FeatureCells(Feature):
     
     feature_name = 'cells'
     feature_title = 'Typesetting data tables'
@@ -950,4 +950,4 @@ class FeatureProvideCells(Feature):
         )
 
 
-FeatureClass = FeatureProvideCells
+FeatureClass = FeatureCells
