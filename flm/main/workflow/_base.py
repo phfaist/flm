@@ -29,6 +29,10 @@ class RenderWorkflow:
         return None
 
 
+    @staticmethod
+    def requires_temporary_directory_output(flm_run_info, run_config):
+        return False
+
 
     # ---
 

@@ -5,6 +5,8 @@ import os.path
 import logging
 logger = logging.getLogger(__name__)
 
+from tempfile import TemporaryDirectory
+
 from typing import Any, Optional
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -161,13 +163,13 @@ class ResourceInfo:
 #     'add_template_path': .....
 
 #     'cwd': ..... # input CWD
+#     'output_cwd': ...... # reference output CWD for all FLM-processing stuff (might be temporary directory for some workflows)
 #     'output_filepath': {
 #         'dirname': output_dirname,
 #         'basename': output_basename,
 #         'jobname': output_jobname,
 #         'jobnameext': output_jobnameext,
 #     }
-#     'output_cwd': ..... # CWD of output file
 #     'input_lineno_colno_offsets': ..... # passed on to flmfragment, adjust line/col numbers
 #     'metadata': ..... # to be merged into the document's metadata. Can
 #                       # include information about the FLM source, etc.
@@ -287,6 +289,14 @@ class WorkflowEnvironmentInformation:
     workflow: Optional[Any] = None
 
     fragment_renderer_name: Optional[str] = None
+
+    use_temporary_directory_output: Optional[TemporaryDirectory] = None
+
+
+    def cleanup(self):
+        if self.use_temporary_directory_output is not None:
+            self.use_temporary_directory_output.cleanup()
+
 
 
 def load_workflow_environment(*,
@@ -426,6 +436,19 @@ def load_workflow_environment(*,
                  abbrev_value_str(config, maxstrlen=512) )
 
     #
+    # Set up the correct output directory (temporary directory, if applicable)
+    #
+    requires_temporary_directory_output = WorkflowClass.requires_temporary_directory_output(
+        flm_run_info,
+        run_config,
+    )
+    if requires_temporary_directory_output:
+        use_temporary_directory_output = TemporaryDirectory()
+        flm_run_info['output_cwd'] = use_temporary_directory_output.name
+    else:
+        use_temporary_directory_output = None
+
+    #
     # Set up the correct template path
     #
     def _add_template_path(path):
@@ -494,7 +517,7 @@ def load_workflow_environment(*,
         workflow_config,
         flm_run_info,
         fragment_renderer_information,
-        fragment_renderer
+        fragment_renderer,
     )
 
     
@@ -520,6 +543,7 @@ def load_workflow_environment(*,
         flm_run_info=flm_run_info,
         workflow=workflow,
         fragment_renderer_name=fragment_renderer_name,
+        use_temporary_directory_output=use_temporary_directory_output,
     )
 
 
@@ -651,6 +675,10 @@ class Run:
         self.wenv = wenv
 
 
+    def cleanup(self):
+        self.wenv.cleanup()
+
+
     def run(self):
 
         flm_content = self.flm_content
@@ -780,4 +808,8 @@ class Run:
 
 def run(*args, **kwargs):
     R = Run(*args, **kwargs)
-    return R.run()
+    try:
+        run_result = R.run()
+    finally:
+        R.cleanup()
+    return run_result

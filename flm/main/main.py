@@ -272,6 +272,7 @@ class Main:
                 'jobname': output_jobname,
                 'jobnameext': output_jobnameext,
             },
+            'output_cwd': output_dirname,
             'input_source': arg_files[0] if (arg_files and len(arg_files)) else None,
             'input_lineno_colno_offsets': {
                 'line_number_offset': line_number_offset,

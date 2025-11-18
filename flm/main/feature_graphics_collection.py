@@ -540,8 +540,10 @@ class FeatureGraphicsCollection(Feature):
                 )
 
             if 'flm_run_info' in kwargs:
-                self.reference_output_dir = \
-                    kwargs['flm_run_info'].get('output_filepath', {}).get('dirname', None)
+                self.reference_output_dir = (
+                    self.flm_run_info.get('output_cwd', None)
+                    or self.flm_run_info.get('output_filepath', {}).get('dirname', None)
+                )
 
             # All search paths are relative to the document's root path.
             #self.graphics_search_path.append(self.reference_input_dir)
