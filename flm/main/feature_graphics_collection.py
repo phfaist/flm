@@ -518,8 +518,6 @@ class FeatureGraphicsCollection(Feature):
             self.flm_run_info = self.doc.metadata['_flm_run_info']
             self.resource_accessor = self.flm_run_info['resource_accessor']
 
-            self.outputformat = self.flm_run_info.get('outputformat', None)
-
             self.graphics_search_path = list(self.feature.graphics_search_path)
 
             self.reference_input_dir = None
@@ -714,6 +712,12 @@ class FeatureGraphicsCollection(Feature):
         ):
             # self.src_url_resolver_fn = src_url_resolver_fn
 
+            flm_run_info = self.feature_document_manager.flm_run_info
+            self.outputformat = (
+                flm_run_info.get('outputformat', None)
+                or flm_run_info.get('fragment_renderer_name', None)
+            )
+
             if allow_unknown_graphics is not None:
                 self.allow_unknown_graphics = allow_unknown_graphics
             else:
@@ -755,9 +759,9 @@ class FeatureGraphicsCollection(Feature):
 
             if self.collect_format_conversion_rules is None:
                 # rule list never specified, use defaults if applicable
-                if self.feature_document_manager.outputformat in default_rules_by_format:
+                if self.outputformat in default_rules_by_format:
                     self.collect_format_conversion_rules = \
-                        default_rules_by_format[self.feature_document_manager.outputformat]
+                        default_rules_by_format[self.outputformat]
                 else:
                     self.collect_format_conversion_rules = []
 
