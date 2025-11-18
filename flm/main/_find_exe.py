@@ -2,6 +2,9 @@ import os
 import glob
 import shutil
 
+import logging
+logger = logging.getLogger(__name__)
+
 magick_patterns = [
     '/usr/local/bin/magick',
     '/opt/homebrew/bin/magick',
@@ -26,6 +29,16 @@ gs_patterns = [
     r"C:\Program Files*\MiKTeX*\miktex\bin\mgs.exe", # ???
 ]
 
+class ExecutableNotFoundError(ValueError):
+    def __init__(self, exe_name, var_name):
+        msg = (
+            f"Executable ‘{exe_name}’ not found; please set ${var_name} to its full path."
+        )
+        super().__init__(msg)
+        self.exe_name = exe_name
+        self.var_name = var_name
+        self.msg = msg
+
 
 def _find_exe_value(exe_name, std_patterns, var_name):
     if var_name in os.environ:
@@ -41,14 +54,17 @@ def _find_exe_value(exe_name, std_patterns, var_name):
         return rexe
     return None
 
-def find_exe(exe_name, std_patterns, var_name, error=True):
+def find_exe(exe_name, std_patterns, var_name, error=True, error_reason=None):
     value = _find_exe_value(exe_name, std_patterns, var_name)
     if value:
         return value
     if not error:
         return None
-    raise ValueError(f"Cannot find executable ‘{exe_name}’ on your system! "
-                     f"Please set {var_name} to its full path.")
+    logger.warning(
+        f"Executable ‘{exe_name}’ cannot be found."
+        + (' Reason requested: '+error_reason if error_reason else '')
+    )
+    raise ExecutableNotFoundError(exe_name, var_name)
 
 std_exe_dict = {
     'magick': [magick_patterns, 'MAGICK'],
@@ -58,10 +74,11 @@ std_exe_dict = {
 }
 std_exe_found = {}
 
-def find_std_exe(exe_name, error=True):
+def find_std_exe(exe_name, error=True, error_reason=None):
     if exe_name in std_exe_found:
         return std_exe_found[exe_name]
 
-    result = find_exe(exe_name, *std_exe_dict[exe_name], error=error)
+    result = find_exe(exe_name, *std_exe_dict[exe_name], error=error,
+                      error_reason=error_reason)
     std_exe_found[exe_name] = result
     return result

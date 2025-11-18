@@ -150,6 +150,7 @@ playground/*.aux
 playground/*.log
 
 playground/.flm-citations.cache.json
+playground/_flm_collected_graphics
 
 
 

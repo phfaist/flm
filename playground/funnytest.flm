@@ -62,7 +62,18 @@ flm:
          6: "span"
          # special level for theorems:
          theorem: "span"
-
+     latex:
+       heading_commands_by_level:
+         0: 'part'
+         1: "section"
+         2: "subsection"
+         3: "subsubsection"
+         4: "paragraph"
+         5: "subparagraph"
+         6: "subsubparagraph"
+         # special level for theorems:
+         theorem: "flmTheoremHeading"
+      
 
      # ### Will override format-specific FLM defaults
      # endnotes:
@@ -190,6 +201,11 @@ that a qubit is also a \term[qu\(d\)it]{qu\((d=2)\)it}.
 \subsection{Another subsection here}
 
 More subsection content here.
+
+A diagram:
+\begin{figure}
+  \includegraphics{examplediagram.pdf}
+\end{figure}
 
 
 \part{Final part}

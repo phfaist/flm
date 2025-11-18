@@ -53,9 +53,22 @@ class ResourceAccessorBase:
             f"Template path is = {repr(self.template_path)}"
         )
 
-    def find_in_search_paths(self, search_paths, fname, ftype, flm_run_info):
+    def get_cwd_for_resource_info(self, resource_info, flm_run_info):
+        cwd = flm_run_info.get('cwd', '.')
+        #print(f"DOCUMENT cwd = ", cwd)
+        if resource_info is not None:
+            relative_to_source_path = resource_info.source_path
+            if relative_to_source_path is not None and relative_to_source_path:
+                r_cwd = os.path.dirname(os.path.join(cwd, relative_to_source_path))
+                if r_cwd:
+                    return r_cwd
+        return cwd
 
-        cwd = flm_run_info.get('cwd', None)
+    def find_in_search_paths(self, search_paths, fname, ftype, flm_run_info, resource_info):
+
+        cwd = self.get_cwd_for_resource_info(resource_info, flm_run_info)
+
+        #print(f'cwd = {cwd}, search_paths = {search_paths}')
 
         for search_path in search_paths:
 
@@ -66,7 +79,8 @@ class ResourceAccessorBase:
                 return search_path, fname
 
         raise ValueError(
-            f"File not found: ‘{fname}’. Search path was = {repr(search_paths)}"
+            f"File not found: ‘{fname}’. Search path was = {repr(search_paths)}, "
+            f"relative to ‘{cwd}’"
         )
 
     def import_class(self, fullname, *, default_classnames=None, default_prefix=None,
@@ -114,6 +128,10 @@ def parse_frontmatter_content_linenumberoffset(input_content):
 
 
 class ResourceInfo:
+    r"""
+    CONVENTION: The `source_path` of all document fragments are relative
+    to the document's root folder.
+    """
     def __init__(self, source_path):
         super().__init__()
         self.source_path = source_path
@@ -672,7 +690,9 @@ class Run:
             input_lineno_colno_offsets=flm_run_info.get('input_lineno_colno_offsets', {}),
             what=what,
             resource_info=ResourceInfo(
-                source_path=flm_run_info.get('input_source', None)
+                # resource_info.source_path is always relative to the document
+                # root folder.
+                source_path=doc_metadata.get('filepath', {}).get('basename', None)
             ),
         )
 

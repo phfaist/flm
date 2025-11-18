@@ -53,7 +53,9 @@ _base:
 
       theorems: {}
 
-      'flm.main.feature_graphics_collection': {} # the graphics_resource_provider feature
+      'flm.main.feature_graphics_collection':
+        # the graphics_resource_provider feature
+        collect_graphics_to_output_folder: '_flm_collected_graphics'
 
 
     workflow: {}

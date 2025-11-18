@@ -19,7 +19,7 @@ from flm.feature.graphics import GraphicsResource
 
 from ._inspectimagefile import get_image_file_info
 
-from ._find_exe import find_std_exe
+from ._find_exe import find_std_exe, ExecutableNotFoundError
 
 
 # ------------------------------------------------------------------------------
@@ -46,6 +46,10 @@ class ResourcesScanner(LatexNodesVisitor):
                     "resource_info": node.latex_walker.resource_info,
                     "what": node.latex_walker.what,
                 }
+                # e.g.
+                # rdata = { 'resource_type': 'graphics_path',
+                #           'resource_source_type': 'file',
+                #           'resource_source': <FULL-URL>, }
                 self.encountered_resources.append(rdata)
 
 
@@ -53,6 +57,17 @@ class ResourcesScanner(LatexNodesVisitor):
 
 
 # ------------------------------------------------------------------------------
+
+
+class ConverterNotAvailable(Exception):
+    def __init__(self, name, why, exc=None):
+        msg = f'Graphics converter {name} not available: {why}'
+        super().__init__(msg)
+        self.msg = msg
+        self.exc = exc
+
+
+
 
 class GraphicsFormatConversionRule:
     r"""
@@ -136,12 +151,19 @@ class GraphicsFormatConversionRule:
 
         to_ext = self.to_ext_list[0]
 
+        converter_errors = []
+
         for converter in _graphics_converters:
 
             if len(self.via_list) and converter.name not in self.via_list:
                 continue
 
-            if not converter.can_convert(ext, to_ext):
+            try:
+                can_convert = converter.can_convert(ext, to_ext)
+            except ConverterNotAvailable as e:
+                converter_errors.append(e)
+
+            if not can_convert:
                 continue
 
             return {
@@ -154,6 +176,9 @@ class GraphicsFormatConversionRule:
             f"Could not find a graphics converter that could convert ‘{ext}’ to ‘{to_ext}’ "
             f"as requested by rule"
         )
+        for converror in converter_errors:
+            logger.warning(converror.msg)
+
         return None
 
 
@@ -191,8 +216,8 @@ class CairoSvgConverter(GraphicsConverter):
     
     name = 'cairosvg'
 
-    @staticmethod
-    def can_convert(ext, to_ext):
+    @classmethod
+    def can_convert(cls, ext, to_ext):
         if ext == '.svg' and to_ext in ('.pdf', '.png', '.ps', '.eps'):
             return True
         return False
@@ -232,10 +257,20 @@ class GhostscriptConverter(GraphicsConverter):
     
     name = 'gs'
 
-    @staticmethod
-    def can_convert(ext, to_ext):
+    @classmethod
+    def can_convert(cls, ext, to_ext):
         if ext in ('.pdf', '.ps', '.eps') and to_ext in ('.png', '.jpg', '.jpeg', '.pdf'):
+
+            try:
+                _ = find_std_exe(
+                    'gs',
+                    error_reason=f'to convert graphics from ‘{ext}’ to ‘{to_ext}’'
+                )
+            except ExecutableNotFoundError as e:
+                raise ConverterNotAvailable(cls.name, e.msg, exc=e)
+
             return True
+
         return False
         
     def __init__(self):
@@ -304,7 +339,17 @@ class PdfToCairoCmdlConverter(GraphicsConverter):
     @classmethod
     def can_convert(cls, ext, to_ext):
         if ext == '.pdf' and to_ext in cls._fmts_to_opts:
+
+            try:
+                _ = find_std_exe(
+                    'pdftocairo',
+                    error_reason=f'to convert graphics from ‘{ext}’ to ‘{to_ext}’'
+                )
+            except ExecutableNotFoundError as e:
+                raise ConverterNotAvailable(cls.name, e.msg, exc=e)
+
             return True
+
         return False
 
     _fmts_to_opts = {
@@ -361,8 +406,16 @@ class MagickConverter(GraphicsConverter):
 
     name = 'magick'
 
-    @staticmethod
-    def can_convert(ext, to_ext):
+    @classmethod
+    def can_convert(cls, ext, to_ext):
+        try:
+            _ = find_std_exe(
+                'magick',
+                error_reason=f'to convert graphics from ‘{ext}’ to ‘{to_ext}’'
+            )
+        except ExecutableNotFoundError as e:
+            raise ConverterNotAvailable(cls.name, e.msg, exc=e)
+
         return True
 
     def __init__(self):
@@ -418,6 +471,30 @@ _graphics_converters = [
 ]
 
 
+
+default_rules_by_format = {
+    'html': [
+        {
+            'from': '.pdf',
+            'to': '.png',
+            'options': {
+                'dpi': 192,
+            },
+        }
+    ],
+    'latex': [
+        {
+            'from': '.svg',
+            'to': '.pdf',
+        },
+        {
+            'from': '.gif',
+            'to': '.png',
+        },
+    ],
+}
+
+
 # ------------------------------------------------------------------------------
 
 
@@ -441,23 +518,17 @@ class FeatureGraphicsCollection(Feature):
             self.flm_run_info = self.doc.metadata['_flm_run_info']
             self.resource_accessor = self.flm_run_info['resource_accessor']
 
+            self.outputformat = self.flm_run_info.get('outputformat', None)
+
+            self.graphics_search_path = list(self.feature.graphics_search_path)
+
             self.reference_input_dir = None
             self.reference_output_dir = None
 
+            # key is source_key
+            self.graphics_collection = {}
+
         def flm_main_scan_fragment(self, fragment, document_parts_fragments=None, **kwargs):
-            
-            logger.debug('Scanning fragment for graphics resources')
-
-            scanner = ResourcesScanner()
-
-            fragment.start_node_visitor(scanner)
-            if document_parts_fragments:
-                for frag in document_parts_fragments:
-                    frag.start_node_visitor(scanner)
-
-            for resource in scanner.get_encountered_resources():
-                if resource.get('resource_type', None) == 'graphics_path':
-                    self.inspect_add_graphics_resource(resource)
             
             self.reference_input_dir = \
                 (self.doc.metadata or {}).get('filepath', {}).get('dirname', None)
@@ -474,24 +545,63 @@ class FeatureGraphicsCollection(Feature):
                 self.reference_output_dir = \
                     kwargs['flm_run_info'].get('output_filepath', {}).get('dirname', None)
 
+            # All search paths are relative to the document's root path.
+            #self.graphics_search_path.append(self.reference_input_dir)
+
+            logger.debug('Scanning fragment for graphics resources. '
+                         'input dir = %r, ouput dir = %r; graphics_search_path = %r',
+                         self.reference_input_dir, self.reference_output_dir,
+                         self.graphics_search_path)
+
+            scanner = ResourcesScanner()
+            fragment.start_node_visitor(scanner)
+            if document_parts_fragments:
+                for frag in document_parts_fragments:
+                    frag.start_node_visitor(scanner)
+
+            for resource in scanner.get_encountered_resources():
+                if resource.get('resource_type', None) == 'graphics_path':
+                    self.inspect_add_graphics_resource(resource)
+
 
         def get_source_info(self, graphics_path, resource_info):
+            r"""
+            Return a tuple `(source_type, source_url, source_key,
+            source_resolved)` where `source_type` is 'file' or 'url' and where
+            source_key is the internal key to use for cache purposes, unique
+            across all source types.  The `source_url` is the relative path for
+            'file' source types, and is the full url for 'url' source types.
+            For 'file' types, the `source_resolved` is a tule (`file_path`,
+            `file_name`, `full_file_path`) where `file_path` is the path in
+            `graphics_search_path` where the file was found and `file_name` is
+            the corresponding relative path and `full_file_path` is both parts
+            concatenated.  For 'url' types, `source_resolved` is None.
+            """
 
             # Let's see if it's a local file (rather than a remote URL)
 
             urlp = urlparse(graphics_path)
             if urlp.scheme == '' or urlp.scheme == 'file':
 
-                source_path = os.path.join(
-                    resource_info.get_source_directory(),
-                    urlp.path
+                source_path = urlp.path
+
+                file_path, file_name = self.resource_accessor.find_in_search_paths(
+                    self.graphics_search_path,
+                    source_path,
+                    ftype='graphics',
+                    flm_run_info=self.flm_run_info,
+                    resource_info=resource_info,
                 )
 
-                return ('file', source_path, f"file:{source_path}")
+                full_file_path = os.path.join(file_path, file_name)
+
+                source_resolved = file_path, file_name, full_file_path
+
+                return ('file', source_path, f"file:{source_path}", source_resolved)
 
             src_url = graphics_path
 
-            return ('url', src_url, src_url)
+            return ('url', src_url, src_url, None)
 
 
         def inspect_add_graphics_resource(self, resource):
@@ -499,20 +609,24 @@ class FeatureGraphicsCollection(Feature):
             logger.debug('Inspect graphics resource? %r', resource)
 
             if resource['resource_source_type'] != 'file':
+                # resource_source_type is 'file' even if the source is a URL,
+                # yeah I know...  not changing this now because external
+                # projects (esp. zoodb/eczoo code) use this already.
+                #
+                # This warning would refer to resources that are not specified
+                # in any different way, maybe inline code or something like that
+                # in future syntax????
                 logger.warning("I don't know how to handle resource sources of type %r",
                                resource['resource_source_type'])
                 return
 
             src_url = resource['resource_source']
             resource_info = resource['encountered_in']['resource_info']
-                
-            source_type, source_url, source_key = self.get_source_info(src_url, resource_info)
 
-            if source_key not in self.document_graphics_by_source_key:
-                self.document_graphics_by_source_key[source_key] = \
-                    source_type, source_url, source_key
+            source_info = self.get_source_info(src_url, resource_info)
+            source_type, source_url, source_key, source_resolved = source_info
 
-            if source_key in self.feature.graphics_collection:
+            if source_key in self.graphics_collection:
                 # info already there, no need to fetch anything or create
                 # graphics resource.
                 return
@@ -524,31 +638,28 @@ class FeatureGraphicsCollection(Feature):
 
                 # fetch the info and store the graphics
 
-                file_path, file_name = self.resource_accessor.find_in_search_paths(
-                    self.feature.graphics_search_path,
-                    source_path,
-                    ftype='graphics',
-                    flm_run_info=self.flm_run_info
-                )
+                file_path, file_name, full_file_path = source_resolved
 
                 with self.resource_accessor.open_file_object_context(
                         fpath=file_path, fname=file_name,
                         ftype='graphics',
                         flm_run_info=self.flm_run_info, binary=True
                 ) as fp:
-                    info = self.feature.inspect_graphics_file(source_path, fp)
-
+                    info = self.feature.inspect_graphics_file(
+                        full_file_path,
+                        fp
+                    )
                 if info is None:
                     info = {}
 
                 logger.debug("Inspected graphics ‘%s’, found info %r", source_path, info)
 
                 graphics_resource = GraphicsResource(
-                    src_url=source_path,
+                    src_url=full_file_path,
                     ** info,
                 )
 
-                self.feature.add_graphics(source_key, graphics_resource)
+                self.add_graphics(source_key, source_info, graphics_resource)
 
             elif source_type == 'url':
 
@@ -560,19 +671,40 @@ class FeatureGraphicsCollection(Feature):
                     src_url=source_url,
                 )
 
-                self.feature.add_graphics(source_key, graphics_resource)
+                self.add_graphics(source_key, source_info, graphics_resource)
 
             else:
                 raise LatexWalkerError(
                     "Unknown resource source type: " + repr(source_type)
                 )
 
+        def add_graphics(self, source_key, source_info, graphics_resource):
+            if source_key in self.graphics_collection:
+                raise LatexWalkerError(
+                    f"Graphics collection already has a graphics resource registered "
+                    f"for path ‘{source_key}’ (registered target "
+                    f"‘{self.graphics_collection[source_key]['graphics_resource'].src_url}’, "
+                    f"new target ‘{graphics_resource.src_url}’"
+                )
+            self.graphics_collection[source_key] = {
+                'source_info': source_info,
+                'graphics_resource': graphics_resource,
+            }
+            info = ''
+            if graphics_resource.physical_dimensions:
+                w_pt, h_pt = graphics_resource.physical_dimensions
+                info = f'{w_pt:.6f}pt x {h_pt:.6f}pt'
+
+            source_type, source_url, _, source_resolved = source_info
+
+            logger.info(f"Graphics: ‘{source_url}’ {info}")
+
 
     class RenderManager(Feature.RenderManager):
 
         def initialize(
                 self,
-                src_url_resolver_fn=None,
+                #src_url_resolver_fn=None, # recipe for catastrophes
                 allow_unknown_graphics=None,
                 collect_graphics_to_output_folder=None,
                 collect_graphics_relative_output_folder=None,
@@ -580,7 +712,7 @@ class FeatureGraphicsCollection(Feature):
                 collect_format_conversion_rules=None,
                 use_graphics_cache_file=True,
         ):
-            self.src_url_resolver_fn = src_url_resolver_fn
+            # self.src_url_resolver_fn = src_url_resolver_fn
 
             if allow_unknown_graphics is not None:
                 self.allow_unknown_graphics = allow_unknown_graphics
@@ -621,14 +753,19 @@ class FeatureGraphicsCollection(Feature):
                 self.collect_graphics_filename_template
             )
 
+            if self.collect_format_conversion_rules is None:
+                # rule list never specified, use defaults if applicable
+                if self.feature_document_manager.outputformat in default_rules_by_format:
+                    self.collect_format_conversion_rules = \
+                        default_rules_by_format[self.feature_document_manager.outputformat]
+                else:
+                    self.collect_format_conversion_rules = []
+
             # prepare conversion rules, if applicable
-            if self.collect_format_conversion_rules:
-                self.collect_format_conversion_rules = [
-                    GraphicsFormatConversionRule(rule)
-                    for rule in self.collect_format_conversion_rules
-                ]
-            else:
-                self.collect_format_conversion_rules = []
+            self.collect_format_conversion_rules = [
+                GraphicsFormatConversionRule(rule)
+                for rule in self.collect_format_conversion_rules
+            ]
 
             self.graphics_to_collect = {}
 
@@ -664,12 +801,14 @@ class FeatureGraphicsCollection(Feature):
 
             if self.collect_graphics_to_output_folder:
                 counter = 0
-                for source_key, source_info in \
-                    self.feature_document_manager.document_graphics_by_source_key.items():
+                for source_key, graphics_info in \
+                    self.feature_document_manager.graphics_collection.items():
 
                     counter += 1
-                    # src_url is resolved according to graphics_source_paths
-                    src_url = self.feature.graphics_collection[source_key].src_url
+
+                    source_info = graphics_info['source_info']
+                    # src_url is resolved according to graphics_search_paths
+                    src_url = graphics_info['graphics_resource'].src_url
 
                     self.prepare_collect_graphics(
                         source_info,
@@ -703,7 +842,7 @@ class FeatureGraphicsCollection(Feature):
 
         def prepare_collect_graphics(self, source_info, resolved_src_url, counter):
 
-            source_type, source_url, source_key = source_info
+            source_type, source_url, source_key, source_resolved = source_info
 
             basename = os.path.basename(resolved_src_url)
             basenoext, ext = os.path.splitext(basename)
@@ -729,10 +868,6 @@ class FeatureGraphicsCollection(Feature):
                 target_fname
             )
 
-            # make relative input path is relative to reference path
-            if source_type == 'file':
-                resolved_src_url = os.path.join(self.reference_input_dir, resolved_src_url)
-
             # prepare which files we have to collect
             self.graphics_to_collect[source_key] = {
                 'source_type': source_type,
@@ -754,8 +889,10 @@ class FeatureGraphicsCollection(Feature):
             converter = converter_info['instance']
             target_path = collect_info['target_path']
 
+            converter_name = converter.name if converter is not None else '<None>'
+
             logger.info('Collecting ‘%s’ to ‘%s’ as %s (via %s)',
-                        src_url, target_path, source_type, converter.name)
+                        src_url, target_path, source_type, converter_name)
 
             logger.debug('converter_info = %r', converter_info)
 
@@ -805,16 +942,18 @@ class FeatureGraphicsCollection(Feature):
         def get_graphics_resource(self, graphics_path, resource_info):
 
             render_context = self.render_context
-            src_url_resolver_fn = self.src_url_resolver_fn
+            # src_url_resolver_fn = self.src_url_resolver_fn
 
-            source_type, source_url, source_key = \
+            source_type, source_url, source_key, source_resolved = \
                 self.feature_document_manager.get_source_info(graphics_path, resource_info)
 
-            if source_key in self.feature.graphics_collection:
-                graphics_resource = self.feature.graphics_collection[source_key]
+            if source_key in self.feature_document_manager.graphics_collection:
+                graphics_info = self.feature_document_manager.graphics_collection[source_key]
+                graphics_resource = graphics_info['graphics_resource']
+
             else:
                 graphics_resource = self.get_unknown_graphics_resource(
-                    graphics_path, source_path, resource_info
+                    graphics_path, source_url, resource_info
                 )
 
             grkwargs = None
@@ -827,22 +966,32 @@ class FeatureGraphicsCollection(Feature):
                 grkwargs = {
                     'src_url': collect_info['target_relative_path'],
                 }
-
-            if src_url_resolver_fn is not None:
-                src_url_result = src_url_resolver_fn(
-                    graphics_resource, render_context, source_path,
-                    collect_info=collect_info
+            else:
+                # make sure the URL is relative to the output document path.
+                src_url_rel_output = os.path.relpath(
+                    graphics_resource.src_url,
+                    self.reference_output_dir
                 )
-                if 'src_url' not in src_url_result:
-                    raise ValueError(
-                        "src_url_resolver_fn() did not return a dict with key src_url: "
-                        + repr(src_url_result)
-                    )
-
                 grkwargs = {
-                    'src_url': src_url_result['src_url'],
-                    'srcset': src_url_result['srcset'],
+                    'src_url': src_url_rel_output
                 }
+
+            # if src_url_resolver_fn is not None:
+            #     src_url_result = src_url_resolver_fn(
+            #         graphics_resource, render_context, source_path,
+            #         collect_info=collect_info
+            #     )
+            #     if 'src_url' not in src_url_result:
+            #         raise ValueError(
+            #             "src_url_resolver_fn() did not return a dict with key src_url: "
+            #             + repr(src_url_result)
+            #         )
+
+            #     grkwargs = {
+            #         'src_url': src_url_result['src_url'],
+            #     }
+            #     if 'srcset' in src_url_result:
+            #         grkwargs['srcset'] = src_url_result['srcset']
 
             if grkwargs:
                 fullgrkwargs = dict(graphics_resource.asdict())
@@ -853,11 +1002,11 @@ class FeatureGraphicsCollection(Feature):
 
 
         def get_unknown_graphics_resource(
-                self, graphics_path, source_path, resource_info
+                self, graphics_path, source_info, resource_info
         ):
             if not self.allow_unknown_graphics:
                 raise LatexWalkerError(
-                    f"Graphics ‘{graphics_path}’ (from ‘{source_path}’) was not "
+                    f"Graphics ‘{graphics_path}’ was not "
                     f"added to collection"
                 )
             return GraphicsResource(src_url=graphics_path)
@@ -928,14 +1077,22 @@ class FeatureGraphicsCollection(Feature):
             graphics_search_path=None,
     ):
         r"""
-        If `collect_graphics_to_output_folder` is set, then graphics files
-        are transformed and collected to the given folder.  The path may be
-        relative or absolute.  Relative paths are interpreted as relative with
-        respect *to the output file*.  If the output directory is determined
-        from the information provided to `flm_main_scan_document()` via the
-        usual `flm.main` processing pipeline.  If it is unknown, a helpful
-        warning message is produced and the path is interpreted as relative to
-        the input document file (if known), or the current working directory.
+        If `collect_graphics_to_output_folder` is set to a string, then
+        graphics files are transformed and collected to the given folder.  The
+        path may be relative or absolute.  Relative paths are interpreted as
+        relative with respect *to the output file*.  The output directory is
+        determined from the information provided to `flm_main_scan_document()`
+        via the usual `flm.main` processing pipeline.  If it is unknown, a
+        helpful warning message is produced and the path is interpreted as
+        relative to the input document file (if known), or the current working
+        directory.
+
+        If `collect_graphics_to_output_folder` is `False`, then the graphics are
+        neither collected nor transformed, and original graphics are referenced
+        in the output file.
+
+        If `collect_graphics_to_output_folder` is `None`, then some simple
+        default rules are applied depending on the output format.
 
         If `collect_graphics_relative_output_folder` is set, then this path is
         used in the FLM output (e.g. HTML or LATEX code) to refer to the
@@ -951,8 +1108,6 @@ class FeatureGraphicsCollection(Feature):
         """
         super().__init__()
 
-        self.graphics_collection = {}
-
         # allow get_graphics_resource() calls to graphics given by source paths
         # that weren't explicitly added to the collection.
         self.allow_unknown_graphics = allow_unknown_graphics
@@ -961,6 +1116,7 @@ class FeatureGraphicsCollection(Feature):
         self.collect_graphics_filename_template = collect_graphics_filename_template
         self.collect_format_conversion_rules = collect_format_conversion_rules
 
+        # All search paths are relative to the root document's path.
         self.graphics_search_path = list(graphics_search_path or ['.'])
 
 
@@ -968,27 +1124,12 @@ class FeatureGraphicsCollection(Feature):
         return get_image_file_info(file_path, fp)
 
 
-    def add_graphics(self, source_path, graphics_resource):
-        if source_path in self.graphics_collection:
-            raise LatexWalkerError(
-                f"Graphics collection already has a graphics resource registered "
-                f"for path ‘{source_path}’ (registered target "
-                f"‘{self.graphics_collection[source_path].src_url}’, new target "
-                f"‘{graphics_resource.src_url}’"
-            )
-        self.graphics_collection[source_path] = graphics_resource
-        info = ''
-        if graphics_resource.physical_dimensions:
-            w_pt, h_pt = graphics_resource.physical_dimensions
-            info = f'{w_pt:.6f}pt x {h_pt:.6f}pt'
-        logger.info(f"Graphics: ‘{source_path}’ {info}")
+    # def set_collection(self, collection):
+    #     for source_path, graphics_resource in collection.items():
+    #         self.add_graphics(source_path, graphics_resource)
 
-    def set_collection(self, collection):
-        for source_path, graphics_resource in collection.items():
-            self.add_graphics(source_path, graphics_resource)
-
-    def has_graphics_for(self, source_path):
-        return (source_path in self.graphics_collection)
+    # def has_graphics_for(self, source_path):
+    #     return (source_path in self.graphics_collection)
         
 
 

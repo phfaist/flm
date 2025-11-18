@@ -58,7 +58,14 @@ def get_image_file_info_pil(filename, fp):
 
     width_px, height_px = img.width, img.height
 
-    dpi_x, dpi_y = img.info['dpi']
+    if 'dpi' not in img.info:
+        raise ValueError(
+            "Your PNG image does not provide any DPI information.  Please fix "
+            "your image so that it has a fixed DPI setting.  We need this information "
+            "to know how large your image is."
+        )
+    else:
+        dpi_x, dpi_y = img.info['dpi']
 
     if abs(dpi_x - dpi_y) > 1e-2:
         raise ValueError(

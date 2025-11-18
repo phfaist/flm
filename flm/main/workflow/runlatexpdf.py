@@ -41,6 +41,10 @@ class CollectGraphicsLatexFragmentRenderer(LatexFragmentRenderer):
     graphics_vector_magnification = 1
 
 
+    #
+    # FIXME.... use our newer feature_graphics_collection !!!
+    #
+
     def collect_graphics_resource(self, graphics_resource, render_context):
         # can be reimplemented to collect the given graphics resource somewhere
         # relevant etc.
