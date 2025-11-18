@@ -204,7 +204,7 @@ def main_watch(**kwargs):
                     return
 
                 try:
-                    
+
                     with open(fullpath, 'rb') as f:
                         self.send_response(200)
                         (mime_type, mime_encoding) = mimetypes.guess_type('file://'+fullpath)
@@ -214,10 +214,15 @@ def main_watch(**kwargs):
                         self.wfile.write(f.read())
 
                 except IOError as e:
-                    logger.warning(
-                        'Could not retrieve requested path %r: %s',
-                        path, e
-                    )
+
+                    # Don't produce warning for some files that browsers tend to
+                    # try to fetch on their own
+                    if path not in ('favicon.ico', ):
+                        logger.warning(
+                            'Could not retrieve requested path %r: %s',
+                            path, e
+                        )
+
                     self.send_response(404)
                     self.wfile.write(bytes(
                         f"<html><body>404 not found: {path}</body></html>",
