@@ -1039,8 +1039,9 @@ class FeatureGraphicsCollection(Feature):
 
             try:
 
-                # collect graphics to output folder, if applicable
-                if self.collect_graphics_to_output_folder:
+                # collect graphics to output folder, if applicable (and if we
+                # have any graphics to collect)
+                if self.collect_graphics_to_output_folder and len(self.graphics_to_collect):
                     # make sure output folder exists
                     os.makedirs(
                         os.path.realpath(
