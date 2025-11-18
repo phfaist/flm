@@ -118,10 +118,13 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
                      use_template_name, template_prefix,
                      abbrev_value_str(template_config_wdefaults))
 
-        template = DocumentTemplate(use_template_name,
-                                    template_prefix,
-                                    template_config_wdefaults,
-                                    self.flm_run_info)
+        template = DocumentTemplate(
+            use_template_name,
+            template_prefix,
+            template_config_wdefaults,
+            self.flm_run_info,
+            render_context=render_context,
+        )
 
         metadata = document.metadata
         if metadata is None:

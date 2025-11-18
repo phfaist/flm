@@ -21,9 +21,9 @@ ${endif}%$$
 
 \begin{document}
 ${if:render_title}%$$
-\title{${metadata.title}}%$$
-\author{${metadata.author}}%$$
-\date{${metadata.date}}%$$
+\title{${flmrender:metadata.title}}%$$
+\author{${flmrender:metadata.author}}%$$
+\date{${flmrender:metadata.date}}%$$
 \maketitle
 ${endif}%$$
 ${if:render_toc}

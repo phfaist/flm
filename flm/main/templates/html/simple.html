@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>${metadata.title}</title>
+<title>${flmrendertext:metadata.title}</title>
 <style type="text/css">
 /* ------------------ */
 html, body {
@@ -126,12 +126,12 @@ ${style.extra_js}
 <body>
 ${if:render_header}
   <header>
-    <h1 class="header-title">${metadata.title}</h1>
+    <h1 class="header-title">${flmrender:metadata.title}</h1>
     ${if:metadata.author}
-    <div role="doc-subtitle" class="header-author">${metadata.author}</div>
+    <div role="doc-subtitle" class="header-author">${flmrender:metadata.author}</div>
     ${endif}
     ${if:metadata.date}
-    <div role="doc-subtitle" class="header-date">${metadata.date}</div>
+    <div role="doc-subtitle" class="header-date">${flmrender:metadata.date}</div>
     ${endif}
   </header>
 ${endif}

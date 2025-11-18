@@ -10,6 +10,9 @@ import yaml
 from .configmerger import ConfigMerger
 configmerger = ConfigMerger()
 
+
+from ..fragmentrenderer.text import TextFragmentRenderer
+
 from ._util import abbrev_value_str
 
 
@@ -17,9 +20,11 @@ from ._util import abbrev_value_str
 _emptydict = {}
 
 class _ProxyDictVarConfig:
-    def __init__(self, config, ifmarks, none_as_empty_string=True):
+    def __init__(self, config, ifmarks, *, document_template=None, none_as_empty_string=True):
         self.config = config
         self.ifmarks = ifmarks
+
+        self.document_template = document_template
 
         self.none_as_empty_string = none_as_empty_string
 
@@ -36,7 +41,15 @@ class _ProxyDictVarConfig:
             return self.ifmarks['else']
         elif key == 'endif':
             return self.ifmarks['endif']
-            
+        
+        if key.startswith('flmrendertext:'):
+            value = self.get_config_value(key[len('flmrendertext:'):])
+            return self.document_template.flm_render_standalone_text(value)
+
+        if key.startswith('flmrender:'):
+            value = self.get_config_value(key[len('flmrender:'):])
+            return self.document_template.flm_render_standalone(value)
+
         return self.get_config_value(key)
 
     def get_config_value(self, key):
@@ -63,24 +76,34 @@ _default_ifmarks = {
 }
 
 
-class OnlyContentTemplate:
-
-    def __init__(self, template_info_path, template_info_file, flm_run_info):
+class TemplateEngineBase:
+    def __init__(self, template_info_path, template_info_file,
+                 flm_run_info, document_template,
+                 template_engine_config, ):
         super().__init__()
         self.template_info_path = template_info_path # base folder
         self.template_info_file = template_info_file # the .yaml file
 
+        self.flm_run_info = flm_run_info
+        self.document_template = document_template
+
+        self.template_engine_config = template_engine_config
+
+    def dispatch_initialize(self):
+        self.initialize(**self.template_engine_config)
+
+    def initialize(self):
+        pass
+
+
+class OnlyContentTemplate(TemplateEngineBase):
     def render_template(self, config, **kwargs):
         return config['content']
 
 
-class SimpleStringTemplate:
+class SimpleStringTemplate(TemplateEngineBase):
 
-    def __init__(self, template_info_path, template_info_file, flm_run_info,
-                 *, template_content_extension='.html', template_content_filename=None):
-        super().__init__()
-        self.template_info_path = template_info_path # base folder
-        self.template_info_file = template_info_file # the .yaml file
+    def initialize(self, template_content_extension='.html', template_content_filename=None,):
 
         # the template content
         if template_content_filename is not None:
@@ -91,9 +114,9 @@ class SimpleStringTemplate:
                 + template_content_extension
             )
 
-        self.template_content = flm_run_info['resource_accessor'].read_file(
-            template_info_path, template_content_file, 'template_content',
-            flm_run_info=flm_run_info
+        self.template_content = self.flm_run_info['resource_accessor'].read_file(
+            self.template_info_path, template_content_file, 'template_content',
+            flm_run_info=self.flm_run_info
         )
 
         self.ifmarks = dict(_default_ifmarks)
@@ -102,7 +125,9 @@ class SimpleStringTemplate:
         
         tpl = _StrTemplate(self.template_content)
 
-        content = tpl.substitute(_ProxyDictVarConfig(config, self.ifmarks))
+        content = tpl.substitute(
+            _ProxyDictVarConfig(config, self.ifmarks, document_template=self.document_template)
+        )
         
         content = replace_ifmarks(content, self.ifmarks)
 
@@ -178,13 +203,15 @@ def replace_ifmarks(content, ifmarks):
 
 
 class DocumentTemplate:
-    def __init__(self, template_name, template_prefix, template_config, flm_run_info):
+    def __init__(self, template_name, template_prefix, template_config,
+                 flm_run_info, render_context):
         super().__init__()
 
         self.template_name = template_name
         self.template_prefix = template_prefix
         self.template_config = template_config
         self.flm_run_info = flm_run_info
+        self.render_context = render_context
 
         resource_accessor = self.flm_run_info['resource_accessor']
 
@@ -212,12 +239,24 @@ class DocumentTemplate:
         )
 
         self.template = cls(
-            self.template_info_path,
-            self.template_info_file,
-            flm_run_info,
-            **self.template_engine_config
+            template_info_path=self.template_info_path,
+            template_info_file=self.template_info_file,
+            flm_run_info=flm_run_info,
+            document_template=self,
+            template_engine_config=self.template_engine_config,
         )
+        self.template.dispatch_initialize()
         # default_config=, **self.engine_config)
+        
+    def flm_render_standalone(self, flm_text):
+        return self.render_context.make_standalone_fragment(flm_text).render_standalone(
+            self.render_context.fragment_renderer
+        )
+
+    def flm_render_standalone_text(self, flm_text):
+        return self.render_context.make_standalone_fragment(flm_text).render_standalone(
+            TextFragmentRenderer()
+        )
         
     def render_template(self, local_configs, **kwargs):
 
