@@ -9,6 +9,7 @@ module_list:
   - 'flm.feature'
   - 'flm.stdfeatures'
   - 'flm.feature.annotations'
+  - 'flm.feature.markup'
   - 'flm.feature.numbering'
   - 'flm.flmenvironment'
   - 'flm.flmdocument'
