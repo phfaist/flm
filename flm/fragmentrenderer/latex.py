@@ -51,6 +51,9 @@ class LatexFragmentRenderer(FragmentRenderer):
         'theoremlike': 'flmThmTheoremLike',
         'definitionlike': 'flmThmDefinitionLike',
         'prooflike': 'flmThmProofLike',
+
+        # any other standard LaTeX environments
+        'quotation': 'quotation',
     }
 
     # this attribute is picked up by baseformatting.NoExtraSpaceAfterDotMacro

@@ -160,6 +160,8 @@ class SimpleLatexDefinitionsFeature(Feature):
     or render managers.
     """
     
+    # no need for "manager" instances - nothing to keep track of at document
+    # processing or rendering time.
     DocumentManager = None
     RenderManager = None
 
