@@ -30,9 +30,9 @@ class TestFeatureQuoteInit(unittest.TestCase):
 
     def test_default_environments(self):
         feature = FeatureQuote()
-        self.assertIn('quote', feature.quote_environments)
-        self.assertIn('address', feature.quote_environments)
-        self.assertIn('blockquote', feature.quote_environments)
+        self.assertTrue('quote' in feature.quote_environments)
+        self.assertTrue('address' in feature.quote_environments)
+        self.assertTrue('blockquote' in feature.quote_environments)
 
     def test_custom_environments(self):
         feature = FeatureQuote(quote_environments={
@@ -40,24 +40,24 @@ class TestFeatureQuoteInit(unittest.TestCase):
                 'enabled_quote_sections': ['text', 'attributed'],
             },
         })
-        self.assertIn('myquote', feature.quote_environments)
-        self.assertNotIn('quote', feature.quote_environments)
+        self.assertTrue('myquote' in feature.quote_environments)
+        self.assertTrue('quote' not in feature.quote_environments)
 
     def test_latex_context_definitions(self):
         feature = FeatureQuote()
         defs = feature.add_latex_context_definitions()
-        self.assertIn('environments', defs)
+        self.assertTrue('environments' in defs)
         env_names = [e.environmentname for e in defs['environments']]
-        self.assertIn('quote', env_names)
-        self.assertIn('address', env_names)
-        self.assertIn('blockquote', env_names)
+        self.assertTrue('quote' in env_names)
+        self.assertTrue('address' in env_names)
+        self.assertTrue('blockquote' in env_names)
 
     def test_mk_quote_environment_spec_from_dict(self):
         feature = FeatureQuote()
         spec = feature._mk_quote_environment_spec('myenv', {
             'enabled_quote_sections': ['text'],
         })
-        self.assertIsInstance(spec, QuoteEnvironment)
+        self.assertTrue(isinstance(spec, QuoteEnvironment))
         self.assertEqual(spec.environmentname, 'myenv')
         self.assertEqual(spec.enabled_quote_sections, ['text'])
 

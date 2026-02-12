@@ -17,6 +17,7 @@ from .feature.floats import FeatureFloats
 from .feature.graphics import FeatureSimplePathGraphicsResourceProvider
 from .feature.defterm import FeatureDefTerm
 from .feature.substmacros import FeatureSubstMacros
+from .feature.quote import FeatureQuote
 
 from .feature.theorems import FeatureTheorems
 
@@ -49,6 +50,7 @@ def standard_features(
         render_defterm_with_term=True,
         theorems=False,
         substmacros_definitions=None,
+        quote_environments=False,
 ):
     r"""
     Build a standard set of features with reasonable defaults and with the
@@ -157,6 +159,14 @@ def standard_features(
     if substmacros_definitions:
         features.append(
             FeatureSubstMacros(substmacros_definitions)
+        )
+
+    if quote_environments is not False:
+        dargs = {}
+        if isinstance(quote_environments, dict):
+            dargs.update(quote_environments)
+        features.append(
+            FeatureQuotes(**dargs)
         )
 
     return features
