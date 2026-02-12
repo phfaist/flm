@@ -52,12 +52,32 @@ class LatexFragmentRenderer(FragmentRenderer):
         'definitionlike': 'flmThmDefinitionLike',
         'prooflike': 'flmThmProofLike',
 
-        # any other standard LaTeX environments
+        # any other standard LaTeX environments, in case they are rendered by
+        # some renderer function as a semantic block
         'quotation': 'quotation',
+    }
+
+    latex_lines_environments = {
+        'quote': 'quotation',
     }
 
     # this attribute is picked up by baseformatting.NoExtraSpaceAfterDotMacro
     latex_macro_no_extra_space_after_dot = r'\@'
+
+    use_phantom_section = True
+    latex_label_prefix = 'x:'
+
+    debug_disable_pin_labels = False
+
+    use_flm_macro_for_pinning_labels = True
+
+    # can set to a macroname in which inline verbatim content will be wrapped.
+    # The content will already be escaped appropriately.
+    latex_wrap_verbatim_macro = None
+
+    use_endnote_latex_command = None #'textsuperscript'
+    use_citation_latex_command = None #'textsuperscript'
+
 
     # ------------------
 
@@ -97,13 +117,6 @@ class LatexFragmentRenderer(FragmentRenderer):
             + '%\n'
             + r'\end{' + ltx_environment + r'}'
         )
-
-    use_phantom_section = True
-    latex_label_prefix = 'x:'
-
-    debug_disable_pin_labels = False
-
-    use_flm_macro_for_pinning_labels = True
 
     def pin_label_here(self, target_id, display_latex, insert_phantom_section=True):
         if self.debug_disable_pin_labels:
@@ -193,8 +206,6 @@ class LatexFragmentRenderer(FragmentRenderer):
         #return r"\relax % " + " ".join(annotations) + '\n\\relax{}'
         return f"% {' '.join(annotations)}\n"
 
-    latex_wrap_verbatim_macro = None
-
     def render_verbatim(self, value, render_context, *,
                         is_block_level=False, annotations=None, target_id=None):
         if 'verbatimcode' in annotations:
@@ -234,9 +245,6 @@ class LatexFragmentRenderer(FragmentRenderer):
 
         return self.wrap_in_text_format_macro(content, text_formats, render_context)
 
-
-    use_endnote_latex_command = None #'textsuperscript'
-    use_citation_latex_command = None #'textsuperscript'
 
     def render_semantic_span(self, content, role, render_context, *,
                              annotations=None, target_id=None):
@@ -282,6 +290,50 @@ class LatexFragmentRenderer(FragmentRenderer):
                                endcmd)
         )
  
+
+    def render_lines(self, iter_lines_nodelists, render_context,
+                     *, role=None, annotations=None, target_id=None):
+        r"""
+        Render a sequence of inline-content lines separated by line breaks.
+        Collect the lines in a single block-level element.  Suitable for
+        typesetting a poem, addresses, or other pieces of text with specific
+        line break requirements.
+        """
+
+        s_lines = []
+
+        for line_content_nodelist in iter_lines_nodelists:
+
+            line_content = self.render_nodelist(
+                line_content_nodelist,
+                render_context=render_context,
+                is_block_level=False,
+            )
+
+            s_lines.append(
+                line_content + '%\n' + '\\\n'
+            )
+
+        if not annotations:
+            annotations = []
+        else:
+            annotations = [a.replace('\n', ' ') for a in annotations]
+
+        ltx_environment = 'flmLines'
+        if role is not None and role in self.latex_lines_environments:
+            ltx_environment = self.latex_lines_environments[role]
+
+        return self.wrap_in_latex_enumeration_environment(
+            ltx_environment,
+            annotations,
+            self.render_join(s_items, render_context),
+            render_context
+        )
+
+
+
+
+
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
                            *, target_id_generator=None, annotations=None, nested_depth=None):
 
@@ -882,6 +934,18 @@ _latex_preamble_suggested_defs = r"""
   \let\flmTheoremHeading\flmThmHeadingProofLike
 }{%
   \par\vspace{0.5ex plus 0.5ex}%
+}
+\fi
+
+% lines
+\providecommand\flmLinesParSkip{1ex plus 0.3ex minus 0.2ex}
+\ifdefined\flmLines\else
+\newenvironment{flmLines}{%
+  \par\begingroup
+  \parindent=0pt\relax
+  \parskip=\flmLinesParSkip\relax
+}{%
+  \par\endgroup
 }
 \fi
 

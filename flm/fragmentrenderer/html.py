@@ -383,6 +383,72 @@ class HtmlFragmentRenderer(FragmentRenderer):
         )
             
  
+    lines_use_line_span = True
+    lines_use_br = True
+    lines_container_tag = {
+        #'lines': 'div', # or similar
+    }
+
+    def render_lines(self, iter_lines_nodelists, render_context,
+                     *, role=None, annotations=None, target_id=None):
+        r"""
+        Render a sequence of inline-content lines separated by line breaks.
+        Collect the lines in a single block-level element.  Suitable for
+        typesetting a poem, addresses, or other pieces of text with specific
+        line break requirements.
+        """
+
+        s_lines = []
+
+        for line_content_nodelist in iter_lines_nodelists:
+
+            line_content = self.render_nodelist(
+                line_content_nodelist,
+                render_context=render_context,
+                is_block_level=False,
+            )
+            if self.lines_use_line_span:
+                line_content = self.wrap_in_tag(
+                    'span',
+                    line_content,
+                )
+            s_lines.append(
+                line_content
+            )
+
+        if self.lines_use_br:
+            # add <br> to all lines except the last one
+            s_lines = [
+                (line + '<br>' if (j < len(s_lines)-1) else line)
+                for j, line in enumerate(s_lines)
+            ]
+
+        attrs = {}
+        if target_id is not None:
+            attrs['id'] = target_id
+
+        annotations = list(annotations if annotations is not None else [])
+        if role and role in annotations:
+            annotations.remove(role)
+
+        class_names = [ 'lines' ]
+        if role:
+            class_names.append(role)
+        if annotations:
+            class_names.extend(annotations)
+
+        tag = 'p'
+        if role and role in self.lines_container_tag:
+            tag = self.lines_container_tag[role]
+
+        return self.wrap_in_tag(
+            'p',
+            self.render_join(s_lines, render_context),
+            class_names=class_names,
+            attrs=attrs,
+        )
+
+
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
                            *, target_id_generator=None, annotations=None, nested_depth=None):
 

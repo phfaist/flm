@@ -23,6 +23,7 @@ flm:
 
    features:
      theorems: {}
+     quote: {}
      numbering:
        number_within:
          equation:
@@ -107,6 +108,16 @@ to    see?
 \end{itemize}
 
 \part{Initial part}
+
+\begin{quote}
+  \lines{
+    Rien ne se perd,\\
+    rien ne se crée,\\
+    tout se transforme.}
+  \attributed{Antoine Lavoisier}
+  \text{The first principle is that you must not fool yourself — and you are the easiest person to fool.}
+  \attributed{Richard Feynman}
+\end{quote}
 
 \section{First section}
 

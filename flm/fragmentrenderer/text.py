@@ -35,6 +35,20 @@ class TextFragmentRenderer(FragmentRenderer):
         )
         return content
     
+    def render_lines(self, iter_lines_nodelists, render_context,
+                     *, role=None, annotations=None, target_id=None):
+
+        s_lines = [
+            self.render_nodelist(
+                line_content_nodelist,
+                render_context=render_context,
+                is_block_level=False,
+            )
+            for line_content_nodelist in iter_lines_nodelists
+        ]
+
+        return "\n".join(s_lines)
+
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
                            *, target_id_generator=None, annotations=None, nested_depth=0):
 
@@ -115,7 +129,10 @@ class TextFragmentRenderer(FragmentRenderer):
             formatter = self.heading_level_formatter[heading_level]
             return formatter(rendered_heading)
 
-        raise ValueError(f"Bad {heading_level=}, expected 1..6")
+        raise ValueError(
+            f"Bad {heading_level=}, expected 1..6 (or key in "
+            f"fragment_renderer.heading_level_formatter)"
+        )
 
 
     def render_verbatim(self, value, render_context, *,

@@ -130,6 +130,32 @@ class MarkdownFragmentRenderer(FragmentRenderer):
         # line (e.g., # Section Heading)
         return self._get_target_id_md_code(target_id).rstrip() + '\n' + content
     
+
+    def render_lines(self, iter_lines_nodelists, render_context,
+                     *, role=None, annotations=None, target_id=None):
+
+        md_indent = render_context.get_logical_state('flm_markdown').get('md_indent', '')
+
+        s_lines = []
+
+        for line_content_nodelist in iter_lines_nodelists:
+            s_line = self.render_nodelist(
+                line_content_nodelist,
+                render_context=render_context,
+                is_block_level=False,
+            )
+            if md_indent != '':
+                s_line = md_indent + s_line.replace('\n', '\n'+md_indent)
+            s_lines.append( s_line + '  ' ) # two trailing slashes to force line break
+
+        tgtid = ''
+        if target_id is not None:
+            tgtid = md_indent + self._get_target_id_md_code(target_id).rstrip() + '\n'
+            if tgtid.strip() == "":
+                tgtid = ''
+
+        return '\n\n' + tgtid + content
+
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
                            *, target_id_generator=None, annotations=None, nested_depth=None):
 
