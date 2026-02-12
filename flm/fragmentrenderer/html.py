@@ -1233,6 +1233,7 @@ dl.citation-list > dt, dl.footnote-list > dt {
   font-style: italic;
   margin: 0.5em 0;
 }
+
 .quote-attributed {
   margin: 0.5em 0;
   text-align: right;

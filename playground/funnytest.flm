@@ -136,6 +136,22 @@ Here's the same text, formatted as a reply:
   What about that, huh?
 \end{blockquote}
 
+\begin{quote}
+%%\lines{Là, tout n'est qu'ordre et beauté,\\
+%%Luxe, calme et volupté.}
+\lines{
+Quand la pluie étalant ses immenses traînées\\
+D'une vaste prison imite les barreaux,\\
+Et qu'un peuple muet d'infâmes araignées\\
+Vient tendre ses filets au fond de nos cerveaux,}
+\lines{
+Des cloches tout à coup sautent avec furie\\
+Et lancent vers le ciel un affreux hurlement,\\
+Ainsi que des esprits errants et sans patrie\\
+Qui se mettent à geindre opiniâtrement.}
+\attributed{Charles Baudelaire, Les Fleurs du mal (1861)}
+\end{quote}
+
 \section{First section}
 
 From there to here, funny things are everywhere.
