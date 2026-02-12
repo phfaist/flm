@@ -119,6 +119,23 @@ to    see?
   \attributed{Richard Feynman}
 \end{quote}
 
+Here's an address to send someone physical mail:
+\begin{address}
+  1200 E California Blvd\\
+  Pasadena, CA 91125
+\end{address}
+What about that, huh?
+
+Here's the same text, formatted as a reply:
+\begin{blockquote}
+  Here's an address to send someone physical mail:
+  \begin{address}
+    1200 E California Blvd\\
+    Pasadena, CA 91125
+  \end{address}
+  What about that, huh?
+\end{blockquote}
+
 \section{First section}
 
 From there to here, funny things are everywhere.

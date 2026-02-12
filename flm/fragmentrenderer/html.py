@@ -1220,6 +1220,39 @@ dl.citation-list > dt, dl.footnote-list > dt {
   --annotation-color: rgb(35,195,155); /* aqua-ish */
 }
 
+
+.quote, .address, .blockquote {
+  margin: 1em 0;
+}
+.quote {
+  background: rgba(120, 140, 150, 0.15);
+  padding: 1em 3em;
+}
+.quote .quote-lines,
+.quote .quote-text {
+  font-style: italic;
+  margin: 0.5em 0;
+}
+.quote-attributed {
+  margin: 0.5em 0;
+  text-align: right;
+}
+.quote .quote-attributed::before {
+  content: '—';
+}
+.quote-block {
+  padding-left: 1em;
+  border-left: solid 4pt rgba(120, 140, 150, 0.3)  ;
+}
+
+.address .quote-lines {
+  font-size: .933em;
+}
+
+.blockquote {
+  padding: 0 1em;
+}
+
 """
 
 
