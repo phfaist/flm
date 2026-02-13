@@ -4,6 +4,6 @@
 # magic, no pkg_resources, no other stuff like that), especially for possible
 # future use with transcrypt.
 
-__version__ = "0.3.0alpha000026"
+__version__ = "0.3.0alpha000027"
 
 # ALSO BUMP VERSION NUMBER IN pyproject.toml !!
