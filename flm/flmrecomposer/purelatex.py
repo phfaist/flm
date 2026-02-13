@@ -479,4 +479,50 @@ default_purelatex_defs_makeatletter = r"""
 \def\verbcode{\flmInlineVerb{\flmFmtVRBverbcode}{}}
 
 
+
+
+% lines; quotes, addresses, blockquotes
+\providecommand\flmQuoteSetup[1]{%
+  \ifcsname flmQuoteSetup@#1\endcsname
+    \csname flmQuoteSetup@#1\endcsname
+  \fi
+}
+\providecommand\flmQuoteAttributed[1]{%
+  \par\begingroup\raggedleft---~#1\par\endgroup
+}
+\providecommand\flmQuoteBlock[1]{%
+  \par
+  \list{}{%
+    \itemindent\parindent
+    \leftmargin=4em\relax
+    %\rightmargin\leftmargin
+    }%
+  \item\relax
+  #1%
+  \endlist
+}
+\ifdefined\address\else
+\newenvironment{address}{%
+  \par
+  \begingroup
+  \small
+}{%
+  \par
+  \endgroup
+}
+\ifdefined\blockquote\else
+\newenvironment{blockquote}{%
+  \par
+  \list{}{%
+    \itemindent\parindent
+    \leftmargin=4em\relax
+    %\rightmargin\leftmargin
+    }%
+  \item\relax
+}{%
+  \endlist
+}
+\fi
+
+
 """

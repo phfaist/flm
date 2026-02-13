@@ -964,6 +964,7 @@ _latex_preamble_suggested_defs = r"""
   \begingroup
   \small
 }{%
+  \par
   \endgroup
 }
 \fi

@@ -547,9 +547,13 @@ class MathEnvironment(FLMEnvironmentSpecBase):
             # print("****")
 
             if line_infos['custom_tag_flm_text'] is not None:
-                s_line += r'\tag*{' + recomposer.subrecompose(
-                    line_infos['custom_tag_flm_text']
-                ) + '}'
+                s_line += (
+                    r'\tag*{' +
+                    #recomposer.subrecompose(
+                      line_infos['custom_tag_flm_text']
+                    #)
+                    + '}'
+                )
 
             for label_info in line_infos['labels']:
                 (ref_type, ref_label) = label_info['label']
