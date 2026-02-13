@@ -24,15 +24,17 @@ _default_rx_escape_chars_text = re.compile(r'[\$&#\^_%]')
 _Dict = dict
 
 # only for Transcrypt:
-#__pragma__('js', '{}', 'function _JsMapDict_createMap() { return new Map(); }; function _JsMapDict_get(map, k, dflt) { if (map.has(k)) { return map.get(k) } return dflt; };')
+#__pragma__('js', '{}', 'function _JsMapDict_createMap() { return new Map(); }; function _JsMapDict_get(map, k, dflt, raise) { if (map.has(k)) { return map.get(k) } if (raise) { throw KeyError (k, new Error()); } return dflt; };')
 """?
 class JsMapDict:
     def __init__(self):
         self.map = _JsMapDict_createMap()
     def get(self, k, dflt=None):
-        return _JsMapDict_get(self.map, k, dflt)
+        return _JsMapDict_get(self.map, k, dflt, False)
     def __setattr__(self, k, v):
         self.map.set(k, v)
+    def __getitem__(self, k):
+        return _JsMapDict_get(self.map, k, None, True)
 
 _Dict = JsMapDict
 ?"""

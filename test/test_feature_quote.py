@@ -343,7 +343,9 @@ class TestFeatureQuoteEnvironmentRecompose(unittest.TestCase):
     def _recompose(self, flm_input, recomposer_opts=None):
         environ = mk_flm_environ()
         frag = environ.make_fragment(flm_input.strip())
-        recomposer = FLMPureLatexRecomposer(recomposer_opts or {})
+        recomposer = FLMPureLatexRecomposer(
+            recomposer_opts if recomposer_opts is not None else {}
+        )
         return recomposer.recompose_pure_latex(frag.nodes)
 
     def test_recompose_purelatex_simple(self):
