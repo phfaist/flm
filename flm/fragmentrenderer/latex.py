@@ -55,10 +55,14 @@ class LatexFragmentRenderer(FragmentRenderer):
         # any other standard LaTeX environments, in case they are rendered by
         # some renderer function as a semantic block
         'quotation': 'quotation',
+
+        'quote': 'quote',
+        'address': 'flmAddress',
+        'blockquote': 'flmBlockquote',
     }
 
     latex_lines_environments = {
-        'quote': 'quotation',
+        'quote': 'quote',
     }
 
     # this attribute is picked up by baseformatting.NoExtraSpaceAfterDotMacro
@@ -310,9 +314,15 @@ class LatexFragmentRenderer(FragmentRenderer):
                 is_block_level=False,
             )
 
-            s_lines.append(
-                line_content + '%\n' + '\\\n'
-            )
+            s_lines.append(line_content)
+
+        # add \\ between lines
+        s_lines = [
+            (line_content + '%\n' + '\\\\\n')
+            if (j < len(s_lines)-1) else
+            line_content
+            for j, line_content in enumerate(s_lines)
+        ]
 
         if not annotations:
             annotations = []
@@ -326,7 +336,7 @@ class LatexFragmentRenderer(FragmentRenderer):
         return self.wrap_in_latex_enumeration_environment(
             ltx_environment,
             annotations,
-            self.render_join(s_items, render_context),
+            self.render_join(s_lines, render_context),
             render_context
         )
 
@@ -937,7 +947,7 @@ _latex_preamble_suggested_defs = r"""
 }
 \fi
 
-% lines
+% lines; quotes, addresses, blockquotes
 \providecommand\flmLinesParSkip{1ex plus 0.3ex minus 0.2ex}
 \ifdefined\flmLines\else
 \newenvironment{flmLines}{%
@@ -946,6 +956,28 @@ _latex_preamble_suggested_defs = r"""
   \parskip=\flmLinesParSkip\relax
 }{%
   \par\endgroup
+}
+\fi
+\ifdefined\flmAddress\else
+\newenvironment{flmAddress}{%
+  \par
+  \begingroup
+  \small
+}{%
+  \endgroup
+}
+\fi
+\ifdefined\flmBlockquote\else
+\newenvironment{flmBlockquote}{%
+  \par
+  \list{}{%
+    \itemindent\parindent
+    \leftmargin=4em\relax
+    %\rightmargin\leftmargin
+    }%
+  \item\relax
+}{%
+  \endlist
 }
 \fi
 

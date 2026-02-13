@@ -302,22 +302,30 @@ class QuoteEnvironment(FLMEnvironmentSpecBase):
         if recopt_quote.get('keep_as_is', False):
             return False # use default recomposer.
 
-        flm_lines_setup_macro = recopt_quote.get('setup_macro', 'flmLinesSetup') # or None
+        flm_quote_setup_macro = recopt_quote.get('setup_macro', 'flmQuoteSetup') # or None
         flm_text_macro = recopt_quote.get('text_macro', None)
         flm_lines_macro = recopt_quote.get('lines_macro', None)
-        flm_attributed_macro = recopt_quote.get('attributed_macro', 'flmLinesAttributed')
-        flm_block_macro = recopt_quote.get('block_macro', 'flmLinesBlock')
+        flm_attributed_macro = recopt_quote.get('attributed_macro', 'flmQuoteAttributed')
+        flm_block_macro = recopt_quote.get('block_macro', 'flmQuoteBlock')
 
-        s = r'\begin{' + node.environmentname + r'}%' + '\n'
-        if flm_lines_setup_macro is not None and len(flm_lines_setup_macro):
-            s += '\\' + flm_lines_setup_macro + r'{' + node.environmentname + r'}%' + '\n'
+        s = r'\begin{' + node.environmentname + r'}' + '\n'
+        if flm_quote_setup_macro is not None and len(flm_quote_setup_macro):
+            s += '\\' + flm_quote_setup_macro + r'{' + node.environmentname + r'}%' + '\n'
 
         for qsn in node.flm_quote_section_nodes:
             # render a corresponding block
             name = qsn['name']
             qsn_node = qsn['node']
             text_arg_nodelist = qsn['text_arg_nodelist']
-            content = recomposer.recompose_nodelist(text_arg_nodelist, node).strip()
+
+            if name == 'lines':
+                # special handling of content, use split lines
+                content = "\\\\\n".join([
+                    recomposer.recompose_nodelist(line_nodelist, node)
+                    for line_nodelist in qsn['lines_iter_nodelists']
+                ])
+            else:
+                content = recomposer.recompose_nodelist(text_arg_nodelist, node).strip()
 
             wrap_macro = None
             if name == 'text':
@@ -337,10 +345,10 @@ class QuoteEnvironment(FLMEnvironmentSpecBase):
                     f"No idea how to render quote-section of type ‘{name}’"
                 )
 
-            if flm_attributed_macro is not None and len(flm_attributed_macro):
-                s += '\\'+flm_attributed_macro+'{'+content+'}%'+'\n'
+            if wrap_macro is not None and len(wrap_macro):
+                s += '\\'+wrap_macro+'{'+content+'}'+'\n'
             else:
-                s += content
+                s += content + '\n'
 
         s += r'\end{' + node.environmentname + r'}'
         

@@ -5,6 +5,7 @@ from pylatexenc.latexnodes import LatexWalkerLocatedError
 from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
 from flm.fragmentrenderer.html import HtmlFragmentRenderer
+from flm.flmrecomposer.purelatex import FLMPureLatexRecomposer
 
 from flm.feature.quote import (
     FeatureQuote, QuoteEnvironment, nodelist_strip_surrounding_whitespace
@@ -331,6 +332,222 @@ class TestFeatureQuoteCustomEnvironments(unittest.TestCase):
             '<div class="aside">'
             '<div class="quote-block"><p>An aside remark.</p></div>'
             '</div>'
+        )
+
+
+
+class TestFeatureQuoteEnvironmentRecompose(unittest.TestCase):
+
+    maxDiff = None
+
+    def _recompose(self, flm_input, recomposer_opts=None):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment(flm_input.strip())
+        recomposer = FLMPureLatexRecomposer(recomposer_opts or {})
+        return recomposer.recompose_pure_latex(frag.nodes)
+
+    def test_recompose_purelatex_simple(self):
+        result = self._recompose(r"""
+\begin{quote}
+\lines{
+  Roses are red\\
+  Violets are blue
+}
+\attributed{Your Valentine}
+\text{Also works with \emph{text that has markup}}
+\end{quote}
+""", {"quote": {"setup_macro": None}})
+
+        self.assertEqual(
+            result["latex"],
+            r"""
+\begin{quote}
+Roses are red\\
+Violets are blue
+\flmQuoteAttributed{Your Valentine}
+Also works with \emph{text that has markup}
+\end{quote}
+""".strip()
+        )
+
+    def test_recompose_default_setup_macro(self):
+        """Default options emit \\flmQuoteSetup before content."""
+        result = self._recompose(
+            r"\begin{quote}\text{Hello.}\end{quote}"
+        )
+        self.assertEqual(
+            result["latex"],
+            r"""
+\begin{quote}
+\flmQuoteSetup{quote}%
+Hello.
+\end{quote}
+""".strip()
+        )
+
+    def test_recompose_setup_macro_none(self):
+        """setup_macro=None suppresses the setup macro line."""
+        result = self._recompose(
+            r"\begin{quote}\text{Hello.}\end{quote}",
+            {"quote": {"setup_macro": None}}
+        )
+        self.assertEqual(
+            result["latex"],
+            r"""
+\begin{quote}
+Hello.
+\end{quote}
+""".strip()
+        )
+
+    def test_recompose_block_section(self):
+        """Block section wraps in \\flmQuoteBlock by default."""
+        result = self._recompose(
+            r"\begin{quote}\block{A block quote.}\end{quote}",
+            {"quote": {"setup_macro": None}}
+        )
+        self.assertEqual(
+            result["latex"],
+            r"""
+\begin{quote}
+\flmQuoteBlock{A block quote.}
+\end{quote}
+""".strip()
+        )
+
+    def test_recompose_all_four_section_types(self):
+        """All section types in one quote: text and lines bare, attributed
+        and block wrapped."""
+        result = self._recompose(r"""
+\begin{quote}
+\text{Some text.}
+\lines{Line one\\Line two}
+\attributed{Author}
+\block{A block.}
+\end{quote}
+""", {"quote": {"setup_macro": None}})
+
+        self.assertEqual(
+            result["latex"],
+            r"""
+\begin{quote}
+Some text.
+Line one\\
+Line two
+\flmQuoteAttributed{Author}
+\flmQuoteBlock{A block.}
+\end{quote}
+""".strip()
+        )
+
+    def test_recompose_blockquote_env(self):
+        """Blockquote auto-collected content recomposes as \\flmQuoteBlock."""
+        result = self._recompose(
+            r"\begin{blockquote}Some text here.\end{blockquote}",
+            {"quote": {"setup_macro": None}}
+        )
+        self.assertEqual(
+            result["latex"],
+            r"""
+\begin{blockquote}
+\flmQuoteBlock{Some text here.}
+\end{blockquote}
+""".strip()
+        )
+
+    def test_recompose_address_env(self):
+        """Address auto-collected lines content recomposes with \\\\ separators."""
+        result = self._recompose(r"""
+\begin{address}
+123 Main St\\
+City, ST 12345
+\end{address}
+""", {"quote": {"setup_macro": None}})
+
+        self.assertEqual(
+            result["latex"],
+            r"""
+\begin{address}
+123 Main St\\
+City, ST 12345
+\end{address}
+""".strip()
+        )
+
+    def test_recompose_custom_text_macro(self):
+        """Custom text_macro wraps text content."""
+        result = self._recompose(
+            r"\begin{quote}\text{Hello.}\end{quote}",
+            {"quote": {"setup_macro": None, "text_macro": "flmQuoteText"}}
+        )
+        self.assertEqual(
+            result["latex"],
+            r"""
+\begin{quote}
+\flmQuoteText{Hello.}
+\end{quote}
+""".strip()
+        )
+
+    def test_recompose_custom_lines_macro(self):
+        """Custom lines_macro wraps the joined lines content."""
+        result = self._recompose(
+            r"\begin{quote}\lines{One\\Two}\end{quote}",
+            {"quote": {"setup_macro": None, "lines_macro": "flmQuoteLines"}}
+        )
+        self.assertEqual(
+            result["latex"],
+            r"""
+\begin{quote}
+\flmQuoteLines{One\\
+Two}
+\end{quote}
+""".strip()
+        )
+
+    def test_recompose_keep_as_is(self):
+        """keep_as_is=True falls back to default recomposer (verbatim re-emit)."""
+        result = self._recompose(
+            r"\begin{quote}\text{Hello.}\end{quote}",
+            {"quote": {"keep_as_is": True}}
+        )
+        self.assertEqual(
+            result["latex"],
+            r"\begin{quote}\text{Hello.}\end{quote}"
+        )
+
+    def test_recompose_setup_macro_uses_environmentname(self):
+        """The setup macro uses the actual environment name, not hardcoded 'quote'."""
+        result = self._recompose(
+            r"\begin{blockquote}Some text.\end{blockquote}",
+        )
+        self.assertEqual(
+            result["latex"],
+            r"""
+\begin{blockquote}
+\flmQuoteSetup{blockquote}%
+\flmQuoteBlock{Some text.}
+\end{blockquote}
+""".strip()
+        )
+
+    def test_recompose_multiple_text_sections(self):
+        """Multiple text sections each get their own line."""
+        result = self._recompose(r"""
+\begin{quote}
+\text{First.}
+\text{Second.}
+\end{quote}
+""", {"quote": {"setup_macro": None}})
+
+        self.assertEqual(
+            result["latex"],
+            r"""
+\begin{quote}
+First.
+Second.
+\end{quote}
+""".strip()
         )
 
 

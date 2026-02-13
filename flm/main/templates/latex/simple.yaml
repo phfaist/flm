@@ -11,6 +11,8 @@ default_config:
     general: |
       % Add additional general preamble definitions here
 
+      \setcounter{secnumdepth}{0}
+
     # fonts: |
     #   % LaTeX preamble to set up the document's fonts.  E.g.:
     #   % \usepackage{sourceserifpro}
