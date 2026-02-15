@@ -147,7 +147,14 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
 
     def recompose_pure_latex(self, node, recomposer):
 
-        s = '\\' + node.macroname
+        recopt_href = recomposer.get_options('href')
+
+        href_macro_mapping = recopt_quote.get('map_macros', None)
+
+        if href_macro_mapping and node.macroname in href_macro_mapping:
+            s = '\\' + href_macro_mapping[node.macroname]
+        else:
+            s = '\\' + node.macroname
 
         # Fix URL arguments to make sure we escape '#' and '%'.  This might be
         # necessary in case the \href/\url command is used within an argument to
