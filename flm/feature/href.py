@@ -149,7 +149,7 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
 
         recopt_href = recomposer.get_options('href')
 
-        href_macro_mapping = recopt_quote.get('map_macros', None)
+        href_macro_mapping = recopt_href.get('map_macros', None)
 
         if href_macro_mapping and node.macroname in href_macro_mapping:
             s = '\\' + href_macro_mapping[node.macroname]
