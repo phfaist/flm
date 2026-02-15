@@ -512,6 +512,7 @@ default_purelatex_defs_makeatletter = r"""
   \par
   \endgroup
 }
+\fi
 \ifdefined\blockquote\else
 \newenvironment{blockquote}{%
   \par
