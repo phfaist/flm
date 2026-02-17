@@ -478,6 +478,39 @@ class LatexFragmentRenderer(FragmentRenderer):
             href,
         )
 
+    def render_annotation_comment(
+            self,
+            display_nodelist, 
+            render_context,
+            is_block_level=False,
+            color_index=0,
+            initials=None,
+    ):
+        s = '\\flmAnnotationComment' + '{' + str(color_index) + '}'
+        if initials:
+            s += '{'+self.render_value(initials, render_context)+'}'
+
+        s += '{' + self.render_nodelist(display_nodelist, render_context) + '}'
+
+        return s
+
+    def render_annotation_highlight(
+            self,
+            display_nodelist, 
+            render_context,
+            is_block_level=False,
+            color_index=0,
+            initials=None
+    ):
+        s = '\\flmAnnotationHighlight' + '{' + str(color_index) + '}'
+        if initials:
+            s += '{'+self.render_value(initials, render_context)+'}'
+
+        s += '{' + self.render_nodelist(display_nodelist, render_context) + '}'
+
+        return s
+
+
     debug_disable_link_hyperref = False
 
     def render_latex_link_hyperref(self, display_content, to_target_id):
@@ -1002,6 +1035,28 @@ _latex_preamble_suggested_defs = r"""
   \expandafter\def\csname @currentlabel\endcsname{#2}%
   \label{#1}%
 }
+
+
+\definecolor{flmAnnotationColor0}{RGB}{148,7,24} % dark red / burgundy
+\definecolor{flmAnnotationColor1}{RGB}{0,148,240} % blue-y
+\definecolor{flmAnnotationColor2}{RGB}{242,108,13} % orange-brown-y
+\definecolor{flmAnnotationColor3}{RGB}{65,149,42} % green-y
+\definecolor{flmAnnotationColor4}{RGB}{128,55,134} % purple-y
+\definecolor{flmAnnotationColor5}{RGB}{0,129,129} % blue-green-y
+\definecolor{flmAnnotationColor6}{RGB}{160,120,0} % brownish
+\definecolor{flmAnnotationColor7}{RGB}{35,195,155} % aqua-ish
+
+\providecommand\flmAnnotationHighlight[3]{% {colorindex}{initials}{content}
+  \textcolor{flmAnnotationColor#1}{%
+    \if\relax\detokenize{#2}\relax\else\textsf{\footnotesize [#2]}~\fi
+    #3}%
+}
+\providecommand\flmAnnotationComment[3]{% {colorindex}{initials}{content}
+  \textcolor{flmAnnotationColor#1}{\textsf{[%
+    \if\relax\detokenize{#2}\relax\else{\footnotesize #2:}~\fi
+    #3]}}%
+}
+
 
 """
 
