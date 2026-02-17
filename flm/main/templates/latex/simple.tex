@@ -1,5 +1,8 @@
 \documentclass[${documentclass.fontsize},${documentclass.papersize}]{article}%$$
 
+% Remove all automatic section numbering
+\setcounter{secnumdepth}{0}
+
 ${if:enable_phfnote}%$$
 \usepackage${if:phfnote_options}[${phfnote_options}]${endif}{phfnote}%$$
 ${endif}%$$
