@@ -523,7 +523,7 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     def render_latex_link_href(self, display_content, href):
         escaped_url = re.sub(r'[#%{}\\]', lambda m: '\\'+m.group(0), href)
-        return r'\href{' + escaped_url + r'}{' + display_content + r'}%\n'
+        return r'\href{' + escaped_url + r'}{' + display_content + r'}'
     
     def render_delayed_marker(self, node, delayed_key, render_context):
         return r"\FLMDLYD{" + str(delayed_key) + "}"
