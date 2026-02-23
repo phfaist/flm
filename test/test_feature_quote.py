@@ -8,7 +8,8 @@ from flm.fragmentrenderer.html import HtmlFragmentRenderer
 from flm.flmrecomposer.purelatex import FLMPureLatexRecomposer
 
 from flm.feature.quote import (
-    FeatureQuote, QuoteEnvironment, nodelist_strip_surrounding_whitespace
+    FeatureQuote, QuoteEnvironment, LineInfo,
+    quote_lines_process_line_nodelist_to_lineinfo,
 )
 
 
@@ -553,14 +554,39 @@ Second.
         )
 
 
-class TestNodelistStripSurroundingWhitespace(unittest.TestCase):
-    """Tests for nodelist_strip_surrounding_whitespace, exercised via \\lines{}
-    which calls it on each line after splitting on \\\\."""
+class TestLineInfo(unittest.TestCase):
+
+    def test_lineinfo_defaults(self):
+        li = LineInfo()
+        self.assertIsNone(li.nodelist)
+        self.assertIsNone(li.align)
+        self.assertIsNone(li.indent_left)
+        self.assertIsNone(li.indent_right)
+
+    def test_lineinfo_asdict(self):
+        li = LineInfo(indent_left=2, align='center')
+        d = li.asdict()
+        self.assertEqual(d['indent_left'], 2)
+        self.assertEqual(d['align'], 'center')
+        self.assertIsNone(d['nodelist'])
+        self.assertIsNone(d['indent_right'])
+
+    def test_lineinfo_repr(self):
+        li = LineInfo(indent_left=1)
+        r = repr(li)
+        self.assertTrue('LineInfo(' in r)
+        self.assertTrue('indent_left=1' in r)
+
+
+class TestQuoteLinesProcessLineNodelistToLineinfo(unittest.TestCase):
+    """Tests for quote_lines_process_line_nodelist_to_lineinfo, exercised both
+    directly and via \\lines{} integration."""
 
     maxDiff = None
 
+    # -- Integration tests via \lines{} rendering --
+
     def test_strips_whitespace_around_line_breaks(self):
-        """Whitespace around \\\\ should be stripped from each line."""
         environ = mk_flm_environ()
         result = render_doc(environ, r"""
 \begin{quote}
@@ -577,7 +603,6 @@ class TestNodelistStripSurroundingWhitespace(unittest.TestCase):
         )
 
     def test_no_whitespace_to_strip(self):
-        """Content without surrounding whitespace passes through unchanged."""
         environ = mk_flm_environ()
         result = render_doc(environ, r"""
 \begin{quote}\lines{no spaces\\also none}\end{quote}
@@ -592,7 +617,6 @@ class TestNodelistStripSurroundingWhitespace(unittest.TestCase):
         )
 
     def test_strips_leading_whitespace_with_formatting(self):
-        """Leading whitespace before a formatting macro (pre_space) is stripped."""
         environ = mk_flm_environ()
         result = render_doc(environ, r"""
 \begin{quote}\lines{plain text\\ \emph{emphasized line}}\end{quote}
@@ -608,7 +632,6 @@ class TestNodelistStripSurroundingWhitespace(unittest.TestCase):
         )
 
     def test_strips_trailing_whitespace_before_line_break(self):
-        """Trailing whitespace before \\\\ is stripped from the preceding line."""
         environ = mk_flm_environ()
         result = render_doc(environ, r"""
 \begin{quote}\lines{line one   \\line two}\end{quote}
@@ -623,7 +646,6 @@ class TestNodelistStripSurroundingWhitespace(unittest.TestCase):
         )
 
     def test_three_lines(self):
-        """Three lines: br between each pair, whitespace stripped."""
         environ = mk_flm_environ()
         result = render_doc(environ, r"""
 \begin{quote}\lines{ one \\  two  \\  three }\end{quote}
@@ -637,56 +659,142 @@ class TestNodelistStripSurroundingWhitespace(unittest.TestCase):
             '</div>'
         )
 
+    # -- \indent support --
+
+    def test_indent_single_line(self):
+        environ = mk_flm_environ()
+        result = render_doc(environ, r"""
+\begin{quote}\lines{\indent indented line}\end{quote}
+""")
+        self.assertEqual(
+            result,
+            '<div class="quote">'
+            '<p class="lines quote-lines">'
+            '<span><span class="lines-indent"></span>indented line</span>'
+            '</p>'
+            '</div>'
+        )
+
+    def test_indent_second_line(self):
+        environ = mk_flm_environ()
+        result = render_doc(environ, r"""
+\begin{quote}\lines{first line\\\indent second line}\end{quote}
+""")
+        self.assertEqual(
+            result,
+            '<div class="quote">'
+            '<p class="lines quote-lines">'
+            '<span>first line</span><br>'
+            '<span><span class="lines-indent"></span>second line</span>'
+            '</p>'
+            '</div>'
+        )
+
+    def test_indent_double(self):
+        environ = mk_flm_environ()
+        result = render_doc(environ, r"""
+\begin{quote}\lines{\indent\indent doubly indented}\end{quote}
+""")
+        self.assertEqual(
+            result,
+            '<div class="quote">'
+            '<p class="lines quote-lines">'
+            '<span>'
+            '<span class="lines-indent"></span><span class="lines-indent"></span>'
+            'doubly indented</span>'
+            '</p>'
+            '</div>'
+        )
+
+    def test_indent_in_address_env(self):
+        environ = mk_flm_environ()
+        result = render_doc(environ, r"""
+\begin{address}
+Line one\\
+\indent Line two indented\\
+Line three
+\end{address}
+""")
+        self.assertEqual(
+            result,
+            '<div class="address">'
+            '<p class="lines quote-lines">'
+            '<span>Line one</span><br>'
+            '<span><span class="lines-indent"></span>Line two indented</span><br>'
+            '<span>Line three</span>'
+            '</p>'
+            '</div>'
+        )
+
+    # -- Direct unit tests --
+
     def test_direct_empty_nodelist(self):
-        """nodelist_strip_surrounding_whitespace on an empty nodelist returns it as-is."""
         environ = mk_flm_environ()
         lw = environ.make_fragment(r'hello', standalone_mode=True).nodes.latex_walker
         empty_nl = lw.make_nodelist([], parsing_state=lw.make_parsing_state())
-        result = nodelist_strip_surrounding_whitespace(empty_nl)
-        self.assertIs(result, empty_nl)
+        result = quote_lines_process_line_nodelist_to_lineinfo(
+            empty_nl, latex_walker=lw, parsing_state=lw.make_parsing_state()
+        )
+        self.assertTrue(isinstance(result, LineInfo))
+        self.assertIsNone(result.indent_left)
+        self.assertIsNotNone(result.nodelist)
+        self.assertEqual(len(result.nodelist), 0)
 
     def test_direct_no_whitespace(self):
-        """nodelist_strip_surrounding_whitespace on content without surrounding
-        whitespace returns an equivalent nodelist."""
         environ = mk_flm_environ()
         frag = environ.make_fragment(r'hello world', standalone_mode=True)
-        result = nodelist_strip_surrounding_whitespace(frag.nodes)
+        result = quote_lines_process_line_nodelist_to_lineinfo(
+            frag.nodes, latex_walker=frag.nodes.latex_walker,
+            parsing_state=frag.nodes.parsing_state,
+        )
+        self.assertTrue(isinstance(result, LineInfo))
+        self.assertIsNone(result.indent_left)
         fr = HtmlFragmentRenderer()
         self.assertEqual(
-            fr.render_nodelist(result, fr.ensure_render_context(None), is_block_level=False),
+            fr.render_nodelist(result.nodelist, fr.ensure_render_context(None),
+                               is_block_level=False),
             'hello world'
         )
 
     def test_direct_leading_whitespace(self):
-        """nodelist_strip_surrounding_whitespace strips leading whitespace."""
         environ = mk_flm_environ()
         frag = environ.make_fragment(r'  hello', standalone_mode=True)
-        result = nodelist_strip_surrounding_whitespace(frag.nodes)
+        result = quote_lines_process_line_nodelist_to_lineinfo(
+            frag.nodes, latex_walker=frag.nodes.latex_walker,
+            parsing_state=frag.nodes.parsing_state,
+        )
         fr = HtmlFragmentRenderer()
         self.assertEqual(
-            fr.render_nodelist(result, fr.ensure_render_context(None), is_block_level=False),
+            fr.render_nodelist(result.nodelist, fr.ensure_render_context(None),
+                               is_block_level=False),
             'hello'
         )
 
     def test_direct_trailing_whitespace(self):
-        """nodelist_strip_surrounding_whitespace strips trailing whitespace."""
         environ = mk_flm_environ()
         frag = environ.make_fragment(r'hello  ', standalone_mode=True)
-        result = nodelist_strip_surrounding_whitespace(frag.nodes)
+        result = quote_lines_process_line_nodelist_to_lineinfo(
+            frag.nodes, latex_walker=frag.nodes.latex_walker,
+            parsing_state=frag.nodes.parsing_state,
+        )
         fr = HtmlFragmentRenderer()
         self.assertEqual(
-            fr.render_nodelist(result, fr.ensure_render_context(None), is_block_level=False),
+            fr.render_nodelist(result.nodelist, fr.ensure_render_context(None),
+                               is_block_level=False),
             'hello'
         )
 
     def test_direct_both_sides_whitespace(self):
-        """nodelist_strip_surrounding_whitespace strips both leading and trailing."""
         environ = mk_flm_environ()
         frag = environ.make_fragment(r'  hello world  ', standalone_mode=True)
-        result = nodelist_strip_surrounding_whitespace(frag.nodes)
+        result = quote_lines_process_line_nodelist_to_lineinfo(
+            frag.nodes, latex_walker=frag.nodes.latex_walker,
+            parsing_state=frag.nodes.parsing_state,
+        )
         fr = HtmlFragmentRenderer()
         self.assertEqual(
-            fr.render_nodelist(result, fr.ensure_render_context(None), is_block_level=False),
+            fr.render_nodelist(result.nodelist, fr.ensure_render_context(None),
+                               is_block_level=False),
             'hello world'
         )
 

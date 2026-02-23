@@ -395,7 +395,7 @@ class FragmentRenderer:
                            *, target_id_generator=None, annotations=None):
         raise RuntimeError("Subclasses need to reimplement this method")
 
-    def render_lines(self, iter_lines_nodelists, render_context,
+    def render_lines(self, lines_info_list, render_context,
                      *, role=None, annotations=None, target_id=None):
         raise RuntimeError("Subclasses need to reimplement this method")
 

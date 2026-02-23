@@ -131,21 +131,36 @@ class MarkdownFragmentRenderer(FragmentRenderer):
         return self._get_target_id_md_code(target_id).rstrip() + '\n' + content
     
 
-    def render_lines(self, iter_lines_nodelists, render_context,
+    def render_lines(self, lines_info_list, render_context,
                      *, role=None, annotations=None, target_id=None):
 
         md_indent = render_context.get_logical_state('flm_markdown').get('md_indent', '')
 
         s_lines = []
 
-        for line_content_nodelist in iter_lines_nodelists:
+        for line_info in lines_info_list:
+            line_content_nodelist = line_info.nodelist
+
             s_line = self.render_nodelist(
                 line_content_nodelist,
                 render_context=render_context,
                 is_block_level=False,
             )
+
+            if line_info.indent_left is not None:
+                s_line = (
+                    '&nbsp;&nbsp;&nbsp;&nbsp;' * line_info.indent_left
+                    + line_content
+                )
+                
+            if line_info.indent_right is not None:
+                logger.warning("lines indent_right not yet implemented in markdown renderer")
+            if line_info.align is not None:
+                logger.warning("lines align not yet implemented in markdown renderer")
+
             if md_indent != '':
                 s_line = md_indent + s_line.replace('\n', '\n'+md_indent)
+
             s_lines.append( s_line + '  ' ) # two trailing slashes to force line break
 
         tgtid = ''

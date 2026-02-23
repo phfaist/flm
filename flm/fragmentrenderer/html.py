@@ -389,7 +389,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         #'lines': 'div', # or similar
     }
 
-    def render_lines(self, iter_lines_nodelists, render_context,
+    def render_lines(self, lines_info_list, render_context,
                      *, role=None, annotations=None, target_id=None):
         r"""
         Render a sequence of inline-content lines separated by line breaks.
@@ -400,13 +400,26 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
         s_lines = []
 
-        for line_content_nodelist in iter_lines_nodelists:
+        for line_info in lines_info_list:
+            line_content_nodelist = line_info.nodelist
 
             line_content = self.render_nodelist(
                 line_content_nodelist,
                 render_context=render_context,
                 is_block_level=False,
             )
+
+            if line_info.indent_left is not None:
+                line_content = (
+                    '<span class="lines-indent"></span>' * line_info.indent_left
+                    + line_content
+                )
+                
+            if line_info.indent_right is not None:
+                logger.warning("lines indent_right not yet implemented in HTML renderer")
+            if line_info.align is not None:
+                logger.warning("lines align not yet implemented in HTML renderer")
+
             if self.lines_use_line_span:
                 line_content = self.wrap_in_tag(
                     'span',
@@ -1232,6 +1245,10 @@ dl.citation-list > dt, dl.footnote-list > dt {
 .quote .quote-text {
   font-style: italic;
   margin: 0.5em 0;
+}
+
+.quote .quote-lines + .quote-lines {
+  margin-top: 1em;
 }
 
 .quote-attributed {

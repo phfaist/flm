@@ -28,6 +28,15 @@ from ._base import Feature
 
 
 
+_quote_section_lines_environment = {
+    'macros': [
+        MacroSpec('\\'),
+        MacroSpec('indent'), # manually indent some lines by one "tab width"
+    ],
+    'specials': [
+    ]
+}
+
 
 
 _quote_section_macros = {
@@ -45,9 +54,7 @@ _quote_section_macros = {
             argname='text',
             flm_doc='The text or FLM content to process',
             parsing_state_delta=ParsingStateDeltaExtendLatexContextDb(
-                extend_latex_context={'macros': [
-                    MacroSpec('\\'),
-                ]},
+                extend_latex_context=_quote_section_lines_environment,
                 set_attributes={'is_block_level': False },
             )
         )
@@ -66,6 +73,33 @@ _quote_section_macros = {
         )
     ],),
 }
+
+
+class LineInfo:
+    def __init__(self,
+                 *,
+                 nodelist=None,
+                 align=None,
+                 indent_left=None,
+                 indent_right=None,
+                 ):
+        super().__init__()
+        self.nodelist = nodelist
+        self.align = align
+        self.indent_left = indent_left
+        self.indent_right = indent_right
+        self._fields = ('nodelist', 'align',
+                        'indent_left', 'indent_right',)
+
+    def asdict(self):
+        return {k: getattr(self, k) for k in self._fields}
+
+    def __repr__(self):
+        return "{}({})".format(
+            self.__class__.__name__,
+            ", ".join([ f"{k}={getattr(self,k)!r}" for k in self._fields ])
+        )
+
 
 
 
@@ -121,7 +155,11 @@ class QuoteEnvironment(FLMEnvironmentSpecBase):
         # Special case to handle \\ in body content if the auto-quote-section is
         # for a \lines{} section:
         if self.auto_quote_section_bare_content == 'lines':
-            extend_latex_context['macros'].append( MacroSpec('\\') )
+            for part in ('macros', 'environments', 'specials'):
+                if part in _quote_section_lines_environment:
+                    extend_latex_context[part].extend(
+                        _quote_section_lines_environment[part]
+                    )
 
         return LatexEnvironmentBodyContentsParser(
             environmentname=token.arg,
@@ -157,7 +195,7 @@ class QuoteEnvironment(FLMEnvironmentSpecBase):
                 return
             finalize_and_push_qsn_info(
                 self.auto_quote_section_bare_content,
-                node=None,
+                qsn_node=None,
                 text_arg_nodelist=node.latex_walker.make_nodelist(
                     list(auto_collecting_qs_nodelist),
                     parsing_state=node.nodelist.parsing_state,
@@ -165,10 +203,10 @@ class QuoteEnvironment(FLMEnvironmentSpecBase):
             )
             auto_collecting_qs_nodelist.clear()
 
-        def finalize_and_push_qsn_info(name, node, text_arg_nodelist):
+        def finalize_and_push_qsn_info(name, qsn_node, text_arg_nodelist):
             qsn_info = {
                 'name': name,
-                'node': None,
+                'node': qsn_node,
                 'text_arg_nodelist': text_arg_nodelist,
             }
             # Special processing for certain section types/names:
@@ -180,13 +218,20 @@ class QuoteEnvironment(FLMEnvironmentSpecBase):
                         and n.macroname == '\\'
                     )
                 )
-                lines_iter_nodelists = []
+                latex_walker = node.latex_walker
+                lines_info_list = []
                 for line_nodelist in text_arg_lines_nodelists:
-                    # normalize whitespace on this line --- 
-                    lines_iter_nodelists.append(
-                        nodelist_strip_surrounding_whitespace( line_nodelist )
+                    # process this line (normalize whitespace, find \indent's,
+                    # anything else in the future...)
+                    lines_info_list.append(
+                        quote_lines_process_line_nodelist_to_lineinfo(
+                            line_nodelist,
+                            latex_walker=latex_walker,
+                            parsing_state=line_nodelist.parsing_state,
+                        )
                     )
-                qsn_info['lines_iter_nodelists'] = lines_iter_nodelists
+
+                qsn_info['lines_info_list'] = lines_info_list
 
             quote_section_nodes.append(qsn_info)
 
@@ -204,7 +249,7 @@ class QuoteEnvironment(FLMEnvironmentSpecBase):
                     text_arg_nodelist = text_arg_info.get_content_nodelist()
                     finalize_and_push_qsn_info(
                         n.macroname,
-                        node=n,
+                        qsn_node=n,
                         text_arg_nodelist=text_arg_nodelist,
                     )
                     continue
@@ -227,7 +272,8 @@ class QuoteEnvironment(FLMEnvironmentSpecBase):
                 f"All content in {'{'}{self.environmentname}{'}'} environments must "
                 f"be wrapped in an appropriate quote-section command ("
                 + ", ".join(["\\"+str(c)+"{}" for c in self.enabled_quote_sections])
-                + f"); found content {str(n)}"
+                + f"); found content {str(n)}",
+                pos=n.pos
             )
 
         flush_auto_collecting_qs()
@@ -260,7 +306,7 @@ class QuoteEnvironment(FLMEnvironmentSpecBase):
             elif name == 'lines':
                 pieces.append(
                     fragment_renderer.render_lines(
-                        qsn['lines_iter_nodelists'],
+                        qsn['lines_info_list'],
                         role='quote-lines',
                         render_context=render_context,
                     )
@@ -323,8 +369,8 @@ class QuoteEnvironment(FLMEnvironmentSpecBase):
             if name == 'lines':
                 # special handling of content, use split lines
                 content = "\\\\\n".join([
-                    recomposer.recompose_nodelist(line_nodelist, node)
-                    for line_nodelist in qsn['lines_iter_nodelists']
+                    recompose_qs_line(lineinfo, node, recomposer)
+                    for lineinfo in qsn['lines_info_list']
                 ])
             else:
                 content = recomposer.recompose_nodelist(text_arg_nodelist, node).strip()
@@ -358,32 +404,87 @@ class QuoteEnvironment(FLMEnvironmentSpecBase):
 
 
 
+def recompose_qs_line(lineinfo, node, recomposer):
+    s = ''
+    if lineinfo.indent_left is not None:
+        s += r'\indent ' * lineinfo.indent_left
+    s += recomposer.recompose_nodelist(lineinfo.nodelist, node)
+    return s
 
 
-def nodelist_strip_surrounding_whitespace(nodelist):
+def quote_lines_process_line_nodelist_to_lineinfo(nodelist, latex_walker, parsing_state):
+    # normalize whitespace on this line --- 
+
+    def mk_line_info(new_node_list, indent_left):
+        return LineInfo(
+            nodelist=latex_walker.make_nodelist(new_node_list, parsing_state=parsing_state),
+            indent_left=indent_left,
+        )
+
     if not nodelist or not len(nodelist):
-        return nodelist
+        return mk_line_info([], None)
+
+    # find any initial \indent macros and we'll set indent_left
+    indent_left = None
 
     jfirst = 0
     for n in nodelist:
         if n.isNodeType(latexnodes_nodes.LatexCommentNode):
+            # skip leading comments
             jfirst += 1
-            continue # no need to fix leading comments
+            continue
+
+        if n.isNodeType(latexnodes_nodes.LatexCharsNode) and n.chars.strip() == '':
+            # skip leading whitespace
+            jfirst += 1
+            continue
+
+        if n.isNodeType(latexnodes_nodes.LatexMacroNode) and n.macroname == 'indent':
+            # add left indent ...
+            if indent_left is None:
+                indent_left = 0
+            indent_left += 1
+
+            # ... and skip macro
+            jfirst += 1
+            continue
+
         break
 
     if jfirst == len(nodelist):
-        return nodelist
+        return mk_line_info([], indent_left)
+
+    linfo_macronames = [ m.macroname for m in _quote_section_lines_environment['macros'] ]
+    linfo_specials = [ s.specials_chars for s in _quote_section_lines_environment['specials'] ]
+
+    # check that no node past the first content node (index jfirst) contains
+    # line-specific formatting. (\indent or \\) [[FOR LATER: if we add other
+    # line-info commands that can appear in the middle of the line, change this
+    # here to parse these commands and make sure we process their removal from
+    # the final node list.]]
+    for n in nodelist[jfirst:]:
+        if (n.isNodeType(latexnodes_nodes.LatexMacroNode)
+            and n.macroname in linfo_macronames):
+            raise LatexWalkerLocatedError(
+                f"Macro \\{n.macroname} cannot appear mid-line in \\lines",
+                pos=n.pos
+            )
+        if (n.isNodeType(latexnodes_nodes.LatexSpecialsNode)
+            and n.specials_chars in linfo_specials):
+            raise LatexWalkerLocatedError(
+                f"Specials ‘\\{n.specials_chars}’ cannot appear mid-line in \\lines",
+                pos=n.pos
+            )
 
     new_node_list = [
         node for node in nodelist
     ]
-    lw = nodelist.latex_walker
 
     first_node = new_node_list[jfirst]
     if first_node.isNodeType(latexnodes_nodes.LatexCharsNode):
         if first_node.chars[0].isspace():
             # need to "fix" the first node.
-            fixed_first_node = lw.make_node(
+            fixed_first_node = latex_walker.make_node(
                 latexnodes_nodes.LatexCharsNode,
                 chars=first_node.chars.lstrip(),
                 pos=first_node.pos,
@@ -392,24 +493,13 @@ def nodelist_strip_surrounding_whitespace(nodelist):
             )
             # replace node object in-place in our new list
             new_node_list[jfirst] = fixed_first_node
-    elif first_node.pre_space is not None and len(first_node.pre_space):
-        d = {}
-        for fld in first_node._fields:
-            d[fld] = getattr(first_node, fld)
-        d['pre_space'] = ''
-        fixed_first_node = lw.make_node(
-            first_node.__class__,
-            **d
-        )
-        # replace node object in-place in our new list
-        new_node_list[jfirst] = fixed_first_node
 
     # fix last node, if applicable:
     jlast = len(nodelist)-1
     last_node = new_node_list[jlast]
     if ( last_node.isNodeType(latexnodes_nodes.LatexCharsNode)
          and last_node.chars[len(last_node.chars)-1].isspace() ):
-        fixed_last_node = lw.make_node(
+        fixed_last_node = latex_walker.make_node(
             latexnodes_nodes.LatexCharsNode,
             chars=last_node.chars.rstrip(),
             pos=last_node.pos,
@@ -419,7 +509,7 @@ def nodelist_strip_surrounding_whitespace(nodelist):
         # replace node object in-place in our new list
         new_node_list[jlast] = fixed_last_node
 
-    return lw.make_nodelist(new_node_list, parsing_state=nodelist.parsing_state)
+    return mk_line_info(new_node_list[jfirst:], indent_left)
                     
 
 
