@@ -1011,9 +1011,9 @@ dl.enumeration > dt {
   display: inline-block;
   /*margin: 0px; */
   margin-left: -2.5em;
-  width: 2.0em;
   min-width: 2.0em;
-  /*max-width: 2.0em;*/ /* messes up wide labels, e.g. in {description} items */
+  /* messes up wide labels, e.g. in {description} items: */
+  /* width: 2.0em;  max-width: 2.0em;*/
   margin-right: 0.5em;
   text-align: right;
 }
