@@ -324,6 +324,10 @@ class FeatureEnumeration(Feature):
             'itemize': {'counter_formatter': ['•','-','▸'],},
             # uses default formatters 1., 2., ... incl. nested (i) etc.
             'enumerate': {'counter_formatter': None},
+            # expects a custom item for each \item.  Used for definition-lists
+            # and description of individual items; might be styled slightly
+            # differently than itemize.
+            'description': {'counter_formatter': ['<??>','<??>','<??>'],},
         }
     }
 

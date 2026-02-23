@@ -1000,7 +1000,7 @@ dl.enumeration > dt {
   margin-left: -2.5em;
   width: 2.0em;
   min-width: 2.0em;
-  max-width: 2.0em;
+  /*max-width: 2.0em;*/ /* messes up wide labels, e.g. in {description} items */
   margin-right: 0.5em;
   text-align: right;
 }

@@ -45,7 +45,9 @@ _quote_section_macros = {
             argname='text',
             flm_doc='The text or FLM content to process',
             parsing_state_delta=ParsingStateDeltaExtendLatexContextDb(
-                extend_latex_context={'macros': [ MacroSpec('\\') ]},
+                extend_latex_context={'macros': [
+                    MacroSpec('\\'),
+                ]},
                 set_attributes={'is_block_level': False },
             )
         )

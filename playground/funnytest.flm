@@ -112,7 +112,8 @@ to    see?
 \begin{quote}
   \lines{
     Rien ne se perd,\\
-    rien ne se crée,\\
+    %%\indent
+ rien ne se crée,\\
     tout se transforme.}
   \attributed{Antoine Lavoisier}
   \text{The first principle is that you must not fool yourself — and you are the easiest person to fool.}
@@ -269,6 +270,17 @@ Here is the content of the paragraph.
   so\footnote{Sol} so\footnote{La} many\footnote{Si} footnotes!\footnote{Do}
   And\footnote{Re} here\footnote{Mi} are\footnote{Fa} more!\footnote{Sol}
 \end{itemize}
+
+A description environment:
+\begin{description}
+\item[\verba{code_id}] The all-lower-case unique code database identifier
+\item[\verba{physical}] The alphabet (for quantum,
+physical space) over which the code is defined.  The alphabet (for quantum,
+physical space) over which the code is defined.
+\item[\verba{logical}] The alphabet (for quantum,
+logical space) over which the message is defined.  The alphabet (for quantum,
+logical space) over which the message is defined
+\end{description}
 
 We can add references to a section by topic, like this section:
 \ref{topic:test-labels}.  We can also refer to a defterm by topic, like so:
