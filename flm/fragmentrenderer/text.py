@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 
 from ._base import FragmentRenderer
 
@@ -42,7 +44,7 @@ class TextFragmentRenderer(FragmentRenderer):
         for line_info in lines_info_list:
 
             s_line = self.render_nodelist(
-                line_content_nodelist,
+                line_info.nodelist,
                 render_context=render_context,
                 is_block_level=False,
             )
@@ -50,7 +52,7 @@ class TextFragmentRenderer(FragmentRenderer):
             if line_info.indent_left is not None:
                 s_line = (
                     '    ' * line_info.indent_left
-                    + line_content
+                    + s_line
                 )
                 
             if line_info.indent_right is not None:
@@ -142,10 +144,12 @@ class TextFragmentRenderer(FragmentRenderer):
             formatter = self.heading_level_formatter[heading_level]
             return formatter(rendered_heading)
 
-        raise ValueError(
+        logger.warning(
             f"Bad {heading_level=}, expected 1..6 (or key in "
             f"fragment_renderer.heading_level_formatter)"
         )
+
+        return f"\n{rendered_heading}:\n" # simple default ...
 
 
     def render_verbatim(self, value, render_context, *,

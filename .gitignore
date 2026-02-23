@@ -148,6 +148,7 @@ playground/*.html
 playground/*.tex
 playground/*.aux
 playground/*.log
+playground/*.md
 
 playground/.flm-citations.cache.json
 playground/_flm_collected_graphics

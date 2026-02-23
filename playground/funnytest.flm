@@ -113,7 +113,7 @@ to    see?
   \lines{
     Rien ne se perd,\\
     \indent rien ne se crée,\\
-    tout se transforme.}
+    \indent\indent tout se transforme.}
   \attributed{Antoine Lavoisier}
   \text{The first principle is that you must not fool yourself — and you are the easiest person to fool.}
   \attributed{Richard Feynman}

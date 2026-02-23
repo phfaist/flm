@@ -411,7 +411,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
             if line_info.indent_left is not None:
                 line_content = (
-                    '<span class="lines-indent"></span>' * line_info.indent_left
+                    '<span class="quote-lines-indent"></span>' * line_info.indent_left
                     + line_content
                 )
                 
@@ -1249,6 +1249,11 @@ dl.citation-list > dt, dl.footnote-list > dt {
 
 .quote .quote-lines + .quote-lines {
   margin-top: 1em;
+}
+
+.quote .quote-lines .quote-lines-indent {
+  display: inline-block;
+  width: 2.5em;
 }
 
 .quote-attributed {

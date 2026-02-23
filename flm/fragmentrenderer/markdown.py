@@ -150,7 +150,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
             if line_info.indent_left is not None:
                 s_line = (
                     '&nbsp;&nbsp;&nbsp;&nbsp;' * line_info.indent_left
-                    + line_content
+                    + s_line
                 )
                 
             if line_info.indent_right is not None:
@@ -169,7 +169,7 @@ class MarkdownFragmentRenderer(FragmentRenderer):
             if tgtid.strip() == "":
                 tgtid = ''
 
-        return '\n\n' + tgtid + content
+        return '\n\n' + tgtid + "\n".join( s_lines )
 
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
                            *, target_id_generator=None, annotations=None, nested_depth=None):
@@ -254,8 +254,12 @@ class MarkdownFragmentRenderer(FragmentRenderer):
 
         target_id_md_code = self._get_target_id_md_code(target_id)
 
+        heading_code = '###' # in case heading_level is something special (e.g. special string)
+        if isinstance(heading_level, int) and heading_level > 0:
+            heading_code = '#'*heading_level
+
         return (
-            '#'*heading_level + ' ' + target_id_md_code + title_content.replace('\n', ' ')
+            heading_code + ' ' + target_id_md_code + title_content.replace('\n', ' ')
             + '\n'
         )
 
