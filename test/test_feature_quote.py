@@ -670,7 +670,7 @@ class TestQuoteLinesProcessLineNodelistToLineinfo(unittest.TestCase):
             result,
             '<div class="quote">'
             '<p class="lines quote-lines">'
-            '<span><span class="lines-indent"></span>indented line</span>'
+            '<span><span class="quote-lines-indent"></span>indented line</span>'
             '</p>'
             '</div>'
         )
@@ -685,7 +685,7 @@ class TestQuoteLinesProcessLineNodelistToLineinfo(unittest.TestCase):
             '<div class="quote">'
             '<p class="lines quote-lines">'
             '<span>first line</span><br>'
-            '<span><span class="lines-indent"></span>second line</span>'
+            '<span><span class="quote-lines-indent"></span>second line</span>'
             '</p>'
             '</div>'
         )
@@ -700,7 +700,7 @@ class TestQuoteLinesProcessLineNodelistToLineinfo(unittest.TestCase):
             '<div class="quote">'
             '<p class="lines quote-lines">'
             '<span>'
-            '<span class="lines-indent"></span><span class="lines-indent"></span>'
+            '<span class="quote-lines-indent"></span><span class="quote-lines-indent"></span>'
             'doubly indented</span>'
             '</p>'
             '</div>'
@@ -720,7 +720,7 @@ Line three
             '<div class="address">'
             '<p class="lines quote-lines">'
             '<span>Line one</span><br>'
-            '<span><span class="lines-indent"></span>Line two indented</span><br>'
+            '<span><span class="quote-lines-indent"></span>Line two indented</span><br>'
             '<span>Line three</span>'
             '</p>'
             '</div>'
