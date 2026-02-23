@@ -1246,16 +1246,13 @@ dl.citation-list > dt, dl.footnote-list > dt {
   font-style: italic;
   margin: 0.5em 0;
 }
-
 .quote .quote-lines + .quote-lines {
   margin-top: 1em;
 }
-
 .quote .quote-lines .quote-lines-indent {
   display: inline-block;
   width: 2.5em;
 }
-
 .quote-attributed {
   margin: 0.5em 0;
   text-align: right;
