@@ -212,7 +212,7 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     def render_verbatim(self, value, render_context, *,
                         is_block_level=False, annotations=None, target_id=None):
-        if 'verbatimcode' in annotations:
+        if is_block_level and 'verbatimcode' in annotations:
             return r'\begin{verbatim}' + '\n' + value + r'\end{verbatim}'
         # TODO: Maybe provide an interface to use \EscVerb here?? (cf fvextra latex package)
         # what to do with annotations / target_id ??
