@@ -166,7 +166,7 @@ def standard_features(
         if isinstance(quote_environments, dict):
             dargs.update(quote_environments)
         features.append(
-            FeatureQuotes(**dargs)
+            FeatureQuote(**dargs)
         )
 
     return features

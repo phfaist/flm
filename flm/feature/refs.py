@@ -617,7 +617,7 @@ class RefMacro(FLMMacroSpecBase):
         recomposer.ensure_latex_package('cleveref')
         return (
             protect_surround[0]
-            + r'\cref{'
+            + r'\zcref{'
             + safe_labels_comma
             + '}'
             + protect_surround[1]

@@ -205,33 +205,25 @@ default_purelatex_defs_makeatletter = r"""
 
 \providecommand\flmFinalPreambleSetup{}
 
-% For references -- pin down custom labels wherever we want for \cref
-\NewDocumentCommand{\flmL@crefCustomLabel}{O{flmLCustomLabel}m+m}{%
+% For references -- pin down custom labels wherever we want for \zcref
+\newcounter{flm@internal@refcnt}
+\newcommand\flmLDefLabelText[2]{%
   \begingroup
-    \cref@constructprefix{#1}{\cref@result}%
-    \protected@edef\@currentlabel{%
-      #3}%
-    \protected@edef\@currentlabelname{#3}%
-    \protected@edef\cref@currentlabel{%
-      [#1][][\cref@result]%
-      #3%
-    }%
-    \flmL@cref@label[{#1}]{#2}%
+    \def\theflm@internal@refcnt{#1}%
+    \refstepcounter{flm@internal@refcnt}%
+    \zcsetup{reftype=flm--internal--ref}%
+    #2%
   \endgroup
 }
 \g@addto@macro\flmFinalPreambleSetup{%
-  \ifcsname crefname\noexpand\endcsname
-    \crefname{flmLCustomLabel}{}{}%
-    \Crefname{flmLCustomLabel}{}{}%
-  \fi}
-\newcommand\flmLDefLabelText[2]{%
-  \begingroup
-    \let\flmL@cref@label\label
-    \def\label##1{%
-      \flmL@crefCustomLabel{##1}{#1}%
+  \ifcsname zcRefTypeSetup\endcsname
+    \zcRefTypeSetup{flm--internal--ref}{
+      Name-sg = ,       % no name prefix (singular)
+      name-sg = ,       % no name prefix (singular, lowercase)
+      Name-pl = ,       % no name prefix (plural)
+      name-pl = ,       % no name prefix (plural, lowercase)
     }%
-    #2%
-  \endgroup
+  \fi
 }
 
 

@@ -496,7 +496,7 @@ More text.
             ) \
             .replace( 'eq:MyFancyEquation', 'ref2' ) \
             .replace( r'\ref{sec:mySubSection}',
-                      r'\NoCaseChange{\protect\cref{sec:mySubSection}}' )
+                      r'\NoCaseChange{\protect\zcref{sec:mySubSection}}' )
 
         self.assertEqual(
             result["latex"],
@@ -518,7 +518,7 @@ More text.
 
         self.assertEqual(
             result["latex"],
-            r"""\NoCaseChange{\protect\cref{ref1}}"""
+            r"""\NoCaseChange{\protect\zcref{ref1}}"""
         )
 
     def test_refs_1b(self):
@@ -556,7 +556,7 @@ More text.
 
         self.assertEqual(
             result["latex"],
-            r"""\cref{ref1} | \hyperref[{ref2}]{Figure Two}"""
+            r"""\zcref{ref1} | \hyperref[{ref2}]{Figure Two}"""
         )
 
     def test_refs_3(self):

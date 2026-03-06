@@ -79,6 +79,7 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
 
         logger.debug("Template: using output format ‘%s’ and template name ‘%s’",
                      use_output_format_name, use_template_name)
+        logger.debug("main_config is %r", self.main_config)
 
         if use_template_name is None:
             # no template specified
