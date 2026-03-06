@@ -74,7 +74,7 @@ Cells internal model
 The feature class
 ~~~~~~~~~~~~~~~~~
 
-.. autoclass:: FeatureProvideCells
+.. autoclass:: FeatureCells
    :show-inheritance:
    :members:
    :undoc-members:

@@ -18,6 +18,7 @@ Built-in Features
 .. toctree::
    :maxdepth: 1
 
+   flm.feature.annotations
    flm.feature.baseformatting
    flm.feature.cells
    flm.feature.cite
@@ -28,8 +29,12 @@ Built-in Features
    flm.feature.graphics
    flm.feature.headings
    flm.feature.href
+   flm.feature.markup
    flm.feature.math
+   flm.feature.numbering
+   flm.feature.quote
    flm.feature.refs
+   flm.feature.substmacros
    flm.feature.theorems
    flm.feature.verbatim
    flm.stdfeatures

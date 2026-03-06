@@ -603,3 +603,10 @@ class CiteMacro(FLMMacroSpecBase):
 
         s += '}'
         return s
+
+
+# FeatureClass is intentionally not defined here. FeatureExternalPrefixedCitations
+# requires external_citations_providers as a mandatory constructor argument (Python
+# citation provider objects), which cannot be supplied via the YAML-based command-line
+# feature-loading mechanism (flm.main.run).  Use set_external_citations_providers()
+# or wire up the feature programmatically.

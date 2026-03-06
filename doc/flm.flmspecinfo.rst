@@ -77,6 +77,11 @@ Text formatting
    :members:
    :undoc-members:
 
+.. autoclass:: SemanticBlockEnvironment
+   :show-inheritance:
+   :members:
+   :undoc-members:
+
 
 Error enforcing
 ~~~~~~~~~~~~~~~
