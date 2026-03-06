@@ -1,0 +1,122 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage{amsmath}
+\usepackage{zref-clever}
+\usepackage{hyperref}
+
+\makeatletter
+
+% Define a custom type for flm with empty type names,
+% so \zcref just prints the raw ref text with no prefix like "Theorem" or "Equation".
+\zcRefTypeSetup{flm--internal--ref}{
+  Name-sg = ,       % no name prefix (singular)
+  name-sg = ,       % no name prefix (singular, lowercase)
+  Name-pl = ,       % no name prefix (plural)
+  name-pl = ,       % no name prefix (plural, lowercase)
+}
+\newcounter{flm@internal@refcnt}
+
+\newcommand{\flmDefLabelText}[2]{%
+  \begingroup
+    % zref will get the formatted counter value, so hack that to return our
+    % full display text for this label
+    \def\theflm@internal@refcnt{#1}%
+    % Step the counter so zref sees a valid counter context
+    \refstepcounter{flm@internal@refcnt}%
+    % Override the type to our flm internal type
+    \zcsetup{reftype=flm--internal--ref}%
+    #2%
+  \endgroup
+}
+\makeatother
+
+
+%
+% See how we can customize the output (e.g. for EC Zoo's handbook)
+%
+\makeatletter
+\zref@newprop{refwithpage}{%
+  \@currentlabel
+  \raisebox{2pt}{\tiny\(\rightarrow\)p.\,\thepage}%
+}
+\zref@addprop{main}{refwithpage}
+\NewDocumentCommand{\myzcref}{m}{%
+  \zcref{#1}%
+}
+\zcsetup{nameinlink,cap,ref=refwithpage}
+\makeatother
+
+
+
+\zcRefTypeSetup{section}{
+  Name-sg = {\S} ,
+  name-sg = {\S} ,
+  Name-pl = {\S\S} ,
+  name-pl = {\S\S} ,
+  namesep = {\,} ,
+}
+
+
+
+\begin{document}
+
+Hello world.
+\begin{align}
+  a + b = c
+  \label{eq:test}
+\end{align}
+
+\section{Section Title}
+\label{s:s}
+
+Pin a label here.
+\phantomsection\flmDefLabelText{Pinned label}{\label{x:pinned}}%
+
+\subsection{Subsection Title}
+\label{s:ss}
+Subsection text.
+\subsubsection{Subsubsection Title}
+\label{s:sss}
+Subsubsection text.
+
+
+
+\clearpage
+Hello again.
+\begin{align}
+  x + y = z
+  \label{eq:test2}
+\end{align}
+
+\phantomsection\flmDefLabelText{The magical section}{\label{x:magical-section}}%
+\emph{Here is the magical section}
+
+\clearpage
+\sloppy
+
+Hi!
+Eq ref 1: \fbox{\zcref{eq:test}}.
+Pinned label ref: \fbox{\zcref{x:pinned}}.
+Magical section ref: \fbox{\zcref{x:magical-section}}.
+Eqs ref: \fbox{\zcref{eq:test,eq:test2}}.
+
+References to the sections:
+\fbox{\zcref{s:s}}
+\fbox{\zcref{s:ss}}
+\fbox{\zcref{s:sss}}
+\fbox{\zcref{s:s,s:ss,s:sss}}
+
+\clearpage
+Hi again!
+Multi refs: \fbox{\zcref{eq:test,eq:test2,x:pinned}}
+ \fbox{\zcref{x:magical-section,x:pinned}}
+ \fbox{\zcref{x:magical-section,eq:test2,x:pinned}}
+ \fbox{\zcref{eq:test2,x:pinned,eq:test}}
+
+Multi refs with added page info: \fbox{\myzcref{eq:test,eq:test2,x:pinned}}
+ \fbox{\myzcref{x:magical-section,x:pinned}}
+ \fbox{\myzcref{x:magical-section,eq:test2,x:pinned}}
+ \fbox{\myzcref{eq:test2,x:pinned,eq:test}}
+
+
+\end{document}
