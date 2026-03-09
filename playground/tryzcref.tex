@@ -35,15 +35,28 @@
 % See how we can customize the output (e.g. for EC Zoo's handbook)
 %
 \makeatletter
+\ExplSyntaxOn
 \zref@newprop{refwithpage}{%
-  \@currentlabel
+  \str_case:onF { \@currentcounter }
+    {
+      {equation} { (\@currentlabel) }
+      % {section}  { \@currentlabel }
+      % {subsection} { \@currentlabel }
+    }
+    { \@currentlabel } % fallback
   \raisebox{2pt}{\tiny\(\rightarrow\)p.\,\thepage}%
 }
 \zref@addprop{main}{refwithpage}
 \NewDocumentCommand{\myzcref}{m}{%
   \zcref{#1}%
 }
-\zcsetup{nameinlink,cap,ref=refwithpage}
+\zcsetup{
+  nameinlink,
+  cap,
+  ref=refwithpage,
+  refbounds={,,,},
+}
+\ExplSyntaxOff
 \makeatother
 
 
