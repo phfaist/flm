@@ -1,0 +1,12 @@
+{
+  "name": "main",
+  "packageManager": "yarn@4.6.0",
+  "private": true,
+  "scripts": {
+    "build": "yarn parcel build watch_hotreload_inject.ts"
+  },
+  "dependencies": {
+    "@parcel/core": "^2.16.4",
+    "parcel": "^2.16.4"
+  }
+}
