@@ -28,7 +28,8 @@ def hotreload_js_code_to_inject(wsHost, wsPort):
 
     return f"""(function(window, wsHost, wsPort){{
 {js_code}
-}})(window,{json.dumps(wsHost)},{json.dumps(wsPort)});"""
+}})(window,{json.dumps(wsHost)},{json.dumps(wsPort)});
+"""
 
 
 template_hr_begin_tag = '<!-- FLM_HOT_RELOAD_BEGIN_CONTENT -->'
