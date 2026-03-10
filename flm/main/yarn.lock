@@ -808,6 +808,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@parcel/transformer-inline-string@npm:2.16.4":
+  version: 2.16.4
+  resolution: "@parcel/transformer-inline-string@npm:2.16.4"
+  dependencies:
+    "@parcel/plugin": "npm:2.16.4"
+  checksum: 10c0/3037a7fe6fd1166d38901e790f330cd6a664e11796770528e83b432b1a93fcebf3370a556b05a925464ab24eabb50c5dda59f2b8a256868fa287f63e70f72d6c
+  languageName: node
+  linkType: hard
+
 "@parcel/transformer-js@npm:2.16.4":
   version: 2.16.4
   resolution: "@parcel/transformer-js@npm:2.16.4"
@@ -1780,6 +1789,7 @@ __metadata:
   resolution: "main@workspace:."
   dependencies:
     "@parcel/core": "npm:^2.16.4"
+    "@parcel/transformer-inline-string": "npm:2.16.4"
     morphdom: "npm:^2.7.8"
     parcel: "npm:^2.16.4"
   languageName: unknown

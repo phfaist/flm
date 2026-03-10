@@ -81,7 +81,18 @@ def main_watch(**kwargs):
             #
             # Compile - main run NOW!
             #
-            info = main.main(**run_kwargs)
+            try:
+                info = main.main(**run_kwargs)
+            except LatexWalkerLocatedError as e:
+                error_info = {'message': str(e), 'exc': e}
+                if hotreloader is not None and hotreloader.is_enabled():
+                    hotreloader.new_run_send_error(error_info)
+                raise
+            except Exception as e:
+                error_info = {'message': str(e), 'exc': e}
+                if hotreloader is not None and hotreloader.is_enabled():
+                    hotreloader.new_run_send_error(error_info)
+                raise
 
             if hotreloader is not None and hotreloader.is_enabled():
                 # Inform our hotreloader of a new run.

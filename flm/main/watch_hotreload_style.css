@@ -1,0 +1,71 @@
+#ErrorOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(10, 5, 5, 0.82);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    overflow: auto;
+    padding: 2rem;
+    box-sizing: border-box;
+    animation: errorOverlayFadeIn 0.15s ease-out;
+}
+
+#ErrorOverlay.error-overlay-shown {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+@keyframes errorOverlayFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+#ErrorOverlay pre {
+    margin: auto;
+    max-width: 900px;
+    width: 100%;
+    padding: 1.5rem 2rem 2rem;
+    box-sizing: border-box;
+
+    background: #1a0a0a;
+    color: #ff6b6b;
+    border: 1px solid #5a1a1a;
+    border-top: 3px solid #e03030;
+    border-radius: 6px;
+    box-shadow:
+        0 0 0 1px rgba(200, 40, 40, 0.15),
+        0 4px 32px rgba(180, 20, 20, 0.5),
+        0 1px 4px rgba(0, 0, 0, 0.8);
+
+    font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", ui-monospace,
+                 "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+
+    animation: errorPanelSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes errorPanelSlideIn {
+    from { transform: translateY(-12px); opacity: 0; }
+    to   { transform: translateY(0);     opacity: 1; }
+}
+
+/* "ERROR" badge pseudo-element above the panel */
+#ErrorOverlay pre::before {
+    content: "💥 ERROR";
+    display: block;
+    margin-bottom: 1rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid #3a1010;
+
+    color: #e03030;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+}

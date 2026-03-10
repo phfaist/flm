@@ -6,13 +6,11 @@ import os.path
 import json
 import threading
 
+from html import escape as html_escape
 
 import asyncio
 import websockets.asyncio.server as websockets_server
 # import websockets.exceptions as websockets_exceptions
-
-
-from lxml import html
 
 from .watch_util import find_available_port
 
@@ -150,6 +148,8 @@ class HotReloaderDisabled:
     def new_run_send_update(self, info, content):
         pass
 
+    def new_run_send_error(self, error_info):
+        pass
 
 
 class HotReloaderHtml:
@@ -158,10 +158,6 @@ class HotReloaderHtml:
         self.hotreload_server = hotreload_server
         self.computed_format = computed_format
         self.output = output
-
-        self.previous_content = None
-        with open(self.output, 'r', encoding='utf-8') as f:
-            self.previous_content = f.read()
 
 
     def is_enabled(self):
@@ -214,7 +210,14 @@ class HotReloaderHtml:
 
         self.hotreload_server.send_update_info(update_info)
 
-        # save this as the current content
-        self.previous_content = content
+
+    def new_run_send_error(self, error_info):
+
+        update_info = {
+            "action": 'error-display',
+            "content_html": '<pre>' + html_escape(error_info['message']) + '</pre>',
+        }
+        
+        self.hotreload_server.send_update_info(update_info)
 
 

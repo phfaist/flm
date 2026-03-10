@@ -4,8 +4,11 @@
 //
 //     window, wsHost, wsPort
 //
+const document = window.document;
 
 import morphdom from 'morphdom';
+
+import cssText from 'bundle-text:./watch_hotreload_style.css';
 
 declare var wsHost: string;
 declare var wsPort: number;
@@ -154,7 +157,7 @@ function updateInstructionsReceived(mainContainer: HTMLElement, info : UpdateInf
 }*/
 
 type UpdateInfo = {
-    action: 'update-main-content',
+    action: 'update-main-content'|'error-display',
     content_html: string,
 };
 
@@ -360,9 +363,46 @@ function stampMathContentSources(mainContainer: HTMLElement, elements: HTMLEleme
     }
 }
 
+function clearErrorOverlay()
+{
+    const overlayDiv = document.getElementById('ErrorOverlay');
+    if (overlayDiv != null) {
+        overlayDiv.classList.remove('error-overlay-shown');
+    }
+}
+function displayErrorOverlay(mainContainer : HTMLElement, info : UpdateInfo)
+{
+    const makeErrorOverlayDiv = () => {
+        const el = document.getElementById('ErrorOverlay');
+        if (el != null) {
+            return el;
+        }
+        const newEl = document.createElement('div');
+        newEl.setAttribute('id', 'ErrorOverlay');
+        document.body.appendChild(newEl);
+        return newEl;
+    };
+    let overlay = makeErrorOverlayDiv();
+
+    overlay.classList.add('error-overlay-shown');
+
+    overlay.innerHTML = info.content_html;
+}
+
 window.addEventListener("DOMContentLoaded", () => {
 
+    //
+    // inject our style tag, mainly for the error overlay display
+    //
+    let style = document.createElement('style');
+    style.textContent = cssText;
+    document.head.appendChild(style);
+
+    //
+    // Our main container div
+    //
     const mainContainer = document.getElementById('Main')!;
+
     //
     // First of all, stamp all our equations with the source math data to help
     // us process updates.
@@ -376,11 +416,18 @@ window.addEventListener("DOMContentLoaded", () => {
     websocket.addEventListener("message", function (m) {
         console.log("Message!", m);
         const info = JSON.parse(m.data) as UpdateInfo;
-        try {
-            updateMainContent(mainContainer, info);
-        } catch (err) {
-            // failure in the incremental update, so reload everything ... :/
-            window.location.reload();
+        clearErrorOverlay();
+        if (info.action === 'update-main-content') {
+            try {
+                updateMainContent(mainContainer, info);
+            } catch (err) {
+                // failure in the incremental update, so reload everything ... :/
+                window.location.reload();
+            }
+        } else if (info.action === 'error-display') {
+            displayErrorOverlay(mainContainer, info);
+        } else {
+            console.error("Invalid update info action!", info);
         }
     });
     websocket.addEventListener("open", function () { console.log("websocket open"); });

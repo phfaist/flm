@@ -16,3 +16,4 @@ An encoder \(x+z\): A depth-\(L^2\) circuit wiht \(A+b\) and \(\int dx f(x)=0\) 
 
 an \(L\times L\) square lattice using \textbf{CNOT} gates (i.e., "local moves").
 
+%%An \ERROR!
