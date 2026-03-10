@@ -11,9 +11,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import threading
 import socket
 # import errno
-import asyncio
-import websockets.asyncio.server as websockets_server
-# import websockets.exceptions as websockets_exceptions
 
 import watchfiles
 
@@ -25,64 +22,15 @@ from pylatexenc.latexnodes import LatexWalkerLocatedError
 from . import main
 
 
+from .watch_util import find_available_port
+from .watch_hotreload import make_hotreloader
+
+
+
 ext_by_format = {
     "html": ".html",
     "latex": ".tex",
 }
-
-
-def hotreload_js_code_to_inject(wsHost, wsPort):
-    return f"""
-window.addEventListener("DOMContentLoaded", function() {{
-    var websocket = new WebSocket("ws://{wsHost}:{wsPort}/");
-    websocket.addEventListener("message", function (m) {{
-        console.log("Message!", m);
-        var info = JSON.parse(m.data);
-        if (info.action == 'update-content') {{
-            var bodyElement = document.getElementById('Main');
-            if (bodyElement == null || info.content_html == null) {{
-                // either no "Main" element or the server couldn't extract
-                // the new body content ... need a full reload.
-                window.location.reload();
-                return;
-            }} else {{
-                // replace "Main" content:
-                bodyElement.innerHTML = info.content_html;
-                // see if there is any further setup to do (MathJaX,
-                // build toc, etc.) -- depends on the template
-                if (window.flmSetup) {{
-                     window.flmSetup();
-                }}
-            }}
-        }}
-    }});
-    websocket.addEventListener("open", function () {{ console.log("websocket open"); }});
-    websocket.addEventListener("close", function () {{ console.log("websocket closed"); }});
-    websocket.addEventListener("error", function (err) {{
-        console.log("websocket error", err);
-    }} );
-    console.log("Started websocket and listening for update messages.");
-}});
-"""
-
-
-template_hr_begin_tag = '<!-- FLM_HOT_RELOAD_BEGIN_CONTENT -->'
-template_hr_end_tag = '<!-- FLM_HOT_RELOAD_END_CONTENT -->'
-
-
-
-def find_available_port(host="localhost", base_port=8000, maxcount=64):
-    """Find a port not in ues starting at given port"""
-    count = 0
-    while count <= maxcount:
-        port = base_port + count
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            if s.connect_ex((host, port)) == 0:
-                count += 1
-                continue
-            else:
-                return port
-    raise RuntimeError(f"Couldn't find a free port within {maxcount} of {base_port} on {host}")
 
 
 
@@ -128,44 +76,27 @@ def main_watch(**kwargs):
 
         server = None
 
-        ws_notify_update_queue = asyncio.Queue()
+        def do_compile(hotreloader=None):
 
-        enable_hotreload = (computed_format == 'html')
-
-        def do_compile(do_ws_update=True):
-
+            #
+            # Compile - main run NOW!
+            #
             info = main.main(**run_kwargs)
 
-            if enable_hotreload and do_ws_update and computed_format == 'html':
-                # get the body of the newly generated HTML, to inform
-                # hotreload clients
+            if hotreloader is not None and hotreloader.is_enabled():
+                # Inform our hotreloader of a new run.
                 with open(new_arg_output, 'r', encoding='utf-8') as f:
                     content = f.read()
 
-                ibegin = content.find(template_hr_begin_tag)
-                iend = content.rfind(template_hr_end_tag)
-                if ibegin == -1 or iend == -1:
-                    logger.debug("Content hot-reloading not supported by this template")
-                    content_html = None
-                else:
-                    content_html = content[ ibegin+len(template_hr_begin_tag) : iend ]
-
-                # update hot-reload clients
-                update_info = {
-                    "action": "update-content",
-                    "content_html": content_html,
-                }
-                #logger.info("Preparing to send update to clients.")
-                asyncio.run_coroutine_threadsafe(
-                    ws_notify_update_queue.put(json.dumps(update_info)),
-                    ws_loop_info['loop'],
-                )
+                # Send update to our clients
+                hotreloader.new_run_send_update(info=info, content=content)
 
             logger.info("🚀 Document recompiled successfully 🚀")
 
             return info
 
-        info = do_compile(do_ws_update=False) #main.main(**run_kwargs)
+        # first run does not have any hotreloader set, no existing client to update yet.
+        info = do_compile(hotreloader=None)
 
         watch_files = [
             info['flm_run_info']['input_source']
@@ -245,86 +176,14 @@ def main_watch(**kwargs):
         # Now, start the WebSockets server for hot-reloading pages.
         #
 
-        ws_host = 'localhost'
-        ws_port = find_available_port(ws_host, 28102)
+        hotreloader = make_hotreloader(
+            computed_format=computed_format,
+            output=new_arg_output,
+        )
 
-        ws_connected_clients = []
-        ws_loop_info = { "loop": None }
-
-        async def ws_notify_update_clients():
-            while True:
-                # Wait for a message on the Queue
-                message = await ws_notify_update_queue.get()
-                if ws_connected_clients:
-                    # Send to all connected clients
-                    await asyncio.gather(*[
-                        client.send(message)
-                        for client in ws_connected_clients
-                    ])
-                    logger.info(f"Sent websocket update to {len(ws_connected_clients)} clients")
-
-        async def ws_handler(client, path=None):
-            # Handles new WebSocket connections.
-            # Register the new websocket client.
-            logger.info("Websocket client connected")
-            ws_connected_clients.append(client)
-            try:
-                await client.wait_closed() # keep the connection open
-            finally:
-                ws_connected_clients.remove(client)
-
-        async def ws_async_start_and_serve():
-            # start the server and the message sender
-            ws_server = await websockets_server.serve(ws_handler, ws_host, ws_port)
-            logger.info(f"Websocket server started for automatic hot-reload")
-            # on {ws_host}:{ws_port}
-
-            await asyncio.gather(*[
-                ws_server.wait_closed(), ws_notify_update_clients(),
-            ])
-
-        def ws_start_server_in_thread():
-            ws_loop = asyncio.new_event_loop()
-            ws_loop_info["loop"] = ws_loop
-            asyncio.set_event_loop(ws_loop)
-            ws_loop.run_until_complete( ws_async_start_and_serve() )
-
-
-        ws_server_thread = threading.Thread(target=ws_start_server_in_thread, daemon=True)
-        ws_server_thread.start()
-
-
-        #
-        # Inject hot-reload code in generate file.
-        #
-
-        def inject_hotreload(fname):
-            with open(fname, 'r', encoding='utf-8') as f:
-                content = f.read()
-
-            # inject hot-reload code in generated HTML, if necessary
-            ibodyend = content.rfind('</body>')
-            if ibodyend == -1:
-                logger.warning("Couldn't inject hot-reload JS code, didn't find </body>")
-                return
-
-            hotreload_js = (
-                """<script type="text/javascript">"""
-                + hotreload_js_code_to_inject(ws_host, ws_port)
-                + """</script>"""
-            )
-
-            content = (
-                content[:ibodyend]
-                + hotreload_js
-                + content[ibodyend:]
-            )
-
-            with open(fname, 'w', encoding='utf-8') as fw:
-                fw.write(content)
 
         # do it!
-        inject_hotreload(new_arg_output)
+        hotreloader.inject_hotreload_js()
 
 
         logger.info(f"""
@@ -351,8 +210,8 @@ def main_watch(**kwargs):
                 ]))
 
                 try:
-                    do_compile(do_ws_update=True)
-                    inject_hotreload(new_arg_output)
+                    do_compile(hotreloader=hotreloader)
+                    hotreloader.inject_hotreload_js()
 
                 except LatexWalkerLocatedError as e:
                     logger.error("Error!\n\n%s\n", e)
