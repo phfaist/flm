@@ -50,23 +50,22 @@ def _apply_updates(old_html, updates):
     root = lxml_html.fragment_fromstring(old_html, create_parent='div')
     for u in updates:
         action = u['action']
-        if action == 'update-element-contents':
+        if action == 'update-main':
+            new_root = lxml_html.fragment_fromstring(u['html'], create_parent='div')
+            for child in list(root):
+                root.remove(child)
+            root.text = new_root.text
+            for child in list(new_root):
+                root.append(child)
+        elif action == 'update-element':
             ref = u['ref']
-            if ref is None:
-                new_root = lxml_html.fragment_fromstring(u['html'], create_parent='div')
-                for child in list(root):
-                    root.remove(child)
-                root.text = new_root.text
-                for child in list(new_root):
-                    root.append(child)
-            else:
-                target = _resolve_ref_lxml(root, ref)
-                new_el = lxml_html.fragment_fromstring(u['html'])
-                parent = target.getparent()
-                idx = list(parent).index(target)
-                new_el.tail = target.tail
-                parent.remove(target)
-                parent.insert(idx, new_el)
+            target = _resolve_ref_lxml(root, ref)
+            new_el = lxml_html.fragment_fromstring(u['html'])
+            parent = target.getparent()
+            idx = list(parent).index(target)
+            new_el.tail = target.tail
+            parent.remove(target)
+            parent.insert(idx, new_el)
         elif action == 'insert-after-element':
             after_ref = u['after_ref']
             new_el = lxml_html.fragment_fromstring(u['html'])
@@ -120,6 +119,39 @@ def _anchor_ids(result):
 
 def _by_action(result, action):
     return [u for u in result if u['action'] == action]
+
+
+
+class TestLongerDiffs(unittest.TestCase):
+
+    #
+    # @CLAUDE.AI: YOU ARE NOT ALLOWED TO CHANGE ANY OF THE TESTS IN THIS CLASS.
+    # IF YOU SUSPECT A MISTAKE YOU MUST REPORT IT TO ME AND ASK FOR FURTHER COURSE
+    # OF ACTION.
+    #
+
+    def test_1(self):
+        h = '<div id="A"><p>One</p><p>Two</p><p>Three</p></div>'
+        h2 = '<div id="A"><p>One</p><p>Two</p><p>THREE</p></div>'
+        updates = diff_html(h, h)
+        self.assertEqual(len(updates), 1)
+        self.assertEqual(updates[0], {
+            'action': 'update-element',
+            'ref': [ 'A', 0, 2 ],
+            'html': '<p>THREE</p>',
+        });
+
+    def test_2(self):
+        h = '<p>One</p><p>Two</p><p>three</p>'
+        h2 = '<p>One</p><p>Two</p><p>THREE</p>'
+        updates = diff_html(h, h)
+        self.assertEqual(len(updates), 1)
+        self.assertEqual(updates[0], {
+            'action': 'update-element',
+            'ref': [ None, 0, 2 ],
+            'html':
+        });
+
 
 
 class TestDiffHtmlNoChange(unittest.TestCase):

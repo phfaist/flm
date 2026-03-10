@@ -1,0 +1,18 @@
+---
+title: 'My mini test document'
+author: 'Me'
+date: 'April 31, 2032'
+flm:
+  template: 'simple'
+---
+
+\section{Test one}
+
+\(A\) family of abelian topological CSS stabilizer codes whose generators are few-body \(X\)-type and \((Z-1)\)-type-\(x\) Paulix strings associated to the stars and plaquettes, respectively, of a cellulation of a two-dimensional surface (with a qubit located at each edge of the cellulation).  \textit{Toric code} often either refers to the construction on the two-dimensional torus or is an alternative name for the general construction.  The construction on surfaces with boundaries is often called the \textit{planar code}.  Codewords correspond to ground states of the surface code Hamiltonian, and error operators create or annihilate pairs of anyonic charges or vortices.
+
+\subsection{An encoder.}
+
+An encoder \(x+z\): A depth-\(L^2\) circuit wiht \(A+b\) and \(\int dx f(x)=0\) that grows the code out of a small patch on 
+
+an \(L\times L\) square lattice using \textbf{CNOT} gates (i.e., "local moves").
+

@@ -1,6 +1,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
+import re
 import os.path
 import json
 import threading
@@ -19,9 +20,11 @@ from .watch_util import find_available_port
 
 
 def hotreload_js_code_to_inject(wsHost, wsPort):
-    js_src = os.path.realpath(os.path.join(os.path.dirname(__file__), 'watch_hotreload_inject.js'));
+    js_src = os.path.realpath(os.path.join(os.path.dirname(__file__), 'dist', 'watch_hotreload_inject.js'));
     with open(js_src, 'r', encoding='utf-8') as f:
         js_code = f.read()
+
+    js_code = re.sub(r'^\/\/\# sourceMappingURL\=.*$', '', js_code, flags=re.MULTILINE)
 
     return f"""(function(window, wsHost, wsPort){{
 {js_code}
@@ -202,17 +205,9 @@ class HotReloaderHtml:
         else:
             content_html = content[ ibegin+len(template_hr_begin_tag) : iend ]
 
-        updates = diff_html(self.previous_content, content)
-        if len(updates) == 1 and updates[0][0] is None:
-            # full body needs to be updated
-            updates = [
-                { "action": "update-main",
-                  "html": content_html },
-            ]
-
         # update hot-reload clients
         update_info = {
-            "updates": updates,
+            "action": 'update-main-content',
             "content_html": content_html,
         }
 
@@ -223,24 +218,38 @@ class HotReloaderHtml:
 
 
 
+#
+# DIFF-HTML MACHINERY.
+#
+
 
 
 def diff_html(html_old, html_new):
-    """Return a list of granular structural updates from html_old to html_new.
+    """
+    Return a list of granular structural updates from html_old to html_new.
 
     Each update is a dict with an 'action' key:
 
-    'update-element-contents'
+    'update-main'
+        The entire root container contents needs to be updated.
+        Keys: 'html' (str)
+
+    'update-element'
         An element's content (and/or attributes) changed in place.
-        Keys: 'id' (str|None), 'html' (str).
-        id=None → root container; html is the new full innerHTML.
-        id=str  → outerHTML of the element with that id.
+        Keys: 'ref' str, 'html' (str).
+        ref=str  → outerHTML of the element with that ref.
+
+        NOTE: The id in the ref may be None, in which case the root element is
+        to be used in place for that ID; in such a case sibling_offset must be
+        zero and child_index must be non-None.
 
     'insert-after-element'
         A new element was inserted.
-        Keys: 'after_ref' (ref|None), 'parent_id' (str|None), 'html' (str).
-        after_ref=None  → insert before all siblings in parent.
-        parent_id=None  → root container is the parent.
+        Keys: 'after_ref' (ref), 'html' (str).
+
+        NOTE: The id in after_ref may be None, in which case the root element is
+        to be used in place for that ID; in such a case sibling_offset must be
+        zero and child_index must be non-None.
 
     'delete-element'
         An element was removed.
@@ -316,7 +325,7 @@ def _diff_children(old_parent, new_parent):
         el_ref = _element_ref(new_el, new_kids, new_parent)
         if el_ref is not None:
             updates.append({
-                'action': 'update-element-contents',
+                'action': 'update-element',
                 'ref': el_ref,
                 'html': html.tostring(new_el, encoding='unicode'),
             })
@@ -326,27 +335,29 @@ def _diff_children(old_parent, new_parent):
     # Eclipse check: if any update targets new_parent itself (a container
     # update), it replaces the entire element and all finer-grained updates
     # within it are redundant.
+    #
+    # ### FIXME: Updates should be assembled in a way that this is should not
+    # ### necessary! This misses also any other eclipsing that might be
+    # ### happening (e.g., an update reported in a child element of another
+    # ### element which itself has an update; can this happen?)
     container_ref_key = (parent_id, 0, None) if parent_id is not None else None
     for u in updates:
-        if u['action'] == 'update-element-contents':
-            u_key = tuple(u['ref']) if u['ref'] is not None else None
-            if u_key == container_ref_key:
-                return [u]
+        if u['action'] == 'update-main':
+            return [ u ]
 
     return updates
 
 
 def _container_update(new_parent, parent_id):
-    """Build an update-element-contents for a parent/container element."""
+    """Build an update-element for a parent/container element."""
     if parent_id is not None:
         return {
-            'action': 'update-element-contents',
+            'action': 'update-element',
             'ref': [parent_id, 0, None],
             'html': html.tostring(new_parent, encoding='unicode'),
         }
     return {
-        'action': 'update-element-contents',
-        'ref': None,
+        'action': 'update-main',
         'html': _inner_html(new_parent),
     }
 
@@ -386,6 +397,11 @@ def _match_children(old_kids, new_kids):
             new_used.add(j)
 
     # Phase 2: match remaining by tag (greedy left-to-right)
+    #
+    # ### FIXME: This is not good. If we insert a paragraph somewhere in a long
+    # ### list of paragraphs, this will not notice the paragraph addition and
+    # ### instead report a huge number of edits.  The html-text-diff already
+    # ### provides a fine-grained diff, we need to use that information!
     for i, c in enumerate(old_kids):
         if i in old_used:
             continue
@@ -479,6 +495,9 @@ def _element_ref(el, siblings, parent):
     """
     idx = siblings.index(el)
     for k in range(idx, -1, -1):
+        # ### FIXME: This looks terrible. Why not check that we're not
+        # ### encountering weird nodes as we are scanning back for a sibling
+        # ### with ID?  Plus, we need to make sure we ignore comments, etc.
         anchor_id = siblings[k].get('id')
         if anchor_id:
             if not _has_text_between(parent, siblings[k], el):
@@ -513,7 +532,7 @@ def _order_updates(updates):
        after_ref may chain through a previously inserted element, so earlier
        positions must be inserted first.  after_ref=None (insert at start) is
        treated as offset -1 so it comes first.
-    3. update-element-contents — last.
+    3. update-element — last.
        Uses new-tree refs; only correct once deletions and insertions have
        brought the DOM structure into the new-tree shape.
     """
@@ -531,7 +550,7 @@ def _order_updates(updates):
         if action == 'insert-after-element':
             so, ci = _so(u['after_ref'])
             return (1, so, ci)
-        return (2, 0, 0)   # update-element-contents
+        return (2, 0, 0)   # update-element
 
     return sorted(updates, key=sort_key)
 
@@ -547,7 +566,7 @@ def _deduplicate_updates(updates):
     result = []
     for u in updates:
         action = u['action']
-        if action == 'update-element-contents':
+        if action == 'update-element':
             key = tuple(u['ref']) if u['ref'] is not None else None
             if key not in seen_update_refs:
                 seen_update_refs.add(key)

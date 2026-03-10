@@ -291,6 +291,8 @@ Let's try references to multiple targets:
 
 \section{Here's a table}
 
+New text is here.
+
 \begin{table}
   \begin{cells}
     \celldata<H>{Brand & Type & Darkness}
