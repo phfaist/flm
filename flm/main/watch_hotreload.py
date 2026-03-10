@@ -203,6 +203,12 @@ class HotReloaderHtml:
             content_html = content[ ibegin+len(template_hr_begin_tag) : iend ]
 
         updates = diff_html(self.previous_content, content)
+        if len(updates) == 1 and updates[0][0] is None:
+            # full body needs to be updated
+            updates = [
+                { "action": "update-main",
+                  "html": content_html },
+            ]
 
         # update hot-reload clients
         update_info = {
@@ -253,7 +259,8 @@ def diff_html(html_old, html_new):
     new_root = html.fragment_fromstring(html_new, create_parent='div')
 
     updates = _diff_children(old_root, new_root)
-    return _deduplicate_updates(updates)
+    updates = _deduplicate_updates(updates)
+    return _order_updates(updates)
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +322,16 @@ def _diff_children(old_parent, new_parent):
             })
         else:
             updates.append(_container_update(new_parent, parent_id))
+
+    # Eclipse check: if any update targets new_parent itself (a container
+    # update), it replaces the entire element and all finer-grained updates
+    # within it are redundant.
+    container_ref_key = (parent_id, 0, None) if parent_id is not None else None
+    for u in updates:
+        if u['action'] == 'update-element-contents':
+            u_key = tuple(u['ref']) if u['ref'] is not None else None
+            if u_key == container_ref_key:
+                return [u]
 
     return updates
 
@@ -481,6 +498,42 @@ def _preceding_ref(j, kids, parent):
     if j == 0:
         return None
     return _element_ref(kids[j - 1], kids, parent)
+
+
+# ---------------------------------------------------------------------------
+# Ordering
+# ---------------------------------------------------------------------------
+
+def _order_updates(updates):
+    """Sort updates so they can be applied linearly without invalidating refs.
+
+    1. delete-element — back-to-front (descending sibling_offset).
+       Uses old-tree refs; removing from the back preserves earlier positions.
+    2. insert-after-element — front-to-back (ascending after_ref offset).
+       after_ref may chain through a previously inserted element, so earlier
+       positions must be inserted first.  after_ref=None (insert at start) is
+       treated as offset -1 so it comes first.
+    3. update-element-contents — last.
+       Uses new-tree refs; only correct once deletions and insertions have
+       brought the DOM structure into the new-tree shape.
+    """
+    def _so(ref):
+        """(sibling_offset, child_index) from a ref, defaulting to (-1, -1)."""
+        if ref is None:
+            return (-1, -1)
+        return (ref[1], ref[2] if ref[2] is not None else -1)
+
+    def sort_key(u):
+        action = u['action']
+        if action == 'delete-element':
+            so, ci = _so(u['ref'])
+            return (0, -so, -ci)
+        if action == 'insert-after-element':
+            so, ci = _so(u['after_ref'])
+            return (1, so, ci)
+        return (2, 0, 0)   # update-element-contents
+
+    return sorted(updates, key=sort_key)
 
 
 # ---------------------------------------------------------------------------

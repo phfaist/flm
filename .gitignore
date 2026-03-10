@@ -134,6 +134,10 @@ dmypy.json
 .pyre/
 
 
+flm/main/.parcel-cache
+flm/main/.yarn
+flm/main/.pnp*
+
 
 
 # my funny test file
