@@ -72,6 +72,41 @@
 
 
 
+/* Compiling state spinner */
+#CompilingStateWidget {
+    display: none;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 9998;
+    width: 18px;
+    height: 18px;
+}
+
+#CompilingStateWidget.idle {
+    display: none;
+}
+
+#CompilingStateWidget.compiling {
+    display: block;
+}
+
+#CompilingStateWidget.compiling::after {
+    content: '';
+    display: block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(180, 180, 180, 0.25);
+    border-top-color: rgba(180, 180, 180, 0.75);
+    border-radius: 50%;
+    animation: compilingSpinnerRotate 0.75s linear infinite;
+}
+
+@keyframes compilingSpinnerRotate {
+    to { transform: rotate(360deg); }
+}
+
+
 /* Flash animation for CMD/CTRL+SHIFT+click source-location jumps */
 .flm-source-flash {
     animation: flmSourceFlash 0.7s ease-out forwards;

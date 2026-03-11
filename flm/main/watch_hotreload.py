@@ -324,6 +324,9 @@ class HotReloaderDisabled:
     def new_run_send_error(self, error_info):
         pass
 
+    def set_compiling_state(self, state):
+        pass
+
 
 class HotReloaderHtml:
     def __init__(self, hotreload_server, computed_format, output):
@@ -393,4 +396,10 @@ class HotReloaderHtml:
         
         self.hotreload_server.send_update_info(update_info)
 
+    def set_compiling_state(self, state):
+        update_info = {
+            "action": 'set-compiling-state',
+            "state": state,
+        }
+        self.hotreload_server.send_update_info(update_info)
 

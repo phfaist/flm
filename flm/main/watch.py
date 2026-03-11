@@ -260,6 +260,7 @@ def main_watch(**kwargs):
                 ]))
 
                 try:
+                    hotreloader.set_compiling_state('compiling')
                     do_compile(hotreloader=hotreloader)
                     hotreloader.inject_hotreload_js()
 
@@ -268,6 +269,9 @@ def main_watch(**kwargs):
 
                 except Exception as e:
                     logger.error("Error recompiling document! %s", e, exc_info=e)
+
+                finally:
+                    hotreloader.set_compiling_state('idle')
 
             logger.info('Okay, quitting now.')
 

@@ -22,11 +22,18 @@ import cssText from 'bundle-text:./watch_hotreload_style.css';
 declare var wsHost: string;
 declare var wsPort: number;
 
+const COMPILING_STATES = ['compiling', 'idle'];
+type CompilingState = 'compiling' | 'idle';
 
-type UpdateInfo = {
-    action: 'update-main-content'|'error-display',
-    content_html: string,
-};
+type UpdateInfo =
+    | {
+        action: 'update-main-content'|'error-display',
+        content_html: string,
+    }
+    | {
+        action: 'set-compiling-state',
+        state: CompilingState,
+    }
 
 function updateMainContentIncremental(mainContainer : HTMLElement, html : string)
 {
@@ -190,6 +197,9 @@ function updateMainContentIncremental(mainContainer : HTMLElement, html : string
 
 function updateMainContent(mainContainer : HTMLElement, info : UpdateInfo)
 {
+    if (info.action !== 'update-main-content') {
+        return;
+    }
     if (info.content_html == null) {
         // The server couldn't extract the new body content ... need a full reload.
         throw new Error(`No main element!’`);
@@ -230,40 +240,18 @@ function stampMathContentSources(mainContainer: HTMLElement, elements: HTMLEleme
     }
 }
 
-function clearErrorOverlay()
-{
-    const overlayDiv = document.getElementById('ErrorOverlay');
-    if (overlayDiv != null) {
-        overlayDiv.classList.remove('error-overlay-shown');
-    }
-}
-function displayErrorOverlay(mainContainer : HTMLElement, info : UpdateInfo)
-{
-    const makeErrorOverlayDiv = () => {
-        const el = document.getElementById('ErrorOverlay');
-        if (el != null) {
-            return el;
-        }
-        const newEl = document.createElement('div');
-        newEl.setAttribute('id', 'ErrorOverlay');
-        document.body.appendChild(newEl);
-        return newEl;
-    };
-    let overlay = makeErrorOverlayDiv();
-
-    overlay.classList.add('error-overlay-shown');
-
-    overlay.innerHTML = info.content_html;
-}
 
 
 
 type SourceLocation = [source_path: string, line: number|undefined, col: number|undefined];
 
+
 class HotReloadClient
 {
     private ws: WebSocket;
     private mainContainer: HTMLElement;
+    private errorOverlayDiv: HTMLElement;
+    private compilingWidgetDiv: HTMLElement;
 
     constructor(url: string, mainContainer: HTMLElement)
     {
@@ -274,14 +262,26 @@ class HotReloadClient
         this.ws.addEventListener("close", () => console.log("websocket closed"));
         this.ws.addEventListener("error", (err) => console.log("websocket error", err));
         console.log("Started websocket and listening for update messages.");
+
+        // the error overlay div
+        const errorOverlayDiv = document.createElement('div');
+        errorOverlayDiv.setAttribute('id', 'ErrorOverlay');
+        document.body.appendChild(errorOverlayDiv);
+        this.errorOverlayDiv = errorOverlayDiv;
+
+        const compilingWidgetDiv = document.createElement('div');
+        compilingWidgetDiv.setAttribute('id', 'CompilingStateWidget');
+        document.body.appendChild(compilingWidgetDiv);
+        this.compilingWidgetDiv = compilingWidgetDiv;
     }
 
     private _onMessage(m: MessageEvent) : void
     {
         console.log("Message!", m);
         const info = JSON.parse(m.data) as UpdateInfo;
-        clearErrorOverlay();
         if (info.action === 'update-main-content') {
+            this.clearErrorState();
+            this.setCompilingState('idle');
             try {
                 updateMainContent(this.mainContainer, info);
             } catch (err) {
@@ -289,10 +289,33 @@ class HotReloadClient
                 window.location.reload();
             }
         } else if (info.action === 'error-display') {
-            displayErrorOverlay(this.mainContainer, info);
+            this.displayErrorOverlay(info);
+            this.setCompilingState('idle');
+        } else if (info.action === 'set-compiling-state') {
+            this.setCompilingState(info.state);
         } else {
             console.error("Invalid update info action!", info);
         }
+    }
+
+    clearErrorState() : void
+    {
+        this.errorOverlayDiv.classList.remove('error-overlay-shown');
+    }
+    displayErrorOverlay(info : UpdateInfo)
+    {
+        if (info.action !== 'error-display') {
+            return;
+        }
+        this.errorOverlayDiv.classList.add('error-overlay-shown');
+        this.errorOverlayDiv.innerHTML = info.content_html;
+    }
+    setCompilingState(state : CompilingState)
+    {
+        this.compilingWidgetDiv.classList.remove(
+            ...COMPILING_STATES.filter( s => s != state )
+        );
+        this.compilingWidgetDiv.classList.add(state);
     }
 
     sendCommand(action: string, params: Record<string, unknown> = {}) : void
