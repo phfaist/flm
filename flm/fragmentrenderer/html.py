@@ -169,21 +169,23 @@ class HtmlFragmentRenderer(FragmentRenderer):
         s += f'</{tagname}>'
         return s
 
-    def wrap_in_link(self, display_html, target_href, *, class_names=None):
+    def wrap_in_link(self, display_html, target_href, *, class_names=None, attrs=None):
         if not target_href: # e.g., None
             target_href = '#'
-        attrs = {
+        a_attrs = {
             'href': target_href,
         }
+        if attrs is not None:
+            a_attrs.update(attrs)
         if callable(self.use_link_target_blank):
             if self.use_link_target_blank(target_href):
-                attrs['target'] = '_blank'
+                a_attrs['target'] = '_blank'
         elif self.use_link_target_blank and not target_href.startswith('#'):
-            attrs['target'] = '_blank'
+            a_attrs['target'] = '_blank'
         return self.wrap_in_tag(
             'a',
             display_html,
-            attrs=attrs,
+            attrs=a_attrs,
             class_names=class_names,
         )
 
