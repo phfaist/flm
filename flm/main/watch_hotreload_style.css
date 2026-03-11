@@ -94,10 +94,10 @@
 #CompilingStateWidget.compiling::after {
     content: '';
     display: block;
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(180, 180, 180, 0.25);
-    border-top-color: rgba(180, 180, 180, 0.75);
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(83, 88, 186, 0.4);
+    border-top-color: rgba(83, 88, 186, 0.12);
     border-radius: 50%;
     animation: compilingSpinnerRotate 0.75s linear infinite;
 }

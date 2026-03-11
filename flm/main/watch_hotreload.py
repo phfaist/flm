@@ -282,7 +282,7 @@ class OpenEditorClientMessageHandler:
         if open_fn is None:
             logger.warning("open-editor: no editor available, ignoring request")
             return
-        logger.info(f"open-editor: opening {fname}:{line} in {editor_name}")
+        logger.info(f"open-editor: opening {fname}:{line}:{col} in {editor_name}")
         open_fn(fname, line, col)
 
 
@@ -291,7 +291,7 @@ def make_hotreloader(
         hotreload_server=None,
         allowed_source_paths=None,
     ):
-    if computed_format is not 'html':
+    if computed_format != 'html':
         return HotReloaderDisabled()
 
     if hotreload_server is None:

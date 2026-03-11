@@ -56,6 +56,8 @@ def main_watch(**kwargs):
         # inspect the run meta-information without running yet.
         #
 
+        logger.info("Analyzing document rendering pipeline")
+
         main_runner = main.Main(**kwargs)
         run_object = main_runner.make_run_object()
         
@@ -138,6 +140,8 @@ def main_watch(**kwargs):
 
             return info
 
+        logger.info("Compiling document")
+        
         # first run does not have any hotreloader set, no existing client to update yet.
         info = do_compile(hotreloader=None)
 
