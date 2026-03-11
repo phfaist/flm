@@ -71,16 +71,17 @@ def main_watch(**kwargs):
 
         def include_node_data_attrs_fn_src_line_col(node, when, **kwargs):
             source_path = None
-            latex_walker = node.latex_walker
-            if (latex_walker is not None
-                and latex_walker.resource_info is not None
+            latex_walker = getattr(node, 'latex_walker', None)
+            if latex_walker is None:
+                return None
+            if (latex_walker.resource_info is not None
                 and hasattr(latex_walker.resource_info, 'source_path')):
                 source_path = latex_walker.resource_info.source_path
                 cwd = ResourceAccessorBase.get_cwd_for_resource_info(
                     latex_walker.resource_info,
                     main_runner.flm_run_info
                 )
-                if cwd is not None:
+                if cwd is not None and source_path is not None:
                     source_path = os.path.join(cwd, source_path)
             line, col = latex_walker.pos_to_lineno_colno(node.pos)
             #logger.debug(f"source ({source_path}, {line}, {col}) for {repr(node)}.")

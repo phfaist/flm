@@ -5,7 +5,7 @@ description = "Flexible Latex-like Markup"
 authors = ["Philippe Faist"]
 license = "MIT"
 readme = "README.md"
-include = ["flm/main/templates/**/*"]
+include = ["flm/main/templates/**/*", "flm/main/dist/watch_hotreload_inject.js"]
 packages = [
     { include = "flm" },
 ]
