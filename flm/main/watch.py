@@ -20,6 +20,7 @@ logging.getLogger("websockets").setLevel(logging.WARNING)
 from pylatexenc.latexnodes import LatexWalkerLocatedError
 
 from . import main
+from .run import ResourceAccessorBase
 
 
 from .watch_util import find_available_port
@@ -31,6 +32,8 @@ ext_by_format = {
     "html": ".html",
     "latex": ".tex",
 }
+
+
 
 
 
@@ -66,7 +69,35 @@ def main_watch(**kwargs):
             'index' + ext_by_format.get(computed_format, '.'+computed_format)
         )
 
-        run_kwargs = dict(kwargs, output=new_arg_output)
+        def include_node_data_attrs_fn_src_line_col(node, when, **kwargs):
+            source_path = None
+            latex_walker = node.latex_walker
+            if (latex_walker is not None
+                and latex_walker.resource_info is not None
+                and hasattr(latex_walker.resource_info, 'source_path')):
+                source_path = latex_walker.resource_info.source_path
+                cwd = ResourceAccessorBase.get_cwd_for_resource_info(
+                    latex_walker.resource_info,
+                    main_runner.flm_run_info
+                )
+                if cwd is not None:
+                    source_path = os.path.join(cwd, source_path)
+            line, col = latex_walker.pos_to_lineno_colno(node.pos)
+            #logger.debug(f"source ({source_path}, {line}, {col}) for {repr(node)}.")
+            return { 'sourcepath': json.dumps([source_path,line,col]) }
+
+        inline_config = None
+        if computed_format == 'html':
+            inline_config = { 'flm': {
+                'renderer': {
+                    'html': {
+                        'include_node_data_attrs_fn': include_node_data_attrs_fn_src_line_col,
+                    }
+                }
+            } }
+
+
+        run_kwargs = dict(kwargs, output=new_arg_output, inline_config=inline_config)
 
         #
         # Run the full procedure a first time. Don't reuse main_runner or
@@ -121,6 +152,13 @@ def main_watch(**kwargs):
             ]
 
         logger.info('Successfully compiled the FLM document.')
+
+        # store the known sources (the files we're watching), so that we know
+        # which files we're allowed to open in an editor.
+        allowed_source_paths = {
+            fn: os.path.abspath(fn)
+            for fn in watch_files
+        }
 
 
         #
@@ -190,6 +228,7 @@ def main_watch(**kwargs):
         hotreloader = make_hotreloader(
             computed_format=computed_format,
             output=new_arg_output,
+            allowed_source_paths=allowed_source_paths,
         )
 
 

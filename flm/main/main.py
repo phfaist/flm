@@ -115,30 +115,6 @@ def load_external_configs(dirname, *, arg_config, arg_format, arg_workflow):
 
     return loaded_config_datas
 
-    # config_file = arg_config
-    # if isinstance(config_file, str) and config_file:
-    #     # parse a YAML file
-    #     with open(config_file, encoding='utf-8') as f:
-    #         data = yaml.safe_load(f)
-    #         data['$_cwd'] = os.path.dirname(config_file)
-    #         return [ data ]
-    # elif isinstance(config_file, dict):
-    #     return [ config_file ]
-    # else:
-    #     # see if there's a flmconfig.(yaml|yml) in the same directory as the
-    #     # input file, and load that one if applicable.
-    #     cfgfnamesbase = [ 'flmconfig.yaml', 'flmconfig.yml' ]
-    #     for cfgfnamebase in cfgfnamesbase:
-    #         cfgfname = os.path.join(dirname or '', cfgfnamebase)
-    #         if os.path.exists(cfgfname):
-    #             with open(cfgfname, encoding='utf-8') as f:
-    #                 logger.debug(f"Found config file {cfgfname}, loading it.")
-    #                 data = yaml.safe_load(f)
-    #                 data['$_cwd'] = dirname
-    #                 return [ data ]
-        
-    # return {}
-
 
 
 
@@ -159,6 +135,10 @@ class Main:
         self.arg_config = kwargs.get('config', None)
         self.arg_output = kwargs.get('output', None)
         self.arg_suppress_final_newline = kwargs.get('suppress_final_newline', None)
+        self.arg_inline_config = kwargs.get('inline_config', None)
+
+        if isinstance(self.arg_inline_config, str):
+            self.arg_inline_config = json.loads(self.arg_inline_config)
 
         arg_format = self.arg_format
         arg_workflow = self.arg_workflow
@@ -168,10 +148,13 @@ class Main:
         arg_files = self.arg_files
         arg_flm_content = self.arg_flm_content
         arg_config = self.arg_config
+        arg_inline_config = self.arg_inline_config
         arg_output = self.arg_output
         arg_suppress_final_newline = self.arg_suppress_final_newline
 
         logger.debug("Format is %r", self.arg_format)
+
+        logger.debug("inline_config is %r", self.arg_inline_config)
 
         # Get the FLM content
 
@@ -225,8 +208,10 @@ class Main:
             dirname,
             arg_config=arg_config,
             arg_format=arg_format,
-            arg_workflow=arg_workflow
+            arg_workflow=arg_workflow,
         )
+        if arg_inline_config is not None:
+            orig_configs.append( arg_inline_config )
 
         logger.debug("Input frontmatter_metadata is\n%s",
                      json.dumps(frontmatter_metadata,indent=4))

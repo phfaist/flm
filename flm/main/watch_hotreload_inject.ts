@@ -1,4 +1,13 @@
 //
+// This code will be injected in the HTML page sent to the client.
+//
+// This is the TypeScript source and may be more verbose for easy
+// development and for readability.  It will be compiled to optimized
+// JS source via parcel. Run "yarn build" in this folder to do that.
+// The optimized JS is then output to ./dist/watch_hotreload_inject.js.
+//
+
+//
 // This code will be wrapped into a function(){...} body.  The
 // following variables are defined in this context:
 //
@@ -13,148 +22,6 @@ import cssText from 'bundle-text:./watch_hotreload_style.css';
 declare var wsHost: string;
 declare var wsPort: number;
 
-/*
-type TupleElementRef = [
-    id: string,
-    sibling_offset: number,
-    child_index: number | null
-];
-type ContentDOMUpdate =
-    | {
-        action: 'update-main';
-        html: string
-      }
-    | {
-        action: 'update-element';
-        ref: TupleElementRef;
-        html: string
-      }
-    | {
-        action: 'insert-after-element';
-        after_ref: TupleElementRef;
-        html: string
-      }
-    | {
-        action: 'delete-element';
-        ref: TupleElementRef
-      }
-    ;
-type UpdateInfo = {
-    updates: ContentDOMUpdate[];
-    content_html: string | null;
-};
-function resolveElementRef({
-    container, ref
-} : { container: HTMLElement, ref: TupleElementRef }) : HTMLElement|null
-{
-    const [id, sibling_offset, child_index] = ref;
-
-    // Locate the anchor: the element with the given id, or the container
-    // itself when id is null (root ref).
-    var anchor =
-        (id != null)
-        ? (container.querySelector('#' + CSS.escape(id)) as HTMLElement)
-        : container
-        ;
-    if (anchor == null) {
-        return null;
-    }
-
-    if (sibling_offset === 0 && child_index == null) {
-        // The anchor itself is the target.
-        return anchor;
-    }
-
-    // Walk sibling_offset element-siblings forward from the anchor.
-    // Text nodes, comment nodes, and whitespace-only nodes are skipped.
-    let node: Node | null = anchor;
-    for (let i = 0; i < sibling_offset; i++) {
-        node = node.nextSibling;
-        while (node != null && node.nodeType !== Node.ELEMENT_NODE) {
-            node = node.nextSibling;
-        }
-        if (node == null) {
-            return null;
-        }
-    }
-
-    if (child_index == null) {
-        // (anchor, sibling_offset, null): the sibling node is the target.
-        return node as HTMLElement;
-    }
-
-    // (anchor, sibling_offset, child_index): count element children of node.
-    let child = node.firstChild;
-    let idx = 0;
-    while (child != null) {
-        if (child.nodeType === Node.ELEMENT_NODE) {
-            if (idx === child_index) {
-                return child as HTMLElement;
-            }
-            idx++;
-        }
-        child = child.nextSibling;
-    }
-    return null;
-}
-function updateInstructionsReceived(mainContainer: HTMLElement, info : UpdateInfo)
-{
-    for (const updInfo of info.updates) {
-        console.log(`Applying content update: ${JSON.stringify(updInfo)}`);
-        if (updInfo.action === 'update-main') {
-            if (mainContainer == null || info.content_html == null) {
-                // either no "Main" element or the server couldn't extract
-                // the new body content ... need a full reload.
-                //window.location.reload();
-                throw new Error(`No main element!’`);
-                return;
-            } else {
-                // replace "Main" content:
-                mainContainer.innerHTML = info.content_html;
-            }
-        } else if (updInfo.action === 'update-element') {
-            const target = resolveElementRef({
-                container: mainContainer,
-                ref: updInfo.ref,
-            });
-            if (target == null) {
-                throw new Error(`Cannot resolve content element ref ‘${JSON.stringify(updInfo.ref)}’`);
-            }
-            const html = updInfo.html;
-            target.outerHTML = html;
-        } else if (updInfo.action === 'insert-after-element') {
-            const afterTarget = resolveElementRef({
-                container: mainContainer,
-                ref: updInfo.after_ref,
-            });
-            if (afterTarget == null) {
-                throw new Error(`Cannot resolve content element ref ‘${JSON.stringify(updInfo.after_ref)}’`);
-            }
-            const html = updInfo.html;
-            // create DOM stuff from HTML fragment
-            const t = document.createElement("template");
-            t.innerHTML = html.trim();
-            const newNode = t.content.firstChild as HTMLElement;
-            afterTarget.after(newNode);
-        } else if (updInfo.action === 'delete-element') {
-            const delTarget = resolveElementRef({
-                container: mainContainer,
-                ref: updInfo.ref,
-            });
-            if (delTarget == null) {
-                throw new Error(`Cannot resolve content element ref ‘${JSON.stringify(updInfo.ref)}’`);
-            }
-            delTarget.remove();
-        } else {
-            throw new Error(`Unknown/invalid action! ‘${JSON.stringify(updInfo)}’`);
-        }
-    }
-    // see if there is any further setup to do (MathJaX,
-    // build toc, etc.) -- depends on the template
-    if ((window as any).flmSetup) {
-        (window as any).flmSetup();
-    }
-}*/
 
 type UpdateInfo = {
     action: 'update-main-content'|'error-display',
@@ -389,6 +256,117 @@ function displayErrorOverlay(mainContainer : HTMLElement, info : UpdateInfo)
     overlay.innerHTML = info.content_html;
 }
 
+
+
+type SourceLocation = [source_path: string, line: number|undefined, col: number|undefined];
+
+class HotReloadClient
+{
+    private ws: WebSocket;
+    private mainContainer: HTMLElement;
+
+    constructor(url: string, mainContainer: HTMLElement)
+    {
+        this.mainContainer = mainContainer;
+        this.ws = new WebSocket(url);
+        this.ws.addEventListener("message", (m) => this._onMessage(m));
+        this.ws.addEventListener("open",  () => console.log("websocket open"));
+        this.ws.addEventListener("close", () => console.log("websocket closed"));
+        this.ws.addEventListener("error", (err) => console.log("websocket error", err));
+        console.log("Started websocket and listening for update messages.");
+    }
+
+    private _onMessage(m: MessageEvent) : void
+    {
+        console.log("Message!", m);
+        const info = JSON.parse(m.data) as UpdateInfo;
+        clearErrorOverlay();
+        if (info.action === 'update-main-content') {
+            try {
+                updateMainContent(this.mainContainer, info);
+            } catch (err) {
+                // failure in the incremental update, so reload everything ... :/
+                window.location.reload();
+            }
+        } else if (info.action === 'error-display') {
+            displayErrorOverlay(this.mainContainer, info);
+        } else {
+            console.error("Invalid update info action!", info);
+        }
+    }
+
+    sendCommand(action: string, params: Record<string, unknown> = {}) : void
+    {
+        if (this.ws.readyState !== WebSocket.OPEN) {
+            console.warn("HotReloadClient.sendCommand: websocket not open, dropping message", action, params);
+            return;
+        }
+        this.ws.send(JSON.stringify({ action, ...params }));
+    }
+
+    openEditor(source_path: string, line?: number, col?: number, preferEditor?: string) : void
+    {
+        const params: Record<string, unknown> = { source_path };
+        if (line != null) params.line = line;
+        if (col != null) params.col = col;
+        if (preferEditor != null) params.prefer_editor = preferEditor;
+        this.sendCommand('open-editor', params);
+    }
+
+    // Walk up the DOM from el. At each level: check the node itself, then scan
+    // preceding siblings backwards (closest first) for data-sourcepath. Stop
+    // before leaving mainContainer. Returns [source_path, line, col] or null.
+    findElementSourceLocation(el: HTMLElement): SourceLocation | null {
+        const tryParse = (raw: string | undefined, ctx: HTMLElement): SourceLocation | null => {
+            if (raw == null) return null;
+            try {
+                const [source_path, line, col] = JSON.parse(raw);
+                return [source_path, line, col];
+            } catch (e) {
+                console.error('findElementSourceLocation: invalid data-sourcepath JSON', raw, ctx, e);
+                return null;
+            }
+        };
+        let node: HTMLElement | null = el;
+        while (node !== null && node !== this.mainContainer) {
+            // 1. Check the node itself.
+            const nodeLoc = tryParse(node.dataset.sourcepath, node);
+            if (nodeLoc != null) {
+                return nodeLoc;
+            }
+            // 2. Scan preceding siblings, closest first.
+            let sibling = node.previousElementSibling as HTMLElement | null;
+            while (sibling !== null) {
+                const sibLoc = tryParse(sibling.dataset.sourcepath, sibling);
+                if (sibLoc != null) {
+                    return sibLoc;
+                }
+                sibling = sibling.previousElementSibling as HTMLElement | null;
+            }
+            // 3. Move up.
+            node = node.parentElement as HTMLElement | null;
+        }
+        console.warn('findElementSourceLocation: no data-sourcepath found for element', el);
+        return null;
+    }
+
+    onElementLocationOpenEditor(el: HTMLElement) : void {
+        const result = this.findElementSourceLocation(el);
+        if (result == null) {
+            console.warn(`No location availble for element`, el);
+            return;
+        }
+        const [source_path, line, col] = result;
+        this.openEditor(source_path, line, col);
+        // Flash the clicked element as visual confirmation.
+        el.classList.remove('flm-source-flash'); // reset if already animating
+        void el.offsetWidth;                     // force reflow to restart animation
+        el.classList.add('flm-source-flash');
+        el.addEventListener('animationend', () => el.classList.remove('flm-source-flash'), { once: true });
+    }
+}
+
+
 window.addEventListener("DOMContentLoaded", () => {
 
     //
@@ -410,30 +388,24 @@ window.addEventListener("DOMContentLoaded", () => {
     stampMathContentSources(mainContainer);
 
     //
-    // Set up the WebSocket to listen for updates.
+    // Set up the WebSocket client.
     //
-    const websocket = new WebSocket(`ws://${wsHost}:${wsPort}/`);
-    websocket.addEventListener("message", function (m) {
-        console.log("Message!", m);
-        const info = JSON.parse(m.data) as UpdateInfo;
-        clearErrorOverlay();
-        if (info.action === 'update-main-content') {
-            try {
-                updateMainContent(mainContainer, info);
-            } catch (err) {
-                // failure in the incremental update, so reload everything ... :/
-                window.location.reload();
-            }
-        } else if (info.action === 'error-display') {
-            displayErrorOverlay(mainContainer, info);
-        } else {
-            console.error("Invalid update info action!", info);
+    const hotReloadClient = new HotReloadClient(`ws://${wsHost}:${wsPort}/`, mainContainer);
+
+    // Expose public API for use by page templates
+    (window as any).flmHotReload = hotReloadClient;
+
+    //
+    // CMD+SHIFT+click (Mac) or CTRL+SHIFT+click (other) opens the source
+    // location of the clicked element in the editor.
+    //
+    mainContainer.addEventListener("click", (e: MouseEvent) => {
+        const modifierHeld = (e.metaKey || e.ctrlKey) && e.shiftKey;
+        if (!modifierHeld) {
+            return;
         }
+        e.preventDefault();
+        e.stopPropagation();
+        hotReloadClient.onElementLocationOpenEditor(e.target as HTMLElement);
     });
-    websocket.addEventListener("open", function () { console.log("websocket open"); });
-    websocket.addEventListener("close", function () { console.log("websocket closed"); });
-    websocket.addEventListener("error", function (err) {
-        console.log("websocket error", err);
-    } );
-    console.log("Started websocket and listening for update messages.");
 });

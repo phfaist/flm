@@ -55,7 +55,8 @@ class ResourceAccessorBase:
             f"Template path is = {repr(self.template_path)}"
         )
 
-    def get_cwd_for_resource_info(self, resource_info, flm_run_info):
+    @classmethod
+    def get_cwd_for_resource_info(cls, resource_info, flm_run_info):
         cwd = flm_run_info.get('cwd', '.')
         #print(f"DOCUMENT cwd = ", cwd)
         if resource_info is not None:
@@ -382,8 +383,8 @@ def load_workflow_environment(*,
         for x in merge_configs
     ]
 
-    # logger.debug('DEBUG! At this point, merge_configs = %s',
-    #              ",\n    ".join([f"{repr(m)}" for m in merge_configs]))
+    logger.debug('Merging configurations.  At this point, merge_configs = %s',
+                 ",\n    ".join([f"{repr(m)}" for m in merge_configs]))
 
     # pull out feature-related config, don't merge these yet because we want to
     # pull in the defaults first.  See load_features()

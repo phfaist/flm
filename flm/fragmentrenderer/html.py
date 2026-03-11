@@ -189,11 +189,44 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     # -----------------
 
+    include_node_data_attrs_fn = None
+    r"""
+    Will pin data attributes to HTML tags that are associated with FLM tree
+    nodes.  This works for certain tags that have a direct relationship to
+    a specific node, such as a <p>...</p> block for a nodelist.
+
+    If non-None, this should be set to a callable that takes the node or
+    nodelist as first positional argument.  In the future I might add keyword
+    arguments to provide extra information, so please accept **kwargs, too.
+    The callable should return a dictionary of data attributes to set on the
+    HTML tag.  E.g.::
+
+        def my_include_node_data_attrs_fn(node, **kwargs):
+            if isinstance(node, LatexNodeList):
+                # set data-list-length="<the nodelist length>" on the
+                # <p> tag
+                return { 'list-length': len(node.nodelist) }
+            return None # returning None or {} does not set any additional attribs
+    """
+
+    def _get_meta_info_data_attrs(self, node, when):
+        if self.include_node_data_attrs_fn is None or node is None:
+            return None
+        meta_info = self.include_node_data_attrs_fn(node, when=when)
+        if meta_info is None:
+            return None
+        return { f'data-{x}': str(v) for x,v in meta_info.items() }
+    def _merge_meta_info_data_attrs(self, attrs, node, when):
+        data_attrs = self._get_meta_info_data_attrs(node, when)
+        if data_attrs is not None:
+            attrs.update(data_attrs)
+
     def render_build_paragraph(self, nodelist, render_context):
-        return (
-            "<p>"
-            + self.render_inline_content(nodelist, render_context)
-            + "</p>"
+        data_attrs = self._get_meta_info_data_attrs(nodelist, 'build-paragraph')
+        return self.wrap_in_tag(
+            "p",
+            self.render_inline_content(nodelist, render_context),
+            attrs=data_attrs
         )
 
     def render_inline_content(self, nodelist, render_context):
@@ -261,6 +294,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
             if annotation in ('verbatimcode-environment', ):
                 # indicates a verbatim block, use <div> instead
                 tag = 'div'
+
         return self.wrap_in_tag(
             tag,
             escaped,
@@ -310,6 +344,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if target_id is not None:
             attrs['id'] = target_id
 
+        self._merge_meta_info_data_attrs(attrs, nodelist, 'math-content')
+
         if displaytype == 'display':
             return (
                 self.wrap_in_tag(
@@ -334,10 +370,13 @@ class HtmlFragmentRenderer(FragmentRenderer):
             is_block_level=False
         )
 
+        data_attrs = self._get_meta_info_data_attrs(nodelist, 'text-format')
+
         return self.wrap_in_tag(
             'span',
             content,
-            class_names=text_formats
+            class_names=text_formats,
+            attrs=data_attrs
         )
 
     def render_semantic_span(self, content, role, render_context, *,
@@ -555,6 +594,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if target_id is not None:
             attrs['id'] = target_id
 
+        self._merge_meta_info_data_attrs(attrs, heading_nodelist, 'heading')
+
         content = self.wrap_in_tag(
             self.heading_tags_by_level[heading_level],
             self.render_inline_content(heading_nodelist, render_context),
@@ -576,15 +617,18 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if not href and not self.render_links_with_empty_href:
             return display_content
 
+        data_attrs = self._get_meta_info_data_attrs(display_nodelist, 'link')
+
         return self.wrap_in_link(
             display_content,
             href,
-            class_names=[ f"href-{ref_type}" ] + (annotations if annotations else [])
+            class_names=[ f"href-{ref_type}" ] + (annotations if annotations else []),
+            attrs=data_attrs
         )
 
     def render_annotation_comment(
             self,
-            display_nodelist, 
+            display_nodelist,
             render_context,
             is_block_level=False,
             color_index=0,
@@ -594,6 +638,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if initials:
             content = '<span class="annotation-initials">'+initials+'</span>' + content
 
+        data_attrs = self._get_meta_info_data_attrs(display_nodelist, 'annotation-comment')
+
         return self.wrap_in_tag(
             'div' if is_block_level else 'span',
             content,
@@ -601,6 +647,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
                           #'annotation-' + ('block' if is_block_level else 'inline'),
                           'annotation-comment',
                           f'annotation-{color_index}' ],
+            attrs=data_attrs
         )
 
     def render_annotation_highlight(
@@ -615,6 +662,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if initials:
             content = '<span class="annotation-initials">'+initials+'</span>' + content
 
+        data_attrs = self._get_meta_info_data_attrs(display_nodelist, 'annotation-highlight')
+
         return self.wrap_in_tag(
             'div' if is_block_level else 'span',
             content,
@@ -622,6 +671,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
                           #'annotation-' + ('block' if is_block_level else 'inline'),
                           'annotation-highlight',
                           f'annotation-{color_index}' ],
+            attrs=data_attrs
         )
 
     
@@ -734,6 +784,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
             ], render_context)
         else:
             float_content_with_caption = float_content_block
+
+        self._merge_meta_info_data_attrs(figattrs, float_instance.content_nodelist, 'float')
 
         full_figure = self.wrap_in_tag(
             'figure',
@@ -879,6 +931,10 @@ class HtmlFragmentRenderer(FragmentRenderer):
         table_attrs = {}
         if target_id is not None:
             table_attrs['id'] = target_id
+
+        if len(cells_model.cells_data):
+            first_cell_nodes = cells_model.cells_data[0].content_nodes
+            self._merge_meta_info_data_attrs(table_attrs, first_cell_nodes, 'cells')
 
         s = self.wrap_in_tag(
             'table',

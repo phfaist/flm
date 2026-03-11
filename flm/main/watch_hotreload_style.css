@@ -69,3 +69,19 @@
     font-weight: 700;
     letter-spacing: 0.15em;
 }
+
+
+
+/* Flash animation for CMD/CTRL+SHIFT+click source-location jumps */
+.flm-source-flash {
+    animation: flmSourceFlash 0.7s ease-out forwards;
+}
+
+@keyframes flmSourceFlash {
+    0%   { outline: 3px solid rgba(255, 80, 182, 0.0);
+           background-color: transparent; }
+    15%  { outline: 3px solid rgba(255, 80, 182, 0.9);
+           background-color: rgba(255, 80, 182, 0.18); }
+    100% { outline: 3px solid rgba(255, 80, 182, 0.0);
+           background-color: transparent; }
+}
