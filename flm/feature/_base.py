@@ -139,9 +139,9 @@ class Feature:
 
         The argument `node` is assumed to be either an object instance (e.g., a
         `LatexNode` instance) or a tuple of hashable data.  In the first case,
-        this method returns the object's `id(node)`, providing a unique key
-        associated with that object instance, and in the latter case, the tuple
-        is returned as is.
+        this method essentially returns the object's `id(node)`, providing a
+        unique key associated with that object instance, and in the latter case,
+        the tuple is returned as is.
         """
         if isinstance(node, tuple):
             # In this case, the tuple directly provides a unique identifying

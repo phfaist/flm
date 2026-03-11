@@ -211,20 +211,25 @@ class HtmlFragmentRenderer(FragmentRenderer):
             return None # returning None or {} does not set any additional attribs
     """
 
-    def _get_meta_info_data_attrs(self, node, when):
+    def _get_meta_info_data_attrs(self, node, when, render_context):
         if self.include_node_data_attrs_fn is None or node is None:
             return None
-        meta_info = self.include_node_data_attrs_fn(node, when=when)
+        meta_info = self.include_node_data_attrs_fn(
+            node,
+            when=when,
+            render_context=render_context
+        )
         if meta_info is None:
             return None
         return { f'data-{x}': str(v) for x,v in meta_info.items() }
-    def _merge_meta_info_data_attrs(self, attrs, node, when):
-        data_attrs = self._get_meta_info_data_attrs(node, when)
+    def _merge_meta_info_data_attrs(self, attrs, node, when, render_context):
+        data_attrs = self._get_meta_info_data_attrs(node, when, render_context)
         if data_attrs is not None:
             attrs.update(data_attrs)
 
     def render_build_paragraph(self, nodelist, render_context):
-        data_attrs = self._get_meta_info_data_attrs(nodelist, 'build-paragraph')
+        data_attrs = self._get_meta_info_data_attrs(nodelist, 'build-paragraph',
+                                                    render_context)
         return self.wrap_in_tag(
             "p",
             self.render_inline_content(nodelist, render_context),
@@ -346,7 +351,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if target_id is not None:
             attrs['id'] = target_id
 
-        self._merge_meta_info_data_attrs(attrs, nodelist, 'math-content')
+        self._merge_meta_info_data_attrs(attrs, nodelist, 'math-content', render_context)
 
         if displaytype == 'display':
             return (
@@ -372,7 +377,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
             is_block_level=False
         )
 
-        data_attrs = self._get_meta_info_data_attrs(nodelist, 'text-format')
+        data_attrs = self._get_meta_info_data_attrs(nodelist, 'text-format', render_context)
 
         return self.wrap_in_tag(
             'span',
@@ -596,7 +601,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if target_id is not None:
             attrs['id'] = target_id
 
-        self._merge_meta_info_data_attrs(attrs, heading_nodelist, 'heading')
+        self._merge_meta_info_data_attrs(attrs, heading_nodelist, 'heading', render_context)
 
         content = self.wrap_in_tag(
             self.heading_tags_by_level[heading_level],
@@ -619,7 +624,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if not href and not self.render_links_with_empty_href:
             return display_content
 
-        data_attrs = self._get_meta_info_data_attrs(display_nodelist, 'link')
+        data_attrs = self._get_meta_info_data_attrs(display_nodelist, 'link', render_context)
 
         return self.wrap_in_link(
             display_content,
@@ -640,7 +645,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if initials:
             content = '<span class="annotation-initials">'+initials+'</span>' + content
 
-        data_attrs = self._get_meta_info_data_attrs(display_nodelist, 'annotation-comment')
+        data_attrs = self._get_meta_info_data_attrs(display_nodelist, 'annotation-comment',
+                                                    render_context)
 
         return self.wrap_in_tag(
             'div' if is_block_level else 'span',
@@ -664,7 +670,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if initials:
             content = '<span class="annotation-initials">'+initials+'</span>' + content
 
-        data_attrs = self._get_meta_info_data_attrs(display_nodelist, 'annotation-highlight')
+        data_attrs = self._get_meta_info_data_attrs(display_nodelist, 'annotation-highlight',
+                                                    render_context)
 
         return self.wrap_in_tag(
             'div' if is_block_level else 'span',
@@ -787,7 +794,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
         else:
             float_content_with_caption = float_content_block
 
-        self._merge_meta_info_data_attrs(figattrs, float_instance.content_nodelist, 'float')
+        self._merge_meta_info_data_attrs(figattrs, float_instance.content_nodelist, 'float',
+                                         render_context)
 
         full_figure = self.wrap_in_tag(
             'figure',
@@ -936,7 +944,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
         if len(cells_model.cells_data):
             first_cell_nodes = cells_model.cells_data[0].content_nodes
-            self._merge_meta_info_data_attrs(table_attrs, first_cell_nodes, 'cells')
+            self._merge_meta_info_data_attrs(table_attrs, first_cell_nodes, 'cells',
+                                             render_context)
 
         s = self.wrap_in_tag(
             'table',

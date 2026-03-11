@@ -390,6 +390,82 @@ class HotReloadClient
 }
 
 
+function getFlmRefsData(): any | null
+{
+    const scriptEl = document.getElementById('FlmRefsData');
+    if (scriptEl == null) {
+        console.warn('copyElementFlmRefCode: no <script id="FlmRefsData"> tag found');
+        return null;
+    }
+    try {
+        return JSON.parse(scriptEl.textContent ?? '{}');
+    } catch (e) {
+        console.error('copyElementFlmRefCode: failed to parse FlmRefsData JSON', e);
+        return null;
+    }
+}
+
+function copyElementFlmRefCode(mainContainer : HTMLElement, el : HTMLElement)
+{
+    // Step 1: Walk up the DOM from el to find an ancestor with an id attribute
+    let targetId: string | null = null;
+    let node: HTMLElement | null = el;
+    while (node !== null && node !== mainContainer) {
+        if (node.id) {
+            targetId = node.id;
+            break;
+        }
+        node = node.parentElement as HTMLElement | null;
+    }
+    if (targetId == null) {
+        console.warn('copyElementFlmRefCode: no element with id found for element', el);
+        return;
+    }
+    const targetNode : HTMLElement = node!;
+
+    // Step 2: Look up the id in the FlmRefsData JSON database via target_href
+    const refsData = getFlmRefsData();
+    //console.log('got refsData = ', refsData);
+    if (refsData == null) {
+        return;
+    }
+    const hrefTarget = '#' + targetId;
+    const refEntry = refsData.targets.find(
+        (entry: any) => (entry.ref_label != null) && (entry.target_href === hrefTarget)
+    );
+    if (refEntry == null) {
+        console.log('copyElementFlmRefCode: no ref entry found for id', targetId);
+        return;
+    }
+    const ref_type: string = refEntry.ref_type;
+    const ref_label: string = refEntry.ref_label;
+
+    console.log('copyElementFlmRefCode: found ref', { ref_type, ref_label, refEntry });
+
+    // Decide appropriate FLM code to copy to generate this reference.
+    let flmrefcode = null;
+    if (ref_type === 'defterm') {
+        flmrefcode = '\\term{' + ref_label + '}';
+    } else {
+        flmrefcode = `\\ref{${ref_type}:${ref_label}}`;
+    }
+    // Copy flmrefcode to clipboard
+    navigator.clipboard.writeText(flmrefcode).then(() => {
+        console.log('copyElementFlmRefCode: copied to clipboard:', flmrefcode);
+    }).catch((e) => {
+        console.error('copyElementFlmRefCode: clipboard write failed', e);
+    });
+
+    // Flash the element as visual confirmation
+    targetNode.classList.remove('flm-copied-to-clipboard');
+    void targetNode.offsetWidth; // force reflow to restart animation
+    targetNode.classList.add('flm-copied-to-clipboard');
+    targetNode.addEventListener('animationend', () => targetNode.classList.remove('flm-copied-to-clipboard'), { once: true });
+}
+
+
+
+
 window.addEventListener("DOMContentLoaded", () => {
 
     //
@@ -422,7 +498,7 @@ window.addEventListener("DOMContentLoaded", () => {
     // CMD+SHIFT+click (Mac) or CTRL+SHIFT+click (other) opens the source
     // location of the clicked element in the editor.
     //
-    mainContainer.addEventListener("click", (e: MouseEvent) => {
+    mainContainer.addEventListener("mousedown", (e: MouseEvent) => {
         const modifierHeld = (e.metaKey || e.ctrlKey) && e.shiftKey;
         if (!modifierHeld) {
             return;
@@ -430,5 +506,19 @@ window.addEventListener("DOMContentLoaded", () => {
         e.preventDefault();
         e.stopPropagation();
         hotReloadClient.onElementLocationOpenEditor(e.target as HTMLElement);
+    });
+
+    //
+    // CMD+click (Mac) or CTRL+click (other) copies a reference to the pointed
+    // object to the clipboard (and provides visual flash confirmation).
+    //
+    mainContainer.addEventListener("mousedown", (e: MouseEvent) => {
+        const modifierHeld = (e.metaKey || e.ctrlKey) && !e.shiftKey;
+        if (!modifierHeld) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        copyElementFlmRefCode(mainContainer, e.target as HTMLElement);
     });
 });

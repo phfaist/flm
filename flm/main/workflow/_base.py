@@ -92,29 +92,6 @@ class RenderWorkflow:
             if fragment_part is None:
                 continue
 
-            # latex_walker = fragment_part.nodes.latex_walker
-
-            # part_type = doc_part_info.get('type', None)
-            # part_label = doc_part_info.get('label', None)
-            # part_frontmatter = doc_part_info.get('frontmatter_metadata', None) or {}
-            # part_frontmatter_title = part_frontmatter.get('title', None)
-            # if part_type and part_frontmatter_title:
-
-            #     head_frag_flm_content = (
-            #         '\\' + str(part_type) + '{' + part_frontmatter_title + '}'
-            #     )
-            #     if part_label:
-            #         head_frag_flm_content += '\\label{' + str(part_label) + '}'
-            #     head_frag_flm_content += '\n'
-
-            #     head_fragment = environment.make_fragment(
-            #         in_flm_content,
-            #         silent=silent,
-            #         what=f"Auto-generated heading code for document part ‘{in_input_fname}’"
-            #     )
-
-            #     rendered_result += head_fragment.render(render_context)
-
             rendered_result += fragment_part.render(render_context)
 
 

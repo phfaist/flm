@@ -37,6 +37,16 @@ ext_by_format = {
 
 
 
+class ReprValueFallbackJsonEncoder(json.JSONEncoder):
+    def default(self, o):
+        try:
+            return super().default(o)
+        except TypeError:
+            return repr(o)
+
+
+
+
 def main_watch(**kwargs):
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -71,23 +81,49 @@ def main_watch(**kwargs):
             'index' + ext_by_format.get(computed_format, '.'+computed_format)
         )
 
-        def include_node_data_attrs_fn_src_line_col(node, when, **kwargs):
-            source_path = None
-            latex_walker = getattr(node, 'latex_walker', None)
-            if latex_walker is None:
+        def _node_dsourcepath(node):
+            if not hasattr(node, 'latex_walker') or node.latex_walker is None:
                 return None
-            if (latex_walker.resource_info is not None
-                and hasattr(latex_walker.resource_info, 'source_path')):
-                source_path = latex_walker.resource_info.source_path
-                cwd = ResourceAccessorBase.get_cwd_for_resource_info(
-                    latex_walker.resource_info,
-                    main_runner.flm_run_info
-                )
-                if cwd is not None and source_path is not None:
-                    source_path = os.path.join(cwd, source_path)
+            latex_walker = node.latex_walker
+            if (latex_walker.resource_info is None
+                or not hasattr(latex_walker.resource_info, 'source_path')):
+                return None
+            source_path = latex_walker.resource_info.source_path
+            if source_path is None:
+                return None
+            cwd = ResourceAccessorBase.get_cwd_for_resource_info(
+                latex_walker.resource_info,
+                main_runner.flm_run_info
+            )
+            if cwd is not None:
+                source_path = os.path.join(cwd, source_path)
             line, col = latex_walker.pos_to_lineno_colno(node.pos)
+            return { 'sourcepath': json.dumps([source_path, line, col]) }
+            
+        def include_node_data_attrs_fn_src_line_col(node, *, when, render_context, **kwargs):
             #logger.debug(f"source ({source_path}, {line}, {col}) for {repr(node)}.")
-            return { 'sourcepath': json.dumps([source_path,line,col]) }
+            d = {}
+            dsourcepath = _node_dsourcepath(node)
+            if dsourcepath is not None:
+                d.update(dsourcepath)
+            return d
+
+        def workflow_postprocess_actions_fn(rendered_content, document, render_context):
+            # extract information about the rendering and inject it to the client.
+            # * References
+            if render_context.supports_feature('refs'):
+                d_refs = []
+                refs_mgr = render_context.feature_render_manager('refs')
+                for ((node_id, ref_type, ref_label), ref_instance) in refs_mgr.registered_references.items():
+                    d_refs.append(ref_instance.asdict())
+                d_refs_info = {
+                    'targets': d_refs,
+                }
+                s_refs_info_json = json.dumps(d_refs_info, cls=ReprValueFallbackJsonEncoder)
+                rendered_content = rendered_content + f"""
+<script id="FlmRefsData" type="application/json">{s_refs_info_json.replace('</script>','<\\/script>')}</script>
+"""
+            return rendered_content
 
         inline_config = None
         if computed_format == 'html':
@@ -96,7 +132,12 @@ def main_watch(**kwargs):
                     'html': {
                         'include_node_data_attrs_fn': include_node_data_attrs_fn_src_line_col,
                     }
-                }
+                },
+                'workflow_config': {
+                    'templatebasedworkflow': {
+                        'postprocess_actions_fn': workflow_postprocess_actions_fn,
+                    },
+                },
             } }
 
 

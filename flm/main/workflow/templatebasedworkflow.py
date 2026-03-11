@@ -150,7 +150,15 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
 
     # ---
 
+    postprocess_actions_fn = None
+
     def postprocess_rendered_document(self, rendered_content, document, render_context):
+        # At this point, we just have the bare compiled FLM content (no template stuff)
+        if self.postprocess_actions_fn is not None:
+            result = self.postprocess_actions_fn(rendered_content, document, render_context)
+            if result is not None:
+                rendered_content = result
+        # This will render the actual template with the compile FLM content
         return self.render_templated_document(rendered_content, document, render_context)
 
 

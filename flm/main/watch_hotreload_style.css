@@ -107,6 +107,21 @@
 }
 
 
+/* Flash animation for CMD/CTRL+click copy-ref-to-clipboard */
+.flm-copied-to-clipboard {
+    animation: flmCopiedFlash 0.7s ease-out forwards;
+}
+
+@keyframes flmCopiedFlash {
+    0%   { outline: 3px solid rgba(60, 200, 100, 0.0);
+           background-color: transparent; }
+    15%  { outline: 3px solid rgba(60, 200, 100, 0.9);
+           background-color: rgba(60, 200, 100, 0.18); }
+    100% { outline: 3px solid rgba(60, 200, 100, 0.0);
+           background-color: transparent; }
+}
+
+
 /* Flash animation for CMD/CTRL+SHIFT+click source-location jumps */
 .flm-source-flash {
     animation: flmSourceFlash 0.7s ease-out forwards;
