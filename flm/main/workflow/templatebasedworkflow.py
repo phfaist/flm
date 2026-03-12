@@ -54,21 +54,11 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
     def get_wstyle_information(self):
         return {}
 
-    def render_templated_document(
-            self,
-            rendered_content, document, render_context, *,
-            add_context=None,
-    ):
-        r"""
-        Take the raw rendered document content `rendered_content` and place
-        it in a document based on a suitable template.  The argument `document`
-        is the `FLMDocument` instance that was rendered with the
-        render context `render_context`.
-        """
 
-        use_output_format_name = \
-            self.use_output_format_name or self.flm_run_info['fragment_renderer_name']
+    def get_use_output_format_name(self):
+        return self.use_output_format_name or self.flm_run_info['fragment_renderer_name']
 
+    def get_use_template_name(self, use_output_format_name):
         use_template_name = None
         if self.flm_run_info.get('template', None) is not None:
             use_template_name = self.flm_run_info['template']
@@ -76,21 +66,12 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
             use_template_name = self.main_config['flm'].get('template', {})
             if isinstance(use_template_name, Mapping):
                 use_template_name = use_template_name.get(use_output_format_name, None)
+        return use_template_name
 
-        logger.debug("Template: using output format ‘%s’ and template name ‘%s’",
-                     use_output_format_name, use_template_name)
-        logger.debug("main_config is %r", self.main_config)
-
-        if use_template_name is None:
-            # no template specified
-            logger.debug("No template specified, returning raw content")
-            return rendered_content
-
+    def get_merged_template_config_with_prefix(self, use_output_format_name,
+                                               use_template_name):
         template_config = self.main_config['flm'].get('template_config', {}) \
             .get(use_output_format_name, {}).get(use_template_name, {})
-
-        if not use_template_name:
-            return rendered_content
 
         # get any relevant style information for this fragment renderer & format
         frinfo = self.fragment_renderer_information
@@ -114,6 +95,41 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
                 'wstyle': workflow_style_information,
             }
         ])
+        return template_prefix, template_config_wdefaults
+
+    def render_templated_document(
+            self,
+            rendered_content, document, render_context, *,
+            add_context=None,
+    ):
+        r"""
+        Take the raw rendered document content `rendered_content` and place
+        it in a document based on a suitable template.  The argument `document`
+        is the `FLMDocument` instance that was rendered with the
+        render context `render_context`.
+        """
+
+        use_output_format_name = self.get_use_output_format_name()
+
+        use_template_name = self.get_use_template_name(use_output_format_name)
+
+        logger.debug("Template: using output format ‘%s’ and template name ‘%s’",
+                     use_output_format_name, use_template_name)
+        logger.debug("main_config is %r", self.main_config)
+
+        if use_template_name is None:
+            # no template specified
+            logger.debug("No template specified, returning raw content")
+            return rendered_content
+
+        if not use_template_name:
+            return rendered_content
+
+        template_prefix, template_config_wdefaults = \
+            self.get_merged_template_config_with_prefix(
+                use_output_format_name,
+                use_template_name
+            )
 
         logger.debug(f"About to load template ‘%s’ (prefix ‘%s’), config is = %s",
                      use_template_name, template_prefix,

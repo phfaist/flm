@@ -14,6 +14,7 @@ from .importclass import import_class as _import_class
 from .configmerger import ConfigMerger
 configmerger = ConfigMerger()
 
+from ._util import ReprValueFallbackJsonEncoder
 
 from . import run
 
@@ -117,6 +118,23 @@ def load_external_configs(dirname, *, arg_config, arg_format, arg_workflow):
 
 
 
+def _process_arg_inline_configs(arg_inline_configs):
+    if arg_inline_configs is None:
+        return None
+    if isinstance(arg_inline_configs, str):
+        # remember, JSON is valid YAML
+        arg_inline_configs = yaml.safe_load(arg_inline_configs)
+    if isinstance(arg_inline_configs, dict):
+        arg_inline_configs = [ arg_inline_configs ]
+    arg_inline_configs = [
+        (yaml.safe_load(cfg) if isinstance(cfg, str) else cfg)
+        for cfg in arg_inline_configs
+        if cfg is not None
+    ]
+    if len(arg_inline_configs) == 0:
+        return None
+    return arg_inline_configs
+
 
 
 class Main:
@@ -135,10 +153,18 @@ class Main:
         self.arg_config = kwargs.get('config', None)
         self.arg_output = kwargs.get('output', None)
         self.arg_suppress_final_newline = kwargs.get('suppress_final_newline', None)
-        self.arg_inline_config = kwargs.get('inline_config', None)
 
-        if isinstance(self.arg_inline_config, str):
-            self.arg_inline_config = json.loads(self.arg_inline_config)
+        # these options are called inline_config, not inline_configs, because
+        # they translate to a --inline-config command-line option that can be
+        # specified more than once.
+        self.arg_inline_configs = kwargs.get('inline_config', None)
+        self.arg_inline_default_configs = kwargs.get('inline_default_config', None)
+
+        # ---
+
+        self.arg_inline_configs = _process_arg_inline_configs(self.arg_inline_configs)
+        self.arg_inline_default_configs = \
+            _process_arg_inline_configs(self.arg_inline_default_configs)
 
         arg_format = self.arg_format
         arg_workflow = self.arg_workflow
@@ -148,13 +174,15 @@ class Main:
         arg_files = self.arg_files
         arg_flm_content = self.arg_flm_content
         arg_config = self.arg_config
-        arg_inline_config = self.arg_inline_config
+        arg_inline_configs = self.arg_inline_configs
+        arg_inline_default_configs = self.arg_inline_default_configs
         arg_output = self.arg_output
         arg_suppress_final_newline = self.arg_suppress_final_newline
 
         logger.debug("Format is %r", self.arg_format)
 
-        logger.debug("inline_config is %r", self.arg_inline_config)
+        logger.debug("inline_configs is %r", self.arg_inline_configs)
+        logger.debug("inline_default_configs is %r", self.arg_inline_default_configs)
 
         # Get the FLM content
 
@@ -210,8 +238,14 @@ class Main:
             arg_format=arg_format,
             arg_workflow=arg_workflow,
         )
-        if arg_inline_config is not None:
-            orig_configs.append( arg_inline_config )
+        if arg_inline_default_configs is not None:
+            orig_configs = [
+                # user flmconfig.yaml files
+                *orig_configs,
+                # --inline-default-config
+                *arg_inline_default_configs,
+                # (the actual feature & workflow defaults will be appended by run.Run)
+            ]
 
         logger.debug("Input frontmatter_metadata is\n%s",
                      json.dumps(frontmatter_metadata,indent=4))
@@ -292,7 +326,9 @@ class Main:
         return run.Run(
             self.flm_content,
             flm_run_info=self.flm_run_info,
+            inline_configs=self.arg_inline_configs, # overrides run_config
             run_config=self.run_config,
+            # arg_inline_default_configs are already included in self.orig_configs:
             default_configs=self.orig_configs,
         )
 
@@ -369,6 +405,55 @@ def main(**kwargs):
     return a.run()
 
 
+_acceptable_print_merged_config_keys = [
+    'run',
+    'full',
+    'full-flm',
+    'workflow',
+    'template',
+]
+def main_print_merged_config(**kwargs):
+    a = Main(**kwargs)
+    run_object = a.make_run_object()
+    # extract fully merged config
+    print_merged_config = kwargs['print_merged_config']
+    if print_merged_config == 'run':
+        print(json.dumps(run_object.run_config, indent=4, cls=ReprValueFallbackJsonEncoder))
+    elif print_merged_config == 'full':
+        print(json.dumps(run_object.flm_run_info['main_config'],
+                         indent=4, cls=ReprValueFallbackJsonEncoder))
+    elif print_merged_config == 'full-flm':
+        print(json.dumps(run_object.flm_run_info['main_config']['flm'],
+                         indent=4, cls=ReprValueFallbackJsonEncoder))
+    elif print_merged_config == 'workflow':
+        print(json.dumps(run_object.wenv.workflow.config,
+                         indent=4, cls=ReprValueFallbackJsonEncoder))
+    elif print_merged_config == 'template':
+        w = run_object.wenv.workflow
+        use_output_format_name = w.get_use_output_format_name()
+        use_template_name = w.get_use_template_name(use_output_format_name)
+        print("# use_output_format_name =", json.dumps(use_output_format_name))
+        print("# use_template_name =", json.dumps(use_template_name))
+        if use_template_name is None or not use_template_name:
+            # no template specified
+            logger.warning("No template specified; no configuration available")
+            return
+
+        template_prefix, template_config_wdefaults = \
+            w.get_merged_template_config_with_prefix(
+                use_output_format_name,
+                use_template_name
+            )
+        print("# template_prefix =", json.dumps(template_prefix))
+        print(json.dumps(template_config_wdefaults,
+                         indent=4, cls=ReprValueFallbackJsonEncoder))
+    else:
+        raise ValueError(
+            f"Invalid --print-merged-config=‘{print_merged_config}’, "
+            f"expected on of 'run', 'full', 'workflow', 'template'"
+        )
+    return None
+main_print_merged_config.available_keys = _acceptable_print_merged_config_keys
 
 
 # ------------------------------------------------------------------------------

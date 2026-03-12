@@ -8,6 +8,7 @@ import colorlog
 
 from .main.main import main as _main
 from .main.watch import main_watch as _main_watch
+from .main.main import main_print_merged_config as _main_print_merged_config
 from .main import oshelper as flm_main_oshelper
 from flm import __version__ as flm_version
 
@@ -84,6 +85,29 @@ def _run_main_inner(cmdargs=None):
                              "current directory if it exists.  In all cases the input "
                              "YAML front matter takes precedence over this config.")
 
+    args_parser.add_argument('--inline-config', action='append',
+                             help="Additional inline configuration items, as YAML or JSON. "
+                             "Will be merged into the document's front-matter configuration."
+                             "You may specify this option multiple times to merge more items,"
+                             "earlier occurrences take precedence.")
+
+    args_parser.add_argument('--inline-default-config', action='append',
+                             help="Additional inline configuration items to adjust FLM's "
+                             "own default configuration.  This option is mostly an internal "
+                             "helper and you should not need to use it directly. "
+                             "Parsed like --inline-config.  Config items are merged into "
+                             "the default options chain, over which the user configuration "
+                             "takes precedence.")
+
+    args_parser.add_argument('--print-merged-config', nargs='?',
+                             default=None,
+                             const='run',
+                             help="Print the fully merged config and exit.  Use this option "
+                             "to debug your FLM config options.  You can optionally specify "
+                             "which config you want to see (one of "
+                             + (",".join([f'‘x’'
+                                          for x in _main_print_merged_config.available_keys]))
+                             + "; default ‘run’).")
 
     args_parser.add_argument('-o', '--output', action='store',
                              default=None,
@@ -166,15 +190,21 @@ def _run_main_inner(cmdargs=None):
 
 
     #
+    # If we simply want to debug the config merge:
+    #
+
+    if args.print_merged_config is not None:
+        d = args.__dict__
+        _main_print_merged_config(**d)
+        return
+
+    #
     # If in watch mode, set that up 
     #
 
     if args.watch:
-
         d = args.__dict__
-
         _main_watch(**d)
-
         return
 
 
@@ -183,7 +213,6 @@ def _run_main_inner(cmdargs=None):
     #
 
     d = args.__dict__
-
     _main(**d)
 
 

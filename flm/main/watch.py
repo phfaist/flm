@@ -22,7 +22,7 @@ from pylatexenc.latexnodes import LatexWalkerLocatedError
 from . import main
 from .run import ResourceAccessorBase
 
-
+from ._util import ReprValueFallbackJsonEncoder
 from .watch_util import find_available_port
 from .watch_hotreload import make_hotreloader
 
@@ -35,14 +35,6 @@ ext_by_format = {
 
 
 
-
-
-class ReprValueFallbackJsonEncoder(json.JSONEncoder):
-    def default(self, o):
-        try:
-            return super().default(o)
-        except TypeError:
-            return repr(o)
 
 
 
@@ -125,9 +117,9 @@ def main_watch(**kwargs):
 """
             return rendered_content
 
-        inline_config = None
+        inline_default_config = None
         if computed_format == 'html':
-            inline_config = { 'flm': {
+            inline_default_config = { 'flm': {
                 'renderer': {
                     'html': {
                         'include_node_data_attrs_fn': include_node_data_attrs_fn_src_line_col,
@@ -141,7 +133,8 @@ def main_watch(**kwargs):
             } }
 
 
-        run_kwargs = dict(kwargs, output=new_arg_output, inline_config=inline_config)
+        run_kwargs = dict(kwargs, output=new_arg_output,
+                          inline_default_config=inline_default_config)
 
         #
         # Run the full procedure a first time. Don't reuse main_runner or

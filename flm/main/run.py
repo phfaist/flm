@@ -162,7 +162,8 @@ class ResourceInfo:
 #     'force_block_level': None|true|false
 #     'template': ....
 #     'add_template_path': .....
-
+#     'main_config': ... # fully merged config (?)
+#
 #     'cwd': ..... # input CWD
 #     'output_cwd': ...... # reference output CWD for all FLM-processing stuff (might be temporary directory for some workflows)
 #     'output_filepath': {
@@ -555,15 +556,35 @@ class Run:
                  *,
                  flm_run_info,
                  run_config,
+                 inline_configs=None, # gets merged into run_config, overriding settings there
                  default_configs=None,
                  add_builtin_default_configs=True):
         super().__init__()
 
+
         self.flm_content = flm_content
         self.flm_run_info = flm_run_info
-        self.run_config = run_config
+        self.run_config = None
+        self.run_config_initial = run_config
+        self.inline_configs = inline_configs
         self.default_configs = default_configs
         self.add_builtin_default_configs = add_builtin_default_configs
+
+        # before anything else, merge in any run-config overrides
+        # (inline_config) into run_config:
+        if self.inline_configs is None:
+            self.run_config = dict(self.run_config_initial)
+        else:
+            self.inline_configs = [cfg for cfg in self.inline_configs if cfg is not None]
+            if len(self.inline_configs) == 0:
+                self.run_config = dict(self.run_config_initial)
+            else:
+                self.run_config = configmerger.recursive_assign_defaults([
+                    *self.inline_configs,
+                    self.run_config_initial
+                ])
+        run_config = self.run_config
+        logger.debug("Using run_config=%r", run_config)
 
         resource_accessor = flm_run_info['resource_accessor']
 
