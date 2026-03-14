@@ -120,6 +120,11 @@ def main_watch(**kwargs):
         inline_default_config = None
         if computed_format == 'html':
             inline_default_config = { 'flm': {
+                'features': {
+                    'flm.main.feature_graphics_collection': {
+                        'collect_graphics_filename_template': "gr${counter}-${hash6}${ext}"
+                    }
+                },
                 'renderer': {
                     'html': {
                         'include_node_data_attrs_fn': include_node_data_attrs_fn_src_line_col,

@@ -858,12 +858,27 @@ class FeatureGraphicsCollection(Feature):
             )
             target_ext = converter_info['target_ext']
 
-            target_fname = self.collect_graphics_filename_template_obj.substitute({
-                'basename': os.path.basename(resolved_src_url),
-                'basenoext': basenoext,
-                'ext': target_ext,
-                'counter': counter,
-            })
+            input_hash = None
+            if source_type == 'file':
+                with open(resolved_src_url, 'rb') as f:
+                    input_hash = hashlib.file_digest(f, 'sha256').hexdigest()
+
+            try:
+                target_fname = self.collect_graphics_filename_template_obj.substitute({
+                    'basename': os.path.basename(resolved_src_url),
+                    'basenoext': basenoext,
+                    'ext': target_ext,
+                    'counter': counter,
+                    'hash': input_hash if input_hash is not None else 'NOHASH',
+                    'hash6': input_hash[:6] if input_hash is not None else 'NOHASH',
+                })
+            except KeyError as e:
+                raise ValueError(
+                    f"Invalid file name template in feature_graphics_collection: ‘"
+                    + self.collect_graphics_filename_template
+                    + f"’ refers to invalid key ‘{e.args[0]}’"
+                )
+                    
             target_path = os.path.join(
                 self.reference_output_dir,
                 self.collect_graphics_to_output_folder,
@@ -880,6 +895,7 @@ class FeatureGraphicsCollection(Feature):
                 'source_url': source_url,
                 'src_url_resolved': resolved_src_url,
                 'converter_info': converter_info,
+                'input_hash': input_hash,
                 'target_path': target_path,
                 'target_relative_path': target_relative_path,
                 'from_ext': ext,
@@ -902,10 +918,7 @@ class FeatureGraphicsCollection(Feature):
 
             logger.debug('converter_info = %r', converter_info)
 
-            input_hash = None
-            if source_type == 'file':
-                with open(src_url, 'rb') as f:
-                    input_hash = hashlib.file_digest(f, 'sha256').hexdigest()
+            input_hash = collect_info['input_hash']
 
             if os.path.exists(target_path):
                 # check if the input file was updated since last run
