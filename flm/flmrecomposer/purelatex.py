@@ -206,8 +206,8 @@ default_purelatex_defs_makeatletter = r"""
 \providecommand\flmFinalPreambleSetup{}
 
 % For references -- pin down custom labels wherever we want for \zcref
-\newcounter{flm@internal@refcnt}
-\newcommand\flmLDefLabelText[2]{%
+\@ifundefined{c@flm@internal@refcnt}{\newcounter{flm@internal@refcnt}}{}
+\providecommand\flmLDefLabelText[2]{%
   \begingroup
     \def\theflm@internal@refcnt{#1}%
     \refstepcounter{flm@internal@refcnt}%
