@@ -1,4 +1,5 @@
 import unittest
+import re
 
 from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
@@ -436,8 +437,7 @@ class TestRenderMethodsDirect(unittest.TestCase):
     def test_render_semantic_span_with_target_id(self):
         fr = HtmlFragmentRenderer()
         result = fr.render_semantic_span('content', 'ref', None, target_id='ref-1')
-        self.assertTrue('id="ref-1"' in result)
-        self.assertTrue('<span' in result)
+        self.assertEqual(result, '<span id="ref-1" class="ref">content</span>')
 
     def test_render_semantic_block_default_div(self):
         fr = HtmlFragmentRenderer()
@@ -469,8 +469,7 @@ class TestRenderMethodsDirect(unittest.TestCase):
     def test_render_semantic_block_with_target_id(self):
         fr = HtmlFragmentRenderer()
         result = fr.render_semantic_block('content', 'proof', None, target_id='thm-1')
-        self.assertTrue('id="thm-1"' in result)
-        self.assertTrue('<div' in result)
+        self.assertEqual(result, '<div id="thm-1" class="proof">content</div>')
 
 
 # ---------------------------------------------------------------------------
@@ -493,8 +492,8 @@ class TestRenderGraphicsBlock(unittest.TestCase):
         gr.graphics_type = 'raster'
         result = fr.render_graphics_block(gr, None)
         self.assertTrue('style=' in result)
-        self.assertTrue('width:100.000000pt' in result)
-        self.assertTrue('height:50.000000pt' in result)
+        self.assertIsNotNone(re.search(r'width:100(\.0*)?pt', result))
+        self.assertIsNotNone(re.search(r'height:50(\.0*)?pt', result))
 
     def test_with_vector_dimensions(self):
         fr = HtmlFragmentRenderer()
@@ -502,7 +501,7 @@ class TestRenderGraphicsBlock(unittest.TestCase):
         gr.physical_dimensions = (80.0, 40.0)
         gr.graphics_type = 'vector'
         result = fr.render_graphics_block(gr, None)
-        self.assertTrue('width:80.000000pt' in result)
+        self.assertIsNotNone(re.search(r'width:80(\.0*)?pt', result))
 
     def test_raster_magnification(self):
         fr = HtmlFragmentRenderer()
@@ -511,8 +510,8 @@ class TestRenderGraphicsBlock(unittest.TestCase):
         gr.physical_dimensions = (100.0, 50.0)
         gr.graphics_type = 'raster'
         result = fr.render_graphics_block(gr, None)
-        self.assertTrue('width:200.000000pt' in result)
-        self.assertTrue('height:100.000000pt' in result)
+        self.assertIsNotNone(re.search(r'width:200(\.0*)?pt', result))
+        self.assertIsNotNone(re.search(r'height:100(\.0*)?pt', result))
 
     def test_vector_magnification(self):
         fr = HtmlFragmentRenderer()
@@ -521,8 +520,8 @@ class TestRenderGraphicsBlock(unittest.TestCase):
         gr.physical_dimensions = (100.0, 50.0)
         gr.graphics_type = 'vector'
         result = fr.render_graphics_block(gr, None)
-        self.assertTrue('width:50.000000pt' in result)
-        self.assertTrue('height:25.000000pt' in result)
+        self.assertIsNotNone(re.search(r'width:50(\.0*)?pt', result))
+        self.assertIsNotNone(re.search(r'height:25(\.0*)?pt', result))
 
     def test_only_width_no_height(self):
         fr = HtmlFragmentRenderer()
@@ -530,7 +529,7 @@ class TestRenderGraphicsBlock(unittest.TestCase):
         gr.physical_dimensions = (200.0, None)
         gr.graphics_type = 'raster'
         result = fr.render_graphics_block(gr, None)
-        self.assertTrue('width:200.000000pt' in result)
+        self.assertIsNotNone(re.search(r'width:200(\.0*)?pt', result))
         self.assertTrue('height' not in result)
 
     def test_srcset(self):
@@ -652,13 +651,11 @@ class TestRenderWithEnviron(unittest.TestCase):
     def test_inline_math(self):
         # FLM uses \(...\) for inline math (dollar signs are forbidden)
         result = _render_standalone(r'\(x^2\)')
-        self.assertTrue('<span class="inline-math">' in result)
-        self.assertTrue(r'\(x^2\)' in result)
+        self.assertEqual(result, r'<span class="inline-math">\(x^2\)</span>')
 
     def test_display_math(self):
         result = _render_block(r'\[x^2\]')
-        self.assertTrue('<span class="display-math">' in result)
-        self.assertTrue(r'\[x^2\]' in result)
+        self.assertEqual(result, r'<span class="display-math">\[x^2\]</span>')
 
     def test_math_non_standard_delimiters(self):
         # Call render_math_content directly to test non-standard delimiter passthrough
@@ -669,38 +666,46 @@ class TestRenderWithEnviron(unittest.TestCase):
             (r'$$', r'$$'), nodelist, None, 'inline'
         )
         # Should keep the provided delimiters instead of overriding with \( \)
-        self.assertTrue('$$x^2$$' in result)
-        self.assertTrue(r'\(' not in result)
+        self.assertEqual(result, r'<span class="inline-math">$$x^2$$</span>')
 
     def test_display_math_environment(self):
         result = _render_block(r'\begin{align}x &= y\end{align}')
-        self.assertTrue('class="display-math' in result)
-        self.assertTrue('env-align' in result)
+        self.assertEqual(
+            result,
+            r'<span id="equation-1" class="display-math env-align">'
+            r'\begin{align}x &amp;= y\tag*{(1)}\end{align}</span>'
+        )
 
     # --- headings ---
 
     def test_render_heading_h1(self):
         result = _render_block(r'\section{Introduction}')
-        self.assertTrue('<h1' in result)
-        self.assertTrue('Introduction' in result)
+        self.assertEqual(
+            result,
+            '<h1 id="sec--Introduction" class="heading-level-1">Introduction</h1>'
+        )
 
     def test_render_heading_h2(self):
         result = _render_block(r'\subsection{Background}')
-        self.assertTrue('<h2' in result)
-        self.assertTrue('Background' in result)
+        self.assertEqual(
+            result,
+            '<h2 id="sec--Background" class="heading-level-2">Background</h2>'
+        )
 
     def test_render_heading_h3(self):
         result = _render_block(r'\subsubsection{Details}')
-        self.assertTrue('<h3' in result)
-        self.assertTrue('Details' in result)
+        self.assertEqual(
+            result,
+            '<h3 id="sec--Details" class="heading-level-3">Details</h3>'
+        )
 
     def test_render_heading_paragraph_inline(self):
         result = _render_block(r'\paragraph{Note} Some content.')
-        # paragraph headings use <span> and are inline
-        self.assertTrue('<span' in result)
-        self.assertTrue('heading-level-4' in result)
-        self.assertTrue('heading-inline' in result)
-        self.assertTrue('Note' in result)
+        self.assertEqual(
+            result,
+            '<p><span id="sec--Note" class="heading-level-4 heading-inline">Note</span>'
+            ' Some content.</p>'
+        )
 
     def test_render_heading_invalid_level_raises(self):
         fr = HtmlFragmentRenderer()
@@ -714,28 +719,26 @@ class TestRenderWithEnviron(unittest.TestCase):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('Note')
         result = fr.render_heading(nodelist, None, heading_level=4, inline_heading=True)
-        self.assertTrue(result.endswith(' '))
+        self.assertEqual(result, '<span class="heading-level-4 heading-inline">Note</span> ')
 
     def test_render_heading_inline_no_space(self):
         fr = HtmlFragmentRenderer()
         fr.inline_heading_add_space = False
         nodelist = _make_nodelist('Note')
         result = fr.render_heading(nodelist, None, heading_level=4, inline_heading=True)
-        self.assertFalse(result.endswith(' '))
+        self.assertEqual(result, '<span class="heading-level-4 heading-inline">Note</span>')
 
     def test_render_heading_with_target_id(self):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('My Section')
         result = fr.render_heading(nodelist, None, heading_level=1, target_id='my-sec')
-        self.assertTrue('id="my-sec"' in result)
-        self.assertTrue('<h1' in result)
+        self.assertEqual(result, '<h1 id="my-sec" class="heading-level-1">My Section</h1>')
 
     def test_render_heading_theorem_level(self):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('Theorem')
         result = fr.render_heading(nodelist, None, heading_level='theorem')
-        self.assertTrue('<span' in result)
-        self.assertTrue('heading-level-theorem' in result)
+        self.assertEqual(result, '<span class="heading-level-theorem">Theorem</span>')
 
     def test_render_heading_with_annotations(self):
         fr = HtmlFragmentRenderer()
@@ -743,16 +746,13 @@ class TestRenderWithEnviron(unittest.TestCase):
         result = fr.render_heading(
             nodelist, None, heading_level=1, annotations=['numbered']
         )
-        self.assertTrue('numbered' in result)
-        self.assertTrue('heading-level-1' in result)
+        self.assertEqual(result, '<h1 class="numbered heading-level-1">Title</h1>')
 
     # --- links ---
 
     def test_render_link_external(self):
         result = _render_standalone(r'\href{https://example.com}{click here}')
-        self.assertTrue('<a ' in result)
-        self.assertTrue('href="https://example.com"' in result)
-        self.assertTrue('click here' in result)
+        self.assertEqual(result, '<a href="https://example.com" class="href-href">click here</a>')
 
     def test_render_link_empty_href_no_anchor(self):
         fr = HtmlFragmentRenderer()
@@ -766,19 +766,19 @@ class TestRenderWithEnviron(unittest.TestCase):
         fr.render_links_with_empty_href = True
         nodelist = _make_nodelist('display text')
         result = fr.render_link('href', '', nodelist, None)
-        self.assertTrue('<a ' in result)
+        self.assertEqual(result, '<a href="#" class="href-href">display text</a>')
 
     def test_render_link_ref_type_in_class(self):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('text')
         result = fr.render_link('href', 'https://x.com', nodelist, None)
-        self.assertTrue('href-href' in result)
+        self.assertEqual(result, '<a href="https://x.com" class="href-href">text</a>')
 
     def test_render_link_with_annotations(self):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('text')
         result = fr.render_link('href', '#x', nodelist, None, annotations=['myannot'])
-        self.assertTrue('myannot' in result)
+        self.assertEqual(result, '<a href="#x" class="href-href myannot">text</a>')
 
     # --- annotations ---
 
@@ -786,60 +786,75 @@ class TestRenderWithEnviron(unittest.TestCase):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('a note')
         result = fr.render_annotation_comment(nodelist, None, is_block_level=False)
-        self.assertTrue('<span' in result)
-        self.assertTrue('annotation-comment' in result)
-        self.assertTrue('a note' in result)
+        self.assertEqual(
+            result,
+            '<span class="annotation annotation-comment annotation-0">a note</span>'
+        )
 
     def test_render_annotation_comment_block(self):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('a note')
         result = fr.render_annotation_comment(nodelist, None, is_block_level=True)
-        self.assertTrue('<div' in result)
-        self.assertTrue('annotation-comment' in result)
+        self.assertEqual(
+            result,
+            '<div class="annotation annotation-comment annotation-0">a note</div>'
+        )
 
     def test_render_annotation_comment_with_initials(self):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('a note')
         result = fr.render_annotation_comment(nodelist, None, initials='AB')
-        self.assertTrue('<span class="annotation-initials">AB</span>' in result)
+        self.assertEqual(
+            result,
+            '<span class="annotation annotation-comment annotation-0">'
+            '<span class="annotation-initials">AB</span>a note</span>'
+        )
 
     def test_render_annotation_comment_color_index(self):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('a note')
         result = fr.render_annotation_comment(nodelist, None, color_index=3)
-        self.assertTrue('annotation-3' in result)
-
-    def test_render_annotation_comment_has_annotation_class(self):
-        fr = HtmlFragmentRenderer()
-        nodelist = _make_nodelist('a note')
-        result = fr.render_annotation_comment(nodelist, None)
-        self.assertTrue('annotation' in result)
+        self.assertEqual(
+            result,
+            '<span class="annotation annotation-comment annotation-3">a note</span>'
+        )
 
     def test_render_annotation_highlight_inline(self):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('highlighted text')
         result = fr.render_annotation_highlight(nodelist, None, is_block_level=False)
-        self.assertTrue('<span' in result)
-        self.assertTrue('annotation-highlight' in result)
+        self.assertEqual(
+            result,
+            '<span class="annotation annotation-highlight annotation-0">highlighted text</span>'
+        )
 
     def test_render_annotation_highlight_block(self):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('highlighted text')
         result = fr.render_annotation_highlight(nodelist, None, is_block_level=True)
-        self.assertTrue('<div' in result)
-        self.assertTrue('annotation-highlight' in result)
+        self.assertEqual(
+            result,
+            '<div class="annotation annotation-highlight annotation-0">highlighted text</div>'
+        )
 
     def test_render_annotation_highlight_with_initials(self):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('highlighted text')
         result = fr.render_annotation_highlight(nodelist, None, initials='XY')
-        self.assertTrue('<span class="annotation-initials">XY</span>' in result)
+        self.assertEqual(
+            result,
+            '<span class="annotation annotation-highlight annotation-0">'
+            '<span class="annotation-initials">XY</span>highlighted text</span>'
+        )
 
     def test_render_annotation_highlight_color_index(self):
         fr = HtmlFragmentRenderer()
         nodelist = _make_nodelist('highlighted')
         result = fr.render_annotation_highlight(nodelist, None, color_index=1)
-        self.assertTrue('annotation-1' in result)
+        self.assertEqual(
+            result,
+            '<span class="annotation annotation-highlight annotation-1">highlighted</span>'
+        )
 
     # --- text_format via renderer directly ---
 
@@ -863,39 +878,44 @@ class TestRenderWithEnviron(unittest.TestCase):
         nl2 = _make_nodelist('Line two')
         lines = [_MockLineInfo(nl1), _MockLineInfo(nl2)]
         result = fr.render_lines(lines, None)
-        self.assertTrue('class="lines"' in result)
-        self.assertTrue('Line one' in result)
-        self.assertTrue('Line two' in result)
-        self.assertTrue('<br>' in result)
+        self.assertEqual(
+            result,
+            '<p class="lines"><span>Line one</span><br><span>Line two</span></p>'
+        )
 
     def test_render_lines_single_no_br(self):
         fr = HtmlFragmentRenderer()
         nl = _make_nodelist('Only line')
         lines = [_MockLineInfo(nl)]
         result = fr.render_lines(lines, None)
-        # Last line should not have <br>
-        self.assertTrue('<br>' not in result)
+        self.assertEqual(result, '<p class="lines"><span>Only line</span></p>')
 
     def test_render_lines_with_indent_left(self):
         fr = HtmlFragmentRenderer()
         nl = _make_nodelist('Indented')
         lines = [_MockLineInfo(nl, indent_left=2)]
         result = fr.render_lines(lines, None)
-        self.assertTrue('quote-lines-indent' in result)
+        self.assertEqual(
+            result,
+            '<p class="lines"><span>'
+            '<span class="quote-lines-indent"></span>'
+            '<span class="quote-lines-indent"></span>'
+            'Indented</span></p>'
+        )
 
     def test_render_lines_with_role(self):
         fr = HtmlFragmentRenderer()
         nl = _make_nodelist('Line')
         lines = [_MockLineInfo(nl)]
         result = fr.render_lines(lines, None, role='quote-lines')
-        self.assertTrue('quote-lines' in result)
+        self.assertEqual(result, '<p class="lines quote-lines"><span>Line</span></p>')
 
     def test_render_lines_with_target_id(self):
         fr = HtmlFragmentRenderer()
         nl = _make_nodelist('Line')
         lines = [_MockLineInfo(nl)]
         result = fr.render_lines(lines, None, target_id='poem-1')
-        self.assertTrue('id="poem-1"' in result)
+        self.assertEqual(result, '<p id="poem-1" class="lines"><span>Line</span></p>')
 
     def test_render_lines_no_br_flag(self):
         fr = HtmlFragmentRenderer()
@@ -904,7 +924,10 @@ class TestRenderWithEnviron(unittest.TestCase):
         nl2 = _make_nodelist('Line two')
         lines = [_MockLineInfo(nl1), _MockLineInfo(nl2)]
         result = fr.render_lines(lines, None)
-        self.assertTrue('<br>' not in result)
+        self.assertEqual(
+            result,
+            '<p class="lines"><span>Line one</span><span>Line two</span></p>'
+        )
 
     def test_render_lines_no_span_flag(self):
         fr = HtmlFragmentRenderer()
@@ -913,8 +936,7 @@ class TestRenderWithEnviron(unittest.TestCase):
         nl = _make_nodelist('Line')
         lines = [_MockLineInfo(nl)]
         result = fr.render_lines(lines, None)
-        # Without lines_use_line_span, line is not wrapped in extra <span>
-        self.assertTrue('<span>' not in result)
+        self.assertEqual(result, '<p class="lines">Line</p>')
 
     def test_render_lines_role_annotation_not_duplicated(self):
         fr = HtmlFragmentRenderer()
@@ -922,10 +944,8 @@ class TestRenderWithEnviron(unittest.TestCase):
         lines = [_MockLineInfo(nl)]
         result = fr.render_lines(lines, None, role='quote-lines',
                                  annotations=['quote-lines'])
-        # 'quote-lines' should appear once in the class list, not twice
-        idx = result.find('class="')
-        class_str = result[idx:result.find('"', idx+7)]
-        self.assertTrue(class_str.count('quote-lines') == 1)
+        # 'quote-lines' should appear once, not twice, since it's both role and annotation
+        self.assertEqual(result, '<p class="lines quote-lines"><span>Line</span></p>')
 
     # --- enumeration ---
 
@@ -933,20 +953,25 @@ class TestRenderWithEnviron(unittest.TestCase):
         result = _render_block(
             r'\begin{enumerate}\item First\item Second\end{enumerate}'
         )
-        self.assertTrue('<dl' in result)
-        self.assertTrue('enumeration' in result)
-        self.assertTrue('<dt>' in result)
-        self.assertTrue('<dd>' in result)
-        self.assertTrue('First' in result)
-        self.assertTrue('Second' in result)
+        self.assertEqual(
+            result,
+            '<dl class="enumeration enumerate">'
+            '<dt>1.</dt><dd><p>First</p></dd>'
+            '<dt>2.</dt><dd><p>Second</p></dd>'
+            '</dl>'
+        )
 
     def test_render_itemize(self):
         result = _render_block(
             r'\begin{itemize}\item Alpha\item Beta\end{itemize}'
         )
-        self.assertTrue('<dl' in result)
-        self.assertTrue('Alpha' in result)
-        self.assertTrue('Beta' in result)
+        self.assertEqual(
+            result,
+            '<dl class="enumeration itemize">'
+            '<dt>\u2022</dt><dd><p>Alpha</p></dd>'
+            '<dt>\u2022</dt><dd><p>Beta</p></dd>'
+            '</dl>'
+        )
 
     # --- paragraph building ---
 
@@ -961,8 +986,10 @@ class TestRenderWithEnviron(unittest.TestCase):
     def test_verbatim_code_macro(self):
         # FLM uses \verbcode{...} (not \verb|...|)
         result = _render_standalone(r'\verbcode{hello world}')
-        self.assertTrue('hello world' in result)
-        self.assertTrue('class=' in result)
+        self.assertEqual(
+            result,
+            '<span class="verbatimcode verbatimcode-inline">hello world</span>'
+        )
 
 
 # ---------------------------------------------------------------------------
