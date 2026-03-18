@@ -45,4 +45,4 @@ result, _ = doc.render(HtmlFragmentRenderer())
 
 ## Testing
 
-Run with `pytest` (configured in `pyproject.toml`). Test files live in `test/` and are named `test_<module>.py`.
+Run with `pytest` (configured in `pyproject.toml`). Test files live in `test/` and are named `test_<module>.py` or `test_<module>_<submodule>.py`. Test files for the `flm.main` module and its submodules live in the `test/main/` folder.

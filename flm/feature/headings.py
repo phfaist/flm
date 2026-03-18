@@ -255,6 +255,12 @@ class FeatureHeadings(Feature):
             else:
                 self.counter_formatter = self.feature.counter_formatter
 
+            if self.counter_formatter is not None and self.render_context.supports_feature('refs'):
+                refs_mgr = self.render_context.feature_render_manager('refs')
+                refs_mgr.register_counter_formatter(
+                    counter_formatter=self.counter_formatter
+                )
+
             self.section_counter_ifaces = {}
 
             if self.numbering_section_depth is not False:
@@ -471,7 +477,7 @@ class FeatureHeadings(Feature):
     def __init__(
             self,
             section_commands_by_level=None,
-            numbering_section_depth=False,
+            numbering_section_depth=False, # type is: int | True | False | None
             counter_formatter=None,
             section_numbering_by_level=None,
     ):
