@@ -654,6 +654,20 @@ class TestRefsRecomposer(unittest.TestCase):
             r'\NoCaseChange{\protect\zcref{ref1}}'
         )
 
+    def test_ref_recomposes_to_zcref_w_opt(self):
+        result = self._recompose(r'\ref[S]{eq:abc}')
+        self.assertEqual(
+            result,
+            r'\NoCaseChange{\protect\zcref[S]{ref1}}'
+        )
+
+    def test_ref_recomposes_to_zcref_w_opt2(self):
+        result = self._recompose(r'\ref[opt1={value1},opt2=\(\relax\)]{eq:abc}')
+        self.assertEqual(
+            result,
+            r'\NoCaseChange{\protect\zcref[opt1={value1},opt2={\(\relax\)}]{ref1}}'
+        )
+
     def test_hyperref_recomposes_to_hyperref(self):
         result = self._recompose(r'\hyperref[eq:abc]{my text}')
         self.assertEqual(
@@ -667,6 +681,20 @@ class TestRefsRecomposer(unittest.TestCase):
             options={'refs': {'emit_flm_macro': True}}
         )
         self.assertEqual(result, r'\flmRefsCref{ref1}')
+
+    def test_ref_with_emit_flm_macro_w_opt2(self):
+        result = self._recompose(
+            r'\ref[opt1={value1},opt2=\(\relax\)]{eq:abc}',
+            options={'refs': {'emit_flm_macro': True}}
+        )
+        self.assertEqual(result, r'\flmRefsCref[opt1={value1},opt2={\(\relax\)}]{ref1}')
+
+    def test_ref_with_emit_flm_macro_w_opt(self):
+        result = self._recompose(
+            r'\ref[S]{eq:abc}',
+            options={'refs': {'emit_flm_macro': True}}
+        )
+        self.assertEqual(result, r'\flmRefsCref[S]{ref1}')
 
     def test_hyperref_with_emit_flm_macro(self):
         result = self._recompose(

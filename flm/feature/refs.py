@@ -651,13 +651,28 @@ class RefMacro(FLMMacroSpecBase):
             for safe_label_info in safe_ref_labels
         ])
 
+        flm_refs_options = node.flm_ref_info['ref_options']
+        flm_refs_options_string = ''
+        if flm_refs_options is not None and len(flm_refs_options):
+            opts_strings = []
+            for opt_key, opt_val_nodelist in flm_refs_options.items():
+                opt_s = opt_key
+                if opt_val_nodelist is not None and (
+                        len(opt_val_nodelist) != 1 or opt_val_nodelist[0] is not None
+                ):
+                    opt_s += '={' + recomposer.subrecompose(opt_val_nodelist) + '}'
+                opts_strings.append(opt_s)
+            flm_refs_options_string = '[' + ','.join(opts_strings) + ']'
+
         if emit_flm_macro:
-            return r'\flmRefsCref{' + safe_labels_comma + '}'
+            return (
+                r'\flmRefsCref' + flm_refs_options_string + r'{' + safe_labels_comma + '}'
+            )
         
-        recomposer.ensure_latex_package('cleveref')
+        recomposer.ensure_latex_package('zref-clever')
         return (
             protect_surround[0]
-            + r'\zcref{'
+            + r'\zcref' + flm_refs_options_string + r'{'
             + safe_labels_comma
             + '}'
             + protect_surround[1]
