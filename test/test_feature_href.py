@@ -4,6 +4,9 @@ from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
 from flm.fragmentrenderer.html import HtmlFragmentRenderer
 from flm.flmrecomposer.purelatex import FLMPureLatexRecomposer
+from flm.fragmentrenderer.text import TextFragmentRenderer
+from flm.fragmentrenderer.latex import LatexFragmentRenderer
+from flm.fragmentrenderer.markdown import MarkdownFragmentRenderer
 
 from flm.feature.href import FeatureHref, HrefHyperlinkMacro
 
@@ -237,6 +240,180 @@ class TestFeatureHrefRecompose(unittest.TestCase):
         self.assertEqual(
             result['latex'],
             r'\url{https://example.com}'
+        )
+
+
+class TestFeatureHrefText(unittest.TestCase):
+
+    maxDiff = None
+
+    def _rs(self, environ, s):
+        frag = environ.make_fragment(s, standalone_mode=True)
+        return frag.render_standalone(TextFragmentRenderer())
+
+    def test_href_with_display_text(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\href{https://example.com}{Click here}'),
+            'Click here <https://example.com>'
+        )
+
+    def test_url(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\url{https://example.com/page}'),
+            'example.com/page <https://example.com/page>'
+        )
+
+    def test_email(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\email{user@example.com}'),
+            'user@example.com <mailto:user@example.com>'
+        )
+
+    def test_href_with_formatted_text(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\href{https://example.com}{\textbf{Bold link}}'),
+            'Bold link <https://example.com>'
+        )
+
+    def test_url_strips_trailing_slash(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\url{https://example.com/}'),
+            'example.com <https://example.com/>'
+        )
+
+    def test_url_with_special_chars(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\url{https://example.com/path?q=1&x=2}'),
+            'example.com/path?q=1&x=2 <https://example.com/path?q=1&x=2>'
+        )
+
+    def test_href_inline(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'Visit \href{https://example.com}{our site} for more info.'),
+            'Visit our site <https://example.com> for more info.'
+        )
+
+
+class TestFeatureHrefLatex(unittest.TestCase):
+
+    maxDiff = None
+
+    def _rs(self, environ, s):
+        frag = environ.make_fragment(s, standalone_mode=True)
+        return frag.render_standalone(LatexFragmentRenderer())
+
+    def test_href_with_display_text(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\href{https://example.com}{Click here}'),
+            r'\href{https://example.com}{Click here}'
+        )
+
+    def test_url(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\url{https://example.com/page}'),
+            r'\href{https://example.com/page}{example.com/page}'
+        )
+
+    def test_email(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\email{user@example.com}'),
+            r'\href{mailto:user@example.com}{user@example.com}'
+        )
+
+    def test_href_with_formatted_text(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\href{https://example.com}{\textbf{Bold link}}'),
+            r'\href{https://example.com}{\textbf{Bold link}}'
+        )
+
+    def test_url_strips_trailing_slash(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\url{https://example.com/}'),
+            r'\href{https://example.com/}{example.com}'
+        )
+
+    def test_url_with_special_chars(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\url{https://example.com/path?q=1&x=2}'),
+            r'\href{https://example.com/path?q=1&x=2}{example.com/path?q=1\&x=2}'
+        )
+
+    def test_href_inline(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'Visit \href{https://example.com}{our site} for more info.'),
+            r'Visit \href{https://example.com}{our site} for more info.'
+        )
+
+
+class TestFeatureHrefMarkdown(unittest.TestCase):
+
+    maxDiff = None
+
+    def _rs(self, environ, s):
+        frag = environ.make_fragment(s, standalone_mode=True)
+        return frag.render_standalone(MarkdownFragmentRenderer())
+
+    def test_href_with_display_text(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\href{https://example.com}{Click here}'),
+            '[Click here](https://example.com)'
+        )
+
+    def test_url(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\url{https://example.com/page}'),
+            '[example\\.com/page](https://example.com/page)'
+        )
+
+    def test_email(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\email{user@example.com}'),
+            '[user@example\\.com](mailto:user@example.com)'
+        )
+
+    def test_href_with_formatted_text(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\href{https://example.com}{\textbf{Bold link}}'),
+            '[**Bold link**](https://example.com)'
+        )
+
+    def test_url_strips_trailing_slash(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\url{https://example.com/}'),
+            '[example\\.com](https://example.com/)'
+        )
+
+    def test_url_with_special_chars(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'\url{https://example.com/path?q=1&x=2}'),
+            '[example\\.com/path?q=1&x=2](https://example.com/path?q=1&x=2)'
+        )
+
+    def test_href_inline(self):
+        env = mk_flm_environ()
+        self.assertEqual(
+            self._rs(env, r'Visit \href{https://example.com}{our site} for more info.'),
+            'Visit [our site](https://example.com) for more info\\.'
         )
 
 
