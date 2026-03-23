@@ -295,8 +295,27 @@ class FeatureRefsRenderManager(Feature.RenderManager):
                             counter_prefix_variant=None,
                             counter_with_prefix=True, counter_with_delimiters=True):
 
-        if display_content_flm is None:
-            display_content_flm = ref_instance.formatted_ref_flm_text
+        if display_content_flm is not None:
+            return self._render_ref_with_display_text(ref_instance, display_content_flm)
+
+        if (ref_instance.counter_value is not None
+            and ref_instance.counter_formatter_id is not None):
+            counter_formatter = \
+                self.registered_counter_formatters[ref_instance.counter_formatter_id]
+            display_content_flm = counter_formatter.format_flm(
+                ValueWithSubNums(ref_instance.counter_value),
+                numprefix=ref_instance.counter_numprefix,
+                with_prefix=counter_with_prefix,
+                prefix_variant=counter_prefix_variant,
+                with_delimiters=counter_with_delimiters,
+            )
+            return self._render_ref_with_display_text(ref_instance, display_content_flm)
+
+        return self._render_ref_with_display_text(
+            ref_instance, ref_instance.formatted_ref_flm_text
+        )
+
+    def _render_ref_with_display_text(self, ref_instance, display_content_flm):
 
         if not isinstance(display_content_flm, FLMFragment):
             display_content_flm = self.render_context.doc.environment.make_fragment(
@@ -401,7 +420,11 @@ class FeatureRefsRenderManager(Feature.RenderManager):
 
         if len(ref_instances_nocounter):
             for ri in ref_instances_nocounter:
-                s_final_blocks += [ self.render_ref_instance(ri, None) ]
+                s_final_blocks.append(
+                    self._render_ref_with_display_text(
+                        ri, ri.formatted_ref_flm_text
+                    )
+                )
 
         return ', '.join(s_final_blocks)
 
@@ -433,6 +456,10 @@ class FeatureRefsRenderManager(Feature.RenderManager):
 
 
 _ref_arg_specs = {
+    '[]ref_options': FLMArgumentSpec(
+        latexnodes_parsers.LatexOptionalSquareBracketsParser(),
+        argname='ref_options'
+    ),
     'ref_label': FLMArgumentSpec(
         latexnodes_parsers.LatexCharsGroupParser(),
         argname='ref_label'
@@ -506,11 +533,19 @@ class RefMacro(FLMMacroSpecBase):
         else:
             display_content_nodelist = None
 
+        if 'ref_options' in node_args:
+            ref_options_nodelist = node_args['ref_options'].get_content_nodelist()
+            ref_options = ref_options_nodelist.parse_keyval_content()
+        else:
+            ref_options_nodelist = None
+            ref_options = {}
+
         node.flmarg_ref_list = ref_pair_list
         if len(ref_pair_list) == 1:
             node.flmarg_ref = ref_pair_list[0]
         node.flm_ref_info = {
             'ref_list': ref_pair_list,
+            'ref_options': ref_options,
             'display_content_nodelist': display_content_nodelist,
         }
         
@@ -522,17 +557,22 @@ class RefMacro(FLMMacroSpecBase):
 
         ref_list = node.flm_ref_info['ref_list']
         display_content_nodelist = node.flm_ref_info['display_content_nodelist']
+        ref_options = node.flm_ref_info['ref_options']
 
         mgr = render_context.feature_render_manager('refs')
         resource_info = node.latex_walker.resource_info
 
         if len(ref_list) == 1:
+            counter_prefix_variant = self.counter_prefix_variant
+            if 'S' in ref_options:
+                counter_prefix_variant = 'capital'
+
             ref_type, ref_label = ref_list[0]
             try:
                 return mgr.render_ref(ref_type, ref_label,
                                       display_content_nodelist,
                                       resource_info,
-                                      counter_prefix_variant=self.counter_prefix_variant)
+                                      counter_prefix_variant=counter_prefix_variant)
             except LatexWalkerLocatedError as e:
                 logger.debug(
                     f"Failed to resolve reference to ‘{ref_type}:{ref_label}’: {e} "
@@ -672,7 +712,7 @@ class FeatureRefs(Feature):
             macros=[
                 self.RefMacroCls(
                     macroname='ref',
-                    command_arguments=('ref_label',)
+                    command_arguments=('[]ref_options', 'ref_label',)
                 ),
                 self.RefMacroCls(
                     macroname='hyperref',

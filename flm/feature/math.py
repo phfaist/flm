@@ -44,8 +44,8 @@ eq_default_counter_formatter_spec = {
         'singular': 'Eq.~',
         'plural': 'Eqs.~',
         'capital': {
-            'singular': 'Equation',
-            'plural': 'Equations',
+            'singular': 'Equation~',
+            'plural': 'Equations~',
         },
     },
     'delimiters': ('(',')'),
@@ -651,6 +651,7 @@ class MathEqrefMacro(FLMMacroSpecBase):
         node.flmarg_ref = (ref_type, ref_label)
         node.flm_ref_info = {
             'ref_list': [ node.flmarg_ref ],
+            'ref_options': {},
             'display_content_nodelist': None,
         }
 
