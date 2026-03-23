@@ -306,7 +306,7 @@ class FLMDataLoader:
         self.environment = environment
 
         if self.data['_dump']['version'] != _dump_version:
-            raise RuntimeError(
+            raise ValueError(
                 f"Dump version mismatch: {self.data['_dump']['version']}, "
                 f"expected {_dump_version}"
             )
@@ -318,7 +318,7 @@ class FLMDataLoader:
 
 
     def get_keys(self):
-        return list(self.data['dumps'].keys())
+        return list(dict(self.data['dumps']).keys())
 
     def get_object_dump(self, key):
         data = self.data['dumps'][key]

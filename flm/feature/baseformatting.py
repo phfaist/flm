@@ -14,6 +14,9 @@ class NoExtraSpaceAfterDotMacro(FLMMacroSpecBase):
     initials or abbreviations, to avoid awkward spacing.  For instance, type
     ``Well, well, Mr.\@ Bond.  You look surprised to see me.``.
     """
+
+    allowed_in_standalone_mode = True
+
     def render(self, node, render_context):
         if hasattr(render_context.fragment_renderer, 'latex_macro_no_extra_space_after_dot'):
             return render_context.fragment_renderer.latex_macro_no_extra_space_after_dot

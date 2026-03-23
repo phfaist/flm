@@ -3,6 +3,7 @@ import unittest
 from flm.flmfragment import FLMFragment
 from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
+from flm.fragmentrenderer.html import HtmlFragmentRenderer
 
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
 from pylatexenc.latexnodes import LatexWalkerParseError
@@ -180,6 +181,220 @@ A CR code for group \(G\) and fixed group element \(g\) consists of all binary s
 
 
 
+
+
+class TestFLMFragmentParse(unittest.TestCase):
+
+    def test_parse_classmethod_returns_walker_and_nodes(self):
+        env = mk_flm_environ()
+        latex_walker, nodes = FLMFragment.parse(
+            r'Hello \textbf{world}!',
+            env,
+            standalone_mode=True,
+            what='test-parse',
+        )
+        self.assertEqual(len(nodes), 3)
+        self.assertTrue(nodes[0].isNodeType(latexnodes_nodes.LatexCharsNode))
+        self.assertEqual(nodes[0].chars, 'Hello ')
+        self.assertTrue(nodes[1].isNodeType(latexnodes_nodes.LatexMacroNode))
+        self.assertEqual(nodes[1].macroname, 'textbf')
+        self.assertTrue(nodes[2].isNodeType(latexnodes_nodes.LatexCharsNode))
+        self.assertEqual(nodes[2].chars, '!')
+        self.assertTrue(latex_walker.standalone_mode)
+
+    def test_parse_classmethod_invalid_input_raises(self):
+        env = mk_flm_environ()
+        with self.assertRaises(LatexWalkerParseError):
+            FLMFragment.parse(
+                r'\UnknownMacro',
+                env,
+                standalone_mode=True,
+            )
+
+
+class TestFLMFragmentRendering(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_render_standalone(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment(r'Hello \textbf{world}', standalone_mode=True)
+        result = frag.render_standalone(HtmlFragmentRenderer())
+        self.assertEqual(result, 'Hello <span class="textbf">world</span>')
+
+    def test_render_standalone_on_non_standalone_raises(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('test')
+        with self.assertRaises(ValueError):
+            frag.render_standalone(HtmlFragmentRenderer())
+
+
+class TestFLMFragmentIsEmpty(unittest.TestCase):
+
+    def test_empty_string(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('', standalone_mode=True)
+        self.assertTrue(frag.is_empty())
+        self.assertFalse(bool(frag))
+
+    def test_whitespace_only(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('   ', standalone_mode=True)
+        self.assertTrue(frag.is_empty())
+        self.assertFalse(bool(frag))
+
+    def test_has_content(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('hello', standalone_mode=True)
+        self.assertFalse(frag.is_empty())
+        self.assertTrue(bool(frag))
+
+
+class TestFLMFragmentRepr(unittest.TestCase):
+
+    def test_short_text(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('hello', standalone_mode=True)
+        self.assertEqual(repr(frag), "<FLMFragment 'hello'>")
+
+    def test_long_text_truncated(self):
+        env = mk_flm_environ()
+        long_text = 'A' * 60
+        frag = env.make_fragment(long_text, standalone_mode=True)
+        self.assertEqual(
+            repr(frag),
+            "<FLMFragment '" + 'A' * 49 + "\u2026'>"
+        )
+
+
+class TestFLMFragmentAttributes(unittest.TestCase):
+
+    def test_what(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('test', what='my-test')
+        self.assertEqual(frag.what, 'my-test')
+
+    def test_resource_info(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('test', resource_info='/some/path')
+        self.assertEqual(frag.resource_info, '/some/path')
+
+    def test_standalone_mode(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('test', standalone_mode=True)
+        self.assertTrue(frag.standalone_mode)
+
+    def test_standalone_mode_default_false(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('test')
+        self.assertFalse(frag.standalone_mode)
+
+
+class TestFLMFragmentGetFirstParagraphNoParagraphs(unittest.TestCase):
+
+    def test_no_paragraph_breaks_returns_same_text(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('just one paragraph', standalone_mode=True)
+        fp = frag.get_first_paragraph()
+        self.assertEqual(fp.flm_text, 'just one paragraph')
+
+
+class TestFLMFragmentInitWithNodeList(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_init_with_preparsed_nodes(self):
+        env = mk_flm_environ()
+        frag1 = env.make_fragment(r'Hello \textbf{world}', standalone_mode=True)
+        # Re-create fragment from the already-parsed node list
+        frag2 = FLMFragment(frag1.nodes, env, standalone_mode=True)
+        self.assertEqual(frag2.flm_text, r'Hello \textbf{world}')
+        self.assertEqual(len(frag2.nodes), 2)
+        result = frag2.render_standalone(HtmlFragmentRenderer())
+        self.assertEqual(result, 'Hello <span class="textbf">world</span>')
+
+    def test_init_with_preparsed_nodes_custom_flm_text(self):
+        env = mk_flm_environ()
+        frag1 = env.make_fragment(r'Hello \textbf{world}', standalone_mode=True)
+        frag2 = FLMFragment(
+            frag1.nodes, env, standalone_mode=True,
+            _flm_text_if_loading_nodes='custom text'
+        )
+        self.assertEqual(frag2.flm_text, 'custom text')
+
+
+class TestFLMFragmentTolerantParsing(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_tolerant_parsing_skips_unknown_macros(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment(
+            r'Hello \UnknownMacro world',
+            tolerant_parsing=True,
+            standalone_mode=True,
+        )
+        result = frag.render_standalone(HtmlFragmentRenderer())
+        self.assertEqual(result, 'Hello world')
+
+
+class TestFLMFragmentSilent(unittest.TestCase):
+
+    def test_silent_still_raises_on_error(self):
+        env = mk_flm_environ()
+        with self.assertRaises(Exception):
+            env.make_fragment(r'\BadMacro', silent=True)
+
+
+class TestFLMFragmentIsBlockLevel(unittest.TestCase):
+
+    def test_is_block_level_set(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('test', is_block_level=True)
+        self.assertTrue(frag.is_block_level)
+
+    def test_is_block_level_default_none(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('test')
+        self.assertIsNone(frag.is_block_level)
+
+
+class TestFLMFragmentStartNodeVisitor(unittest.TestCase):
+
+    def test_start_node_visitor(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('hello', standalone_mode=True)
+
+        class SimpleVisitor:
+            def __init__(self):
+                self.started = False
+                self.start_nodes = None
+            def start(self, nodes):
+                self.started = True
+                self.start_nodes = nodes
+
+        visitor = SimpleVisitor()
+        frag.start_node_visitor(visitor)
+        self.assertTrue(visitor.started)
+        self.assertIs(visitor.start_nodes, frag.nodes)
+
+
+class TestFLMFragmentInternalAttributes(unittest.TestCase):
+
+    def test_attributes_returns_dict(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('test', standalone_mode=True, what='mytest',
+                                 resource_info='/path')
+        attrs = frag._attributes()
+        self.assertEqual(attrs['what'], 'mytest')
+        self.assertEqual(attrs['resource_info'], '/path')
+        self.assertTrue(attrs['standalone_mode'])
+
+    def test_attributes_kwargs_override(self):
+        env = mk_flm_environ()
+        frag = env.make_fragment('test', what='original')
+        attrs = frag._attributes(what='overridden')
+        self.assertEqual(attrs['what'], 'overridden')
 
 
 if __name__ == '__main__':

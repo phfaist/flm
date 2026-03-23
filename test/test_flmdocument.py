@@ -364,5 +364,156 @@ we can also have an equation, like this:
 
 
 
+class TestFLMDocumentAttributes(unittest.TestCase):
+
+    def test_environment_attribute(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment('hello')
+        doc = environ.make_document(frag.render)
+        self.assertIs(doc.environment, environ)
+
+    def test_metadata_default_none(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment('hello')
+        doc = environ.make_document(frag.render)
+        self.assertIsNone(doc.metadata)
+
+    def test_metadata_set(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment('hello')
+        doc = environ.make_document(frag.render, metadata={'title': 'Test'})
+        self.assertEqual(doc.metadata, {'title': 'Test'})
+
+    def test_feature_document_options(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment('hello')
+        doc = environ.make_document(frag.render, feature_document_options={'math': {}})
+        self.assertEqual(doc.feature_document_options, {'math': {}})
+
+    def test_supports_feature(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment('hello')
+        doc = environ.make_document(frag.render)
+        self.assertTrue(doc.supports_feature('baseformatting'))
+        self.assertFalse(doc.supports_feature('nonexistent'))
+
+    def test_feature_document_manager(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment('hello')
+        doc = environ.make_document(frag.render)
+        # baseformatting has no DocumentManager
+        fdm = doc.feature_document_manager('baseformatting')
+        self.assertIsNone(fdm)
+
+
+class TestFLMDocumentRenderContext(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_render_context_is_first_pass(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment('hello')
+        doc = environ.make_document(frag.render)
+        _, render_context = doc.render(HtmlFragmentRenderer())
+        self.assertTrue(render_context.is_first_pass)
+
+    def test_render_context_data_empty(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment('hello')
+        doc = environ.make_document(frag.render)
+        _, render_context = doc.render(HtmlFragmentRenderer())
+        self.assertEqual(render_context.data, {})
+
+    def test_render_context_supports_feature(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment('hello')
+        doc = environ.make_document(frag.render)
+        _, render_context = doc.render(HtmlFragmentRenderer())
+        self.assertTrue(render_context.supports_feature('baseformatting'))
+        self.assertFalse(render_context.supports_feature('nonexistent'))
+
+    def test_make_standalone_fragment(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment('hello')
+        doc = environ.make_document(frag.render)
+        _, render_context = doc.render(HtmlFragmentRenderer())
+        sf = render_context.make_standalone_fragment(r'\textit{standalone}')
+        self.assertTrue(sf.standalone_mode)
+        result = sf.render_standalone(HtmlFragmentRenderer())
+        self.assertEqual(result, '<span class="textit">standalone</span>')
+
+
+class TestFLMDocumentDictListRender(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_render_callback_returning_dict(self):
+        environ = mk_flm_environ()
+        frag_title = environ.make_fragment(r'\textbf{Title}', standalone_mode=True)
+        frag_body = environ.make_fragment(r'Body \textit{text}')
+
+        def dict_render(render_context):
+            return {
+                'title': frag_title.render(render_context),
+                'body': frag_body.render(render_context, is_block_level=True),
+            }
+
+        doc = environ.make_document(dict_render)
+        result, _ = doc.render(HtmlFragmentRenderer())
+        self.assertEqual(result, {
+            'title': '<span class="textbf">Title</span>',
+            'body': '<p>Body <span class="textit">text</span></p>',
+        })
+
+    def test_render_callback_returning_list(self):
+        environ = mk_flm_environ()
+        frag_title = environ.make_fragment(r'\textbf{Title}', standalone_mode=True)
+        frag_body = environ.make_fragment(r'Body \textit{text}')
+
+        def list_render(render_context):
+            return [
+                frag_title.render(render_context),
+                frag_body.render(render_context, is_block_level=True),
+            ]
+
+        doc = environ.make_document(list_render)
+        result, _ = doc.render(HtmlFragmentRenderer())
+        self.assertEqual(result, [
+            '<span class="textbf">Title</span>',
+            '<p>Body <span class="textit">text</span></p>',
+        ])
+
+
+class TestFLMDocumentMakeRenderContext(unittest.TestCase):
+
+    def test_make_render_context_directly(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment('hello')
+        doc = environ.make_document(frag.render)
+        rc = doc.make_render_context(HtmlFragmentRenderer())
+        self.assertTrue(rc.is_first_pass)
+        self.assertIs(rc.doc, doc)
+
+    def test_render_with_feature_render_options(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment('hello')
+        doc = environ.make_document(frag.render)
+        result, _ = doc.render(HtmlFragmentRenderer(), feature_render_options={'math': {}})
+        self.assertEqual(result, 'hello')
+
+
+class TestFLMDocumentEnableFeatures(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_enable_features_subset(self):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment(r'\textbf{Hello} world')
+        doc = FLMDocument(frag.render, environ, enable_features=['baseformatting'])
+        doc.initialize()
+        result, _ = doc.render(HtmlFragmentRenderer())
+        self.assertEqual(result, '<span class="textbf">Hello</span> world')
+
+
 if __name__ == '__main__':
     unittest.main()

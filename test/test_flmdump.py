@@ -451,5 +451,93 @@ Hello, world!
 
 
 
+class TestFLMDataDumperBasic(unittest.TestCase):
+
+    def test_clear(self):
+        env = mk_flm_environ()
+        dumper = flmdump.FLMDataDumper(environment=env)
+        frag = env.make_fragment(r'\%')
+        dumper.add_object_dump('test', frag.nodes[0])
+        self.assertTrue(len(dumper.get_data()['dumps']) > 0)
+        dumper.clear()
+        self.assertEqual(len(dumper.get_data()['dumps']), 0)
+        self.assertEqual(dumper.get_data()['_dump']['version'], flmdump._dump_version)
+
+    def test_multiple_dumps(self):
+        env = mk_flm_environ()
+        dumper = flmdump.FLMDataDumper(environment=env)
+        f1 = env.make_fragment('One', standalone_mode=True)
+        f2 = env.make_fragment('Two', standalone_mode=True)
+        dumper.add_object_dump('f1', f1)
+        dumper.add_object_dump('f2', f2)
+        self.assertEqual(len(dumper.get_data()['dumps']), 2)
+
+
+class TestFLMDataLoaderBasic(unittest.TestCase):
+
+    def test_get_keys(self):
+        env = mk_flm_environ()
+        dumper = flmdump.FLMDataDumper(environment=env)
+        f1 = env.make_fragment('One', standalone_mode=True)
+        f2 = env.make_fragment('Two', standalone_mode=True)
+        dumper.add_object_dump('key1', f1)
+        dumper.add_object_dump('key2', f2)
+        data_json = json.dumps(dumper.get_data())
+        loader = flmdump.FLMDataLoader(json.loads(data_json), environment=env)
+        keys = sorted(loader.get_keys())
+        self.assertEqual(keys, ['key1', 'key2'])
+
+    def test_version_mismatch_raises(self):
+        env = mk_flm_environ()
+        bad_data = {'_dump': {'version': 999}, 'dumps': {}, 'resources': {}}
+        with self.assertRaises(ValueError):
+            flmdump.FLMDataLoader(bad_data, environment=env)
+
+    def test_roundtrip_standalone_html(self):
+        from flm.fragmentrenderer.html import HtmlFragmentRenderer
+        env = mk_flm_environ()
+        frag = env.make_fragment(r'Hello \textbf{world}', standalone_mode=True)
+        dumper = flmdump.FLMDataDumper(environment=env)
+        dumper.add_object_dump('frag', frag)
+        data_json = json.dumps(dumper.get_data())
+        loader = flmdump.FLMDataLoader(json.loads(data_json), environment=env)
+        loaded_frag = loader.get_object_dump('frag')
+        result = loaded_frag.render_standalone(HtmlFragmentRenderer())
+        self.assertEqual(result, 'Hello <span class="textbf">world</span>')
+
+    def test_roundtrip_preserves_flm_text(self):
+        env = mk_flm_environ()
+        dumper = flmdump.FLMDataDumper(environment=env)
+        f1 = env.make_fragment('One', standalone_mode=True)
+        f2 = env.make_fragment('Two', standalone_mode=True)
+        dumper.add_object_dump('f1', f1)
+        dumper.add_object_dump('f2', f2)
+        data_json = json.dumps(dumper.get_data())
+        loader = flmdump.FLMDataLoader(json.loads(data_json), environment=env)
+        lf1 = loader.get_object_dump('f1')
+        lf2 = loader.get_object_dump('f2')
+        self.assertEqual(lf1.flm_text, 'One')
+        self.assertEqual(lf2.flm_text, 'Two')
+
+
+class TestFLMDumpHelpers(unittest.TestCase):
+
+    def test_fullclassname(self):
+        from flm.flmspecinfo import ConstantValueMacro
+        self.assertEqual(
+            flmdump._fullclassname(ConstantValueMacro),
+            'flm.flmspecinfo:ConstantValueMacro'
+        )
+
+    def test_is_known_serializable_object_type_names(self):
+        self.assertTrue(flmdump._is_known_serializable_object_type_names('FLMFragment'))
+        self.assertTrue(flmdump._is_known_serializable_object_type_names('LatexNodeList'))
+        self.assertTrue(flmdump._is_known_serializable_object_type_names('LatexCharsNode'))
+        self.assertFalse(flmdump._is_known_serializable_object_type_names('FakeType'))
+
+    def test_dump_version_is_int(self):
+        self.assertEqual(flmdump._dump_version, 2)
+
+
 if __name__ == '__main__':
     unittest.main()
