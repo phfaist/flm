@@ -195,13 +195,15 @@ class HtmlFragmentRenderer(FragmentRenderer):
     r"""
     Will pin data attributes to HTML tags that are associated with FLM tree
     nodes.  This works for certain tags that have a direct relationship to
-    a specific node, such as a <p>...</p> block for a nodelist.
+    a specific node, such as a ``<p>...</p>`` block for a nodelist.
 
     If non-None, this should be set to a callable that takes the node or
     nodelist as first positional argument.  In the future I might add keyword
-    arguments to provide extra information, so please accept **kwargs, too.
+    arguments to provide extra information, so please accept `**kwargs`, too.
     The callable should return a dictionary of data attributes to set on the
-    HTML tag.  E.g.::
+    HTML tag.  E.g.
+
+    .. code::
 
         def my_include_node_data_attrs_fn(node, **kwargs):
             if isinstance(node, LatexNodeList):
