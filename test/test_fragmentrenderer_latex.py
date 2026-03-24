@@ -79,11 +79,17 @@ See \hyperref[{x:sec-mysec}]{My Section}.
     
     def test_simple_00(self):
         
-        fr = LatexFragmentRenderer()
+        text_format_cmds = dict(LatexFragmentRenderer.text_format_cmds)
+        text_format_cmds['defterm-term'] = 'ecztermdef'
 
-        fr.text_format_cmds['defterm-term'] = 'ecztermdef'
-        fr.latex_wrap_verbatim_macro = 'eczshowverbatim'
-        fr.latex_semantic_block_environments['figure_caption'] = 'eczfigcaption'
+        sem_block_envs = dict(LatexFragmentRenderer.latex_semantic_block_environments)
+        sem_block_envs['figure_caption'] = 'eczfigcaption'
+
+        fr = LatexFragmentRenderer(config={
+            'text_format_cmds': text_format_cmds,
+            'latex_wrap_verbatim_macro': 'eczshowverbatim',
+            'latex_semantic_block_environments': sem_block_envs,
+        })
 
 
         environ = mk_flm_environ()
