@@ -130,7 +130,8 @@ class Feature:
 
     # ---
 
-    def get_node_id(self, node):
+    @classmethod
+    def get_node_id(cls, node):
         r"""
         Helper method to get a unique hashable identifier key (integer or tuple)
         associated with the object `node`.  The result can be used for instance

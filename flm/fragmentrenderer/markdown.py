@@ -255,6 +255,9 @@ class MarkdownFragmentRenderer(FragmentRenderer):
         target_id_md_code = self._get_target_id_md_code(target_id)
 
         heading_code = '###' # in case heading_level is something special (e.g. special string)
+        # REVIEW: isinstance(heading_level, int) may fail in Transcrypt (JS numbers
+        # aren't Python ints), causing fallback to '###' for all heading levels.
+        # Consider using int(heading_level) or a duck-type check instead.
         if isinstance(heading_level, int) and heading_level > 0:
             heading_code = '#'*heading_level
 
