@@ -315,6 +315,7 @@ class TestFeatureHeadingsRefs(unittest.TestCase):
 # -------------------------------------------------------------------
 
 class TestFeatureHeadingsTextRenderer(unittest.TestCase):
+    """Tests using TextFragmentRenderer which triggers two-pass rendering."""
 
     maxDiff = None
 
@@ -329,6 +330,236 @@ class TestFeatureHeadingsTextRenderer(unittest.TestCase):
             environ, r'\paragraph{Note} Some content.', TextFragmentRenderer
         )
         self.assertEqual(result, 'Note:  Some content.')
+
+    def test_numbered_section_text(self):
+        """Single numbered section gets number 1, not 2 (two-pass fix)."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=1), with_numbering=True
+        )
+        result = render(environ, r'\section{Intro}', TextFragmentRenderer)
+        self.assertEqual(result, '1. Intro\n========')
+
+    def test_numbered_sequential_sections_text(self):
+        """Two numbered sections get 1, 2 — not 3, 4 (two-pass fix)."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=1), with_numbering=True
+        )
+        result = render(
+            environ, r'\section{Alpha}\section{Beta}', TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '1. Alpha\n========\n\n2. Beta\n======='
+        )
+
+    def test_numbered_subsection_resets_text(self):
+        """Subsection counters reset under new sections (two-pass fix)."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=2), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{A}\subsection{A1}\subsection{A2}'
+            r'\section{B}\subsection{B1}',
+            TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '1. A\n====\n\n'
+            '1.1. A1\n-------\n\n'
+            '1.2. A2\n-------\n\n'
+            '2. B\n====\n\n'
+            '2.1. B1\n-------'
+        )
+
+    def test_three_level_numbering_text(self):
+        """Three-level numbering is correct through two-pass rendering."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=3), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{A}\subsection{A1}\subsubsection{A1a}',
+            TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '1. A\n====\n\n'
+            '1.1. A1\n-------\n\n'
+            '1.1.1. A1a\n~~~~~~~~~~'
+        )
+
+    def test_starred_mixed_with_numbered_text(self):
+        """Starred sections don't consume a number (two-pass fix)."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=2), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{X}\section*{Y}\section{Z}',
+            TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '1. X\n====\n\nY\n=\n\n2. Z\n===='
+        )
+
+    def test_numbered_section_with_ref_text(self):
+        """Ref to a numbered section works correctly through two-pass rendering."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=1), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{Intro}\label{sec:intro} See Section~\ref{sec:intro}.',
+            TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '1. Intro\n========\n\nSee Section\xa0\u00a7\u20091.'
+        )
+
+    def test_numbered_paragraph_text(self):
+        """Inline heading with numbering through two-pass rendering."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=4), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{A}\paragraph{P} Content.',
+            TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '1. A\n====\n\na. P:  Content.'
+        )
+
+    def test_subsection_text(self):
+        environ = mk_environ()
+        result = render(environ, r'\subsection{Sub}', TextFragmentRenderer)
+        self.assertEqual(result, 'Sub\n---')
+
+    def test_subsubsection_text(self):
+        environ = mk_environ()
+        result = render(environ, r'\subsubsection{Deep}', TextFragmentRenderer)
+        self.assertEqual(result, 'Deep\n~~~~')
+
+    def test_five_numbered_sections_text(self):
+        """Many sections number correctly through two-pass rendering."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=1), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{A}\section{B}\section{C}\section{D}\section{E}',
+            TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '1. A\n====\n\n2. B\n====\n\n3. C\n====\n\n'
+            '4. D\n====\n\n5. E\n===='
+        )
+
+    def test_duplicate_heading_text_numbered_text(self):
+        """Duplicate heading text still gets sequential numbers."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=1), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{Intro}\section{Intro}\section{Intro}',
+            TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '1. Intro\n========\n\n2. Intro\n========\n\n3. Intro\n========'
+        )
+
+    def test_duplicate_heading_text_unnumbered_text(self):
+        environ = mk_environ()
+        result = render(
+            environ,
+            r'\section{Same}\section{Same}',
+            TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            'Same\n====\n\nSame\n===='
+        )
+
+    def test_depth_boundary_subsection_unnumbered_text(self):
+        """With depth=1, subsections remain unnumbered."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=1), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{A}\subsection{Sub}',
+            TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '1. A\n====\n\nSub\n---'
+        )
+
+    def test_numbering_section_depth_true_text(self):
+        """numbering_section_depth=True numbers all levels."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=True), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{A}\subsection{B}\subsubsection{C}\paragraph{D} text',
+            TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '1. A\n====\n\n1.1. B\n------\n\n'
+            '1.1.1. C\n~~~~~~~~\n\na. D:  text'
+        )
+
+    def test_three_level_numbering_full_reset_text(self):
+        """Three-level numbering resets correctly across sections."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=3), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{A}\subsection{A1}\subsubsection{A1a}\subsubsection{A1b}'
+            r'\subsection{A2}\subsubsection{A2a}'
+            r'\section{B}\subsection{B1}\subsubsection{B1a}',
+            TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '1. A\n====\n\n'
+            '1.1. A1\n-------\n\n'
+            '1.1.1. A1a\n~~~~~~~~~~\n\n'
+            '1.1.2. A1b\n~~~~~~~~~~\n\n'
+            '1.2. A2\n-------\n\n'
+            '1.2.1. A2a\n~~~~~~~~~~\n\n'
+            '2. B\n====\n\n'
+            '2.1. B1\n-------\n\n'
+            '2.1.1. B1a\n~~~~~~~~~~'
+        )
+
+    def test_ref_to_numbered_subsection_text(self):
+        """Ref to a numbered subsection works through two-pass rendering."""
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=2), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{A}\subsection{Sub}\label{sec:sub}'
+            r' Ref to~\ref{sec:sub}.',
+            TextFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '1. A\n====\n\n'
+            '1.1. Sub\n--------\n\n'
+            'Ref to\xa0\u00a7\u20091.1.'
+        )
 
 
 class TestFeatureHeadingsLatexRenderer(unittest.TestCase):
@@ -377,6 +608,23 @@ class TestFeatureHeadingsLatexRenderer(unittest.TestCase):
         )
 
 
+    def test_starred_mixed_with_numbered_latex(self):
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=1), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{A}\section*{B}\section{C}',
+            LatexFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '\\section{1. A}%\n\\label{x:sec--A}%\n\n'
+            '\\section{B}%\n\\label{x:sec--B}%\n\n'
+            '\\section{2. C}%\n\\label{x:sec--C}%\n'
+        )
+
+
 class TestFeatureHeadingsMarkdownRenderer(unittest.TestCase):
 
     maxDiff = None
@@ -417,6 +665,22 @@ class TestFeatureHeadingsMarkdownRenderer(unittest.TestCase):
         self.assertEqual(
             result,
             '# <a name="sec--Intro"></a> 1\\. Intro'
+        )
+
+    def test_numbered_section_and_subsection_markdown(self):
+        environ = mk_environ(
+            FeatureHeadings(numbering_section_depth=2), with_numbering=True
+        )
+        result = render(
+            environ,
+            r'\section{A}\subsection{A1}\section{B}',
+            MarkdownFragmentRenderer
+        )
+        self.assertEqual(
+            result,
+            '# <a name="sec--A"></a> 1\\. A\n\n'
+            '## <a name="sec--A1"></a> 1\\.1\\. A1\n\n'
+            '# <a name="sec--B"></a> 2\\. B'
         )
 
 

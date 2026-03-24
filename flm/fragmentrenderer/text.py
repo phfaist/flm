@@ -145,8 +145,8 @@ class TextFragmentRenderer(FragmentRenderer):
             return formatter(rendered_heading)
 
         logger.warning(
-            f"Bad {heading_level=}, expected 1..6 (or key in "
-            f"fragment_renderer.heading_level_formatter)"
+            f"Bad {heading_level=}, expected one of "
+            + repr(list(dict(self.heading_level_formatter).keys()))
         )
 
         return f"\n{rendered_heading}:\n" # simple default ...

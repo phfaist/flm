@@ -262,6 +262,7 @@ class FeatureHeadings(Feature):
                 )
 
             self.section_counter_ifaces = {}
+            self.heading_infos = {}
 
             if self.numbering_section_depth is not False:
 
@@ -321,6 +322,10 @@ class FeatureHeadings(Feature):
                         labels, heading_content_nodelist,
                         skip_numbering=False,
                         target_id=None):
+
+            node_id = self.get_node_id(node)
+            if node_id in self.heading_infos:
+                return self.heading_infos[node_id]
 
             if target_id is None:
                 if hasattr(node, 'flm_heading_target_id'):
@@ -393,11 +398,13 @@ class FeatureHeadings(Feature):
                             referenceable_info=flm_referenceable_info,
                         )
 
-            return {
+            result = {
                 'target_id': target_id,
                 'content_nodelist': full_heading_nodelist,
                 'sec_num_info': sec_num_info,
             }
+            self.heading_infos[node_id] = result
+            return result
 
         def get_default_target_id(self, heading_labels, heading_content_nodelist, *, node):
 

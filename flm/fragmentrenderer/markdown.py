@@ -243,6 +243,18 @@ class MarkdownFragmentRenderer(FragmentRenderer):
         return content
 
 
+    heading_level_formatter = {
+        1: lambda s: f"# {s}",
+        2: lambda s: f"## {s}",
+        3: lambda s: f"### {s}",
+        4: lambda s: f"#### {s}",
+        5: lambda s: f"##### {s}",
+        6: lambda s: f"###### {s}",
+
+        # special 'theorem' level
+        'theorem': lambda s: f"{s}.  ",
+    }
+
     def render_heading(self, heading_nodelist, render_context, *,
                        heading_level=1,
                        #heading_formatted_number=None,
@@ -250,21 +262,23 @@ class MarkdownFragmentRenderer(FragmentRenderer):
                        target_id=None,
                        annotations=None):
 
-        title_content = self.render_inline_content(heading_nodelist, render_context)
+        rendered_heading = self.render_inline_content(heading_nodelist, render_context)
 
         target_id_md_code = self._get_target_id_md_code(target_id)
 
-        heading_code = '###' # in case heading_level is something special (e.g. special string)
-        # REVIEW: isinstance(heading_level, int) may fail in Transcrypt (JS numbers
-        # aren't Python ints), causing fallback to '###' for all heading levels.
-        # Consider using int(heading_level) or a duck-type check instead.
-        if isinstance(heading_level, int) and heading_level > 0:
-            heading_code = '#'*heading_level
+        if heading_level in self.heading_level_formatter:
+            formatter = self.heading_level_formatter[heading_level]
+            heading_code = formatter(target_id_md_code + rendered_heading.replace('\n', ' '))
+        else:
+            logger.warning(
+                f"Bad {heading_level=}, expected one of "
+                + repr(list(dict(self.heading_level_formatter).keys()))
+            )
+            heading_code = '### ' + target_id_md_code + rendered_heading.replace('\n', ' ')
 
-        return (
-            heading_code + ' ' + target_id_md_code + title_content.replace('\n', ' ')
-            + '\n'
-        )
+        return heading_code + '\n'
+
+
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
         display_content = self.render_nodelist(
