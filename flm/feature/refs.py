@@ -218,6 +218,14 @@ class FeatureRefsRenderManager(Feature.RenderManager):
         `counter_value` can be a ValueWithSubNums instance! .......
         """
 
+        
+        # REVIEW/TODO/FIXME: What if the same node ID is inserted in multiple
+        # places in a document (e.g., a standalone display text label)?  Perhaps
+        # we should NOT be storing a node_id here.  Rather, it is the caller
+        # feature (math, floats, defterms, theorems, ...) who should store their
+        # node/node_ids and associated information.
+
+
         node_id = self.get_node_id(node)
         kk = (node_id, ref_type, ref_label)
         if kk in self.registered_references:

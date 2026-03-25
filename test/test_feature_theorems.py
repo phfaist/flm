@@ -149,7 +149,7 @@ We argue by contradiction.
         self.assertEqual(
             result, r"""
 <div class="theoremlike theorem p-block"><p><span id="theorem-1" class="heading-level-theorem heading-inline">Theorem&nbsp;1 (My theorem)</span> The square root of two is irrational.</p></div>
-<div class="prooflike proof p-block"><p><span id="sec--" class="heading-level-theorem heading-inline">Proof</span> We argue by contradiction.&nbsp;□</p></div>
+<div class="prooflike proof p-block"><p><span class="heading-level-theorem heading-inline">Proof</span> We argue by contradiction.&nbsp;□</p></div>
 """.strip()
         )
 
@@ -392,7 +392,7 @@ Ref: \ref{thm:sqrt2,thm:sqrt4,thm:sqrt3}""")
         self.assertEqual(
             result,
             '<div class="prooflike proof p-block"><p>'
-            '<span id="sec--" class="heading-level-theorem heading-inline">'
+            '<span class="heading-level-theorem heading-inline">'
             'Proof</span> We argue by contradiction.&nbsp;\u25a1</p></div>'
         )
 
@@ -403,7 +403,7 @@ Ref: \ref{thm:sqrt2,thm:sqrt4,thm:sqrt3}""")
         self.assertEqual(
             result,
             '<div class="prooflike proof p-block"><p>'
-            '<span id="sec--Sketch-of-proof" class="heading-level-theorem heading-inline">'
+            '<span class="heading-level-theorem heading-inline">'
             'Proof (Sketch of proof)</span> We argue by contradiction.&nbsp;\u25a1</p></div>'
         )
 
@@ -425,7 +425,7 @@ We argue by contradiction.
             '<span id="theorem-1" class="heading-level-theorem heading-inline">'
             'Theorem&nbsp;1</span> The square root of two is irrational.</p></div>\n'
             '<div class="prooflike proof p-block"><p>'
-            '<span id="sec--Theorem-1" class="heading-level-theorem heading-inline">'
+            '<span class="heading-level-theorem heading-inline">'
             'Proof (Theorem&nbsp;1)</span> We argue by contradiction.&nbsp;\u25a1</p></div>'
         )
 
@@ -447,7 +447,7 @@ We argue by contradiction.
             '<span id="theorem-1" class="heading-level-theorem heading-inline">'
             'Theorem&nbsp;1</span> The square root of two is irrational.</p></div>\n'
             '<div class="prooflike proof p-block"><p>'
-            '<span id="sec--" class="heading-level-theorem heading-inline">'
+            '<span class="heading-level-theorem heading-inline">'
             'Proof</span> We argue by contradiction.&nbsp;\u25a1</p></div>'
         )
 
@@ -540,7 +540,6 @@ We argue by contradiction.
             'The square root of two is irrational.\n'
             '\\end{flmThmTheoremLike}%\n\n'
             '\\begin{flmThmProofLike}\\flmTheoremHeading{Proof}%\n'
-            '\\label{x:sec--}%\n'
             'We argue by contradiction.~\\ensuremath{\\square}\n'
             '\\end{flmThmProofLike}%\n'
         )
@@ -569,7 +568,7 @@ We argue by contradiction.
             result,
             '<a name="theorem-1"></a> Theorem\xa01 \\(My theorem\\).  \n'
             'The square root of two is irrational\\.\n\n'
-            '<a name="sec--"></a> Proof.  \n'
+            'Proof.  \n'
             'We argue by contradiction\\.\xa0\u25a1'
         )
 

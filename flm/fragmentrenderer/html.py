@@ -615,6 +615,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
             content += ' '
         logger.debug("Rendered heading: content=%r; inline_heading=%r; "
                      "add_space=%r", content, inline_heading, self.inline_heading_add_space)
+
         return content
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):

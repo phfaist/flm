@@ -11,6 +11,7 @@ from pylatexenc.latexnodes.parsers import (
 from pylatexenc import macrospec
 
 from ..flmenvironment import FLMArgumentSpec, make_invocable_node_instance
+from ..flmfragment import FLMFragment
 from .. import flmspecinfo
 
 from ..counter import build_counter_formatter
@@ -180,6 +181,10 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             counter_value = ref_instance.counter_value
 
             title_heading_formatted_flm = ref_instance.formatted_ref_flm_text
+            # if isinstance(title_heading_formatted_flm, FLMFragment):
+            #     # Trying to work around an intermittent bug/test failure that's
+            #     # really annoying... ---> nope, failed again.
+            #     title_heading_formatted_flm = title_heading_formatted_flm.flm_text
 
             title_heading_formatted_flm_frag = render_context.make_standalone_fragment(
                 title_heading_formatted_flm,
@@ -296,6 +301,8 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
                 macroname=None,
                 heading_level=self.theorem_type_spec['theorem_heading_level'],
                 inline_heading=True,
+                unregistered_heading=True,
+                target_id=target_id,
             ),
             args={
                 'text': heading_nodelist,
@@ -304,7 +311,7 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
             parsing_state=node.parsing_state,
         )
 
-        heading_node.flm_heading_target_id = target_id
+        # heading_node.flm_heading_target_id = target_id
 
         # rendered_heading = fragment_renderer.render_heading(
         #     heading_nodelist,

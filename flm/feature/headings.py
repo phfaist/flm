@@ -29,11 +29,20 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
 
     allowed_ref_label_prefixes = ('sec', 'topic',)
 
-    def __init__(self, macroname, *, heading_level=1, inline_heading=False):
+    def __init__(self, macroname, *, heading_level=1, inline_heading=False,
+                 unregistered_heading=False, target_id=None):
         r"""
         Heading level is to be coordinated with fragment renderer and FLM
         environment/context commands; for example `heading_level=1..6` with
-        commands ``\section`` ... ``\subsubparagraph``
+        commands ``\section`` ... ``\subsubparagraph``.
+
+        The `target_id` is typically only used in specific internal cases like
+        theorem headings.
+
+        If `unregistered_heading=True`, then the heading must not have an
+        associated counter and it is not "registered" like \section{}.  Used for
+        things like theorem inline headings.  It will bypass the heading render
+        manager completely, no call to new_heading().
         """
         super().__init__(
             macroname,
@@ -45,6 +54,8 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
         )
         self.heading_level = heading_level
         self.inline_heading = inline_heading
+        self.unregistered_heading = unregistered_heading
+        self.target_id = target_id
         # reimplemented from flmspecinfo -
         self.is_block_heading = self.inline_heading
 
@@ -86,13 +97,20 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
 
         headings_mgr = render_context.feature_render_manager('headings')
 
-        heading_info = headings_mgr.new_heading(
-            node=node,
-            heading_level=self.heading_level,
-            labels=node.flmarg_labels,
-            heading_content_nodelist=node.flmarg_heading_content_nodelist,
-            skip_numbering=node.flmarg_skip_numbering,
-        )
+        if self.unregistered_heading:
+            heading_info = {
+                'content_nodelist': node.flmarg_heading_content_nodelist,
+                'target_id': self.target_id,
+            }
+        else:
+            heading_info = headings_mgr.new_heading(
+                node=node,
+                heading_level=self.heading_level,
+                labels=node.flmarg_labels,
+                heading_content_nodelist=node.flmarg_heading_content_nodelist,
+                skip_numbering=node.flmarg_skip_numbering,
+                target_id=self.target_id,
+            )
 
         return render_context.fragment_renderer.render_heading(
             heading_info['content_nodelist'],
@@ -321,20 +339,15 @@ class FeatureHeadings(Feature):
         def new_heading(self, node, heading_level,
                         labels, heading_content_nodelist,
                         skip_numbering=False,
+                        unregistered_heading=False,
                         target_id=None):
 
             node_id = self.get_node_id(node)
             if node_id in self.heading_infos:
                 return self.heading_infos[node_id]
 
-            if target_id is None:
-                if hasattr(node, 'flm_heading_target_id'):
-                    # used to set the target_id when an internally generated heading is
-                    # needed and a HeadingMacro macro instance is internally created
-                    # (e.g., for theorems)
-                    target_id = node.flm_heading_target_id
-                elif len(node.flm_referenceable_infos):
-                    target_id = node.flm_referenceable_infos[0].get_target_id()
+            if target_id is None and len(node.flm_referenceable_infos):
+                target_id = node.flm_referenceable_infos[0].get_target_id()
 
             if target_id is None:
                 target_id = self.get_default_target_id(
