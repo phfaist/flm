@@ -5,6 +5,9 @@ from pylatexenc.latexnodes import LatexWalkerLocatedError
 from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
 from flm.fragmentrenderer.html import HtmlFragmentRenderer
+from flm.fragmentrenderer.text import TextFragmentRenderer
+from flm.fragmentrenderer.latex import LatexFragmentRenderer
+from flm.fragmentrenderer.markdown import MarkdownFragmentRenderer
 from flm.flmrecomposer.purelatex import FLMPureLatexRecomposer
 
 from flm.feature.quote import (
@@ -23,6 +26,13 @@ def render_doc(environ, flm_input):
     frag = environ.make_fragment(flm_input.strip())
     doc = environ.make_document(frag.render)
     fr = HtmlFragmentRenderer()
+    result, _ = doc.render(fr)
+    return result
+
+
+def render_doc_fr(environ, flm_input, fr):
+    frag = environ.make_fragment(flm_input.strip())
+    doc = environ.make_document(frag.render)
     result, _ = doc.render(fr)
     return result
 
@@ -796,6 +806,238 @@ Line three
             fr.render_nodelist(result.nodelist, fr.ensure_render_context(None),
                                is_block_level=False),
             'hello world'
+        )
+
+
+class TestFeatureQuoteTextRenderer(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_text_quote_text_attributed(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{quote}\text{To be or not to be.}\attributed{Shakespeare}\end{quote}',
+            TextFragmentRenderer(),
+        )
+        self.assertEqual(result, 'To be or not to be.\n\nShakespeare')
+
+    def test_text_blockquote(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{blockquote}Some blockquote text.\end{blockquote}',
+            TextFragmentRenderer(),
+        )
+        self.assertEqual(result, 'Some blockquote text.')
+
+    def test_text_address(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{address}123 Main St\\City, ST 12345\end{address}',
+            TextFragmentRenderer(),
+        )
+        self.assertEqual(result, '123 Main St\nCity, ST 12345')
+
+    def test_text_lines_with_indent(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{quote}\lines{Line one\\\indent Line two}\end{quote}',
+            TextFragmentRenderer(),
+        )
+        self.assertEqual(result, 'Line one\n    Line two')
+
+    def test_text_lines_attributed(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{quote}\lines{Roses are red\\Violets are blue}\attributed{Valentine}\end{quote}',
+            TextFragmentRenderer(),
+        )
+        self.assertEqual(result, 'Roses are red\nViolets are blue\n\nValentine')
+
+
+class TestFeatureQuoteLatexRenderer(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_latex_quote_text_attributed(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{quote}\text{To be or not to be.}\attributed{Shakespeare}\end{quote}',
+            LatexFragmentRenderer(),
+        )
+        self.assertEqual(
+            result,
+            '\\begin{quote}% --- begin  ---\n'
+            'To be or not to be.% --- end  ---\n'
+            '\n'
+            '% --- begin  ---\n'
+            'Shakespeare% --- end  ---\n'
+            '\\end{quote}%\n'
+        )
+
+    def test_latex_blockquote(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{blockquote}Some blockquote text.\end{blockquote}',
+            LatexFragmentRenderer(),
+        )
+        self.assertEqual(
+            result,
+            '\\begin{flmBlockquote}% --- begin  ---\n'
+            'Some blockquote text.\n'
+            '% --- end  ---\n'
+            '\\end{flmBlockquote}%\n'
+        )
+
+    def test_latex_address(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{address}123 Main St\\City, ST 12345\end{address}',
+            LatexFragmentRenderer(),
+        )
+        self.assertEqual(
+            result,
+            '\\begin{flmAddress}\\begin{flmLines}% \n'
+            '123 Main St%\n'
+            '\\\\\n'
+            'City, ST 12345%\n'
+            '\\end{flmLines}\n'
+            '\\end{flmAddress}%\n'
+        )
+
+    def test_latex_lines_attributed(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{quote}\lines{Roses are red\\Violets are blue}\attributed{Valentine}\end{quote}',
+            LatexFragmentRenderer(),
+        )
+        self.assertEqual(
+            result,
+            '\\begin{quote}\\begin{flmLines}% \n'
+            'Roses are red%\n'
+            '\\\\\n'
+            'Violets are blue%\n'
+            '\\end{flmLines}\n'
+            '\n'
+            '% --- begin  ---\n'
+            'Valentine% --- end  ---\n'
+            '\\end{quote}%\n'
+        )
+
+
+class TestFeatureQuoteMarkdownRenderer(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_markdown_quote_text_attributed(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{quote}\text{To be or not to be.}\attributed{Shakespeare}\end{quote}',
+            MarkdownFragmentRenderer(),
+        )
+        self.assertEqual(result, 'To be or not to be\\.\n\nShakespeare')
+
+    def test_markdown_blockquote(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{blockquote}Some blockquote text.\end{blockquote}',
+            MarkdownFragmentRenderer(),
+        )
+        self.assertEqual(result, 'Some blockquote text\\.')
+
+    def test_markdown_address(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{address}123 Main St\\City, ST 12345\end{address}',
+            MarkdownFragmentRenderer(),
+        )
+        self.assertEqual(result, '123 Main St  \nCity, ST 12345')
+
+    def test_markdown_lines_attributed(self):
+        environ = mk_flm_environ()
+        result = render_doc_fr(
+            environ,
+            r'\begin{quote}\lines{Roses are red\\Violets are blue}\attributed{Valentine}\end{quote}',
+            MarkdownFragmentRenderer(),
+        )
+        self.assertEqual(result, 'Roses are red  \nViolets are blue  \n\nValentine')
+
+
+class TestFeatureQuoteRecomposeExtras(unittest.TestCase):
+    """Additional recomposer tests for indent and custom macros."""
+
+    maxDiff = None
+
+    def _recompose(self, flm_input, recomposer_opts=None):
+        environ = mk_flm_environ()
+        frag = environ.make_fragment(flm_input.strip())
+        recomposer = FLMPureLatexRecomposer(
+            recomposer_opts if recomposer_opts is not None else {}
+        )
+        return recomposer.recompose_pure_latex(frag.nodes)
+
+    def test_recompose_lines_with_indent(self):
+        result = self._recompose(
+            r'\begin{quote}\lines{Line one\\\indent Line two\\\indent\indent Line three}\end{quote}',
+            {"quote": {"setup_macro": None}},
+        )
+        self.assertEqual(
+            result["latex"],
+            '\\begin{quote}\n'
+            'Line one\\\\\n'
+            '\\indent Line two\\\\\n'
+            '\\indent \\indent Line three\n'
+            '\\end{quote}'
+        )
+
+    def test_recompose_address_with_indent(self):
+        result = self._recompose(
+            r'\begin{address}Line one\\\indent Line two\\Line three\end{address}',
+            {"quote": {"setup_macro": None}},
+        )
+        self.assertEqual(
+            result["latex"],
+            '\\begin{address}\n'
+            'Line one\\\\\n'
+            '\\indent Line two\\\\\n'
+            'Line three\n'
+            '\\end{address}'
+        )
+
+    def test_recompose_custom_attributed_macro(self):
+        result = self._recompose(
+            r'\begin{quote}\text{Hello.}\attributed{Author}\end{quote}',
+            {"quote": {"setup_macro": None, "attributed_macro": "myAttr"}},
+        )
+        self.assertEqual(
+            result["latex"],
+            '\\begin{quote}\n'
+            'Hello.\n'
+            '\\myAttr{Author}\n'
+            '\\end{quote}'
+        )
+
+    def test_recompose_custom_block_macro(self):
+        result = self._recompose(
+            r'\begin{quote}\block{Block text.}\end{quote}',
+            {"quote": {"setup_macro": None, "block_macro": "myBlock"}},
+        )
+        self.assertEqual(
+            result["latex"],
+            '\\begin{quote}\n'
+            '\\myBlock{Block text.}\n'
+            '\\end{quote}'
         )
 
 

@@ -1,8 +1,20 @@
 import unittest
 
+from pylatexenc.latexnodes import LatexWalkerLocatedError
+
 from flm.flmenvironment import make_standard_environment
 from flm.stdfeatures import standard_features
 from flm.fragmentrenderer.html import HtmlFragmentRenderer
+from flm.fragmentrenderer.text import TextFragmentRenderer
+from flm.fragmentrenderer.latex import LatexFragmentRenderer
+from flm.fragmentrenderer.markdown import MarkdownFragmentRenderer
+from flm.flmrecomposer.purelatex import FLMPureLatexRecomposer
+from flm.feature.substmacros import (
+    FeatureSubstMacros,
+    SubstitutionMacro,
+    SubstitutionEnvironment,
+    SubstitutionSpecials,
+)
 
 
 
@@ -769,6 +781,391 @@ Test: \notblank{#1}{\notblank{#2}{1NOBLK:#1,2NOBLK:#2}{1NOBLK:#1,2BLK}}{\notblan
         )
 
 
+
+
+class TestFeatureSubstMacrosInit(unittest.TestCase):
+
+    def test_init_none_definitions(self):
+        f = FeatureSubstMacros(None)
+        self.assertEqual(f.definitions, {'macros': {}, 'environments': {}, 'specials': {}})
+
+    def test_init_partial_definitions(self):
+        f = FeatureSubstMacros({'macros': {'m': {'content': 'x'}}})
+        self.assertEqual(f.definitions['macros'], {'m': {'content': 'x'}})
+        self.assertEqual(f.definitions['environments'], {})
+        self.assertEqual(f.definitions['specials'], {})
+
+    def test_feature_name(self):
+        f = FeatureSubstMacros(None)
+        self.assertEqual(f.feature_name, 'macros')
+        self.assertEqual(f.feature_title, 'Custom macros definitions')
+
+    def test_add_latex_context_definitions(self):
+        f = FeatureSubstMacros({
+            'macros': {'m': {'content': 'x'}},
+            'environments': {'e': {'content': '#{body}'}},
+        })
+        defs = f.add_latex_context_definitions()
+        self.assertEqual(len(defs['macros']), 1)
+        self.assertEqual(defs['macros'][0].macroname, 'm')
+        self.assertEqual(len(defs['environments']), 1)
+        self.assertEqual(defs['environments'][0].environmentname, 'e')
+        self.assertEqual(len(defs['specials']), 0)
+
+
+class TestSubstitutionCallableGetWhat(unittest.TestCase):
+
+    def test_get_what_macro(self):
+        m = SubstitutionMacro(macroname='test', content='x')
+        self.assertEqual(m.get_what(), '\u201c\\test\u201d')
+
+    def test_get_what_environment(self):
+        e = SubstitutionEnvironment(environmentname='myenv', content='x')
+        self.assertEqual(e.get_what(), '\u201c\\begin{myenv}...\\end{..}\u201d')
+
+    def test_get_what_specials(self):
+        s = SubstitutionSpecials(specials_chars='@', content='x')
+        self.assertEqual(s.get_what(), '\u201c@\u201d')
+
+
+class TestSubstMacrosRenderers(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_simple_text_renderer(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'content': '[my macro content]',
+                }
+            }
+        })
+        frag = environ.make_fragment(r'Test \mymacro.', standalone_mode=True)
+        self.assertEqual(
+            frag.render_standalone(TextFragmentRenderer()),
+            'Test [my macro content].'
+        )
+
+    def test_simple_latex_renderer(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'content': '[my macro content]',
+                }
+            }
+        })
+        frag = environ.make_fragment(r'Test \mymacro.', standalone_mode=True)
+        self.assertEqual(
+            frag.render_standalone(LatexFragmentRenderer()),
+            'Test [my macro content].'
+        )
+
+    def test_simple_markdown_renderer(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'content': '[my macro content]',
+                }
+            }
+        })
+        frag = environ.make_fragment(r'Test \mymacro.', standalone_mode=True)
+        self.assertEqual(
+            frag.render_standalone(MarkdownFragmentRenderer()),
+            r'Test \[my macro content\]\.'
+        )
+
+    def test_args_text_renderer(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {'parser': '[', 'argname': 'greeting'},
+                        {'parser': '{', 'argname': 'name'},
+                    ],
+                    'default_argument_values': {'greeting': 'Salut'},
+                    'content': r'\textbf{#{greeting}}, \emph{#2}',
+                }
+            }
+        })
+        frag = environ.make_fragment(r'\mymacro{Albert}', standalone_mode=True)
+        self.assertEqual(
+            frag.render_standalone(TextFragmentRenderer()),
+            'Salut, Albert'
+        )
+
+    def test_args_latex_renderer(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {'parser': '[', 'argname': 'greeting'},
+                        {'parser': '{', 'argname': 'name'},
+                    ],
+                    'default_argument_values': {'greeting': 'Salut'},
+                    'content': r'\textbf{#{greeting}}, \emph{#2}',
+                }
+            }
+        })
+        frag = environ.make_fragment(r'\mymacro{Albert}', standalone_mode=True)
+        self.assertEqual(
+            frag.render_standalone(LatexFragmentRenderer()),
+            r'\textbf{Salut}, \textit{Albert}'
+        )
+
+    def test_args_markdown_renderer(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {'parser': '[', 'argname': 'greeting'},
+                        {'parser': '{', 'argname': 'name'},
+                    ],
+                    'default_argument_values': {'greeting': 'Salut'},
+                    'content': r'\textbf{#{greeting}}, \emph{#2}',
+                }
+            }
+        })
+        frag = environ.make_fragment(r'\mymacro{Albert}', standalone_mode=True)
+        self.assertEqual(
+            frag.render_standalone(MarkdownFragmentRenderer()),
+            '**Salut**, *Albert*'
+        )
+
+    def test_specials_text_renderer(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'specials': {
+                '@': {
+                    'content': '[at-sign]',
+                }
+            }
+        })
+        frag = environ.make_fragment(r'user@domain', standalone_mode=True)
+        self.assertEqual(
+            frag.render_standalone(TextFragmentRenderer()),
+            'user[at-sign]domain'
+        )
+
+    def test_env_text_renderer(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'environments': {
+                'myenv': {
+                    'content': r'[[[#{body}]]]',
+                }
+            }
+        })
+        frag = environ.make_fragment(
+            r'Test \begin{myenv}Hello.\end{myenv}',
+            standalone_mode=True,
+        )
+        self.assertEqual(
+            frag.render_standalone(TextFragmentRenderer()),
+            'Test [[[Hello.]]]'
+        )
+
+
+class TestSubstMacrosContentDict(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_content_dict_textmode(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'calN': {
+                    'content': {'textmode': 'CALLIGRAPHIC-N', 'mathmode': r'\mathcal{N}'},
+                },
+            }
+        })
+        frag = environ.make_fragment(r'Test \calN here', standalone_mode=True)
+        self.assertEqual(
+            frag.render_standalone(HtmlFragmentRenderer()),
+            'Test CALLIGRAPHIC-Nhere'
+        )
+
+    def test_content_dict_mathmode(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'calN': {
+                    'content': {'textmode': 'CALLIGRAPHIC-N', 'mathmode': r'\mathcal{N}'},
+                },
+            }
+        })
+        frag = environ.make_fragment(r'Test \(\calN(\rho)\)', standalone_mode=True)
+        self.assertEqual(
+            frag.render_standalone(HtmlFragmentRenderer()),
+            r'Test <span class="inline-math">\(\mathcal{N}(\rho)\)</span>'
+        )
+
+    def test_content_textmode_only_raises_in_mathmode(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'calN': {
+                    'content': {'textmode': 'N-textmode'},
+                },
+            }
+        })
+        with self.assertRaises(LatexWalkerLocatedError):
+            environ.make_fragment(r'Test \(\calN\) here', standalone_mode=True)
+
+    def test_empty_content(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {},
+            }
+        })
+        frag = environ.make_fragment(r'Test \mymacro here', standalone_mode=True)
+        self.assertEqual(
+            frag.render_standalone(HtmlFragmentRenderer()),
+            'Test here'
+        )
+
+    def test_string_argspec_shorthand(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': ['{'],
+                    'content': r'Arg is #1',
+                }
+            }
+        })
+        frag = environ.make_fragment(r'\mymacro{hello}', standalone_mode=True)
+        self.assertEqual(
+            frag.render_standalone(HtmlFragmentRenderer()),
+            'Arg is hello'
+        )
+
+
+class TestSubstMacrosErrors(unittest.TestCase):
+
+    def test_invalid_argument_number(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': ['{'],
+                    'content': r'Arg is #3',
+                }
+            }
+        })
+        with self.assertRaises(LatexWalkerLocatedError):
+            environ.make_fragment(r'\mymacro{hello}', standalone_mode=True)
+
+
+class TestSubstMacrosRecomposer(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_recompose_macro_with_args(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {'parser': '[', 'argname': 'greeting'},
+                        {'parser': '{', 'argname': 'name'},
+                    ],
+                    'default_argument_values': {'greeting': 'Hello'},
+                    'content': r'\textbf{#{greeting}}, \emph{#2}',
+                },
+            }
+        })
+        frag = environ.make_fragment(r'\mymacro[Hi]{Albert}', standalone_mode=True)
+        r = FLMPureLatexRecomposer({})
+        res = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(res['latex'], r'\textbf{Hi}, \emph{Albert}')
+
+    def test_recompose_macro_default_arg(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {'parser': '[', 'argname': 'greeting'},
+                        {'parser': '{', 'argname': 'name'},
+                    ],
+                    'default_argument_values': {'greeting': 'Hello'},
+                    'content': r'\textbf{#{greeting}}, \emph{#2}',
+                },
+            }
+        })
+        frag = environ.make_fragment(r'\mymacro{Albert}', standalone_mode=True)
+        r = FLMPureLatexRecomposer({})
+        res = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(res['latex'], r'\textbf{Hello}, \emph{Albert}')
+
+    def test_recompose_math_mode(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'calN': {
+                    'content': r'\mathcal{N}',
+                },
+            }
+        })
+        frag = environ.make_fragment(r'Test \(\calN(\rho)\)', standalone_mode=True)
+        r = FLMPureLatexRecomposer({})
+        res = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(res['latex'], r'Test \(\mathcal{N}(\rho)\)')
+
+    def test_recompose_environment(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'environments': {
+                'myenv': {
+                    'content': r'[[[#{body}]]]',
+                }
+            }
+        })
+        frag = environ.make_fragment(
+            r'Test \begin{myenv}Hello.\end{myenv}',
+            standalone_mode=True,
+        )
+        r = FLMPureLatexRecomposer({})
+        res = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(res['latex'], 'Test [[[Hello.]]]')
+
+    def test_recompose_specials(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'specials': {
+                '@': {
+                    'content': '[at]',
+                }
+            }
+        })
+        frag = environ.make_fragment(r'user@domain', standalone_mode=True)
+        r = FLMPureLatexRecomposer({})
+        res = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(res['latex'], 'user[at]domain')
+
+    def test_recompose_ifnovaluetf_not_provided(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {'parser': '[', 'argname': 'greeting'},
+                        {'parser': '{', 'argname': 'name'},
+                    ],
+                    'default_argument_values': {'greeting': 'Hello'},
+                    'content': r'\IfNoValueTF{#1}{Hello, \emph{#2}}{#1, \emph{#2}}',
+                },
+            }
+        })
+        frag = environ.make_fragment(r'\mymacro{Albert}', standalone_mode=True)
+        r = FLMPureLatexRecomposer({})
+        res = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(res['latex'], r'Hello, \emph{Albert}')
+
+    def test_recompose_ifnovaluetf_provided(self):
+        environ = mk_flm_environ(substmacros_definitions={
+            'macros': {
+                'mymacro': {
+                    'arguments_spec_list': [
+                        {'parser': '[', 'argname': 'greeting'},
+                        {'parser': '{', 'argname': 'name'},
+                    ],
+                    'default_argument_values': {'greeting': 'Hello'},
+                    'content': r'\IfNoValueTF{#1}{Hello, \emph{#2}}{#1, \emph{#2}}',
+                },
+            }
+        })
+        frag = environ.make_fragment(r'\mymacro[Howdy]{Albert}', standalone_mode=True)
+        r = FLMPureLatexRecomposer({})
+        res = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(res['latex'], r'Howdy, \emph{Albert}')
 
 
 if __name__ == '__main__':
