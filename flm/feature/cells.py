@@ -357,8 +357,13 @@ class CellsModel:
             ('styles_mapping', 'placement_mapping', 'celldata_contents',),
         )
 
+        # Note: ''.split() returns [] in Python but [''] in Transcrypt/JS.
+        # When no <styles> arg is provided, get_content_as_chars() returns '',
+        # so ''.split(',') gives [''], and then ''.split() gives [] (Py) vs
+        # [''] (JS), causing JS to add a spurious empty 'cellstyle-' class.
+        # Fix: filter out empty strings from each style spec.
         styles_mapping = [
-            styles_spec.split()
+            [s for s in styles_spec.split() if s]
             for styles_spec in
                 celldata_node_args['styles_mapping'].get_content_as_chars().split(',')
         ]
