@@ -11,6 +11,7 @@ from flm.fragmentrenderer.markdown import MarkdownFragmentRenderer
 from flm.feature import theorems as feature_theorems
 from flm.feature import numbering as feature_numbering
 
+from flm.feature.theorems import _merge_dicts
 from flm.flmrecomposer.purelatex import FLMPureLatexRecomposer
 
 
@@ -27,6 +28,34 @@ def render_doc(environ, flm_input, fr=None):
         fr = HtmlFragmentRenderer()
     result, _ = doc.render(fr)
     return result
+
+
+# ------------------------------------------------------------------
+# _merge_dicts helper tests
+# ------------------------------------------------------------------
+
+class TestMergeDicts(unittest.TestCase):
+
+    def test_disjoint(self):
+        self.assertEqual(
+            _merge_dicts({'a': 1, 'b': 2}, {'c': 3}),
+            {'a': 1, 'b': 2, 'c': 3}
+        )
+
+    def test_overlap(self):
+        self.assertEqual(
+            _merge_dicts({'a': 1, 'b': 2}, {'b': 99, 'c': 3}),
+            {'a': 1, 'b': 99, 'c': 3}
+        )
+
+    def test_empty_left(self):
+        self.assertEqual(_merge_dicts({}, {'x': 1}), {'x': 1})
+
+    def test_empty_right(self):
+        self.assertEqual(_merge_dicts({'x': 1}, {}), {'x': 1})
+
+    def test_both_empty(self):
+        self.assertEqual(_merge_dicts({}, {}), {})
 
 
 # ------------------------------------------------------------------
@@ -68,6 +97,25 @@ class TestFeatureTheoremsInit(unittest.TestCase):
             'lemma', 'observation', 'problem', 'proof', 'proposition',
             'question', 'remark', 'theorem',
         ])
+
+    def test_merge_dicts_produces_correct_defaultset(self):
+        """Verify _merge_dicts correctly merges simpleset + extras for defaultset."""
+        ft = feature_theorems.FeatureTheorems(environments='defaultset')
+        # defaultset should have all simpleset envs plus conjecture and remark
+        envs = sorted(ft.environments.keys())
+        self.assertEqual(envs, [
+            'conjecture', 'corollary', 'definition', 'lemma',
+            'proof', 'proposition', 'remark', 'theorem',
+        ])
+        # Verify the merged environments have correct titles
+        self.assertEqual(
+            ft.environments['conjecture']['title']['capital']['singular'],
+            'Conjecture'
+        )
+        self.assertEqual(
+            ft.environments['remark']['title']['capital']['singular'],
+            'Remark'
+        )
 
     def test_title_standardization_lowercase_string(self):
         ft = feature_theorems.FeatureTheorems()
@@ -461,6 +509,38 @@ We argue by contradiction.
             '<div class="theoremlike theorem p-block"><p>'
             '<span id="theorem-1" class="heading-level-theorem heading-inline">'
             'Theorem&nbsp;1</span> The square root of two is irrational.</p></div>'
+        )
+
+    def test_theorem_heading_does_not_consume_section_counter(self):
+        """Theorem inline headings use unregistered_heading and don't interfere
+        with section heading counters."""
+        features = standard_features(heading_numbering_section_depth=1)
+        features.append(feature_numbering.FeatureNumbering())
+        features.append(feature_theorems.FeatureTheorems())
+        environ = make_standard_environment(features)
+        result = render_doc(environ, r"""
+\section{One}
+\begin{theorem}A theorem.\end{theorem}
+\section{Two}""")
+        self.assertEqual(
+            result,
+            '<h1 id="sec--One" class="heading-level-1">1. One</h1>\n'
+            '<div class="theoremlike theorem p-block"><p>'
+            '<span id="theorem-1" class="heading-level-theorem heading-inline">'
+            'Theorem&nbsp;1</span> A theorem.</p></div>\n'
+            '<h1 id="sec--Two" class="heading-level-1">2. Two</h1>'
+        )
+
+    def test_richset_idea_environment(self):
+        """Richset 'idea' environment (uses _merge_dicts) renders correctly."""
+        environ = mk_flm_environ_wthms(environments='richset')
+        result = render_doc(environ,
+            r'\begin{idea}An idea.\end{idea}')
+        self.assertEqual(
+            result,
+            '<div class="definitionlike idea p-block"><p>'
+            '<span id="idea-1" class="heading-level-theorem heading-inline">'
+            'Idea&nbsp;1</span> An idea.</p></div>'
         )
 
     def test_shared_counter_across_types(self):

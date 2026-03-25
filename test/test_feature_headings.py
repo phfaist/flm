@@ -775,6 +775,8 @@ class TestHeadingMacroInit(unittest.TestCase):
         self.assertEqual(hm.macroname, 'section')
         self.assertEqual(hm.heading_level, 1)
         self.assertEqual(hm.inline_heading, False)
+        self.assertEqual(hm.unregistered_heading, False)
+        self.assertIsNone(hm.target_id)
         self.assertTrue(hm.is_block_level)
         self.assertTrue(hm.allowed_in_standalone_mode)
 
@@ -782,6 +784,18 @@ class TestHeadingMacroInit(unittest.TestCase):
         hm = HeadingMacro('paragraph', heading_level=4, inline_heading=True)
         self.assertEqual(hm.heading_level, 4)
         self.assertTrue(hm.inline_heading)
+
+    def test_unregistered_heading(self):
+        hm = HeadingMacro('section', unregistered_heading=True, target_id='my-target')
+        self.assertTrue(hm.unregistered_heading)
+        self.assertEqual(hm.target_id, 'my-target')
+        self.assertEqual(hm.heading_level, 1)
+        self.assertEqual(hm.inline_heading, False)
+
+    def test_unregistered_heading_defaults(self):
+        hm = HeadingMacro('section')
+        self.assertFalse(hm.unregistered_heading)
+        self.assertIsNone(hm.target_id)
 
     def test_fields(self):
         hm = HeadingMacro('section', heading_level=1, inline_heading=False)
