@@ -285,6 +285,10 @@ class LatexFragmentRenderer(FragmentRenderer):
 
         lblcmd = ''
         if target_id:
+            # We don't have any text label to pin to the target_id here.  (But since we're
+            # handling all the references ourselves, we only need a label to get the PDF
+            # hyperlink to work.  So it doesn't matter that we don't have one and use
+            # the placeholder '<block>' instead.)
             lblcmd = self.pin_label_here(target_id, '<block>', insert_phantom_section=True)
 
         return (

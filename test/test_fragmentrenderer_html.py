@@ -11,6 +11,7 @@ from flm.fragmentrenderer.html import (
     get_html_body_end_js_scripts,
     FragmentRendererInformation,
 )
+from flm.feature.cells import FeatureCells
 
 
 # ---------------------------------------------------------------------------
@@ -176,8 +177,7 @@ class TestTagHelpers(unittest.TestCase):
     def test_generate_open_tag_attrs_as_list_of_tuples(self):
         fr = HtmlFragmentRenderer()
         result = fr.generate_open_tag('a', attrs=[('href', 'http://example.com'), ('id', 'lnk')])
-        self.assertTrue('href="http://example.com"' in result)
-        self.assertTrue('id="lnk"' in result)
+        self.assertEqual(result, '<a href="http://example.com" id="lnk">')
 
     def test_wrap_in_tag_simple(self):
         fr = HtmlFragmentRenderer()
@@ -214,36 +214,42 @@ class TestTagHelpers(unittest.TestCase):
     def test_wrap_in_link_no_target_blank_by_default(self):
         fr = HtmlFragmentRenderer()
         result = fr.wrap_in_link('Ext', 'https://example.com')
-        self.assertTrue('target' not in result)
+        self.assertEqual(result, '<a href="https://example.com">Ext</a>')
 
     def test_wrap_in_link_target_blank_true_external(self):
         fr = HtmlFragmentRenderer()
         fr.use_link_target_blank = True
         result = fr.wrap_in_link('Ext', 'https://example.com')
-        self.assertTrue('target="_blank"' in result)
+        self.assertEqual(
+            result,
+            '<a href="https://example.com" target="_blank">Ext</a>'
+        )
 
     def test_wrap_in_link_target_blank_not_for_anchor(self):
         fr = HtmlFragmentRenderer()
         fr.use_link_target_blank = True
         result = fr.wrap_in_link('Top', '#top')
-        self.assertTrue('target' not in result)
+        self.assertEqual(result, '<a href="#top">Top</a>')
 
     def test_wrap_in_link_target_blank_callable_true(self):
         fr = HtmlFragmentRenderer()
         fr.use_link_target_blank = lambda url: url.startswith('https://')
         result = fr.wrap_in_link('Ext', 'https://example.com')
-        self.assertTrue('target="_blank"' in result)
+        self.assertEqual(
+            result,
+            '<a href="https://example.com" target="_blank">Ext</a>'
+        )
 
     def test_wrap_in_link_target_blank_callable_false(self):
         fr = HtmlFragmentRenderer()
         fr.use_link_target_blank = lambda url: url.startswith('https://')
         result = fr.wrap_in_link('Int', 'http://example.com')
-        self.assertTrue('target' not in result)
+        self.assertEqual(result, '<a href="http://example.com">Int</a>')
 
     def test_wrap_in_link_class_names(self):
         fr = HtmlFragmentRenderer()
         result = fr.wrap_in_link('Link', '#sec', class_names=['myclass'])
-        self.assertTrue('class="myclass"' in result)
+        self.assertEqual(result, '<a href="#sec" class="myclass">Link</a>')
 
 
 # ---------------------------------------------------------------------------
@@ -268,16 +274,18 @@ class TestRenderMethodsDirect(unittest.TestCase):
     def test_render_empty_error_placeholder_structure(self):
         fr = HtmlFragmentRenderer()
         result = fr.render_empty_error_placeholder('some error', None)
-        self.assertTrue('<span class="empty-error-placeholder">' in result)
-        self.assertTrue('(?)</span>' in result)
-        self.assertTrue('some error' in result)
+        self.assertEqual(
+            result,
+            '<span class="empty-error-placeholder"><!-- some error -->(?)</span>'
+        )
 
     def test_render_empty_error_placeholder_sanitizes_double_dash(self):
         fr = HtmlFragmentRenderer()
         result = fr.render_empty_error_placeholder('a--b', None)
-        # The comment portion must not contain '--'
-        comment_body = result.replace('<!--', '').replace('-->', '')
-        self.assertTrue('--' not in comment_body)
+        self.assertEqual(
+            result,
+            '<span class="empty-error-placeholder"><!-- a- - b -->(?)</span>'
+        )
 
     def test_render_nothing_default_comment(self):
         fr = HtmlFragmentRenderer()
@@ -299,7 +307,7 @@ class TestRenderMethodsDirect(unittest.TestCase):
     def test_render_nothing_sanitizes_double_dash_in_annotations(self):
         fr = HtmlFragmentRenderer()
         result = fr.render_nothing(None, annotations=['a--b'])
-        self.assertTrue('a- - b' in result)
+        self.assertEqual(result, '<!-- a- - b -->')
 
     def test_render_verbatim_default_class(self):
         fr = HtmlFragmentRenderer()
@@ -327,33 +335,38 @@ class TestRenderMethodsDirect(unittest.TestCase):
         fr = HtmlFragmentRenderer()
         fr.verbatim_protect_backslashes = False
         result = fr.render_verbatim('x', None, target_id='myid', annotations=['verbatimcode'])
-        self.assertTrue('id="myid"' in result)
+        self.assertEqual(result, '<span id="myid" class="verbatimcode">x</span>')
 
     def test_render_verbatim_backslash_protection_on(self):
         fr = HtmlFragmentRenderer()
         result = fr.render_verbatim(r'\alpha', None, annotations=['verbatimcode'])
-        self.assertTrue('<span>\\</span>' in result)
+        self.assertEqual(
+            result,
+            '<span class="verbatimcode"><span>\\</span>alpha</span>'
+        )
 
     def test_render_verbatim_backslash_protection_off(self):
         fr = HtmlFragmentRenderer()
         fr.verbatim_protect_backslashes = False
         result = fr.render_verbatim(r'\alpha', None, annotations=['verbatimcode'])
-        self.assertTrue('\\alpha' in result)
-        self.assertTrue('<span>\\</span>' not in result)
+        self.assertEqual(result, '<span class="verbatimcode">\\alpha</span>')
 
     def test_render_verbatim_highlight_spaces(self):
         fr = HtmlFragmentRenderer()
         fr.verbatim_protect_backslashes = False
         fr.verbatim_highlight_spaces = True
         result = fr.render_verbatim('a b', None, annotations=['verbatimcode'])
-        self.assertTrue('<span class="verbatimspace">' in result)
+        self.assertEqual(
+            result,
+            '<span class="verbatimcode">'
+            'a<span class="verbatimspace">&nbsp;</span>b</span>'
+        )
 
     def test_render_verbatim_escapes_html_chars(self):
         fr = HtmlFragmentRenderer()
         fr.verbatim_protect_backslashes = False
         result = fr.render_verbatim('<script>', None, annotations=['verbatimcode'])
-        self.assertTrue('&lt;script&gt;' in result)
-        self.assertTrue('<script>' not in result)
+        self.assertEqual(result, '<span class="verbatimcode">&lt;script&gt;</span>')
 
     def test_render_delayed_marker(self):
         fr = HtmlFragmentRenderer()
@@ -485,15 +498,25 @@ class TestRenderGraphicsBlock(unittest.TestCase):
         # generate_open_tag without self_close_tag=True does not add self-close slash
         self.assertEqual(result, '<img src="image.png">')
 
+    # Use of _fpt is necessary for tests with Transcrypt — image dimension exports as
+    # "width:300pt" (JS) or "width:300.000000pt" (Py) are both acceptable.
+    def _fpt(self, value):
+        """Regex pattern matching a floating-point number equal to *value*."""
+        int_part = int(value)
+        if value == int_part:
+            return str(int_part) + r'(\.0*)?'
+        return re.escape(str(value))
+
     def test_with_raster_dimensions(self):
         fr = HtmlFragmentRenderer()
         gr = _MockGraphicsResource()
         gr.physical_dimensions = (100.0, 50.0)
         gr.graphics_type = 'raster'
         result = fr.render_graphics_block(gr, None)
-        self.assertTrue('style=' in result)
-        self.assertIsNotNone(re.search(r'width:100(\.0*)?pt', result))
-        self.assertIsNotNone(re.search(r'height:50(\.0*)?pt', result))
+        self.assertIsNotNone(re.search('^' +
+            r'<img style="width:' + self._fpt(100) + r'pt;height:' + self._fpt(50) + r'pt" src="image\.png">' + '$',
+            result
+        ))
 
     def test_with_vector_dimensions(self):
         fr = HtmlFragmentRenderer()
@@ -501,7 +524,10 @@ class TestRenderGraphicsBlock(unittest.TestCase):
         gr.physical_dimensions = (80.0, 40.0)
         gr.graphics_type = 'vector'
         result = fr.render_graphics_block(gr, None)
-        self.assertIsNotNone(re.search(r'width:80(\.0*)?pt', result))
+        self.assertIsNotNone(re.search('^' +
+            r'<img style="width:' + self._fpt(80) + r'pt;height:' + self._fpt(40) + r'pt" src="image\.png">' + '$',
+            result
+        ))
 
     def test_raster_magnification(self):
         fr = HtmlFragmentRenderer()
@@ -510,8 +536,10 @@ class TestRenderGraphicsBlock(unittest.TestCase):
         gr.physical_dimensions = (100.0, 50.0)
         gr.graphics_type = 'raster'
         result = fr.render_graphics_block(gr, None)
-        self.assertIsNotNone(re.search(r'width:200(\.0*)?pt', result))
-        self.assertIsNotNone(re.search(r'height:100(\.0*)?pt', result))
+        self.assertIsNotNone(re.search('^' +
+            r'<img style="width:' + self._fpt(200) + r'pt;height:' + self._fpt(100) + r'pt" src="image\.png">' + '$',
+            result
+        ))
 
     def test_vector_magnification(self):
         fr = HtmlFragmentRenderer()
@@ -520,8 +548,10 @@ class TestRenderGraphicsBlock(unittest.TestCase):
         gr.physical_dimensions = (100.0, 50.0)
         gr.graphics_type = 'vector'
         result = fr.render_graphics_block(gr, None)
-        self.assertIsNotNone(re.search(r'width:50(\.0*)?pt', result))
-        self.assertIsNotNone(re.search(r'height:25(\.0*)?pt', result))
+        self.assertIsNotNone(re.search('^' +
+            r'<img style="width:' + self._fpt(50) + r'pt;height:' + self._fpt(25) + r'pt" src="image\.png">' + '$',
+            result
+        ))
 
     def test_only_width_no_height(self):
         fr = HtmlFragmentRenderer()
@@ -529,8 +559,10 @@ class TestRenderGraphicsBlock(unittest.TestCase):
         gr.physical_dimensions = (200.0, None)
         gr.graphics_type = 'raster'
         result = fr.render_graphics_block(gr, None)
-        self.assertIsNotNone(re.search(r'width:200(\.0*)?pt', result))
-        self.assertTrue('height' not in result)
+        self.assertIsNotNone(re.search('^' +
+            r'<img style="width:' + self._fpt(200) + r'pt" src="image\.png">' + '$',
+            result
+        ))
 
     def test_srcset(self):
         fr = HtmlFragmentRenderer()
@@ -540,23 +572,24 @@ class TestRenderGraphicsBlock(unittest.TestCase):
             {'source': 'image@2x.png', 'pixel_density': 2},
         ]
         result = fr.render_graphics_block(gr, None)
-        self.assertTrue('srcset=' in result)
-        self.assertTrue('image.png 1x' in result)
-        self.assertTrue('image@2x.png 2x' in result)
+        self.assertEqual(
+            result,
+            '<img src="image.png" srcset="image.png 1x, image@2x.png 2x">'
+        )
 
     def test_srcset_source_only(self):
         fr = HtmlFragmentRenderer()
         gr = _MockGraphicsResource()
         gr.srcset = [{'source': 'image.png'}]
         result = fr.render_graphics_block(gr, None)
-        self.assertTrue('srcset=' in result)
+        self.assertEqual(result, '<img src="image.png" srcset="image.png">')
 
     def test_no_dimensions_no_style(self):
         fr = HtmlFragmentRenderer()
         gr = _MockGraphicsResource()
         gr.physical_dimensions = None
         result = fr.render_graphics_block(gr, None)
-        self.assertTrue('style' not in result)
+        self.assertEqual(result, '<img src="image.png">')
 
 
 # ---------------------------------------------------------------------------
@@ -993,6 +1026,179 @@ class TestRenderWithEnviron(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Math rendering (direct method calls)
+# ---------------------------------------------------------------------------
+
+class TestRenderMathContent(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_inline_math_with_target_id(self):
+        fr = HtmlFragmentRenderer()
+        nodelist = _make_nodelist('x^2')
+        result = fr.render_math_content(
+            (r'\(', r'\)'), nodelist, None, 'inline', target_id='eq-1'
+        )
+        self.assertEqual(
+            result,
+            '<span id="eq-1" class="inline-math">\\(x^2\\)</span>'
+        )
+
+    def test_display_math_with_environment_name(self):
+        fr = HtmlFragmentRenderer()
+        nodelist = _make_nodelist('x^2')
+        result = fr.render_math_content(
+            (r'\[', r'\]'), nodelist, None, 'display', environmentname='align'
+        )
+        self.assertEqual(
+            result,
+            '<span class="display-math env-align">'
+            r'\begin{align}x^2\end{align}</span>'
+        )
+
+    def test_display_math_with_target_id(self):
+        fr = HtmlFragmentRenderer()
+        nodelist = _make_nodelist('x^2')
+        result = fr.render_math_content(
+            (r'\[', r'\]'), nodelist, None, 'display', target_id='eq-2'
+        )
+        self.assertEqual(
+            result,
+            '<span id="eq-2" class="display-math">\\[x^2\\]</span>'
+        )
+
+    def test_display_math_starred_environment(self):
+        fr = HtmlFragmentRenderer()
+        nodelist = _make_nodelist('a = b')
+        result = fr.render_math_content(
+            (r'\[', r'\]'), nodelist, None, 'display', environmentname='align*'
+        )
+        self.assertEqual(
+            result,
+            '<span class="display-math env-align-star">'
+            r'\begin{align*}a = b\end{align*}</span>'
+        )
+
+    def test_invalid_displaytype_raises(self):
+        fr = HtmlFragmentRenderer()
+        nodelist = _make_nodelist('x')
+        self.assertRaises(
+            ValueError,
+            fr.render_math_content,
+            (r'\(', r'\)'), nodelist, None, 'block'
+        )
+
+    def test_non_standard_delimiters_display(self):
+        fr = HtmlFragmentRenderer()
+        fr.use_standard_math_delimiters = False
+        nodelist = _make_nodelist('x^2')
+        result = fr.render_math_content(
+            ('$$', '$$'), nodelist, None, 'display'
+        )
+        self.assertEqual(
+            result,
+            '<span class="display-math">$$x^2$$</span>'
+        )
+
+
+# ---------------------------------------------------------------------------
+# Float rendering via FLM
+# ---------------------------------------------------------------------------
+
+class TestRenderFloat(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_float_with_caption(self):
+        result = _render_block(
+            r'\begin{figure}\includegraphics{image.png}\caption{A figure}\end{figure}'
+        )
+        self.assertEqual(
+            result,
+            '<figure class="float float-figure">'
+            '<div class="float-contents"><img src="image.png"></div>\n'
+            '<figcaption class="float-caption-content"><span>'
+            '<span class="float-no-number">Figure</span>: A figure'
+            '</span></figcaption></figure>'
+        )
+
+    def test_float_no_caption(self):
+        result = _render_block(
+            r'\begin{figure}\includegraphics{image.png}\end{figure}'
+        )
+        self.assertEqual(
+            result,
+            '<figure class="float float-figure">'
+            '<div class="float-contents"><img src="image.png"></div>'
+            '</figure>'
+        )
+
+
+# ---------------------------------------------------------------------------
+# Cells rendering via FLM
+# ---------------------------------------------------------------------------
+
+class TestRenderCells(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_simple_cells_table(self):
+        features = standard_features()
+        features.append(FeatureCells())
+        environ = make_standard_environment(features)
+        frag = environ.make_fragment(
+            r'\begin{cells}\celldata<H>{A & B}\celldata{1 & 2}\end{cells}'
+        )
+        doc = environ.make_document(frag.render)
+        fr = HtmlFragmentRenderer()
+        result, _ = doc.render(fr)
+        # Non-header cells may or may not include an empty "cellstyle-" class
+        # depending on Python vs JS transpilation, so match with regex.
+        self.assertIsNotNone(re.search('^' +
+            r'<table class="cells">'
+            r'<tr>'
+            r'<th class="cell cellstyle-H celltbledge-top celltbledge-left"><p>A</p></th>'
+            r'<th class="cell cellstyle-H celltbledge-top celltbledge-right"><p>B</p></th>'
+            r'</tr>'
+            r'<tr>'
+            r'<td class="cell (cellstyle- )?celltbledge-left celltbledge-bottom"><p>1</p></td>'
+            r'<td class="cell (cellstyle- )?celltbledge-bottom celltbledge-right"><p>2</p></td>'
+            r'</tr>'
+            r'</table>' + '$',
+            result
+        ))
+
+
+# ---------------------------------------------------------------------------
+# include_node_data_attrs_fn
+# ---------------------------------------------------------------------------
+
+class TestNodeDataAttrs(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_build_paragraph_with_data_attrs(self):
+        fr = HtmlFragmentRenderer()
+        fr.include_node_data_attrs_fn = lambda node, **kw: {'test': 'val'}
+        nodelist = _make_nodelist('Hello world')
+        result = fr.render_build_paragraph(nodelist, None)
+        self.assertEqual(result, '<p data-test="val">Hello world</p>')
+
+    def test_build_paragraph_without_data_attrs_fn(self):
+        fr = HtmlFragmentRenderer()
+        nodelist = _make_nodelist('Hello world')
+        result = fr.render_build_paragraph(nodelist, None)
+        self.assertEqual(result, '<p>Hello world</p>')
+
+    def test_data_attrs_fn_returns_none(self):
+        fr = HtmlFragmentRenderer()
+        fr.include_node_data_attrs_fn = lambda node, **kw: None
+        nodelist = _make_nodelist('Hello')
+        result = fr.render_build_paragraph(nodelist, None)
+        self.assertEqual(result, '<p>Hello</p>')
+
+
+# ---------------------------------------------------------------------------
 # Style info functions and FragmentRendererInformation
 # ---------------------------------------------------------------------------
 
@@ -1001,13 +1207,11 @@ class TestStyleInfo(unittest.TestCase):
     def test_get_html_css_global_is_nonempty_string(self):
         fr = HtmlFragmentRenderer()
         result = get_html_css_global(fr)
-        self.assertTrue(isinstance(result, str))
         self.assertTrue(len(result) > 0)
 
     def test_get_html_css_content_is_nonempty_string(self):
         fr = HtmlFragmentRenderer()
         result = get_html_css_content(fr)
-        self.assertTrue(isinstance(result, str))
         self.assertTrue(len(result) > 0)
 
     def test_get_html_js_with_mathjax(self):
@@ -1015,7 +1219,6 @@ class TestStyleInfo(unittest.TestCase):
         fr.use_mathjax = True
         result = get_html_js(fr)
         self.assertTrue('MathJax' in result)
-        self.assertTrue(len(result) > 0)
 
     def test_get_html_js_without_mathjax(self):
         fr = HtmlFragmentRenderer()
@@ -1027,7 +1230,6 @@ class TestStyleInfo(unittest.TestCase):
         fr = HtmlFragmentRenderer()
         fr.use_mathjax = True
         result = get_html_body_end_js_scripts(fr)
-        self.assertTrue(len(result) > 0)
         self.assertTrue('script' in result)
 
     def test_get_html_body_end_js_without_mathjax(self):
@@ -1044,13 +1246,13 @@ class TestStyleInfo(unittest.TestCase):
     def test_fragment_renderer_information_format_name(self):
         self.assertEqual(FragmentRendererInformation.format_name, 'html')
 
-    def test_fragment_renderer_information_get_style_information(self):
+    def test_fragment_renderer_information_get_style_information_keys(self):
         fr = HtmlFragmentRenderer()
         info = FragmentRendererInformation.get_style_information(fr)
-        self.assertTrue('css_global' in info)
-        self.assertTrue('css_content' in info)
-        self.assertTrue('js' in info)
-        self.assertTrue('body_end_js_scripts' in info)
+        self.assertEqual(
+            sorted(info.keys()),
+            ['body_end_js_scripts', 'css_content', 'css_global', 'js']
+        )
 
     def test_css_content_contains_enumeration_styles(self):
         fr = HtmlFragmentRenderer()
@@ -1061,6 +1263,16 @@ class TestStyleInfo(unittest.TestCase):
         fr = HtmlFragmentRenderer()
         css = get_html_css_content(fr)
         self.assertTrue('heading-level' in css)
+
+    def test_css_global_contains_link_styles(self):
+        fr = HtmlFragmentRenderer()
+        css = get_html_css_global(fr)
+        self.assertTrue('a:link' in css)
+
+    def test_css_content_contains_display_math_styles(self):
+        fr = HtmlFragmentRenderer()
+        css = get_html_css_content(fr)
+        self.assertTrue('.display-math' in css)
 
 
 if __name__ == '__main__':

@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import (
-    ParsedArguments, ParsedArgumentsInfo
+    ParsedArguments, ParsedArgumentsInfo, LatexWalkerLocatedError
 )
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 

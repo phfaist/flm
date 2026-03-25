@@ -41,7 +41,7 @@ result, _ = doc.render(HtmlFragmentRenderer())
 - In unit tests, stick to `self.assertTrue`, `self.assertFalse`, `self.assertEqual`, `self.assertIs`, `self.assertIsNot`, `self.assertIsNone`, `self.assertIsNotNone`, and `self.assertRaises`. Do not use other assertion methods such as `assertIn` / `assertNotIn` / `assertIsInstance`; use `self.assertTrue(x in items)` if necessary.  
 - Avoid negative array/string index lookups or slices.
 - Dictionaries received as arguments in the public-facing API might be assigned to pure JS objects instead of Transcrypt's JS `dict` object.  So ensure any such objects are explicitly cast to `dict(x)` before accessing dict-specific methods on them (e.g. `for k,v in x.items(): ...` -> `x = dict(x); for k,v in x.items(): ...`).
-
+- Only use `import` statements at the top of a module, not inside a function or method.
 
 ## Testing
 
