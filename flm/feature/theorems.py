@@ -1,5 +1,9 @@
 
-from pylatexenc.latexnodes import ParsedArgumentsInfo, ParsingStateDelta
+from pylatexenc.latexnodes import (
+    ParsedArgumentsInfo, ParsingStateDelta,
+    LatexWalkerLocatedError, LatexWalkerParseError,
+)
+
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc.latexnodes.parsers import (
     LatexTackOnInformationFieldMacrosParser,
@@ -470,8 +474,34 @@ _default_theorem_environments_simpleset = {
 }
 
 
+
+# To merge dicts in Transcrypt it looks like we cannot use dict(a, **b).
+# Provide our own utility.
+#
+#__pragma__('ecom')
+
+#__pragma__('skip')
+def _merge_dicts(a, b):
+    return dict(a, **b)
+#__pragma__('noskip')
+       
+# only for Transcrypt:
+#__pragma__('js', '{}', '/* no custom JS code needed here */')
+"""?
+def _merge_dicts(a, b):
+    result = dict(a)
+    result.update(b)
+    return result
+?"""
+
+
+
+# REVIEW: The dict(a, **b) pattern used below to build defaultset/richset
+# may not work correctly in Transcrypt (JS), causing conjecture/remark
+# environments to be missing at runtime.  Consider using explicit dict
+# literals or a merge helper instead.
 _default_theorem_environments_defaultset = {
-    'theoremlike': dict(_default_theorem_environments_simpleset['theoremlike'], **{
+    'theoremlike': _merge_dicts(_default_theorem_environments_simpleset['theoremlike'], {
         'conjecture': {
             'title': {
                 'lowercase': 'conjecture',
@@ -482,7 +512,7 @@ _default_theorem_environments_defaultset = {
             },
         },
     }),
-    'definitionlike': dict(_default_theorem_environments_simpleset['definitionlike'], **{
+    'definitionlike': _merge_dicts(_default_theorem_environments_simpleset['definitionlike'], {
         'remark': {
             'title': {
                 'lowercase': 'remark',
@@ -498,7 +528,7 @@ _default_theorem_environments_defaultset = {
 
 _default_theorem_environments_richset = {
     'theoremlike': dict(_default_theorem_environments_defaultset['theoremlike']),
-    'definitionlike': dict(_default_theorem_environments_defaultset['definitionlike'], **{
+    'definitionlike': _merge_dicts(_default_theorem_environments_defaultset['definitionlike'], {
         'idea': {
             'title': {
                 'lowercase': 'idea',

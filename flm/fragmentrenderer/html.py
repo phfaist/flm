@@ -591,7 +591,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
         if heading_level not in self.heading_tags_by_level:
             raise ValueError(f"HTML renderer: bad heading level ‘{heading_level}’, "
                              f" expected one of "
-                             f"{list(self.heading_tags_by_level.keys())} (or set "
+                             f"{list(dict(self.heading_tags_by_level).keys())} (or set "
                              f"HTML fragment renderer's ‘heading_tags_by_level’ config")
 
         annot = list(annotations) if annotations else []

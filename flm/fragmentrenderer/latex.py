@@ -446,7 +446,7 @@ class LatexFragmentRenderer(FragmentRenderer):
         if heading_level not in self.heading_commands_by_level:
             raise ValueError(
                 f"Heading level ‘{heading_level}’ undefined for latex rendering, "
-                f"expected one of {list(self.heading_commands_by_level.keys())}.\n"
+                f"expected one of {list(dict(self.heading_commands_by_level).keys())}.\n"
                 f"Please make sure the corresponding heading level is set to a "
                 f"latex command name in the latex fragment renderer's configuration "
                 f"(flm: renderer: latex: heading_commands_by_level: <LEVEL>: <command-name>)"

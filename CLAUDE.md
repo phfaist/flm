@@ -42,6 +42,7 @@ result, _ = doc.render(HtmlFragmentRenderer())
 - Avoid negative array/string index lookups or slices.
 - Dictionaries received as arguments in the public-facing API might be assigned to pure JS objects instead of Transcrypt's JS `dict` object.  So ensure any such objects are explicitly cast to `dict(x)` before accessing dict-specific methods on them (e.g. `for k,v in x.items(): ...` -> `x = dict(x); for k,v in x.items(): ...`).
 - Only use `import` statements at the top of a module, not inside a function or method.
+- Do not use the `dict(a, **b)` construct to merge dicts.
 
 ## Testing
 
