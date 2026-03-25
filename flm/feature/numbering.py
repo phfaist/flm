@@ -23,6 +23,7 @@ class Counter:
 
     def __init__(self, counter_formatter, initial_value=0):
         self.formatter = counter_formatter
+        self.initial_value = initial_value
         self.value = initial_value
         
     def set_value(self, value):
