@@ -256,10 +256,13 @@ default_purelatex_defs_makeatletter = r"""
 
 \newif\ifdeftermShowTerm
 \deftermShowTermtrue
+\providecommand\flmLdeftermAbove{\vspace{\abovedisplayskip}}
+\providecommand\flmLdeftermBelow{\vspace{\belowdisplayskip}}
 \def\flmL@defterm#1{%
   \begingroup
   \def\flmL@val@deftermterm{#1}%
-  \par\vspace{\abovedisplayskip}%
+  \par
+  \flmLdeftermAbove
   \flmDeftermFormat
   \phantomsection
   \flmL@parse@labels\flmL@defterm@next
@@ -283,7 +286,7 @@ default_purelatex_defs_makeatletter = r"""
 \def\flmL@cur@defterm@label{}
 \def\endflmL@defterm{%
   \par
-  \vspace{\belowdisplayskip}%
+  \flmLdeftermBelow
   \endgroup
 }
 \ifcsname defterm\endcsname \else % there's no \provideenvironment
