@@ -1,5 +1,4 @@
 import unittest
-# import json
 
 import logging
 logger = logging.getLogger(__name__)
@@ -69,6 +68,25 @@ class TestFLMPureLatexRecomposerInit(unittest.TestCase):
         r = FLMPureLatexRecomposer({'render_context': render_context})
         self.assertTrue(r.render_context is render_context)
 
+    def test_init_options_dict_is_shallow_copy(self):
+        opts = {'math': {'x': 1}}
+        r = FLMPureLatexRecomposer(opts)
+        # Adding new top-level key to original does not affect recomposer
+        opts['new_key'] = 'val'
+        self.assertFalse('new_key' in r.options)
+
+    def test_init_multiple_safe_ref_type_domains(self):
+        r = FLMPureLatexRecomposer({
+            'recomposer': {
+                'safe_label_ref_types': {
+                    'ref': {'sec': True, 'eq': False},
+                    'cite': {'arxiv': True},
+                },
+            },
+        })
+        self.assertEqual(r.safe_ref_types['ref'], {'sec': True, 'eq': False})
+        self.assertEqual(r.safe_ref_types['cite'], {'arxiv': True})
+
     # -- get_options ---
 
     def test_get_options_existing_key(self):
@@ -124,6 +142,16 @@ class TestFLMPureLatexRecomposerInit(unittest.TestCase):
         r.ensure_latex_package('geometry', 'margin=1in')
         with self.assertRaises(ValueError):
             r.ensure_latex_package('geometry', 'margin=2cm')
+
+    def test_ensure_latex_package_multiple_packages(self):
+        r = FLMPureLatexRecomposer({})
+        r.ensure_latex_package('amsmath')
+        r.ensure_latex_package('hyperref', 'colorlinks')
+        r.ensure_latex_package('geometry', 'margin=1in')
+        self.assertEqual(len(r.packages), 3)
+        self.assertEqual(r.packages['amsmath'], {'options': None})
+        self.assertEqual(r.packages['hyperref'], {'options': 'colorlinks'})
+        self.assertEqual(r.packages['geometry'], {'options': 'margin=1in'})
 
     # -- make_safe_label ---
 
@@ -183,6 +211,56 @@ class TestFLMPureLatexRecomposerInit(unittest.TestCase):
         self.assertEqual(l1['safe_label'], 'ref1')
         self.assertEqual(l2['safe_label'], 'cite2')
 
+    def test_make_safe_label_use_raw_config_dict(self):
+        r = FLMPureLatexRecomposer({
+            'recomposer': {
+                'safe_label_ref_types': {
+                    'ref': {'eq': {'use_raw': True}},
+                },
+            },
+        })
+        result = r.make_safe_label('ref', 'eq', 'my-eq', None)
+        self.assertEqual(result['safe_label'], 'eq:my-eq')
+        self.assertEqual(r.safe_label_counter, 1)
+
+    def test_make_safe_label_custom_ref_to_global_key(self):
+        r = FLMPureLatexRecomposer({
+            'recomposer': {
+                'safe_label_ref_types': {
+                    'ref': {'eq': {
+                        'ref_to_global_key':
+                            lambda d, t, l, ri: 'custom:' + str(l)
+                    }},
+                },
+            },
+        })
+        l1 = r.make_safe_label('ref', 'eq', 'alpha', None)
+        l2 = r.make_safe_label('ref', 'eq', 'alpha', None)
+        self.assertEqual(l1['safe_label'], 'ref1')
+        self.assertEqual(l1['safe_label'], l2['safe_label'])
+        self.assertEqual(r.safe_label_counter, 2)
+
+    def test_make_safe_label_resource_info_tracked(self):
+        r = FLMPureLatexRecomposer({})
+        ri = {'source': 'test.flm'}
+        r.make_safe_label('ref', 'eq', 'MyEq', ri)
+        self.assertEqual(
+            r.safe_to_label['ref']['ref1']['resource_info'],
+            {'source': 'test.flm'}
+        )
+
+    def test_make_safe_label_unknown_ref_type_in_safe_domain(self):
+        r = FLMPureLatexRecomposer({
+            'recomposer': {
+                'safe_label_ref_types': {
+                    'ref': {'sec': True},
+                },
+            },
+        })
+        # 'eq' is not in the safe_ref_types for 'ref', so it gets sanitized
+        result = r.make_safe_label('ref', 'eq', 'my-eq', None)
+        self.assertEqual(result['safe_label'], 'ref1')
+
     # -- escape_chars ---
 
     def test_escape_chars_all_specials(self):
@@ -191,6 +269,36 @@ class TestFLMPureLatexRecomposerInit(unittest.TestCase):
         ps = env.make_parsing_state(is_block_level=False)
         result = r.escape_chars('$&#^_%', ps)
         self.assertEqual(result, r'\$\&\#\^\_\%')
+
+    def test_escape_chars_in_math_mode(self):
+        env = mk_flm_environ()
+        r = FLMPureLatexRecomposer({})
+        ps = env.make_parsing_state(is_block_level=False)
+        ps_math = ps.sub_context(in_math_mode=True)
+        result = r.escape_chars('$&#^_%', ps_math)
+        self.assertEqual(result, '$&#^_%')
+
+    def test_escape_chars_specials_disabled(self):
+        env = mk_flm_environ()
+        r = FLMPureLatexRecomposer({})
+        ps = env.make_parsing_state(is_block_level=False)
+        ps_no_specials = ps.sub_context(enable_specials=False)
+        result = r.escape_chars('$&#^_%', ps_no_specials)
+        self.assertEqual(result, '$&#^_%')
+
+    def test_escape_chars_plain_text(self):
+        env = mk_flm_environ()
+        r = FLMPureLatexRecomposer({})
+        ps = env.make_parsing_state(is_block_level=False)
+        result = r.escape_chars('Hello world', ps)
+        self.assertEqual(result, 'Hello world')
+
+    def test_escape_chars_empty_string(self):
+        env = mk_flm_environ()
+        r = FLMPureLatexRecomposer({})
+        ps = env.make_parsing_state(is_block_level=False)
+        result = r.escape_chars('', ps)
+        self.assertEqual(result, '')
 
 
 class TestFLMPureLatexRecomposer(unittest.TestCase):
@@ -611,7 +719,214 @@ More text.
             r"""\begin{flmFloat}{figure}{NumCap}\includegraphics[max width=10cm]{myfigure}\caption{My favorite figure}\label{ref1}\end{flmFloat}"""
         )
 
+    # -- additional recompose integration tests ---
 
+    def test_bold_italic_passthrough(self):
+        env = mk_flm_environ()
+        s = r'\textbf{bold} and \textit{italic}'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_nested_formatting(self):
+        env = mk_flm_environ()
+        s = r'\textbf{nested \emph{text}}'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_inline_math(self):
+        env = mk_flm_environ()
+        s = r'The value \( x \) is important.'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_display_math(self):
+        env = mk_flm_environ()
+        s = r'\[ E = mc^2 \]'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_eqref(self):
+        env = mk_flm_environ()
+        s = r'\eqref{eq:one}'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], r'\eqref{ref1}')
+
+    def test_gather_environment(self):
+        env = mk_flm_environ()
+        s = (
+            '\\begin{gather}\n'
+            '  a = b \\\\\\\\\n'
+            '  c = d\n'
+            '\\end{gather}'
+        )
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_heading_section(self):
+        env = mk_flm_environ()
+        s = r'\section{My Section}\label{sec:mine}'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], r'\section{My Section}\label{ref1}')
+
+    def test_heading_starred(self):
+        env = mk_flm_environ()
+        s = r'\section*{Unnumbered}'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], r'\section*{Unnumbered}')
+
+    def test_heading_with_optional_arg_safe(self):
+        env = mk_flm_environ()
+        s = r'\section[Short Title]{Full Title}'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_enumerate(self):
+        env = mk_flm_environ()
+        s = (
+            '\\begin{enumerate}'
+            '\\item First\n'
+            '\\item Second\n'
+            '\\end{enumerate}'
+        )
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_itemize(self):
+        env = mk_flm_environ()
+        s = (
+            '\\begin{itemize}'
+            '\\item Alpha\n'
+            '\\item Beta\n'
+            '\\end{itemize}'
+        )
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_footnote(self):
+        env = mk_flm_environ()
+        s = r'Text with a footnote\footnote{This is the note}.'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_href(self):
+        env = mk_flm_environ()
+        s = r'\href{https://example.com}{Example}'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_url(self):
+        env = mk_flm_environ()
+        s = r'\url{https://example.com}'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_email(self):
+        env = mk_flm_environ()
+        s = r'\email{test@example.com}'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_verbcode_inline(self):
+        env = mk_flm_environ()
+        s = r'\verbcode{hello world}'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_verbatimcode_block(self):
+        env = mk_flm_environ()
+        s = (
+            "\\begin{verbatimcode}"
+            "def hello():\n"
+            "    print('world')\n"
+            "\\end{verbatimcode}"
+        )
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_defterm(self):
+        env = mk_flm_environ()
+        s = (
+            '\\begin{defterm}{Entropy}\\label{topic:Entropy}\n'
+            'A measure of disorder.\n'
+            '\\end{defterm}'
+        )
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(
+            result['latex'],
+            '\\begin{defterm}{Entropy}\\label{ref1}\\label{ref2}\n'
+            'A measure of disorder.\n'
+            '\\end{defterm}'
+        )
+
+    def test_theorem(self):
+        features = standard_features(theorems=True)
+        env = make_standard_environment(features)
+        s = (
+            '\\begin{theorem}\n'
+            'Every even number greater than 2 is the sum of two primes.\n'
+            '\\end{theorem}'
+        )
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_paragraphs(self):
+        env = mk_flm_environ()
+        s = 'First paragraph.\n\nSecond paragraph.'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertEqual(result['latex'], s)
+
+    def test_recompose_pure_latex_returns_dict(self):
+        env = mk_flm_environ()
+        s = r'\textbf{Hello}'
+        frag = env.make_fragment(s, what='test')
+        r = FLMPureLatexRecomposer({})
+        result = r.recompose_pure_latex(frag.nodes)
+        self.assertTrue('latex' in result)
+        self.assertTrue('packages' in result)
+
+    def test_recompose_specinfo_method(self):
+        r = FLMPureLatexRecomposer({})
+        self.assertEqual(r.recompose_specinfo_method, 'recompose_pure_latex')
 
 
 
