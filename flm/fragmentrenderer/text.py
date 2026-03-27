@@ -4,6 +4,10 @@ logger = logging.getLogger(__name__)
 from ._base import FragmentRenderer
 
 
+
+
+
+
 class TextFragmentRenderer(FragmentRenderer):
 
     display_href_urls = True
@@ -245,8 +249,7 @@ class TextFragmentRenderer(FragmentRenderer):
 
 
     def render_graphics_block(self, graphics_resource, render_context):
-
-        return f"{'['+graphics_resource.src_url+']':^80}"
+        return _center_text_sqbrkt_line(graphics_resource.src_url)
 
 
     cells_column_sep = '   '
@@ -317,6 +320,22 @@ class TextFragmentRenderer(FragmentRenderer):
             )
 
         return '\n'.join(s_items)
+
+
+
+
+# Apparently, Transcrypt does not support string formatting with "{...:^80}".
+# Provide custom JS implementation.
+
+# Feed some raw JS to transcrypt directly
+#__pragma__('ecom')
+#__pragma__('js', '{}', 'var _center_text_sqbrkt_line = (s) => (`[${s}]`).padStart(Math.round((80+s.length)/2)).padEnd(80);')
+
+#__pragma__('skip')
+def _center_text_sqbrkt_line(s):
+    s2 = "[" + s + "]"
+    return f"{s2:^80}"
+#__pragma__('noskip')
 
 
 

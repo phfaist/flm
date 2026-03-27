@@ -94,7 +94,7 @@ class RefInstance:
 # Feed some raw JS to transcrypt directly
 #__pragma__('ecom')
 """?
-__pragma__('js', 'var hexstr = (v) => (+v).toString(16);');
+__pragma__('js', '{}', 'var hexstr = (v) => (+v).toString(16);');
 ?"""
 
 #__pragma__('skip')
