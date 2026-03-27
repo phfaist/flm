@@ -1,6 +1,61 @@
 import unittest
 
-from flm.main.configmerger import ConfigMerger
+from flm.main.configmerger import (
+    ConfigMerger,
+    ListProperty,
+    PresetKeepMarker,
+    PresetDefaults,
+    PresetMergeConfig,
+    PresetRemoveItem,
+    PresetImport,
+    _get_preset_keyvals,
+    get_default_presets,
+)
+
+
+class TestHelpers(unittest.TestCase):
+
+    def test_get_preset_keyvals_with_presets(self):
+        result = _get_preset_keyvals({'$a': 1, 'b': 2, '$c': 3})
+        self.assertEqual(result, [('$a', 1), ('$c', 3)])
+
+    def test_get_preset_keyvals_non_mapping(self):
+        self.assertEqual(_get_preset_keyvals('hello'), [])
+
+    def test_get_preset_keyvals_empty(self):
+        self.assertEqual(_get_preset_keyvals({}), [])
+
+    def test_get_preset_keyvals_no_presets(self):
+        self.assertEqual(_get_preset_keyvals({'a': 1, 'b': 2}), [])
+
+    def test_list_property_marker(self):
+        lp = ListProperty()
+        self.assertTrue(isinstance(lp, ListProperty))
+
+    def test_get_default_presets(self):
+        presets = get_default_presets()
+        self.assertTrue('$defaults' in presets)
+        self.assertTrue('$merge-config' in presets)
+        self.assertTrue('$remove-item' in presets)
+        self.assertTrue('$import' in presets)
+        self.assertTrue('$_cwd' in presets)
+
+
+class TestConfigMergerInit(unittest.TestCase):
+
+    def test_default_presets(self):
+        cm = ConfigMerger()
+        self.assertTrue('$defaults' in cm.presets)
+        self.assertTrue('$merge-config' in cm.presets)
+
+    def test_custom_presets(self):
+        cm = ConfigMerger(presets={'$custom': None})
+        self.assertEqual(cm.presets, {'$custom': None})
+
+    def test_defaults_additional_sources(self):
+        cm = ConfigMerger(defaults_additional_sources=None)
+        self.assertTrue('$defaults' in cm.presets)
+
 
 class TestRecursiveAssignDefaults(unittest.TestCase):
 
@@ -286,6 +341,160 @@ class TestRecursiveAssignDefaults(unittest.TestCase):
                 {'name': 'B',
                  'config': { 'hello': False }},
             ]
+        })
+
+
+class TestEmptyAndEdgeCases(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_empty_obj_list_dict(self):
+        self.assertEqual(ConfigMerger().recursive_assign_defaults([]), {})
+
+    def test_empty_obj_list_list(self):
+        self.assertEqual(
+            ConfigMerger().recursive_assign_defaults_list([], []),
+            []
+        )
+
+    def test_none_filtered_in_list(self):
+        result = ConfigMerger().recursive_assign_defaults_list(
+            [None, [1, 2], None, [3]], []
+        )
+        self.assertEqual(result, [1, 2])
+
+    def test_scalar_first_wins(self):
+        d = ConfigMerger().recursive_assign_defaults([
+            {'k': 42},
+            {'k': 99},
+        ])
+        self.assertEqual(d, {'k': 42})
+
+    def test_scalar_over_dict(self):
+        d = ConfigMerger().recursive_assign_defaults([
+            {'k': 42},
+            {'k': {'a': 1}},
+        ])
+        self.assertEqual(d, {'k': 42})
+
+    def test_list_first_wins_no_defaults(self):
+        d = ConfigMerger().recursive_assign_defaults([
+            {'k': ['a', 'b']},
+            {'k': ['c', 'd', 'e']},
+        ])
+        self.assertEqual(d, {'k': ['a', 'b']})
+
+    def test_non_mapping_ignored(self):
+        d = ConfigMerger().recursive_assign_defaults([
+            {'a': 1},
+            'not-a-dict',
+            {'b': 2},
+        ])
+        self.assertEqual(d, {'a': 1, 'b': 2})
+
+    def test_single_obj(self):
+        d = ConfigMerger().recursive_assign_defaults([
+            {'x': 1, 'y': {'a': 'A'}},
+        ])
+        self.assertEqual(d, {'x': 1, 'y': {'a': 'A'}})
+
+
+class TestPresetKeepMarker(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_cwd_marker_kept(self):
+        d = ConfigMerger().recursive_assign_defaults([
+            {'$_cwd': '/tmp', 'a': 1},
+        ])
+        self.assertEqual(d, {'a': 1, '$_cwd': '/tmp'})
+
+
+class TestPresetErrors(unittest.TestCase):
+
+    def test_nomerge_invalid_value(self):
+        with self.assertRaises(ValueError):
+            ConfigMerger().recursive_assign_defaults([
+                {'k': {'$no-merge': False}},
+            ])
+
+    def test_remove_item_no_name(self):
+        with self.assertRaises(ValueError):
+            ConfigMerger().recursive_assign_defaults([
+                {'k': [{'$remove-item': None}]},
+            ])
+
+    def test_remove_item_nonexistent(self):
+        with self.assertRaises(ValueError):
+            ConfigMerger().recursive_assign_defaults([
+                {'k': [{'name': 'A'}, {'$remove-item': 'B'}]},
+            ])
+
+    def test_merge_config_no_name(self):
+        with self.assertRaises(ValueError):
+            ConfigMerger().recursive_assign_defaults([
+                {'k': [{'name': 'A'}, {'$merge-config': {}}]},
+            ])
+
+    def test_merge_config_nonexistent(self):
+        with self.assertRaises(ValueError):
+            ConfigMerger().recursive_assign_defaults([
+                {'k': [{'name': 'A'}, {'$merge-config': {'name': 'B'}}]},
+            ])
+
+    def test_multiple_preset_keys_in_list_item(self):
+        with self.assertRaises(ValueError):
+            ConfigMerger().recursive_assign_defaults([
+                {'k': [{'$defaults': True, '$remove-item': 'X'}]},
+            ])
+
+
+class TestMergeConfigOverwrite(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_merge_config_overwrites_existing_key(self):
+        d = ConfigMerger().recursive_assign_defaults([
+            {
+                'items': [
+                    {'$defaults': True},
+                    {'$merge-config': {
+                        'name': 'A',
+                        'config': {'v': 'new'},
+                    }},
+                ],
+            },
+            {
+                'items': [
+                    {'name': 'A', 'config': {'v': 'old', 'w': 3}},
+                ],
+            },
+        ])
+        self.assertEqual(d, {
+            'items': [
+                {'name': 'A', 'config': {'v': 'new', 'w': 3}},
+            ],
+        })
+
+    def test_defaults_then_append(self):
+        d = ConfigMerger().recursive_assign_defaults([
+            {
+                'items': [
+                    {'name': 'X', 'config': {'x': 1}},
+                    {'$defaults': True},
+                ],
+            },
+            {
+                'items': [
+                    {'name': 'Y', 'config': {'y': 2}},
+                ],
+            },
+        ])
+        self.assertEqual(d, {
+            'items': [
+                {'name': 'X', 'config': {'x': 1}},
+                {'name': 'Y', 'config': {'y': 2}},
+            ],
         })
 
 

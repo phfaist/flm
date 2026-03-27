@@ -55,8 +55,11 @@ class _ProxyDictVarConfig:
     def get_config_value(self, key):
         parts = key.split('.')
         value = self.config
-        for part in parts:
-            value = value.get(part, _emptydict)
+        try:
+            for part in parts:
+                value = value.get(part, _emptydict)
+        except AttributeError:
+            value = None
         if value is _emptydict:
             value = None
         if value is None and self.none_as_empty_string:

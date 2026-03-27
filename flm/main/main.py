@@ -97,7 +97,7 @@ def load_external_configs(dirname, *, arg_config, arg_format, arg_workflow):
                         # workflow/format pattern. -->
                         break
 
-    logger.debug(f"Identified config files to load: {','.join(load_config_files)}")
+    logger.debug("Identified config files to load: %r", load_config_files)
 
     loaded_config_datas = []
     for config_file in load_config_files:
