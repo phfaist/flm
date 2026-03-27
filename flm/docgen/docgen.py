@@ -369,6 +369,8 @@ class FLMEnvironmentDocumentationGenerator:
     include_feature_name = False
     include_feature_dependencies = False
 
+    argument_parser_names_by_classname = {}
+
     def document_environment(self, environment):
 
         s_items = []
@@ -664,5 +666,5 @@ def _get_callable_type(spec):
     if spec.spec_node_parser_type is macrospec.LatexSpecialsCallParser:
         return 'specials'
 
-    raise ValueError("Unknown spec_node_parser_type: " + repr(self.spec_node_parser_type))
+    raise ValueError("Unknown spec_node_parser_type: " + repr(spec.spec_node_parser_type))
 

@@ -61,7 +61,7 @@ class ResourceAccessor(run.ResourceAccessorBase):
 
 
 
-def load_external_configs(dirname, *, arg_config, arg_format, arg_workflow):
+def load_external_configs(dirname, *, arg_config=None, arg_format=None, arg_workflow=None):
 
     load_config_files = []
 

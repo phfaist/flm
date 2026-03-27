@@ -307,6 +307,8 @@ def load_workflow_environment(*,
                               default_configs=None,
                               add_builtin_default_configs=True):
 
+    logger.debug(f"load_workflow_environment: {run_config=}, {flm_run_info=}, {default_configs=} {add_builtin_default_configs=}")
+
     resource_accessor = flm_run_info['resource_accessor']
 
     # Set up the workflow to get the output format, before being able to load

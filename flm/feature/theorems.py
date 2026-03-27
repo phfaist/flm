@@ -39,7 +39,7 @@ thmlabel_arg = FLMArgumentSpec(
     ),
     argname='thmlabel',
     flm_doc=(r'A following \verbcode+\label{…}+ macro attaches a label to '
-             r'this macro call; a following \noproofref indicates that there is '
+             r'this macro call; a following \verbcode+\noproofref+ indicates that there is '
              r'no corresponding {proof} environment to look for in the document.')
 )
 

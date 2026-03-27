@@ -118,7 +118,10 @@ def main_docgen():
     dirname = os.path.dirname(args.file) if args.file else os.getcwd()
 
     # load config & defaults
-    orig_config = flm_main_main.load_external_config(args.config, dirname)
+    orig_config = flm_main_main.load_external_configs(
+        dirname,
+        arg_config=args.config, arg_workflow=args.workflow, arg_format=args.format
+    )
 
     logger.debug("Input frontmatter_metadata is\n%s",
                  json.dumps(frontmatter_metadata,indent=4))
@@ -142,7 +145,7 @@ def main_docgen():
     wenv = flm_main_run.load_workflow_environment(
         flm_run_info=flm_run_info,
         run_config=run_config,
-        default_configs=[orig_config, docgen_builtin_default_config]
+        default_configs=[*orig_config, docgen_builtin_default_config]
     )
 
     #
