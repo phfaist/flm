@@ -6,6 +6,8 @@ from flm.fragmentrenderer.text import (
     _add_punct,
 )
 from flm.feature.graphics import GraphicsResource
+from flm.feature.cells import FeatureCells
+from flm.feature.theorems import FeatureTheorems
 from flm.stdfeatures import standard_features
 from flm.flmenvironment import make_standard_environment
 
@@ -450,6 +452,142 @@ A measure of disorder.
             result,
             'Entropy: [label=term:entropy] A measure of disorder.'
         )
+
+    def test_defterm_with_ref_hides_internal_link(self):
+        environ = mk_flm_environ()
+        result = render_doc(environ, r'''\begin{defterm}{Term}[label={term:myterm}]
+A definition.
+\end{defterm}
+
+See \term{Term}.''')
+        self.assertEqual(
+            result,
+            'Term: [label=term:myterm] A definition.\n\nSee Term.'
+        )
+
+
+# ---- Integration: floats ----
+
+class TestTextFragmentRendererFloats(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_figure_with_caption_and_label(self):
+        environ = mk_flm_environ()
+        fr = TextFragmentRenderer()
+        result = render_doc(
+            environ,
+            r'\begin{figure}\includegraphics{img/test.png}'
+            r'\caption{A nice figure.}\label{figure:test}\end{figure}',
+            fr=fr,
+        )
+        sep = '\u00b7' * 80
+        centered_img = fr.render_graphics_block(
+            GraphicsResource(src_url='img/test.png'), None
+        )
+        self.assertEqual(
+            result,
+            sep + '\n' + centered_img + '\n\n'
+            'Figure\u00a01: A nice figure.\n'
+            + sep
+        )
+
+    def test_figure_bare(self):
+        environ = mk_flm_environ()
+        fr = TextFragmentRenderer()
+        result = render_doc(
+            environ,
+            r'\begin{figure}\includegraphics{img/test.png}\end{figure}',
+            fr=fr,
+        )
+        sep = '\u00b7' * 80
+        centered_img = fr.render_graphics_block(
+            GraphicsResource(src_url='img/test.png'), None
+        )
+        self.assertEqual(
+            result,
+            sep + '\n' + centered_img + '\n' + sep
+        )
+
+    def test_figure_caption_only_no_label(self):
+        environ = mk_flm_environ()
+        fr = TextFragmentRenderer()
+        result = render_doc(
+            environ,
+            r'\begin{figure}\includegraphics{img/test.png}'
+            r'\caption{Just caption}\end{figure}',
+            fr=fr,
+        )
+        sep = '\u00b7' * 80
+        centered_img = fr.render_graphics_block(
+            GraphicsResource(src_url='img/test.png'), None
+        )
+        self.assertEqual(
+            result,
+            sep + '\n' + centered_img + '\n\n'
+            'Figure: Just caption\n'
+            + sep
+        )
+
+    def test_figure_custom_separators(self):
+        environ = mk_flm_environ()
+        fr = TextFragmentRenderer(config={
+            'float_separator_top': '---',
+            'float_separator_bottom': '===',
+        })
+        result = render_doc(
+            environ,
+            r'\begin{figure}\includegraphics{img/test.png}\end{figure}',
+            fr=fr,
+        )
+        centered_img = fr.render_graphics_block(
+            GraphicsResource(src_url='img/test.png'), None
+        )
+        self.assertEqual(
+            result,
+            '---\n' + centered_img + '\n==='
+        )
+
+
+# ---- Integration: theorem ----
+
+class TestTextFragmentRendererTheorem(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_theorem_with_title(self):
+        features = standard_features()
+        features.append(FeatureTheorems())
+        environ = make_standard_environment(features)
+        result = render_doc(environ, r'''\begin{theorem}[title={Important result}]
+Some theorem content.
+\end{theorem}''')
+        self.assertEqual(
+            result,
+            'Theorem\u00a01 (title=Important result).  Some theorem content.'
+        )
+
+
+# ---- Integration: cells (smoke test) ----
+
+class TestTextFragmentRendererCells(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_celldata_does_not_error(self):
+        features = standard_features()
+        features.append(FeatureCells())
+        environ = make_standard_environment(features)
+        src = (
+            r'\begin{cells}'
+            r'\celldata<H>{Name & City}'
+            '\n'
+            r'\celldata{John & Berlin}'
+            '\n'
+            r'\end{cells}'
+        )
+        result = render_doc(environ, src)
+        self.assertEqual(result, '    Name\n    City\n    John\n    Berlin')
 
 
 # ---- FragmentRendererInformation ----
