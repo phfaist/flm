@@ -15,12 +15,14 @@ parsed as markup so it can be rendered in various formats (html, text, latex).
    :caption: Contents:
 
    overview
+   standard-syntax
    command-line
+   configuration
    features
    model
-   selfdocenv
    lib
    lib-js
+   selfdocenv
    api
 
 
