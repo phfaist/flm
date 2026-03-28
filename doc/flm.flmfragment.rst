@@ -1,7 +1,14 @@
 FLM Fragment: ``flm.flmfragment``
----------------------------------
+=================================
 
 .. automodule:: flm.flmfragment
-   :members:
+   :no-members:
 
+
+The ``FLMFragment`` class
+--------------------------
+
+.. autoclass:: FLMFragment
+   :members:
+   :undoc-members:
 

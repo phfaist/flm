@@ -1,3 +1,10 @@
+r"""
+Custom text formatting macros and semantic block environments.
+
+Provides a feature for defining macros that apply text format styles
+(e.g. bold, italic) and environments that render as semantic blocks
+with a given role and optional annotations.
+"""
 
 from ..flmspecinfo import (
     TextFormatMacro, SemanticBlockEnvironment
@@ -9,6 +16,11 @@ from ._base import Feature
 
 
 class FeatureMarkup(Feature):
+    r"""
+    Feature for defining custom text formatting macros and semantic block
+    environments.  Text macros wrap content in one or more format styles;
+    semantic environments render as block-level elements with a specified role.
+    """
 
     feature_name = 'markup'
     feature_title = \

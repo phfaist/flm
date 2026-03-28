@@ -1,3 +1,13 @@
+r"""
+Provides verbatim content macros and environments for FLM.
+
+Supports three verbatim types: ``text`` (``\verbtext``), ``code``
+(``\verbcode``), and ``a`` (``\verba`` for identifiers).  Each type has a
+corresponding inline macro and, where applicable, a block-level environment
+(e.g., ``verbatimcode``).  An optional language argument enables per-language
+annotation for syntax highlighting.
+"""
+
 import re
 
 from pylatexenc.latexnodes import ParsedArgumentsInfo
@@ -241,6 +251,14 @@ class VerbatimEnvironment(VerbatimSpecInfo):
 
 
 class FeatureVerbatim(SimpleLatexDefinitionsFeature):
+    r"""
+    Feature providing verbatim content typesetting via macros and environments.
+
+    Configurable via :attr:`verbatim_include_types` to select which verbatim
+    types (``text``, ``code``, ``a``) are registered.  The ``code`` type
+    supports an optional language argument and block-level environments.
+    Supports pure-LaTeX recomposition with optional ``fvextra`` package usage.
+    """
 
     feature_name = 'verbatim'
     feature_title = 'Verbatim content typesetting'

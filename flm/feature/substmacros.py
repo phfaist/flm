@@ -1,3 +1,11 @@
+r"""
+User-defined substitution macros, environments, and specials for FLM.
+
+Allows defining custom LaTeX-like macros and environments whose content is
+specified as FLM template strings with argument placeholders (``#1``,
+``#{argname}``).  Substitutions are expanded at render time.
+"""
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -1045,6 +1053,11 @@ class SubstitutionSpecials(SubstitutionCallableSpecInfo):
 
 
 class FeatureSubstMacros(Feature):
+    r"""
+    Feature that registers user-defined substitution macros, environments, and
+    specials.  Each definition maps a macro/environment name to a content
+    template with argument placeholders that are expanded during rendering.
+    """
 
     DocumentManager = None
     RenderManager = None

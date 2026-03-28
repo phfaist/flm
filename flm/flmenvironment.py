@@ -74,10 +74,27 @@ class _NotProvided:
 def FLMArgumentSpec(parser, argname, is_block_level=_NotProvided, flm_doc=None,
                     parsing_state_delta=None):
     r"""
-    Doc..........
+    Create an argument specification for an FLM macro or environment.
 
-    I might turn this function into a proper subclass of `LatexArgumentSpec` in
-    the future.
+    This is a factory function that returns a
+    :py:class:`pylatexenc.latexnodes.LatexArgumentSpec` instance configured
+    with FLM-specific options, notably the block-level parsing mode for the
+    argument's contents.
+
+    :param parser: The argument parser specification (e.g., ``'{'`` for a
+        mandatory argument, ``'['`` for an optional argument).
+    :param argname: A name for the argument, used to retrieve it later via
+        :py:class:`~pylatexenc.latexnodes.ParsedArgumentsInfo`.
+    :param is_block_level: Whether the argument contents should be parsed in
+        block-level mode (``True``), inline mode (``False``), or auto-detect
+        (``None``).  Defaults to ``False``.
+    :param flm_doc: Optional documentation string describing the argument,
+        used by the self-documenting environment feature.
+    :param parsing_state_delta: An optional
+        :py:class:`~pylatexenc.latexnodes.ParsingStateDelta` instance to apply
+        when parsing this argument.  If provided, *is_block_level* should be
+        set to ``None`` (or omitted) to avoid conflicts.
+    :returns: A :py:class:`~pylatexenc.latexnodes.LatexArgumentSpec` instance.
     """
     if parsing_state_delta is None:
         if is_block_level is _NotProvided:
@@ -779,22 +796,41 @@ def features_sorted_by_dependencies(features):
 
 class FLMEnvironment:
     r"""
-    Doc ........
+    The central class that collects feature definitions and parsing
+    settings for processing FLM content.
 
-    - `parsing_state`: please provide a `FLMParsingState` object instance to
-      serve as the default parsing state.  You should keep the `latex_context`
-      field of the `parsing_state` object to `None`.  Only then will we add the
-      relevant features' definitions etc.  You can still specify a base latex
-      context with the `latex_context=` argument.
+    An environment provides:
 
-    - `parsing_mode_deltas` — a dictionary of parsing_mode names (strings) to
-      :py:class:`ParsingStateDelta` instances.  When a nontrivial
-      `parsing_mode=` argument is specified to `make_latex_walker`, this delta
-      is applied onto the default parsing state.  Note that the parsing state
-      delta objects must not need the `latex_context` object in their updates.
-      For instance, you cannot use
-      :py:class:`pylatexenc.latexnodes.ParsingStateDeltaWalkerEvent` or
-      subclasses like :py:class:`ParsingStateDeltaEnterMathMode`.
+    - A set of *features* that define the available macros, environments, and
+      specials.
+    - A *parsing state* that controls parsing options (e.g., comment syntax,
+      math delimiters).
+    - Methods to create fragments (:py:meth:`make_fragment`) and documents
+      (:py:meth:`make_document`).
+
+    Typically, use :py:func:`make_standard_environment` instead of
+    constructing this class directly.
+
+    :param features: A list of :py:class:`~flm.feature.Feature` instances.
+        Features are automatically sorted by dependency order.
+    :param parsing_state: A :py:class:`FLMParsingState` instance to serve
+        as the default parsing state.  Its ``latex_context`` field should be
+        ``None``; the environment will populate it from the features'
+        definitions.
+    :param latex_context: A
+        :py:class:`pylatexenc.macrospec.LatexContextDb` instance.  If
+        ``None`` is given to :py:func:`make_standard_environment`, a new
+        empty context database is created automatically.
+    :param tolerant_parsing: If ``True``, parsing errors are handled
+        more leniently.
+    :param parsing_mode_deltas: A dictionary mapping parsing mode names
+        (strings) to :py:class:`~pylatexenc.latexnodes.ParsingStateDelta`
+        instances.  When a non-trivial ``parsing_mode=`` argument is
+        specified to :py:meth:`make_latex_walker`, the corresponding delta
+        is applied onto the default parsing state.
+    :param text_processing_options: Options passed to
+        :py:class:`NodesFinalizer` controlling text processing (whitespace
+        simplification, automatic Unicode quote and ligature conversion).
     """
     def __init__(
             self,
@@ -859,12 +895,20 @@ class FLMEnvironment:
 
 
     def supports_feature(self, feature_name):
+        r"""
+        Return ``True`` if a feature with the given name is registered in
+        this environment.
+        """
         return (
             feature_name in self.features_by_name
             and self.features_by_name[feature_name] is not None
         )
 
     def feature(self, feature_name):
+        r"""
+        Return the :py:class:`~flm.feature.Feature` instance for the given
+        feature name.  Raises ``KeyError`` if not found.
+        """
         return self.features_by_name[feature_name]
 
 
@@ -943,6 +987,25 @@ class FLMEnvironment:
 
 
     def make_fragment(self, flm_text, **kwargs):
+        r"""
+        Parse FLM text and return a :py:class:`~flm.flmfragment.FLMFragment`.
+
+        If *flm_text* is already an :py:class:`~flm.flmfragment.FLMFragment`
+        instance, it is returned as-is (after validating that its settings
+        are compatible with any explicitly requested keyword arguments).
+
+        :param flm_text: The FLM source text to parse, or an already-parsed
+            :py:class:`~flm.flmfragment.FLMFragment`.
+        :param is_block_level: Whether to parse as block-level (``True``),
+            inline (``False``), or auto-detect (``None``, the default).
+        :param standalone_mode: If ``True``, disables features that require
+            a document context (e.g., cross-references).
+        :param what: A short description of this fragment for error messages.
+        :param resource_info: Custom object to help locate external resources
+            (e.g., the filesystem path of the source file).
+        :param silent: If ``True``, suppress error logging on parse failure.
+        :returns: A :py:class:`~flm.flmfragment.FLMFragment` instance.
+        """
 
         if isinstance(flm_text, FLMFragment):
             frag = flm_text
@@ -1220,6 +1283,37 @@ def standard_environment_get_located_error_message(environment, exception_object
 def make_standard_environment(features, parsing_state=None, latex_context=None,
                               flm_environment_options=None,
                               parsing_state_options=None,):
+    r"""
+    Create a standard :py:class:`FLMEnvironment` with sensible defaults.
+
+    This is the recommended way to create an FLM environment.  It sets up
+    the parsing state, latex context database, math mode handling, and
+    error message formatting.
+
+    Usage example::
+
+        from flm.flmenvironment import make_standard_environment
+        from flm.stdfeatures import standard_features
+
+        environ = make_standard_environment(features=standard_features())
+        fragment = environ.make_fragment(r'Hello, \emph{world}.', standalone_mode=True)
+
+    :param features: A list of :py:class:`~flm.feature.Feature` instances.
+        Use :py:func:`~flm.stdfeatures.standard_features` to get a
+        reasonable default set.
+    :param parsing_state: An optional :py:class:`FLMParsingState` instance.
+        If ``None``, one is created via :py:func:`standard_parsing_state`.
+    :param latex_context: An optional
+        :py:class:`pylatexenc.macrospec.LatexContextDb` instance.  If
+        ``None``, a new empty context is created.
+    :param flm_environment_options: Additional keyword arguments passed to
+        the :py:class:`FLMEnvironment` constructor (e.g.,
+        ``tolerant_parsing``, ``text_processing_options``).
+    :param parsing_state_options: Keyword arguments passed to
+        :py:func:`standard_parsing_state` if no explicit *parsing_state*
+        is provided (e.g., ``dollar_inline_math_mode=True``).
+    :returns: A configured :py:class:`FLMEnvironment` instance.
+    """
 
     if latex_context is None:
         latex_context = macrospec.LatexContextDb()
@@ -1310,8 +1404,22 @@ def _make_argvalue(argvalue, latex_walker, parsing_state):
 
 
 def make_invocable_arguments(flm_spec, args, *, latex_walker, parsing_state):
+    r"""
+    Create argument nodes for a "virtual" macro/environment invocation.
 
-    argnlist = [ None for _ in flm_spec.arguments_spec_list ] 
+    This is useful when programmatically constructing nodes (e.g., for
+    auto-generated numbering labels in enumeration lists).
+
+    :param flm_spec: The :py:class:`~flm.flmspecinfo.FLMSpecInfo` instance
+        whose argument specification to use.
+    :param args: A dictionary mapping argument names to values (strings,
+        nodes, or node lists).  ``None`` means no arguments.
+    :param latex_walker: The :py:class:`FLMLatexWalker` instance.
+    :param parsing_state: The current parsing state.
+    :returns: A list of argument nodes matching the spec's argument list.
+    """
+
+    argnlist = [ None for _ in flm_spec.arguments_spec_list ]
 
     if args is None:
         return argnlist
@@ -1340,6 +1448,26 @@ def make_invocable_node_instance(node_type, flm_spec, *,
                                  parsing_state,
                                  body_nodelist=None, # for environments
                                  node_kwargs=None):
+    r"""
+    Create a fully finalized "virtual" node representing a macro, environment,
+    or specials invocation.
+
+    The returned node can be used to call fragment renderer methods as if the
+    construct had been parsed from source text.  For example, enumeration
+    features use this to create nodes for auto-generated item labels.
+
+    :param node_type: The pylatexenc node class (e.g.,
+        ``LatexMacroNode``, ``LatexEnvironmentNode``,
+        ``LatexSpecialsNode``).
+    :param flm_spec: The :py:class:`~flm.flmspecinfo.FLMSpecInfo` instance
+        for the construct.
+    :param args: A dictionary mapping argument names to values.
+    :param latex_walker: The :py:class:`FLMLatexWalker` instance.
+    :param parsing_state: The current parsing state.
+    :param body_nodelist: For environments, the body node list.
+    :param node_kwargs: Additional keyword arguments for the node constructor.
+    :returns: A finalized node instance.
+    """
 
     nkwargs = {
         'pos': None,

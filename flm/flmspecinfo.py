@@ -1,3 +1,27 @@
+r"""
+FLM specification info classes for defining macros, environments, and specials.
+
+This module provides the base classes that specify how parsed LaTeX-like
+constructs (macros, environments, specials) are finalized after parsing and
+how they are rendered into output primitives understood by
+:py:class:`~flm.fragmentrenderer.FragmentRenderer` objects.
+
+The main classes are:
+
+- :py:class:`FLMSpecInfo` --- base class for all FLM construct specifications.
+- :py:class:`FLMMacroSpecBase` --- convenience base for macro specifications.
+- :py:class:`FLMEnvironmentSpecBase` --- convenience base for environment
+  specifications.
+- :py:class:`FLMSpecialsSpecBase` --- convenience base for specials
+  specifications.
+
+This module also provides several built-in construct specifications such as
+:py:class:`FLMSpecInfoConstantValue` (for literal character replacements),
+:py:class:`TextFormatMacro` (for ``\\emph``, ``\\textbf``, etc.), and
+:py:class:`FLMSpecInfoParagraphBreak` (for paragraph breaks).
+"""
+
+from ._typing_helpers import Any
 
 import logging
 logger = logging.getLogger(__name__)
@@ -26,7 +50,7 @@ class FLMSpecInfo(macrospec.CallableSpec):
     :py:class:`~flm.fragmentrenderer.FragmentRenderer` objects
     """
 
-    delayed_render = False
+    delayed_render : bool = False
     r"""
     Whether this node needs to be rendered at the delayed rendering stage, i.e.,
     after a first pass through the document.  This is the case, for instance,
@@ -35,23 +59,32 @@ class FLMSpecInfo(macrospec.CallableSpec):
     documentation for the :py:class:`flmdocument.FLMDocument` class.
     """
 
-    is_block_level = False
+    is_block_level : bool|None = False
     r"""
     If this flag is set to `True`, then elements of this type are always parsed
     as separate block-level elements (e.g., a section heading, an enumeration
     list, etc.)
+
+    If this flag is `None`, then the spec does not commit as to whether the node
+    produces a block-level or inline-level element.  It is strongly recommended
+    you then manually set the `flm_is_block_level` attribute on the node object
+    to True or False, since the default implementation of `finalize_node()`
+    won't be able to do it.
     """
 
-    is_block_heading = False
+    is_block_heading : bool = False
     r"""
     If `is_block_level=True` and this flag is also set to `True`, then this
     element *introduces* a new paragraph.  I.e., a block-level/paragraph break
     is introduced immediately before this item.  The present item is itself
     included along with the non-block-level content that follows to form a new
     paragraph.
+      
+    For example, use `is_block_heading=True` for the node created
+    by a ``\paragraph{..}`` call that produces a run-in heading.
     """
 
-    is_paragraph_break_marker = False
+    is_paragraph_break_marker : bool = False
     r"""
     True if this node's sole purpose is to split paragraphs.  Use this for
     ``\n\n`` breaks or maybe if the user would like to introduce support for
@@ -59,7 +92,7 @@ class FLMSpecInfo(macrospec.CallableSpec):
     set ``is_block_level=True``.
     """
     
-    allowed_in_standalone_mode = False
+    allowed_in_standalone_mode : bool = False
     r"""
     Whether or not this node is allowed in *standalone mode*, i.e., whether or
     not this node can be rendered independently of any document object.
@@ -76,7 +109,7 @@ class FLMSpecInfo(macrospec.CallableSpec):
     # amount of whitespace on that side of this macro/env/specials call.
     # """
 
-    body_contents_is_block_level = None
+    body_contents_is_block_level : bool|None = None
     r"""
     Applicable only to environment specifications.  Specifies whether or
     not the body contents of the body should be parsed as block-level code or
@@ -88,6 +121,15 @@ class FLMSpecInfo(macrospec.CallableSpec):
     # ---------------
 
     def __init__(self, *, spec_node_parser_type, arguments_spec_list=None, **kwargs):
+        r"""
+        :param spec_node_parser_type: The parser type for this construct
+            (e.g., ``'macro'``, ``'environment'``, ``'specials'``, or a
+            parser class from :py:mod:`pylatexenc.macrospec`).
+        :param arguments_spec_list: A list of
+            :py:class:`~flm.flmenvironment.FLMArgumentSpec` instances
+            describing the arguments this construct accepts.  Can be ``None``
+            if the construct takes no arguments.
+        """
 
         # enforce keyword-only arguments at this point to avoid bugs because
         # it's likely the wrong arguments get assigned to the positional
@@ -99,7 +141,7 @@ class FLMSpecInfo(macrospec.CallableSpec):
 
     # ---------------
 
-    def postprocess_parsed_node(self, node):
+    def postprocess_parsed_node(self, node) -> None:
         r"""
         Can be overridden to add additional information to node objects.
 
@@ -112,7 +154,7 @@ class FLMSpecInfo(macrospec.CallableSpec):
         """
         pass
 
-    def prepare_delayed_render(self, node, render_context):
+    def prepare_delayed_render(self, node, render_context) -> None:
         r"""
         For items with `delayed_render=True`, this method is called instead of
         render() on the first pass, so that this document item has the
@@ -122,7 +164,7 @@ class FLMSpecInfo(macrospec.CallableSpec):
         """
         raise RuntimeError("Reimplement me!")
 
-    def render(self, node, render_context):
+    def render(self, node, render_context) -> Any:
         r"""
         Produce a final representation of the node, using the given
         `render_context`.
@@ -229,8 +271,15 @@ class FLMSpecInfo(macrospec.CallableSpec):
 class FLMMacroSpecBase(FLMSpecInfo):
     r"""
     Convenience base class for a FLM LaTeX macro specification.
+
+    Subclass this to define a new macro.  Override :py:meth:`render()` to
+    produce output, and optionally :py:meth:`postprocess_parsed_node()` to
+    attach extra information to the parsed node.
+
+    :param macroname: The macro name (without the leading backslash).
+    :param arguments_spec_list: List of argument specifications.
     """
-    def __init__(self, macroname, arguments_spec_list=None, **kwargs):
+    def __init__(self, macroname : str, arguments_spec_list=None, **kwargs):
         super().__init__(
             arguments_spec_list=arguments_spec_list,
             spec_node_parser_type=macrospec.LatexMacroCallParser, # or simply 'macro'
@@ -241,8 +290,14 @@ class FLMMacroSpecBase(FLMSpecInfo):
 class FLMEnvironmentSpecBase(FLMSpecInfo):
     r"""
     Convenience base class for a FLM LaTeX environment specification.
+
+    Subclass this to define a new environment (``\begin{name}...\end{name}``).
+    Override :py:meth:`render()` to produce output.
+
+    :param environmentname: The environment name.
+    :param arguments_spec_list: List of argument specifications.
     """
-    def __init__(self, environmentname, arguments_spec_list=None, **kwargs):
+    def __init__(self, environmentname : str, arguments_spec_list=None, **kwargs):
         super().__init__(
             arguments_spec_list=arguments_spec_list,
             spec_node_parser_type=macrospec.LatexEnvironmentCallParser, # or simply 'environment'
@@ -253,8 +308,15 @@ class FLMEnvironmentSpecBase(FLMSpecInfo):
 class FLMSpecialsSpecBase(FLMSpecInfo):
     r"""
     Convenience base class for a FLM LaTeX specials specification.
+
+    Specials are character sequences that have a special meaning in FLM,
+    such as ``~`` (non-breaking space) or ``\\n\\n`` (paragraph break).
+
+    :param specials_chars: The special character(s) that trigger this
+        specification.
+    :param arguments_spec_list: List of argument specifications.
     """
-    def __init__(self, specials_chars, arguments_spec_list=None, **kwargs):
+    def __init__(self, specials_chars : str, arguments_spec_list=None, **kwargs):
         super().__init__(
             arguments_spec_list=arguments_spec_list,
             spec_node_parser_type=macrospec.LatexSpecialsCallParser, # or simply 'specials'
@@ -356,7 +418,19 @@ def helper_collect_labels(node_arg_label, allowed_prefixes, allow_unknown_macros
     Helper function to collect all labels associated with an argument with
     specification :py:data:`label_arg`.
 
-    Doc........................ 
+    Parses ``\label{prefix:name}`` macros from the argument and returns a
+    list of ``(prefix, name)`` tuples.  Returns ``None`` if no label
+    argument was provided.
+
+    :param node_arg_label: The parsed argument info for the label argument.
+    :param allowed_prefixes: A collection of allowed label prefixes
+        (e.g., ``('sec', 'eq', 'figure')``).  A
+        :py:exc:`~pylatexenc.latexnodes.LatexWalkerParseError` is raised if
+        a label uses a prefix not in this set.
+    :param allow_unknown_macros: If ``True``, silently skip non-``\label``
+        information field macros instead of raising an error.
+    :returns: A list of ``(ref_type, ref_label)`` tuples, or ``None`` if
+        no label was provided.
     """
 
     if not node_arg_label.was_provided():
@@ -494,6 +568,12 @@ class SemanticBlockEnvironment(FLMEnvironmentSpecBase):
 
 
 class FLMSpecInfoParagraphBreak(FLMSpecInfo):
+    r"""
+    Specification for paragraph break markers (e.g., ``\n\n`` or ``\par``).
+    These nodes split content into separate paragraphs.  Their ``render()``
+    method raises an error because paragraph breaks are handled structurally
+    by the block decomposition, not by direct rendering.
+    """
 
     is_block_level = True
 
@@ -525,6 +605,14 @@ class ParagraphBreakMacro(FLMSpecInfoParagraphBreak):
 
 
 class FLMSpecInfoError(FLMSpecInfo):
+    r"""
+    A specification that always raises an error when rendered.  Used to
+    explicitly forbid certain macros, environments, or specials in a given
+    context while providing a helpful error message.
+
+    :param error_msg: Custom error message.  If ``None``, a default message
+        is generated from the node's source text.
+    """
 
     allowed_in_standalone_mode = True
 

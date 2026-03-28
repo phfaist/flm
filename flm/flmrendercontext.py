@@ -1,3 +1,15 @@
+r"""
+Render context classes for FLM rendering.
+
+The render context carries state during the rendering of an FLM document or
+standalone fragment.  It tracks which features are available, manages
+delayed rendering for forward references, and provides a logical-state
+mechanism for context-dependent rendering (e.g., nested enumerations).
+
+See also :py:class:`~flm.flmdocument.FLMDocumentRenderContext` for the
+document-mode subclass that supports full feature managers and delayed
+rendering.
+"""
 
 import logging
 logger = logging.getLogger(__name__)
@@ -5,6 +17,22 @@ logger = logging.getLogger(__name__)
 
 
 class FLMRenderContext:
+    r"""
+    Base class for render contexts.
+
+    A render context is passed to every node's :py:meth:`render()` method
+    and carries:
+
+    - The :py:attr:`fragment_renderer` producing the output.
+    - Feature support queries (:py:meth:`supports_feature`,
+      :py:meth:`feature_render_manager`).
+    - Delayed rendering registration (for forward references).
+    - A logical state mechanism for context-dependent rendering.
+
+    The class attributes ``is_standalone_mode`` and ``is_first_pass``
+    indicate whether we are in standalone mode and whether this is the
+    first rendering pass, respectively.
+    """
 
     is_standalone_mode = False
 
@@ -21,15 +49,19 @@ class FLMRenderContext:
         self._nodes_determined_as_delayed = {}
 
     def supports_feature(self, feature_name):
+        r"""Return ``True`` if the given feature is active in this render context."""
         return False
 
     def feature_render_manager(self, feature_name):
+        r"""Return the render manager for the given feature, or ``None``."""
         return None
 
     def register_delayed_render(self, node, fragment_renderer):
+        r"""Register a node for delayed rendering.  Returns a key for later retrieval."""
         raise RuntimeError("This render context does not support delayed rendering")
 
     def get_delayed_render_content(self, node):
+        r"""Retrieve the rendered content for a delayed-render node."""
         raise RuntimeError("This render context does not support delayed rendering")
 
     def get_is_delayed_render(self, node):
@@ -118,6 +150,13 @@ class _RenderContextPushLogicalState:
 
 
 class FLMStandaloneModeRenderContext(FLMRenderContext):
+    r"""
+    A render context for standalone-mode rendering.
+
+    This context does not support features, delayed rendering, or document
+    managers.  It is used by
+    :py:meth:`~flm.flmfragment.FLMFragment.render_standalone`.
+    """
 
     is_standalone_mode = True
 

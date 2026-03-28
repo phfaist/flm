@@ -1,3 +1,9 @@
+r"""
+Provides the ``\includegraphics`` macro and a simple graphics resource provider.
+The :class:`GraphicsResource` data class carries image metadata (URL, dimensions,
+srcset), while :class:`FeatureSimplePathGraphicsResourceProvider` resolves
+graphics paths by passing them through unchanged as source URLs.
+"""
 import logging
 logger = logging.getLogger(__name__)
 
@@ -283,6 +289,12 @@ class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
 
 
 class FeatureSimplePathGraphicsResourceProvider(Feature):
+    r"""
+    Default graphics resource provider that resolves graphics paths by using
+    them directly as source URLs.  Subclass this feature and override the
+    :class:`RenderManager` to provide custom resolution logic such as srcset
+    generation or physical dimension lookup.
+    """
 
     feature_name = 'graphics_resource_provider'
     feature_title = 'Include external graphics'

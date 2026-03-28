@@ -1,3 +1,12 @@
+r"""
+Counter management and numbering for FLM document elements.
+
+Provides counters for figures, equations, section headings, theorems, and
+other numbered elements.  Supports hierarchical numbering (e.g. equations
+numbered within sections), counter aliases for shared numbering, and
+document-state-aware counter resets.
+"""
+
 import json
 import logging
 logger = logging.getLogger(__name__)
@@ -422,6 +431,12 @@ class _NumprefixAndValueForDocStateCompute:
 
 
 class FeatureNumbering(Feature):
+    r"""
+    Feature that manages counters for numbered document elements.  Supports
+    hierarchical numbering via ``number_within`` configuration, which resets
+    and prefixes counters based on parent counter values (e.g. equations
+    numbered within sections).
+    """
 
     feature_name = 'numbering'
     feature_title = 'Numbering for figures, sections, equations, theorems, and more'

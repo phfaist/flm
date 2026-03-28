@@ -1,3 +1,15 @@
+r"""
+FLM fragment: a compiled piece of FLM-formatted text.
+
+An :py:class:`FLMFragment` represents a piece of FLM source text that has
+been parsed into a node tree.  Fragments can be rendered standalone (if
+parsed with ``standalone_mode=True``) or within a document context for
+cross-reference resolution, consistent numbering, and footnotes.
+
+Create fragments via
+:py:meth:`~flm.flmenvironment.FLMEnvironment.make_fragment`.
+"""
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -39,7 +51,17 @@ class FLMFragment:
     The `environment` argument should be a :py:class:`FLMEnvironment` instance
     used to parse this fragment.
 
-    Doc .....................
+    :param flm_text: The FLM source text to parse, or a pre-parsed
+        :py:class:`~pylatexenc.latexnodes.nodes.LatexNodeList`.
+    :param environment: The :py:class:`~flm.flmenvironment.FLMEnvironment`
+        used to parse this fragment.
+    :param is_block_level: Whether to parse as block-level (``True``),
+        inline (``False``), or auto-detect (``None``, the default).
+    :param standalone_mode: If ``True``, disables features that require a
+        document context (e.g., cross-references).  Enables the use of
+        :py:meth:`render_standalone`.
+    :param what: A short description for error messages (e.g.,
+        ``'abstract'``).
 
     The argument `resource_info` can be set to any custom object that can help
     locate resources called by FLM text.  For instance, a `\includegraphics{}`
@@ -150,12 +172,36 @@ class FLMFragment:
 
 
     def render(self, render_context, **kwargs):
+        r"""
+        Render this fragment within a document render context.
+
+        This method is typically called inside the render callback passed
+        to :py:meth:`~flm.flmdocument.FLMDocument.render`.
+
+        :param render_context: The
+            :py:class:`~flm.flmrendercontext.FLMRenderContext` (typically a
+            :py:class:`~flm.flmdocument.FLMDocumentRenderContext`).
+        :returns: The rendered output string.
+        """
         return render_context.fragment_renderer.render_fragment(
             self, render_context,
             **kwargs
         )
 
     def render_standalone(self, fragment_renderer):
+        r"""
+        Render this fragment in standalone mode (without a document context).
+
+        The fragment must have been parsed with ``standalone_mode=True``.
+        Features that require a document context (e.g., cross-references,
+        footnotes) are not available in standalone mode.
+
+        :param fragment_renderer: A
+            :py:class:`~flm.fragmentrenderer.FragmentRenderer` instance.
+        :returns: The rendered output string.
+        :raises ValueError: If the fragment was not parsed in standalone
+            mode.
+        """
         if not self.standalone_mode:
             raise ValueError(
                 "You can only use render_standalone() on a fragment that "
@@ -198,6 +244,7 @@ class FLMFragment:
 
 
     def is_empty(self):
+        r"""Return ``True`` if the fragment's source text is empty or whitespace-only."""
         return len(self.flm_text.strip()) == 0
 
     def __bool__(self):
@@ -211,6 +258,10 @@ class FLMFragment:
 
 
     def whitespace_stripped(self):
+        r"""
+        Return a new :py:class:`FLMFragment` with leading and trailing
+        whitespace removed from the source text.
+        """
         new_fragment = self.environment.make_fragment(
             self.flm_text.strip(),
             **self._attributes(what=f"{self.what}:whitespace-stripped")
@@ -248,6 +299,20 @@ class FLMFragment:
         )
 
     def truncate_to(self, chars, min_chars=None, truncation_marker=' …'):
+        r"""
+        Return a new :py:class:`FLMFragment` truncated to approximately
+        *chars* characters.
+
+        The truncation is performed at the node level, attempting to break
+        at word boundaries.
+
+        :param chars: Target maximum number of characters.
+        :param min_chars: Minimum number of characters to include even if
+            truncation would otherwise stop earlier.
+        :param truncation_marker: String appended at the truncation point
+            (default: ``' …'``).
+        :returns: A new :py:class:`FLMFragment` with truncated content.
+        """
 
         trunc = _NodeListTruncator(chars=chars, min_chars=min_chars,
                                    truncation_marker=truncation_marker)

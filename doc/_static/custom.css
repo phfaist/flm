@@ -1,9 +1,18 @@
-@import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,300;0,500;1,300;1,500&family=Merriweather:ital,wght@0,300;0,700;1,300;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,300;0,500;1,300;1,500&family=Merriweather:ital,opsz,wght@0,18..144,300..900,1,18..144,300..900&display=swap');
 
 
 body {
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.65;
+
+    /* for Merriweather font */
+    font-optical-sizing: auto;
+    font-weight: 350;
+    font-style: normal;
+    font-variation-settings:
+        "wdth" 110,
+        "opsz" 35;
+    letter-spacing: .03em;
 }
 div.body p, div.body dd, div.body li {
     line-height: inherit;
@@ -136,7 +145,8 @@ div.body li > blockquote {
 
 
 pre, tt, code {
-    letter-spacing: -.2pt; /* condense mono/code font a bit */
+    letter-spacing: -.1pt; /* condense mono/code font a bit */
+    font-weight: 400;
 }
 pre {
     padding: 7px;

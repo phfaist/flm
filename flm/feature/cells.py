@@ -1,6 +1,10 @@
-#
-# Support for \begin{cells} ... \end{cells} -- better than LaTeX' {tabular}.
-#
+r"""
+Provides the ``\begin{cells}...\end{cells}`` environment for typesetting data
+tables.  Cells can be placed individually with ``\cell`` or in bulk with
+``\celldata``; merging across rows or columns is supported via ``\merge``.
+The cell grid model is built at parse time and rendered to HTML tables or
+LaTeX ``tblr`` environments.
+"""
 
 import re
 
@@ -922,7 +926,13 @@ class CellsEnvironment(FLMEnvironmentSpecBase):
 # ------------------------------------------------------------------------------
 
 class FeatureCells(Feature):
-    
+    r"""
+    Feature plugin for data tables using the ``cells`` environment.  Registers
+    the ``\begin{cells}...\end{cells}`` environment which accepts ``\cell``,
+    ``\celldata``, and ``\merge`` commands for flexible table layout.  Does not
+    require document- or render-level manager state.
+    """
+
     feature_name = 'cells'
     feature_title = 'Typesetting data tables'
 

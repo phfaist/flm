@@ -1,3 +1,11 @@
+r"""
+Provides section heading macros for FLM.
+
+Defines ``\section``, ``\subsection``, ``\subsubsection``, ``\paragraph``,
+``\subparagraph``, and ``\subsubparagraph`` with configurable heading levels,
+optional hierarchical numbering, and ``\label`` support for cross-references.
+"""
+
 import re
 import logging
 logger = logging.getLogger(__name__)

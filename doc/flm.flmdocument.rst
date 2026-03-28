@@ -1,8 +1,22 @@
 FLM Document: ``flm.flmdocument``
----------------------------------
+=================================
 
 .. automodule:: flm.flmdocument
-   :members:
+   :no-members:
 
-.. autoclass:: flm.flmdocument.FLMDocument
+
+The ``FLMDocumentRenderContext`` class
+--------------------------------------
+
+.. autoclass:: FLMDocumentRenderContext
+   :show-inheritance:
    :members:
+   :undoc-members:
+
+
+The ``FLMDocument`` class
+--------------------------
+
+.. autoclass:: FLMDocument
+   :members:
+   :undoc-members:

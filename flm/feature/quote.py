@@ -1,3 +1,10 @@
+r"""
+Provides block quotation environments (``quote``, ``blockquote``, ``address``)
+with support for structured quote sections (``\text``, ``\lines``,
+``\attributed``, ``\block``).  Content can be auto-wrapped into a default
+section type, and ``\lines`` sections support per-line ``\indent`` and
+``\\`` line breaks.
+"""
 import logging
 logger = logging.getLogger(__name__)
 
@@ -532,6 +539,12 @@ default_quote_environments = {
 
 
 class FeatureQuote(Feature):
+    r"""
+    Feature plugin for block quotations.  Registers configurable quote-type
+    environments (by default ``quote``, ``blockquote``, and ``address``), each
+    with its own set of enabled section commands and optional auto-wrapping of
+    bare content.  Does not require document- or render-level manager state.
+    """
 
     feature_name = 'quotation'
     feature_title = \

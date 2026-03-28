@@ -53,10 +53,40 @@ def standard_features(
         quote_environments=False,
 ):
     r"""
-    Build a standard set of features with reasonable defaults and with the
-    provided options.
+    Build a standard set of features with reasonable defaults.
 
-    Returns a list of feature instances (see :class:`flm.feature.Feature`).
+    By default, the following features are enabled:
+    ``baseformatting``, ``href``, ``verbatim``, ``math``, ``headings``,
+    ``refs``, ``enumeration``, ``endnotes``, ``floats``, ``graphics``,
+    ``defterm``.
+
+    The following are disabled by default but can be enabled:
+    ``theorems`` (pass ``theorems=True`` or a dict of options),
+    ``substmacros`` (pass ``substmacros_definitions={...}``),
+    ``quote`` (pass ``quote_environments=True`` or a dict of options),
+    ``citations`` (pass ``citations=True`` along with
+    ``external_citations_providers``).
+
+    Each feature can be disabled by setting its parameter to ``False``
+    (e.g., ``headings=False``).
+
+    :param baseformatting: Enable text formatting (``\emph``, ``\textbf``,
+        etc.).
+    :param href: Enable hyperlinks (``\href``, ``\url``).
+    :param verbatim: Enable verbatim/code (``\verbcode``).
+    :param math: Enable math mode (``\(...\)``, ``equation``, etc.).
+    :param headings: Enable section headings.
+    :param refs: Enable cross-references (``\ref``, ``\label``).
+    :param enumeration_environments: Enable lists (``enumerate``,
+        ``itemize``).
+    :param endnotes: Enable footnotes.
+    :param floats: Enable figures and tables.
+    :param defterm: Enable definition terms.
+    :param theorems: Enable theorem environments.
+    :param eq_counter_formatter: Counter formatter for equations.
+    :param footnote_counter_formatter: Counter formatter for footnotes
+        (default: ``'alph'``).
+    :returns: A list of :py:class:`~flm.feature.Feature` instances.
     """
 
     if footnote_counter_formatter is None:

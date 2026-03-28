@@ -1,3 +1,8 @@
+r"""
+Provides endnote support (footnotes, citations, and similar) with per-category
+counters, customizable formatting, and rendering of collected endnotes as
+enumerated lists with optional category headings.
+"""
 import logging
 logger = logging.getLogger(__name__)
 
@@ -131,6 +136,12 @@ class EndnoteInstance:
 
 
 class FeatureEndnotes(Feature):
+    r"""
+    Feature plugin for endnotes such as footnotes and citations.  Accepts a list
+    of :class:`EndnoteCategory` instances, each defining a counter format, heading
+    title, and optional macro (e.g., ``\footnote``).  Endnotes are collected
+    during rendering and can be output as enumerated lists grouped by category.
+    """
 
     feature_name = 'endnotes'
     feature_title = 'Endnotes: footnotes, references, etc.'

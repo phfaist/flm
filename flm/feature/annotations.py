@@ -1,3 +1,12 @@
+r"""
+Annotation macros for highlighting text and adding inline comments.
+
+Each annotation macro supports two forms: highlighted text (``\mac{...}`` or
+``\mac ... \endmac``) and inline comments (``\mac[...]``).  Multiple
+annotators can be defined, each with their own initials and color index.
+When ``hide_all_annotations`` is set, highlights show only the underlying
+text and comments are suppressed.
+"""
 
 from pylatexenc.latexnodes import (
     # LatexWalkerParseError,
@@ -168,6 +177,11 @@ class AnnotationMacro(FLMMacroSpecBase):
 
 
 class FeatureAnnotations(Feature):
+    r"""
+    Feature that registers custom annotation macros for multiple authors.
+    Each macro supports text highlighting and inline comment syntax, with
+    an optional ``hide_all_annotations`` mode to strip annotations from output.
+    """
 
     feature_name = 'annotations'
     feature_title = 'Support for simple annotations in text (comments and highlighted text)'

@@ -1,3 +1,10 @@
+r"""
+Provides display math environments and equation references for FLM.
+
+Supports ``equation``, ``align``, ``gather`` (and their starred variants) as
+display math environments with automatic equation numbering, ``\label`` /
+``\tag`` support, and the ``\eqref`` macro for cross-referencing equations.
+"""
 
 import re
 import logging
@@ -54,6 +61,14 @@ eq_default_counter_formatter_spec = {
 
 
 class FeatureMath(Feature):
+    r"""
+    Feature for mathematical typesetting with numbered display equations.
+
+    Registers configurable math environments (e.g., ``equation``, ``align``,
+    ``gather``) and the ``\eqref`` macro.  Starred environments are unnumbered;
+    non-starred environments support ``\label``, ``\tag``, and ``\nonumber``.
+    Optionally integrates with the ``refs`` and ``numbering`` features.
+    """
 
     feature_name = 'math'
     feature_title = 'Mathematical typesetting: equations and equation references'

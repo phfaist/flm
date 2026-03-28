@@ -1,3 +1,11 @@
+r"""
+Provides enumeration and itemization list environments for FLM.
+
+Defines the ``itemize``, ``enumerate``, and ``description`` environments with
+configurable counter formatters, custom item tags via ``\item[...]``, nested
+list support with depth-dependent formatting, and optional ``\label`` on
+individual items for cross-referencing.
+"""
 
 import logging
 logger = logging.getLogger(__name__)

@@ -1,3 +1,22 @@
+r"""
+FLM document classes for multi-fragment rendering.
+
+A :py:class:`FLMDocument` collects multiple FLM fragments and renders them
+together, enabling cross-references, consistent numbering, footnote
+collection, and other features that require a global document context.
+
+The rendering pipeline works as follows:
+
+1. The document creates a :py:class:`FLMDocumentRenderContext` with the
+   active features and fragment renderer.
+2. The user-provided render callback is called, which renders fragments
+   within the render context.
+3. Feature render managers process the first-pass output.
+4. Delayed-render nodes (e.g., ``\\ref``) are resolved.
+5. The final output is produced by replacing delayed markers or by
+   performing a second rendering pass.
+"""
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -7,6 +26,11 @@ from .flmrendercontext import FLMRenderContext
 
 
 class FLMDocumentRenderContext(FLMRenderContext):
+    r"""
+    A render context created for document-mode rendering.  Extends
+    :py:class:`~flm.flmrendercontext.FLMRenderContext` with support for
+    feature managers and delayed rendering.
+    """
     def __init__(self, doc, fragment_renderer, feature_document_managers, **kwargs):
         super().__init__(doc=doc, fragment_renderer=fragment_renderer, **kwargs)
         self.feature_document_managers = feature_document_managers
@@ -61,6 +85,26 @@ class FLMDocumentRenderContext(FLMRenderContext):
 
 
 class FLMDocument:
+    r"""
+    An FLM document that collects fragments for rendering together.
+
+    Usually you should create documents via
+    :py:meth:`~flm.flmenvironment.FLMEnvironment.make_document` rather
+    than constructing this class directly.
+
+    :param render_callback: A callable ``render_callback(render_context)``
+        that composes the output by calling
+        :py:meth:`~flm.flmfragment.FLMFragment.render` on each fragment.
+        Must return the composed output (string, dict, or list).
+    :param environment: The :py:class:`~flm.flmenvironment.FLMEnvironment`
+        instance.
+    :param enable_features: An optional list of feature names to enable
+        (subset of the environment's features).  ``None`` means all.
+    :param feature_document_options: A dictionary mapping feature names to
+        dictionaries of options passed to each feature's
+        ``DocumentManager.initialize()``.
+    :param metadata: Arbitrary user-defined metadata (e.g., document title).
+    """
 
     def __init__(
             self,
@@ -135,7 +179,29 @@ class FLMDocument:
 
     def render(self, fragment_renderer, feature_render_options=None):
         r"""
-        doc ...........
+        Render the document and return the result.
+
+        This method performs the full rendering pipeline:
+
+        1. Creates a render context with feature render managers.
+        2. Calls the render callback (first pass).
+        3. Lets feature render managers process the first-pass output.
+        4. Renders delayed-render nodes (e.g., ``\ref``).
+        5. Produces the final output by replacing delayed markers (or by
+           performing a second pass if the fragment renderer does not
+           support delayed render markers).
+        6. Calls feature render managers' ``postprocess()`` methods.
+
+        :param fragment_renderer: A
+            :py:class:`~flm.fragmentrenderer.FragmentRenderer` instance
+            (e.g., :py:class:`~flm.fragmentrenderer.html.HtmlFragmentRenderer`).
+        :param feature_render_options: An optional dictionary mapping
+            feature names to dictionaries of options passed to each
+            feature's ``RenderManager.initialize()``.
+        :returns: A tuple ``(result, render_context)`` where *result*
+            is the rendered output (string, dict, or list) and
+            *render_context* is the
+            :py:class:`FLMDocumentRenderContext` used for rendering.
         """
         #logger.debug("document render()")
 

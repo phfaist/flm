@@ -1,3 +1,9 @@
+r"""
+Provides floating environments (figures, tables, and custom float types) with
+automatic numbering, captions, labels, and cross-reference integration.  Float
+content is validated by pluggable content handlers such as
+``FloatContentIncludeGraphics`` and ``FloatContentCells``.
+"""
 import logging
 logger = logging.getLogger(__name__)
 
@@ -543,6 +549,12 @@ _default_float_types = [
 
 
 class FeatureFloats(Feature):
+    r"""
+    Feature plugin for floating elements such as figures and tables.  Registers
+    one environment per configured :class:`FloatType`, each supporting
+    ``\includegraphics``, ``\caption``, and ``\label`` commands.  Numbered floats
+    are automatically registered with the ``refs`` feature for cross-referencing.
+    """
 
     feature_name = 'floats'
     feature_title = 'Floating elements (figures & tables)'

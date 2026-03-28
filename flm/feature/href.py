@@ -1,3 +1,11 @@
+r"""
+Provides hyperlink macros for FLM.
+
+Defines the ``\href``, ``\url``, and ``\email`` macros for creating clickable
+hyperlinks, bare URLs, and mailto links respectively.  Display text is rendered
+as a pretty URL when not explicitly provided.
+"""
+
 import re
 import logging
 logger = logging.getLogger(__name__)
@@ -194,6 +202,13 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
 
 
 class FeatureHref(SimpleLatexDefinitionsFeature):
+    r"""
+    Feature providing ``\href``, ``\url``, and ``\email`` hyperlink macros.
+
+    URLs without explicit display text are shown using a prettified form
+    (protocol prefix and trailing punctuation stripped).  Supports pure-LaTeX
+    recomposition with optional macro name remapping.
+    """
 
     feature_name = 'href'
     feature_title = 'Hyperlinks'

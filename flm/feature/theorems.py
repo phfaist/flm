@@ -1,3 +1,11 @@
+r"""
+Theorem-like environments for FLM documents.
+
+Provides LaTeX-style theorem, lemma, proposition, definition, proof, and
+related environments with configurable numbering, shared counters, labels,
+and cross-references.  Multiple pre-defined environment sets (``simpleset``,
+``defaultset``, ``richset``) are available.
+"""
 
 from pylatexenc.latexnodes import (
     ParsedArgumentsInfo, ParsingStateDelta,
@@ -639,6 +647,11 @@ default_allowed_ref_label_prefixes = [
 
 
 class FeatureTheorems(Feature):
+    r"""
+    Feature providing theorem-like environments (theorem, lemma, proof, etc.)
+    with automatic numbering, optional shared counters across theorem types,
+    ``\label``/``\ref`` support, and relation references (e.g. "Proof of Theorem 1").
+    """
 
     feature_name = 'theorems'
 

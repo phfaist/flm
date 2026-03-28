@@ -1,3 +1,20 @@
+r"""
+Base class for FLM fragment renderers.
+
+A fragment renderer is responsible for producing the final output string in
+a specific format (HTML, plain text, LaTeX, Markdown).  Each output format
+has its own subclass of :py:class:`FragmentRenderer`.
+
+The built-in renderers are:
+
+- :py:class:`~flm.fragmentrenderer.html.HtmlFragmentRenderer`
+- :py:class:`~flm.fragmentrenderer.text.TextFragmentRenderer`
+- :py:class:`~flm.fragmentrenderer.latex.LatexFragmentRenderer`
+- :py:class:`~flm.fragmentrenderer.markdown.MarkdownFragmentRenderer`
+
+To implement a custom output format, subclass :py:class:`FragmentRenderer`
+and implement the abstract ``render_*`` methods.
+"""
 
 import logging
 logger = logging.getLogger(__name__)
@@ -16,7 +33,18 @@ class FragmentRenderer:
     r"""
     Base class for defining how to render FLM content in a given output format.
 
-    Doc ..................
+    Subclasses must implement the abstract ``render_*`` methods such as
+    :py:meth:`render_value`, :py:meth:`render_text_format`,
+    :py:meth:`render_heading`, :py:meth:`render_enumeration`,
+    :py:meth:`render_verbatim`, :py:meth:`render_link`, etc.
+
+    The base class provides the rendering pipeline: it traverses the node
+    tree, handles block/paragraph decomposition, manages delayed rendering,
+    and dispatches to the appropriate ``render_*`` methods.
+
+    :param config: Optional dictionary of configuration options.  Keys are
+        set as attributes on the renderer instance (e.g.,
+        ``use_link_target_blank`` for HTML).
     """
 
     supports_delayed_render_markers = False
@@ -35,13 +63,26 @@ class FragmentRenderer:
 
 
     def document_render_start(self, render_context):
+        r"""Called at the start of document rendering.  Override to set up
+        renderer-specific state in ``render_context.data``."""
         pass
 
     def document_render_finish(self, render_context):
+        r"""Called after document rendering is complete.  Override to clean
+        up renderer-specific state."""
         pass
 
 
     def render_fragment(self, flm_fragment, render_context, is_block_level=None):
+        r"""
+        Render an :py:class:`~flm.flmfragment.FLMFragment` into the output
+        format.
+
+        :param flm_fragment: The fragment to render.
+        :param render_context: The current render context.
+        :param is_block_level: Override the fragment's block-level setting.
+        :returns: The rendered output string.
+        """
         try:
             return self.render_nodelist(flm_fragment.nodes,
                                         self.ensure_render_context(render_context),
@@ -413,17 +454,15 @@ class FragmentRenderer:
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
         r"""
-        Doc .....
+        Render a hyperlink.
 
-        `href` can be:
-
-        - a URL (external link)
-        
-        - an anchor fragment only (`#fragment-name`), for links within the
-          document; note that we use #fragment-name universally, even if the
-          output format is not HTML.  It's up to the output format's
-          DocumentContext implementation to translate the linking scheme
-          correctly.
+        :param ref_type: The type of reference (e.g., ``'href'``, ``'url'``,
+            ``'ref'``).
+        :param href: The link target.  Can be an external URL or an
+            anchor fragment (``'#fragment-name'``) for internal links.
+        :param display_nodelist: The node list for the displayed link text.
+        :param render_context: The current render context.
+        :param annotations: Optional list of annotation strings.
         """
         raise RuntimeError("Subclasses need to reimplement this method")
 

@@ -1,3 +1,10 @@
+r"""
+Provides the ``\begin{defterm}{...}...\end{defterm}`` environment for defining
+terms and the ``\term`` macro for referencing them.  Defined terms are
+automatically registered as referenceable labels, and ``\term`` renders as a
+hyperlink to the defining occurrence (or as styled inline text when used within
+its own definition).
+"""
 import re
 import logging
 logger = logging.getLogger(__name__)
@@ -375,6 +382,13 @@ class RefTermMacro(FLMMacroSpecBase):
 # --------------------------------------
 
 class FeatureDefTerm(Feature):
+    r"""
+    Feature plugin for definition terms.  Registers the ``defterm`` environment
+    and the ``\term`` macro.  The term heading can optionally be rendered inline
+    with a configurable suffix (default ``': '``).  Uses the ``refs`` feature
+    for cross-referencing when available, and supports additional ``\label``
+    annotations with the ``topic`` prefix.
+    """
 
     feature_name = 'defterm'
     feature_title = 'Definition terms'

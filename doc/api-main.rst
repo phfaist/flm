@@ -1,8 +1,9 @@
 Code for Command-Line Usage Extensions and Workflows
 ====================================================
 
-
-Doc..............
+These modules implement the internals of the ``flm`` command-line tool,
+including configuration loading and merging, template rendering, and
+workflow orchestration.
 
 
 Module `flm.main.configmerger`

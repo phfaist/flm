@@ -1,3 +1,8 @@
+r"""
+Provides cross-referencing support via ``\ref`` and ``\hyperref`` macros,
+including label registration, counter-based reference formatting, and
+resolution through external ref resolvers.
+"""
 import re
 import logging
 logger = logging.getLogger(__name__)
@@ -695,8 +700,10 @@ class RefMacro(FLMMacroSpecBase):
 
 class FeatureRefs(Feature):
     r"""
-    Manager for internal references, such as ``\ref{...}``, ``\hyperref{...}``,
-    etc.
+    Feature plugin for labels and cross-references.  Registers ``\ref`` and
+    ``\hyperref`` macros, manages reference resolution within a document, and
+    supports external ref resolvers for cross-document links.  Optionally allows
+    unresolved references to render gracefully instead of raising errors.
     """
 
     feature_name = 'refs'

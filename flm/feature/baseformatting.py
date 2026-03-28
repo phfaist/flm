@@ -1,3 +1,11 @@
+r"""
+Provides basic text formatting macros and specials for FLM.
+
+Defines constant-value macros (``\textbackslash``, ``\%``, ``\#``, ``\&``,
+``\$``, ``\ ``, ``\{``, ``\}``), text format macros (``\emph``, ``\textit``,
+``\textbf``), the ``\@`` no-extra-space-after-dot macro, and specials for
+non-breaking space (``~``) and paragraph breaks (blank lines).
+"""
 
 from ..flmspecinfo import (
     ConstantValueMacro, TextFormatMacro, ConstantValueSpecials, ParagraphBreakSpecials,
@@ -25,6 +33,13 @@ class NoExtraSpaceAfterDotMacro(FLMMacroSpecBase):
 
 
 class FeatureBaseFormatting(SimpleLatexDefinitionsFeature):
+    r"""
+    Feature providing basic inline formatting and literal character macros.
+
+    Registers macros for emphasis, bold, literal special characters, the
+    ``\@`` spacing hint, the ``~`` non-breaking space special, and paragraph
+    break handling.
+    """
 
     feature_name = 'baseformatting'
     feature_title = 'Basic formatting'

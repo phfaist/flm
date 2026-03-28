@@ -1,3 +1,12 @@
+r"""
+Citation support via external citation providers.
+
+Implements the ``\cite`` macro with support for prefixed citation keys
+(e.g. ``arxiv:1234.56789``), optional extra text (e.g. ``\cite[Thm.~3]{key}``),
+endnote-based reference lists, and automatic sorting and compression of
+citation ranges.
+"""
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -28,6 +37,12 @@ _cite_default_counter_formatter_spec = {
 
 
 class FeatureExternalPrefixedCitations(Feature):
+    r"""
+    Feature providing the ``\cite`` macro backed by external citation providers.
+    Citations are rendered as endnotes with configurable counter formatting and
+    delimiters, and consecutive citation numbers can be sorted and compressed
+    into ranges.
+    """
 
     feature_name = 'citations'
     feature_title = 'Citations'
