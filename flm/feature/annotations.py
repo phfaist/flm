@@ -253,7 +253,7 @@ class FeatureAnnotations(Feature):
         }
 
     class RenderManager(FeatureRenderManagerBase):
-        def initialize(self, hide_all_annotations=None):
+        def initialize(self, hide_all_annotations : bool|None = None):
             if hide_all_annotations is not None:
                 self.hide_all_annotations = hide_all_annotations
             else:

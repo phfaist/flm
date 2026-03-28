@@ -13,9 +13,13 @@ from ..flmspecinfo import FLMMacroSpecBase
 from ..flmenvironment import FLMArgumentSpec
 from ..flmfragment import FLMFragment
 
+from .._typing_helpers import Sequence, Mapping, Any
+
 from ._base import Feature
 from ..counter import build_counter_formatter
 from .numbering import Counter
+
+from .._flm_args_schema import get_args_schema as _get_args_schema
 
 
 
@@ -135,6 +139,18 @@ class EndnoteInstance:
 
 
 
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeEndnoteCategoryDef(TypedDict, total=False):
+    category_name : str
+    counter_formatter : str|Mapping[str, Any]
+    heading_title : str
+    endnote_command : str|None
+### END_FLM_PYTHON_TYPING
+
+
 class FeatureEndnotes(Feature):
     r"""
     Feature plugin for endnotes such as footnotes and citations.  Accepts a list
@@ -154,7 +170,12 @@ class FeatureEndnotes(Feature):
             + ','.join([f"‘{cat.category_name}’" for cat in self.base_categories])
         )
 
-    def __init__(self, categories, render_options=None):
+    @classmethod
+    def get_args_schema(cls):
+        return _get_args_schema(cls)
+
+    def __init__(self, categories : Sequence[TypeEndnoteCategoryDef]|None = None,
+                 render_options : Mapping[str, Any]|None = None):
         r"""
         .....
 
@@ -209,7 +230,7 @@ class FeatureEndnotes(Feature):
 
     class RenderManager(Feature.RenderManager):
 
-        def initialize(self, inhibit_render_endnote_marks=False):
+        def initialize(self, inhibit_render_endnote_marks : bool = False):
             self.endnotes = {
                 c.category_name: []
                 for c in self.feature_document_manager.categories

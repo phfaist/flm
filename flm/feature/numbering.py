@@ -11,6 +11,9 @@ import json
 import logging
 logger = logging.getLogger(__name__)
 
+from .._typing_helpers import Mapping
+from .._flm_args_schema import get_args_schema as _get_args_schema
+
 from ._base import Feature, FeatureRenderManagerBase
 
 from ..counter import (
@@ -99,7 +102,7 @@ class CounterAlias:
 
 
 class _CounterIface:
-    def __init__(self, counter_name, simple_counter=None, numbering_render_manager=None):
+    def __init__(self, counter_name, simple_counter, numbering_render_manager=None):
         self.counter_name = counter_name
         self.simple_counter = simple_counter
         self.formatter = simple_counter.formatter
@@ -108,7 +111,7 @@ class _CounterIface:
     def register_item(self, custom_label=None):
         if self.numbering_render_manager is not None:
             return self.numbering_render_manager.register_item(
-                counter_name, custom_label=custom_label
+                self.counter_name, custom_label=custom_label
             )
         if custom_label is not None:
             return {
@@ -430,6 +433,16 @@ class _NumprefixAndValueForDocStateCompute:
 
 
 
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeNumberWithinDef(TypedDict, total=False):
+    reset_at : str
+    numprefix : str|None
+### END_FLM_PYTHON_TYPING
+
+
 class FeatureNumbering(Feature):
     r"""
     Feature that manages counters for numbered document elements.  Supports
@@ -441,9 +454,13 @@ class FeatureNumbering(Feature):
     feature_name = 'numbering'
     feature_title = 'Numbering for figures, sections, equations, theorems, and more'
 
+    @classmethod
+    def get_args_schema(cls):
+        return _get_args_schema(cls)
+
     class RenderManager(FeatureRenderManagerBase):
 
-        def initialize(self, number_within=None):
+        def initialize(self, number_within : Mapping[str, TypeNumberWithinDef]|None = None):
             self.counters = {}
             
             self.render_doc_states = dict()
@@ -664,7 +681,7 @@ class FeatureNumbering(Feature):
 
 
 
-    def __init__(self, number_within=None):
+    def __init__(self, number_within : Mapping[str, TypeNumberWithinDef]|None = None):
         super().__init__()
         self.number_within = number_within or {}
 

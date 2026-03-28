@@ -19,7 +19,7 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from .._typing_helpers import Any, Sequence, TypeDictWithLatexContextDefinitions
+from .._typing_helpers import Any, Mapping, Sequence, TypeDictWithLatexContextDefinitions
 
 from ..flmspecinfo import (
     FLMEnvironmentSpecBase,
@@ -32,6 +32,8 @@ from ..flmenvironment import (
 )
 
 from .. import counter
+
+from .._flm_args_schema import get_args_schema as _get_args_schema
 
 from ._base import Feature
 
@@ -319,6 +321,15 @@ class Enumeration(FLMEnvironmentSpecBase):
 
 
 
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeEnumerationEnvironmentDef(TypedDict, total=False):
+    counter_formatter : Sequence[str|Mapping[str, Any]]|None
+### END_FLM_PYTHON_TYPING
+
+
 class FeatureEnumeration(Feature):
     r"""
     Add support for enumeration and itemization lists, e.g., via LaTeX commands
@@ -347,7 +358,11 @@ class FeatureEnumeration(Feature):
     RenderManager = None
 
 
-    def __init__(self, enumeration_environments=None):
+    @classmethod
+    def get_args_schema(cls):
+        return _get_args_schema(cls)
+
+    def __init__(self, enumeration_environments : Mapping[str, TypeEnumerationEnvironmentDef]|None = None):
         super().__init__()
         if enumeration_environments is None:
             # This can normally only happen when the feature is instantiated

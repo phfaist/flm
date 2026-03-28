@@ -25,6 +25,10 @@ from ..flmspecinfo import (
     FLMArgumentSpec, FLMSpecInfo, FLMMacroSpecBase, FLMSpecialsSpecBase
 )
 
+from .._typing_helpers import Any, Mapping, Sequence
+
+from .._flm_args_schema import get_args_schema as _get_args_schema
+
 from ._base import Feature
 
 
@@ -1052,6 +1056,25 @@ class SubstitutionSpecials(SubstitutionCallableSpecInfo):
 
 
 
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeSubstItemDef(TypedDict, total=False):
+    arguments_spec_list : Sequence[Mapping[str, Any]]|None
+    default_argument_values : Mapping[str, Any]|None
+    argument_number_offset : int|None
+    content : str|Mapping[str, str]|None
+    is_block_level : bool|None
+    render_time_substitution : bool
+
+class TypeSubstDefinitions(TypedDict, total=False):
+    macros : Mapping[str, TypeSubstItemDef]
+    environments : Mapping[str, TypeSubstItemDef]
+    specials : Mapping[str, TypeSubstItemDef]
+### END_FLM_PYTHON_TYPING
+
+
 class FeatureSubstMacros(Feature):
     r"""
     Feature that registers user-defined substitution macros, environments, and
@@ -1066,7 +1089,11 @@ class FeatureSubstMacros(Feature):
     feature_title = 'Custom macros definitions'
     
 
-    def __init__(self, definitions):
+    @classmethod
+    def get_args_schema(cls):
+        return _get_args_schema(cls)
+
+    def __init__(self, definitions : TypeSubstDefinitions|None):
         super().__init__()
 
         if definitions is None:

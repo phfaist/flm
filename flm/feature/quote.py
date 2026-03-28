@@ -28,6 +28,10 @@ from ..flmspecinfo import (
     text_arg
 )
 
+from .._typing_helpers import Mapping, Sequence
+
+from .._flm_args_schema import get_args_schema as _get_args_schema
+
 from ._base import Feature
 
 
@@ -538,6 +542,17 @@ default_quote_environments = {
 }
 
 
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeQuoteEnvironmentDef(TypedDict, total=False):
+    enabled_quote_sections : Sequence[str]|None
+    content_is_block_level : bool
+    auto_quote_section_bare_content : bool|str
+### END_FLM_PYTHON_TYPING
+
+
 class FeatureQuote(Feature):
     r"""
     Feature plugin for block quotations.  Registers configurable quote-type
@@ -560,7 +575,11 @@ class FeatureQuote(Feature):
     DocumentManager = None
     RenderManager = None
 
-    def __init__(self, quote_environments=None):
+    @classmethod
+    def get_args_schema(cls):
+        return _get_args_schema(cls)
+
+    def __init__(self, quote_environments : Mapping[str, TypeQuoteEnvironmentDef]|None = None):
         super().__init__()
         if quote_environments is None:
             quote_environments = default_quote_environments

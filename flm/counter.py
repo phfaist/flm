@@ -114,7 +114,7 @@ _unicodesubscriptdigits = [
 ]
 
 
-def customdigitscounter(n, digits='0123456789'):
+def customdigitscounter(n, digits : str|list[str] = '0123456789'):
     r"""
     Return a string representation of `n` using the digits `digits` (the
     base is determined by the length of the `digits` list).

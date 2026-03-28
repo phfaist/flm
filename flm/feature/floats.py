@@ -20,7 +20,12 @@ from ..flmenvironment import FLMArgumentSpec
 from ..flmspecinfo import FLMEnvironmentSpecBase, make_verb_argument
 from ..counter import build_counter_formatter
 
+from .._typing_helpers import Sequence, Mapping, Any
+
 from ._base import Feature
+
+from .._flm_args_schema import get_args_schema as _get_args_schema
+
 from . import numbering
 from .graphics import SimpleIncludeGraphicsMacro
 from .cells import CellsEnvironment
@@ -548,6 +553,18 @@ _default_float_types = [
 ]
 
 
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeFloatTypeDef(TypedDict, total=False):
+    float_type : str
+    float_caption_name : str|None
+    counter_formatter : str|Mapping[str, Any]|None
+    content_handlers : Sequence[str]|None
+### END_FLM_PYTHON_TYPING
+
+
 class FeatureFloats(Feature):
     r"""
     Feature plugin for floating elements such as figures and tables.  Registers
@@ -561,7 +578,11 @@ class FeatureFloats(Feature):
 
     feature_optional_dependencies = [ 'refs', 'numbering' ]
 
-    def __init__(self, float_types=None):
+    @classmethod
+    def get_args_schema(cls):
+        return _get_args_schema(cls)
+
+    def __init__(self, float_types : Sequence[TypeFloatTypeDef]|None = None):
         super().__init__()
         logger.debug('FeatureFloats: param float_types=%r', float_types)
         if float_types is None:

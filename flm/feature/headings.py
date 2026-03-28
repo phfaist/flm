@@ -17,7 +17,11 @@ from pylatexenc.latexnodes import (
 from .. import flmspecinfo
 from ..counter import build_counter_formatter, CounterFormatter
 
+from .._typing_helpers import Mapping, Any
+
 from ._base import Feature
+
+from .._flm_args_schema import get_args_schema as _get_args_schema
 
 from . import refs
 from . import numbering
@@ -226,6 +230,22 @@ _default_section_numbering_by_level_with_nomerge = dict(_default_section_numberi
 _default_section_numbering_by_level_with_nomerge['$no-merge'] = True
 
 
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeSectionCommandDef(TypedDict, total=False):
+    cmdname : str
+    inline : bool
+
+class TypeSectionNumberingDef(TypedDict, total=False):
+    counter_formatter : str|Mapping[str, Any]|None
+    numprefix : str|None
+    heading_joiner : str
+    number_within_reset_at : str|bool|None
+### END_FLM_PYTHON_TYPING
+
+
 class FeatureHeadings(Feature):
     r"""
     Add support for headings via LaTeX commands, including ``\section``,
@@ -242,9 +262,9 @@ class FeatureHeadings(Feature):
         # target id's for headers
         def initialize(
                 self,
-                numbering_section_depth=None,
-                section_numbering_by_level=None,
-                counter_formatter=None,
+                numbering_section_depth : int|bool|None = None,
+                section_numbering_by_level : Mapping[int, TypeSectionNumberingDef]|None = None,
+                counter_formatter : str|Mapping[str, Any]|None = None,
         ):
             self.target_id_counters = {}
             self.target_ids = {}
@@ -502,12 +522,16 @@ class FeatureHeadings(Feature):
         'section_numbering_by_level': _default_section_numbering_by_level_with_nomerge,
     }
 
+    @classmethod
+    def get_args_schema(cls):
+        return _get_args_schema(cls)
+
     def __init__(
             self,
-            section_commands_by_level=None,
-            numbering_section_depth=False, # type is: int | True | False | None
-            counter_formatter=None,
-            section_numbering_by_level=None,
+            section_commands_by_level : Mapping[int, TypeSectionCommandDef]|None = None,
+            numbering_section_depth : int|bool|None = False,
+            counter_formatter : str|Mapping[str, Any]|None = None,
+            section_numbering_by_level : Mapping[int, TypeSectionNumberingDef]|None = None,
     ):
         super().__init__()
 
