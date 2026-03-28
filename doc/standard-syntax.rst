@@ -84,9 +84,11 @@ Special characters are produced by escaping them with a backslash:
 
     \%  \#  \&  \$  \{  \}  \textbackslash
 
-A tilde ``~`` produces a non-breaking space.  The macro ``\@`` suppresses
-extra space after a period (same as in LaTeX).  A double newline (blank line)
-produces a paragraph break.
+A backslash followed by a space (``\ ``) produces a regular space (useful after
+a macro name).  A tilde ``~`` produces a non-breaking space.  The macro ``\@``
+placed immediately after a period that does not end a sentence avoids awkward
+inter-sentence spacing (same convention as in LaTeX).  A double newline (blank
+line) produces a paragraph break.
 
 
 .. _standard-syntax-headings:
@@ -234,6 +236,7 @@ Verbatim and Code
 
     Use \verbcode{my_function()} in your code.
     Some \verbtext{literal text here}.
+    The identifier \verba{myVariable} is also verbatim.
 
 **Block verbatim:**
 
@@ -249,8 +252,8 @@ Verbatim and Code
     preserving   spacing.
     \end{verbatimtext}
 
-The ``\verbcode`` and ``verbatimcode`` variants accept an optional language
-argument: ``\verbcode[python]{...}``.
+The ``\verbcode``/``verbatimcode`` and ``\verba`` variants accept an optional
+language argument: ``\verbcode[python]{...}``.
 
 
 .. _standard-syntax-footnotes:
@@ -420,8 +423,9 @@ Theorems and Proofs
 *Provided by the* ``theorems`` *feature.*
 
 The theorem feature provides environments for mathematical statements and their
-proofs.  The default environments include ``theorem``, ``lemma``,
-``proposition``, ``corollary``, ``definition``, ``remark``, and ``proof``.
+proofs.  The default environments include ``theorem``, ``proposition``,
+``lemma``, ``corollary``, ``conjecture``, ``definition``, ``remark``, and
+``proof``.
 
 .. code-block:: latex
 
@@ -435,9 +439,11 @@ proofs.  The default environments include ``theorem``, ``lemma``,
       The proof follows from Lagrange's theorem...
     \end{proof}
 
-You can pin labels to theorem statements using ``\label{thm:XYZ}`` (use the
-``thm:`` or ``x:`` prefix regardless of the theorem type, so you can easily
-change the type without updating the label).
+You can pin labels to theorem statements using ``\label{thm:XYZ}``.  The
+following ref label prefixes are all accepted for theorems: ``thm:``, ``prop:``,
+``cor:``, ``lem:``, ``rem:``, ``def:``, ``dfn:``, ``x:``.  You can use any of
+these regardless of the theorem type, so you can easily change the type without
+updating the label.
 
 **Proof references.**  The proof environment's optional argument supports a
 special syntax for referencing the theorem being proved:
@@ -459,13 +465,19 @@ theorem number is automatically resolved from the label.  Use
 ``\begin{proof}[**thm:XYZ]`` to typeset just "Proof" while still recording the
 association between the proof and the theorem.
 
+Use ``\noproofref`` immediately after a theorem's opening to indicate that there
+is no corresponding ``proof`` environment for this theorem in the document.
+
 
 .. _standard-syntax-quotes:
 
 Block Quotes
 ------------
 
-*Provided by the* ``quote`` *feature.*
+*Provided by the* ``quotation`` *feature.*
+
+The default quote-type environments are ``quote``, ``blockquote``, and
+``address``.
 
 .. code-block:: latex
 
@@ -477,7 +489,8 @@ Block Quotes
 Within the quote environment, you can use:
 
 - ``\text{...}`` for quoted text
-- ``\lines{...}`` for text with line breaks (use ``\\`` for line breaks)
+- ``\lines{...}`` for text with line breaks (use ``\\`` for line breaks and
+  ``\indent`` for indentation)
 - ``\attributed{...}`` for attribution
 - ``\block{...}`` for a generic block of content
 

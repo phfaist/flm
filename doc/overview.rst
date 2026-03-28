@@ -13,33 +13,76 @@ of its HTML output (including the use of templates).
 
 The framework is designed to be very easily extensible and customizable.  The
 parser is based on `pylatexenc <https://github.com/phfaist/pylatexenc>`_ version
-3.  FLM syntax is essentially a subset of standard LaTeX commands, including
-macros, environments, and some characters that have special meaning; these are
-parsed in a loosely similar fashion to usual LaTeX code.
+3 (currently in pre-release).  FLM syntax is essentially a subset of standard
+LaTeX commands, including macros, environments, and some characters that have
+special meaning; these are parsed in a loosely similar fashion to usual LaTeX
+code.
 
 FLM is used to write the contents of the `Error Correction Zoo
 <https://errorcorrectionzoo.org/>`_ in a way that is intuitive for scientists,
 flexible, and robust.
 
+The core FLM library can also be `transpiled to JavaScript
+<https://github.com/phfaist/flm/tree/main/flm-js>`_ via Transcrypt, making it
+usable in browser-based and Node.js applications.
+
 
 Why FLM?
 --------
 
-- **LaTeX-like, but as markup.**  If you know LaTeX, you already know most of
-  FLM.  Write ``\emph{hello}`` for emphasis, ``\section{Title}`` for headings,
-  ``\begin{enumerate}...\end{enumerate}`` for lists, and so on.
+LaTeX is the gold standard for scientific and technical writing.  Its syntax is
+familiar to researchers worldwide, and its expressiveness for mathematics,
+cross-references, and structured documents is unmatched.  However, LaTeX is
+fundamentally a *typesetting engine* built on top of TeX, not a markup language.
+The TeX engine executes code procedurally, expanding macros in ways that are
+impossible to introspect or transform programmatically.  This makes it very
+difficult to take a LaTeX document and produce anything other than its intended
+DVI/PDF output --- rendering it as HTML, plain text, or any other format
+requires either reimplementing the TeX engine or relying on fragile heuristics.
 
-- **Multi-format output.**  The same FLM source can be rendered as HTML, plain
-  text, LaTeX, Markdown, or PDF.
+Markdown and similar lightweight markup languages solve the multi-format problem,
+but they lack the expressiveness and extensibility that makes LaTeX so powerful
+for scientific content: structured cross-references, equation numbering, theorem
+environments, citation management, and custom macros.
 
-- **Extensible.**  Functionality is organized into *features* --- pluggable
-  modules that define macros, environments, and specials.  You can enable,
-  disable, configure, or write your own features to tailor the available markup
-  to your needs.
+FLM bridges this gap.  It takes the familiar, expressive LaTeX syntax and parses
+it *truly as a markup language* --- building a well-defined node tree that can be
+inspected, transformed, and rendered to any output format.  Because FLM content
+is parsed into a structured representation rather than executed by a TeX engine,
+it enables:
 
-- **Configurable.**  Parser settings, renderer options, and feature
+- **Multi-format rendering.**  The same FLM source renders faithfully to HTML,
+  plain text, LaTeX, Markdown, or PDF.  Content is described once and typeset
+  differently depending on the target.
+
+- **Programmatic access.**  The parsed node tree is a first-class data
+  structure.  Applications can traverse it, extract metadata, rewrite content, or
+  feed it into template engines and databases.
+
+- **Standardized content.**  Since macros and environments have well-defined
+  semantics (not arbitrary TeX expansion), FLM content is more portable and less
+  prone to the subtle breakage that plagues complex LaTeX documents.
+
+- **Extensibility via features.**  Functionality is organized into *features*
+  --- pluggable modules that define macros, environments, and specials.  You can
+  enable, disable, configure, or write your own features to tailor the available
+  markup to your needs.  This is analogous to LaTeX packages, but with a clean,
+  introspectable plugin API.
+
+- **Flexible configuration.**  Parser settings, renderer options, and feature
   configurations can all be specified via YAML configuration files, YAML front
   matter, or the command line.
+
+If you already know LaTeX, you already know most of FLM: write ``\emph{hello}``
+for emphasis, ``\section{Title}`` for headings,
+``\begin{enumerate}...\end{enumerate}`` for lists, ``\(E=mc^2\)`` for inline
+math, and so on.
+
+.. note::
+
+   This project is in active development.  While already used in production for
+   the Error Correction Zoo, you can expect the API to evolve.  The ``text``,
+   ``markdown``, and ``latex`` output formats are still experimental.
 
 
 Installation

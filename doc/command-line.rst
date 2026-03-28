@@ -105,6 +105,11 @@ A *workflow* controls how the FLM document is processed and rendered.  Use
 
         flm mydocument.flm -o mydocument.pdf -w runlatexpdf -f pdf
 
+``flmlatex``
+    Renders FLM to pure LaTeX source using the FLM recomposer.  This differs
+    from the default workflow's ``--format=latex`` in that it uses the
+    ``FLMPureLatexRecomposer`` to produce LaTeX output.
+
 You can also specify a fully qualified Python module or class name for a custom
 workflow.
 
@@ -151,6 +156,10 @@ specified::
 
 Other Options
 -------------
+
+``-o FILE`` / ``--output FILE``
+    Write output to the given file instead of standard output.  Use
+    ``--output=-`` to explicitly write to standard output.
 
 ``-c CONTENT`` / ``--flm-content CONTENT``
     Parse the given FLM content string instead of reading from a file.

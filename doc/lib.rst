@@ -30,8 +30,8 @@ features, parse a fragment of FLM text, and render it:
     # Create an environment with the standard set of features
     environ = make_standard_environment(features=standard_features())
 
-    # Parse a fragment of FLM text
-    fragment = environ.make_fragment(r'Hello, \emph{world}.')
+    # Parse a fragment of FLM text in standalone mode
+    fragment = environ.make_fragment(r'Hello, \emph{world}.', standalone_mode=True)
 
     # Render it as a standalone fragment (no document context)
     result = fragment.render_standalone(HtmlFragmentRenderer())

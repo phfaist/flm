@@ -30,9 +30,10 @@ priority:
 Configuration File Discovery
 -----------------------------
 
-When no explicit configuration file is given with ``-C``, FLM looks for a
-configuration file in the current directory.  It tries the following names in
-order, stopping at the first match:
+When no explicit configuration file is given with ``-C``, FLM looks for
+configuration files in the current directory.  It tries the following name
+patterns, and **all** matching files are loaded and merged together (more
+specific patterns take higher priority):
 
 - ``flmconfig+WORKFLOW.FORMAT.yaml`` (or ``.yml``)
 - ``flmconfig+WORKFLOW.yaml`` (or ``.yml``)
@@ -40,8 +41,12 @@ order, stopping at the first match:
 - ``flmconfig.yaml`` (or ``.yml``)
 
 Here, ``WORKFLOW`` and ``FORMAT`` are replaced by the selected workflow and
-output format names.  This allows you to maintain separate configurations for
-different output formats or workflows.
+output format names.  For each pattern, if a ``.yaml`` file exists it is used;
+otherwise a ``.yml`` file is tried.
+
+This allows you to maintain a base ``flmconfig.yaml`` with shared settings and
+override specific options in format- or workflow-specific files (e.g.,
+``flmconfig.html.yaml``).
 
 
 .. _config-structure:
@@ -307,11 +312,11 @@ configuration:
             - counter_formatter: Roman
               float_caption_name: Fig.
               float_type: figure
-              content_handlers: ['any', 'includegraphics', 'cells']
+              content_handlers: ['includegraphics']
             - counter_formatter: Roman
               float_caption_name: Tab.
               float_type: table
-              content_handlers: ['cells']
+              content_handlers: ['cells', 'includegraphics']
         defterm: {}
         graphics: {}
 

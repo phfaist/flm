@@ -30,8 +30,15 @@ Each feature is a Python class inheriting from
 Default Features
 ----------------
 
-The following features are enabled by default when using the standard
-configuration or the ``standard_features()`` helper:
+The following features are enabled by default when using the ``flm``
+command-line tool (via the built-in ``default_config.yaml``).
+
+.. note::
+
+   When using the Python API with ``standard_features()``, some of these
+   features (notably ``theorems``) default to disabled and must be explicitly
+   enabled.  The command-line tool's default configuration enables a broader set
+   of features than the ``standard_features()`` helper.
 
 .. list-table::
    :header-rows: 1
