@@ -3,7 +3,7 @@ from .._typing_helpers import (
 )
 
 
-class _DocumentManager:
+class FeatureDocumentManagerBase:
     r"""
     The feature instance runs globally for the environment.  A document
     manager is created for each new document.  It can be used to store
@@ -34,7 +34,7 @@ class _DocumentManager:
         return self.feature.get_node_id(node)
 
 
-class _RenderManager:
+class FeatureRenderManagerBase:
     r"""
     The feature instance runs globally for the environment.  A document
     manager is created for each new document.  A render manager is created
@@ -53,7 +53,7 @@ class _RenderManager:
         self.feature_name = self.feature.feature_name
         self.render_context = render_context
 
-    def initialize(self, **kwargs) -> None:
+    def initialize(self) -> None:
         r"""
         Initialize the render manager.  You should subclass this
         method, and avoid subclassing the constructor.
@@ -130,29 +130,37 @@ class Feature:
 
     # ---
 
-    DocumentManager : Type[_DocumentManager]|None = _DocumentManager
+    DocumentManager : Type[FeatureDocumentManagerBase]|None = FeatureDocumentManagerBase
     r"""
     The document manager class to use for this feature.  Instances of this class
     will automatically be created when a new :py:class:`flmdocument.FLMDocument` is
     instantiated.  This class is expected to be a subclass of
-    :py:class:`flm.feature.Feature.DocumentManager`.
+    :py:class:`flm.feature.FeatureDocumentManagerBase`.
     Alternatively, set this class attribute to `None` in your feature subclass
     to indicate that this feature does not need any document manager instance.
     """
 
     # ---
 
-    RenderManager : Type[_RenderManager]|None = _RenderManager
+    RenderManager : Type[FeatureRenderManagerBase]|None = FeatureRenderManagerBase
     r"""
     The render manager class to use for this feature.  Instances of this class
     will automatically be created when rendering a :py:class:`flmdocument.FLMDocument`
     (see :py:meth:`flm.flmdocument.FLMDocument.render()`, and more specifically
     :py:meth:`flm.flmdocument.FLMDocument.make_render_context()`).
     This class is expected to be a subclass of
-    :py:class:`flm.feature.Feature.RenderManager`.
+    :py:class:`flm.feature.FeatureRenderManagerBase`.
     Alternatively, set this class attribute to `None` in your feature subclass
     to indicate that this feature does not need any document manager instance.
     """
+
+    # ---
+
+    feature_title : str|None = None
+    r"""
+    Descriptive name or title for this feature.
+    """
+
 
     # -----
 

@@ -1,15 +1,20 @@
 
 Any = object
 
-# no support for these specific types, simply use 'Any'
+# no support for any specific types, simply use 'Any' everywhere
+
 Hashable = Any
 Type = Any
 TypeMacroSpec = Any
+Literal = Any
+Callable = Any
+TypedDict = Any
+OptTypedDict = Any
 
+TypeCallableSpecBase = Any
 TypeDictWithLatexContextDefinitions = Any
+TypeRenderContext = Any
 
-
-# use list/dict/set for these standard collections.abc types
-Sequence = list
-Mapping = dict
-Set = set
+Sequence = Any
+Mapping = Any
+Set = Any

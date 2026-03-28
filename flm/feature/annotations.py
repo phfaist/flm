@@ -19,6 +19,11 @@ from pylatexenc.latexnodes.parsers import (
     LatexDelimitedGroupParser,
 )
 
+from .._typing_helpers import (
+    TypeCallableSpecBase, Sequence, TypeDictWithLatexContextDefinitions,
+    OptTypedDict, Mapping
+)
+
 from ..flmenvironment import (
     FLMArgumentSpec,
     FLMParsingStateDeltaSetBlockLevel,
@@ -27,7 +32,7 @@ from ..flmspecinfo import (
     FLMMacroSpecBase,
 )
 
-from ._base import Feature
+from ._base import Feature, FeatureRenderManagerBase
 
 
 class AnnotationArgumentParser(LatexParserBase):
@@ -88,7 +93,8 @@ class AnnotationArgumentParser(LatexParserBase):
 
 
 
-
+class TypeAnnotationMacroDef(OptTypedDict):
+    initials : str|None
 
 class AnnotationMacro(FLMMacroSpecBase):
 
@@ -207,16 +213,16 @@ class FeatureAnnotations(Feature):
 
     def __init__(
             self,
-            macrodefs=None,
-            hide_all_annotations=False,
+            macrodefs : Mapping[str, TypeAnnotationMacroDef]|None = None,
+            hide_all_annotations : bool = False,
     ):
         super().__init__()
         self.macrodefs = dict(macrodefs or {})
         self.hide_all_annotations = hide_all_annotations
         
 
-    def add_latex_context_definitions(self):
-        macros = []
+    def add_latex_context_definitions(self) -> TypeDictWithLatexContextDefinitions:
+        macros : Sequence[TypeCallableSpecBase] = []
         
         color_index = 0
 
@@ -226,13 +232,15 @@ class FeatureAnnotations(Feature):
                     macroname=macroname,
                     color_index=color_index,
                     **annotdef,
-                ),
+                )
             )
             color_index += 1
 
-        return dict(macros=macros)
+        return {
+            'macros': macros
+        }
 
-    class RenderManager(Feature.RenderManager):
+    class RenderManager(FeatureRenderManagerBase):
         def initialize(self, hide_all_annotations=None):
             if hide_all_annotations is not None:
                 self.hide_all_annotations = hide_all_annotations

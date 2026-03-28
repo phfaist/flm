@@ -14,6 +14,8 @@ rendering.
 import logging
 logger = logging.getLogger(__name__)
 
+from ._typing_helpers import Hashable, Mapping, TypeNodeId, TypeFLMDocument, TypeFragmentRenderer
+from .feature._base import FeatureRenderManagerBase
 
 
 class FLMRenderContext:
@@ -34,11 +36,17 @@ class FLMRenderContext:
     first rendering pass, respectively.
     """
 
-    is_standalone_mode = False
+    is_standalone_mode : bool = False
 
-    is_first_pass = True
+    is_first_pass : bool = True
 
-    def __init__(self, fragment_renderer, *, doc=None, **kwargs):
+    def __init__(
+            self,
+            fragment_renderer : TypeFragmentRenderer,
+            *,
+            doc : TypeFLMDocument|None = None,
+            **kwargs
+        ):
         super().__init__(**kwargs)
         self.doc = doc
         self.fragment_renderer = fragment_renderer
@@ -48,34 +56,44 @@ class FLMRenderContext:
         
         self._nodes_determined_as_delayed = {}
 
-    def supports_feature(self, feature_name):
+    # for python typing hints
+    _flmtyping_is = 'FLMRenderContext'
+
+    doc : TypeFLMDocument|None
+    fragment_renderer : TypeFragmentRenderer
+    pass_name : str|None = None
+    _nodes_determined_as_delayed : dict[TypeNodeId,bool] = {}
+
+    def supports_feature(self, feature_name) -> bool:
         r"""Return ``True`` if the given feature is active in this render context."""
         return False
 
-    def feature_render_manager(self, feature_name):
+    def feature_render_manager(self, feature_name) -> FeatureRenderManagerBase|None:
         r"""Return the render manager for the given feature, or ``None``."""
         return None
 
-    def register_delayed_render(self, node, fragment_renderer):
+    def register_delayed_render(self, node, fragment_renderer) -> Hashable:
         r"""Register a node for delayed rendering.  Returns a key for later retrieval."""
         raise RuntimeError("This render context does not support delayed rendering")
 
-    def get_delayed_render_content(self, node):
+    def get_delayed_render_content(self, node) -> str:
         r"""Retrieve the rendered content for a delayed-render node."""
         raise RuntimeError("This render context does not support delayed rendering")
 
-    def get_is_delayed_render(self, node):
+    def get_is_delayed_render(self, node) -> bool:
         if node._flm_node_id in self._nodes_determined_as_delayed:
             return self._nodes_determined_as_delayed[node._flm_node_id]
 
         yn = node.flm_specinfo.delayed_render
         if callable(yn):
-            yn = yn(node, render_context)
+            yn = bool( yn(node, self) )
             self._nodes_determined_as_delayed[node._flm_node_id] = yn
+        else:
+            yn = bool(yn)
 
         return yn
 
-    def set_render_pass(self, pass_name):
+    def set_render_pass(self, pass_name : str|None) -> None:
         self.pass_name = pass_name
         if pass_name is None:
             self.is_first_pass = True

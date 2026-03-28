@@ -12,6 +12,8 @@ from pylatexenc.latexnodes import (
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc import latexwalker
 
+from ._typing_helpers import Type
+
 from .flmfragment import FLMFragment
 from .flmdocument import FLMDocument
 
@@ -71,8 +73,13 @@ class FLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
 class _NotProvided:
     pass
 
-def FLMArgumentSpec(parser, argname, is_block_level=_NotProvided, flm_doc=None,
-                    parsing_state_delta=None):
+def FLMArgumentSpec(
+        parser,
+        argname,
+        is_block_level : bool|None|Type[_NotProvided] = _NotProvided,
+        flm_doc=None,
+        parsing_state_delta=None
+    ):
     r"""
     Create an argument specification for an FLM macro or environment.
 
@@ -82,12 +89,13 @@ def FLMArgumentSpec(parser, argname, is_block_level=_NotProvided, flm_doc=None,
     argument's contents.
 
     :param parser: The argument parser specification (e.g., ``'{'`` for a
-        mandatory argument, ``'['`` for an optional argument).
+        mandatory argument, ``'['`` for an optional argument).  May also
+        be a pylatexenc parser instance.
     :param argname: A name for the argument, used to retrieve it later via
         :py:class:`~pylatexenc.latexnodes.ParsedArgumentsInfo`.
     :param is_block_level: Whether the argument contents should be parsed in
         block-level mode (``True``), inline mode (``False``), or auto-detect
-        (``None``).  Defaults to ``False``.
+        (``None``).  Defaults to ``False`` if the argument is not provided.
     :param flm_doc: Optional documentation string describing the argument,
         used by the self-documenting environment feature.
     :param parsing_state_delta: An optional

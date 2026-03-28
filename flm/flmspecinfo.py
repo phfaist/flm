@@ -21,18 +21,19 @@ This module also provides several built-in construct specifications such as
 :py:class:`FLMSpecInfoParagraphBreak` (for paragraph breaks).
 """
 
-from ._typing_helpers import Any
-
 import logging
 logger = logging.getLogger(__name__)
 
 
 from pylatexenc import macrospec
+from pylatexenc.latexnodes.nodes import LatexNode
 from pylatexenc.latexnodes import parsers as latexnodes_parsers
 from pylatexenc.latexnodes import (
     LatexWalkerParseError, LatexWalkerLocatedError,
     ParsedArgumentsInfo, ParsingStateDeltaChained
 )
+
+from ._typing_helpers import Any, Callable, TypeRenderContext, Sequence
 
 from .flmenvironment import (
     FLMArgumentSpec,
@@ -50,13 +51,17 @@ class FLMSpecInfo(macrospec.CallableSpec):
     :py:class:`~flm.fragmentrenderer.FragmentRenderer` objects
     """
 
-    delayed_render : bool = False
+    delayed_render : bool|Callable[[LatexNode, TypeRenderContext],bool] = False
     r"""
     Whether this node needs to be rendered at the delayed rendering stage, i.e.,
     after a first pass through the document.  This is the case, for instance,
     for ``\ref`` commands etc. for which the entire document needs to have been
     traversed at least once beforehand.  See the delayed render mechanism in the
     documentation for the :py:class:`flmdocument.FLMDocument` class.
+
+    Set to `True` or `False` to determine whether or not the node needs a delayed
+    render.  Set to a callable `func(node, render_context) -> bool` to compute
+    at render time whether the node should be delayed or not.
     """
 
     is_block_level : bool|None = False
@@ -413,7 +418,7 @@ part of the macro call.  The argument parser is a
 instance.
 """
 
-def helper_collect_labels(node_arg_label, allowed_prefixes, allow_unknown_macros=False):
+def helper_collect_labels(node_arg_label, allowed_prefixes, allow_unknown_macros=False) -> None|Sequence[tuple[str,str]]:
     r"""
     Helper function to collect all labels associated with an argument with
     specification :py:data:`label_arg`.
@@ -491,7 +496,7 @@ class TextFormatMacro(FLMMacroSpecBase):
     # (see fragment.truncate_to())
     _flm_main_text_argument = 'text'
 
-    def __init__(self, macroname, *, text_formats):
+    def __init__(self, macroname : str, *, text_formats : Sequence[str]):
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[text_arg],
@@ -529,7 +534,8 @@ class SemanticBlockEnvironment(FLMEnvironmentSpecBase):
 
     is_block_level = True
 
-    def __init__(self, environmentname, *, role, annotations=None):
+    def __init__(self, environmentname : str, *, role : str,
+                 annotations : Sequence[str]|None = None):
         super().__init__(
             environmentname=environmentname,
         )
@@ -589,14 +595,14 @@ class FLMSpecInfoParagraphBreak(FLMSpecInfo):
 
 
 class ParagraphBreakSpecials(FLMSpecInfoParagraphBreak):
-    def __init__(self, specials_chars, **kwargs):
+    def __init__(self, specials_chars : str, **kwargs):
         super().__init__(specials_chars=specials_chars,
                          spec_node_parser_type='specials', **kwargs)
 
     _fields = ('specials_chars',)
 
 class ParagraphBreakMacro(FLMSpecInfoParagraphBreak):
-    def __init__(self, macroname, **kwargs):
+    def __init__(self, macroname : str, **kwargs):
         super().__init__(macroname=macroname, spec_node_parser_type='macro', **kwargs)
 
     _fields = ('macroname',)
@@ -616,7 +622,7 @@ class FLMSpecInfoError(FLMSpecInfo):
 
     allowed_in_standalone_mode = True
 
-    def __init__(self, error_msg=None, **kwargs):
+    def __init__(self, error_msg : str|None = None, **kwargs):
         super().__init__(**kwargs)
         self.error_msg = error_msg
     
@@ -632,13 +638,13 @@ class FLMSpecInfoError(FLMSpecInfo):
 
 
 class FLMMacroSpecError(FLMSpecInfoError):
-    def __init__(self, macroname, **kwargs):
+    def __init__(self, macroname : str, **kwargs):
         super().__init__(macroname=macroname, spec_node_parser_type='macro', **kwargs)
 
     _fields = ('macroname', 'error_msg', )
 
 class FLMEnvironmentSpecError(FLMSpecInfoError):
-    def __init__(self, environmentname, **kwargs):
+    def __init__(self, environmentname : str, **kwargs):
         super().__init__(environmentname=environmentname,
                          spec_node_parser_type='environment',
                          **kwargs)
@@ -646,7 +652,7 @@ class FLMEnvironmentSpecError(FLMSpecInfoError):
     _fields = ('environmentname', 'error_msg', )
 
 class FLMSpecialsSpecError(FLMSpecInfoError):
-    def __init__(self, specials_chars, **kwargs):
+    def __init__(self, specials_chars : str, **kwargs):
         super().__init__(specials_chars=specials_chars,
                          spec_node_parser_type='specials',
                          **kwargs)

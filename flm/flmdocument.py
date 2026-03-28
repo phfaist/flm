@@ -106,6 +106,9 @@ class FLMDocument:
     :param metadata: Arbitrary user-defined metadata (e.g., document title).
     """
 
+    # for typing marks
+    _flmtyping_is = 'FLMDocument'
+
     def __init__(
             self,
             render_callback,

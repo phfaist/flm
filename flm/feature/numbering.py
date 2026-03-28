@@ -11,7 +11,7 @@ import json
 import logging
 logger = logging.getLogger(__name__)
 
-from ._base import Feature
+from ._base import Feature, FeatureRenderManagerBase
 
 from ..counter import (
     # CounterFormatter, 
@@ -441,7 +441,7 @@ class FeatureNumbering(Feature):
     feature_name = 'numbering'
     feature_title = 'Numbering for figures, sections, equations, theorems, and more'
 
-    class RenderManager(Feature.RenderManager):
+    class RenderManager(FeatureRenderManagerBase):
 
         def initialize(self, number_within=None):
             self.counters = {}

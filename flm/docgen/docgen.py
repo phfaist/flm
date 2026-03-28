@@ -34,9 +34,9 @@ class MacroDocArg(FLMMacroSpecBase):
                 FLMArgumentSpec(
                     parser=latexnodes_parsers.LatexDelimitedVerbatimParser(),
                     argname='parser_name',
-                    flm_doc=('The name or shorthand notation for how this '
-                             'argument is parsed (e.g., mandatory \{...\} '
-                             'argument, optional [...] argument, etc.'),
+                    flm_doc=(r'The name or shorthand notation for how this '
+                             r'argument is parsed (e.g., mandatory \{...\} '
+                             r'argument, optional [...] argument, etc.'),
                 ),
                 FLMArgumentSpec(
                     parser='{',

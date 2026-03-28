@@ -10,7 +10,6 @@ individual items for cross-referencing.
 import logging
 logger = logging.getLogger(__name__)
 
-
 from pylatexenc.latexnodes import ParsedArgumentsInfo, LatexWalkerLocatedError
 import pylatexenc.latexnodes.parsers as latexnodes_parsers
 import pylatexenc.latexnodes.nodes as latexnodes_nodes
@@ -19,6 +18,8 @@ from pylatexenc.macrospec import (
     LatexEnvironmentBodyContentsParser,
     ParsingStateDeltaExtendLatexContextDb,
 )
+
+from .._typing_helpers import Any, Sequence, TypeDictWithLatexContextDefinitions
 
 from ..flmspecinfo import (
     FLMEnvironmentSpecBase,
@@ -75,9 +76,9 @@ class Enumeration(FLMEnvironmentSpecBase):
 
 
     def __init__(self,
-                 environmentname,
+                 environmentname : str,
                  *,
-                 counter_formatter=None,
+                 counter_formatter : Sequence[Any]|None = None,
                  annotations=None,
                  **kwargs):
         super().__init__(
@@ -236,7 +237,7 @@ class Enumeration(FLMEnvironmentSpecBase):
                     continue
 
                 if n in items_custom_tags:
-                    item_tag_flm_text = item_custom_tags[n]
+                    item_tag_flm_text = items_custom_tags[n]
                 else:
                     # This function will be called twice, oh well...
                     item_tag_flm_text = the_counter_formatter(n)
@@ -304,6 +305,7 @@ class Enumeration(FLMEnvironmentSpecBase):
                     item_node_args['label'],
                     self.allowed_item_label_prefixes,
                 )
+                assert items_custom_labels is not None
                 for ref_type, ref_label in items_custom_labels:
                     safe_label_info = recomposer.make_safe_label(
                         'ref', ref_type, ref_label, node.latex_walker.resource_info
@@ -355,9 +357,9 @@ class FeatureEnumeration(Feature):
                 self.feature_default_config.get('enumeration_environments', {})
         self.enumeration_environments = enumeration_environments
 
-    def add_latex_context_definitions(self):
-        return dict(
-            environments=[
+    def add_latex_context_definitions(self) -> TypeDictWithLatexContextDefinitions:
+        return {
+            'environments': [
                 Enumeration(
                     environmentname=envname,
                     counter_formatter=envinfo['counter_formatter'],
@@ -365,7 +367,7 @@ class FeatureEnumeration(Feature):
                 )
                 for envname, envinfo in dict(self.enumeration_environments).items()
             ],
-        )
+        }
 
 
 # ------------------------------------------------
