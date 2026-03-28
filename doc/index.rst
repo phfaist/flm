@@ -6,8 +6,13 @@
 Welcome to FLM's documentation!
 ===============================
 
-The **Flexible Latex-Like Markup (FLM)** language resembles LaTeX code but is
-parsed as markup so it can be rendered in various formats (html, text, latex).
+**Flexible Latex-Like Markup (FLM)** is a simple language strongly inspired
+by LaTeX.  Parsed as a markup language, it is suited for structured
+technical documents, for content that needs to be automatically postprocessed,
+and can be rendered in various formats (html, text, latex, markdown).
+
+It was developed to typeset content in the
+[*Error Correction Zoo*](https://errorcorrectionzoo.org/).
 
 
 .. toctree::
