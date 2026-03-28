@@ -383,6 +383,47 @@ class TestFeatureAnnotationsRenderManager(unittest.TestCase):
         self.assertTrue(rdr_mgr.hide_all_annotations)
 
 
+
+# ----------------------------------------------------------------
+# Init / config
+# ----------------------------------------------------------------
+
+class TestFeatureAnnotationsArgsSchemas(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_get_args_schema(self):
+        
+        schema = FeatureAnnotations.get_args_schema()
+        
+        #import json
+        #print("SCHEMA=", json.dumps(schema))
+
+        self.assertEqual(schema, {
+            "init": {
+                "type": "object",
+                "properties": {
+                    "macrodefs": {'anyOf': [{'type': 'null'}, {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "initials": { "anyOf": [{"type": "null"}, {"type": "string"}] },
+                            },
+                        },
+                    },],},
+                    "hide_all_annotations": {
+                        "type": "boolean"
+                    },
+                },
+                "required": [],
+                "additionalProperties": False,
+            }
+        })
+
+
+
 if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.DEBUG)

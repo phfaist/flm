@@ -59,8 +59,8 @@ class FLMRenderContext:
     # for python typing hints
     _flmtyping_is = 'FLMRenderContext'
 
-    doc : TypeFLMDocument|None
-    fragment_renderer : TypeFragmentRenderer
+    doc : TypeFLMDocument|None = None
+    fragment_renderer : TypeFragmentRenderer = None
     pass_name : str|None = None
     _nodes_determined_as_delayed : dict[TypeNodeId,bool] = {}
 

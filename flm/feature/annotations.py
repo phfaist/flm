@@ -21,7 +21,7 @@ from pylatexenc.latexnodes.parsers import (
 
 from .._typing_helpers import (
     TypeCallableSpecBase, Sequence, TypeDictWithLatexContextDefinitions,
-    OptTypedDict, Mapping
+    Mapping
 )
 
 from ..flmenvironment import (
@@ -31,6 +31,8 @@ from ..flmenvironment import (
 from ..flmspecinfo import (
     FLMMacroSpecBase,
 )
+
+from .._flm_args_schema import get_args_schema as _get_args_schema
 
 from ._base import Feature, FeatureRenderManagerBase
 
@@ -93,9 +95,6 @@ class AnnotationArgumentParser(LatexParserBase):
 
 
 
-class TypeAnnotationMacroDef(OptTypedDict):
-    initials : str|None
-
 class AnnotationMacro(FLMMacroSpecBase):
 
     allowed_in_standalone_mode = True
@@ -105,7 +104,7 @@ class AnnotationMacro(FLMMacroSpecBase):
     # (see fragment.truncate_to())
     _flm_main_text_argument = 'text'
 
-    def __init__(self, macroname, initials=None, color_index=0):
+    def __init__(self, macroname : str, initials : str|None = None, color_index : int = 0):
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[
@@ -127,7 +126,7 @@ class AnnotationMacro(FLMMacroSpecBase):
 
     def get_flm_doc(self):
         return (
-            f"Annotation macro \\{self.macroname}"
+            f"Annotation macro \\verbcode+\\{self.macroname}+"
         )
 
     def render(self, node, render_context):
@@ -182,6 +181,16 @@ class AnnotationMacro(FLMMacroSpecBase):
         )
 
 
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeAnnotationMacroDef(TypedDict, total=False):
+    initials : str|None
+### END_FLM_PYTHON_TYPING
+
+
+
 class FeatureAnnotations(Feature):
     r"""
     Feature that registers custom annotation macros for multiple authors.
@@ -210,6 +219,9 @@ class FeatureAnnotations(Feature):
     document.
     """
 
+    @classmethod
+    def get_args_schema(cls):
+        return _get_args_schema(cls)
 
     def __init__(
             self,

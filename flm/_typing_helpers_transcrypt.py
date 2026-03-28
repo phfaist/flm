@@ -8,12 +8,12 @@ Type = Any
 TypeMacroSpec = Any
 Literal = Any
 Callable = Any
-TypedDict = Any
-OptTypedDict = Any
 
 TypeCallableSpecBase = Any
 TypeDictWithLatexContextDefinitions = Any
 TypeRenderContext = Any
+TypeFragmentRenderer = Any
+TypeFLMDocument = Any
 
 Sequence = Any
 Mapping = Any

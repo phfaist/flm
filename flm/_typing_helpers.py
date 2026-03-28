@@ -12,15 +12,12 @@ from typing import (
     Type,
     Literal,
     Callable,
-    TypedDict as TypedDict,
+    TypedDict as _TypedDict,
     Optional as _Optional,
     Protocol as _Protocol,
 )
 from collections.abc import Sequence, Mapping, Set, Hashable
 
-class OptTypedDict(TypedDict, total=False):
-    """TypedDict where all fields are optional by default."""
-    pass
 
 # Type that provides
 class TypeCallableSpecBase(_Protocol):
@@ -37,7 +34,7 @@ class TypeFLMDocument(_Protocol):
 class TypeFragmentRenderer(_Protocol):
     _flmtyping_is : Literal['FragmentRendererBase']
 
-class TypeDictWithLatexContextDefinitions(TypedDict, total=False):
+class TypeDictWithLatexContextDefinitions(_TypedDict, total=False):
     macros : Sequence[TypeCallableSpecBase]
     environments : Sequence[TypeCallableSpecBase]
     specials : Sequence[TypeCallableSpecBase]
