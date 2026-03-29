@@ -12,7 +12,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 from .._typing_helpers import Mapping
-from .._flm_args_schema import get_args_schema as _get_args_schema
 
 from ._base import Feature, FeatureRenderManagerBase
 
@@ -453,10 +452,6 @@ class FeatureNumbering(Feature):
 
     feature_name = 'numbering'
     feature_title = 'Numbering for figures, sections, equations, theorems, and more'
-
-    @classmethod
-    def get_args_schema(cls):
-        return _get_args_schema(cls)
 
     class RenderManager(FeatureRenderManagerBase):
 

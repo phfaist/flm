@@ -19,7 +19,10 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from .._typing_helpers import Any, Mapping, Sequence, TypeDictWithLatexContextDefinitions
+from .._typing_helpers import (
+    Any, Mapping, Sequence, TypeDictWithLatexContextDefinitions,
+    TypeEnumerationCounterFormatterInput, TypeEnumerationCounterFormatterSingleSpec
+)
 
 from ..flmspecinfo import (
     FLMEnvironmentSpecBase,
@@ -33,8 +36,6 @@ from ..flmenvironment import (
 
 from .. import counter
 
-from .._flm_args_schema import get_args_schema as _get_args_schema
-
 from ._base import Feature
 
 from .refs import get_safe_target_id
@@ -42,7 +43,7 @@ from .refs import get_safe_target_id
 
 
 # "1.", "2.", ...
-_default_enumeration_counter_formatter = [
+_default_enumeration_counter_formatter : TypeEnumerationCounterFormatterInput = [
     {'template': "${arabic}."},
     {'template': "(${roman})"},
     {'template': "${alph}-"},
@@ -80,7 +81,7 @@ class Enumeration(FLMEnvironmentSpecBase):
     def __init__(self,
                  environmentname : str,
                  *,
-                 counter_formatter : Sequence[Any]|None = None,
+                 counter_formatter : TypeEnumerationCounterFormatterInput|None = None,
                  annotations=None,
                  **kwargs):
         super().__init__(
@@ -326,7 +327,7 @@ class Enumeration(FLMEnvironmentSpecBase):
 ### BEGIN_FLM_PYTHON_TYPING
 from typing import TypedDict
 class TypeEnumerationEnvironmentDef(TypedDict, total=False):
-    counter_formatter : Sequence[str|Mapping[str, Any]]|None
+    counter_formatter : TypeEnumerationCounterFormatterInput|None
 ### END_FLM_PYTHON_TYPING
 
 
@@ -357,10 +358,6 @@ class FeatureEnumeration(Feature):
     DocumentManager = None
     RenderManager = None
 
-
-    @classmethod
-    def get_args_schema(cls):
-        return _get_args_schema(cls)
 
     def __init__(self, enumeration_environments : Mapping[str, TypeEnumerationEnvironmentDef]|None = None):
         super().__init__()

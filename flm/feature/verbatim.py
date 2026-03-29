@@ -17,6 +17,8 @@ from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from ..flmspecinfo import FLMSpecInfo
 from ..flmenvironment import FLMArgumentSpec
 
+from .._typing_helpers import TypeDictWithLatexContextDefinitions
+
 from ._base import SimpleLatexDefinitionsFeature
 
 
@@ -301,7 +303,7 @@ class FeatureVerbatim(SimpleLatexDefinitionsFeature):
         s += r"\end{itemize}"
         return s
 
-    def add_latex_context_definitions(self):
+    def add_latex_context_definitions(self) -> TypeDictWithLatexContextDefinitions:
         macros = []
         environments = []
         

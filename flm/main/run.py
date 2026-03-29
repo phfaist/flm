@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 import frontmatter
 import yaml
+import jsonschema
 
 from .configmerger import ConfigMerger
 configmerger = ConfigMerger()
@@ -20,6 +21,12 @@ configmerger = ConfigMerger()
 from ._util import abbrev_value_str
 
 from flm import flmenvironment
+
+from flm._flm_args_schema import (
+    function_json_schema, get_args_schema_feature, type_to_json_schema,
+    class_typed_attributes_json_schema
+)
+
 
 # ---
 
@@ -226,6 +233,12 @@ def load_features(features_merge_configs, flm_run_info):
 
         logger.debug("Instantiating feature ‘%s’ with config = %s", featurename,
                      abbrev_value_str(featureconfig, maxstrlen=512) )
+        
+        validate_config_for_fn_kwargs(
+            _join_config_path(['flm', 'features', featurename]),
+            FeatureClass.__init__,
+            featureconfig,
+        )
 
         features.append( FeatureClass(**featureconfig) )
 
@@ -268,6 +281,34 @@ def _ensurefeatureconfig(x):
 #
 
 
+_global_config_schema = yaml.safe_load(
+r"""
+type: object
+properties:
+    flm:
+        type: object
+        additionalProperties: false
+        properties:
+            parsing: {}
+            features: {}
+            renderer: {}
+            workflow_config: {}
+            template_config: {}
+
+            default_workflow:
+                type: ['string', 'null']
+            default_format:
+                type: ['string', 'null']
+
+            template_path:
+                type: array
+                items:
+                    type: string
+""")
+
+
+
+
 _dirname_here = os.path.dirname(__file__)
 _builtin_default_config_yaml = os.path.join(_dirname_here, 'default_config.yaml')
 with open(_builtin_default_config_yaml, encoding='utf-8') as f:
@@ -298,6 +339,44 @@ class WorkflowEnvironmentInformation:
     def cleanup(self):
         if self.use_temporary_directory_output is not None:
             self.use_temporary_directory_output.cleanup()
+
+
+
+
+def _join_config_path(parts):
+    def _fmtpart(p):
+        if re.match(r'^[a-zA-Z0-9_]+$', p) is not None:
+            return p
+        if '"' not in p:
+            return f'"{p}"'
+        return repr(p)
+    return ".".join([
+        _fmtpart(part)
+        for part in parts
+    ])
+
+
+def validate_config_for_schema(name, schema, config):
+
+    validator = jsonschema.Draft202012Validator(schema)
+    iter_errors = validator.iter_errors(instance=config)
+    errors = sorted(iter_errors, key=lambda e: e.path)
+
+    for error in errors:
+        logger.warning("Validation error in FLM config ‘%s’: %s", name, str(error))
+
+
+def validate_config_for_fn_kwargs(name, fn, config):
+    schema = function_json_schema(fn)
+    validate_config_for_schema(name, schema, config)
+
+def validate_config_for_tp(name, tp, config):
+    schema = type_to_json_schema(tp)
+    validate_config_for_schema(name, schema, config)
+
+def validate_config_for_class_typed_attributes(name, cls, config):
+    schema = class_typed_attributes_json_schema(cls)
+    validate_config_for_schema(name, schema, config)
 
 
 
@@ -438,7 +517,21 @@ def load_workflow_environment(*,
 
     logger.debug("Merged config (w/o workflow/feature configs) = %s",
                  abbrev_value_str(config, maxstrlen=512) )
+    
+    # validate the overall config structure
+    validate_config_for_schema(
+        'flm',
+        _global_config_schema,
+        config.get('flm', {}),
+    )
 
+    # validate the workflow config
+    validate_config_for_tp(
+        _join_config_path(['flm', 'workflow_config', workflow_name]),
+        WorkflowClass.TypeWorkflowConfigDict,
+        config.get('flm',{}).get('workflow_config', {}),
+    )
+    
     #
     # Set up the correct output directory (temporary directory, if applicable)
     #
@@ -495,6 +588,12 @@ def load_workflow_environment(*,
     # fragment_renderer properties from config
     fragment_renderer_config = config['flm']['renderer'].get(fragment_renderer_name, {})
 
+    validate_config_for_class_typed_attributes(
+        _join_config_path(['flm', 'renderer', fragment_renderer_name]),
+        FragmentRendererClass,
+        fragment_renderer_config
+    )
+
     fragment_renderer = FragmentRendererClass(
         config=fragment_renderer_config
     )
@@ -529,7 +628,14 @@ def load_workflow_environment(*,
     # Set up the environment: parsing state and features
     #
 
-    parsing_state = flmenvironment.standard_parsing_state(**config['flm']['parsing'])
+    parsing_config = config.get('flm', {}).get('parsing', {})
+
+    validate_config_for_fn_kwargs(
+        'flm.parsing',
+        flmenvironment.standard_parsing_state,
+        parsing_config,
+    )
+    parsing_state = flmenvironment.standard_parsing_state(**parsing_config)
     logger.debug("parsing_state = %r", parsing_state)
 
     features, feature_configs = load_features(features_merge_configs, flm_run_info)
@@ -837,3 +943,35 @@ def run(*args, **kwargs):
     finally:
         R.cleanup()
     return run_result
+
+
+
+
+
+
+
+# def get_config_json_schema(features : list[str],  workflow_names : list[str]):
+#     # the parsing
+#     parsing_schema = function_json_schema(flmenvironment.standard_parsing_state)
+
+#     features_schema = {}
+
+#     raise NotYetImplementedErrorIsSevere("Not yet implemented!")
+
+#     for feature in features:
+#         fsc = get_args_schema_feature(feature)
+#         ... ...
+
+#     flm_schema = {
+#         'properties': {
+#             'parsing': parsing_schema,
+#             'features': features_schema,
+#         }
+#     }
+
+#     return {
+#         'type': 'object',
+#         'properties': {
+#             'flm': flm_schema,
+#         }
+#     }

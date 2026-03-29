@@ -19,7 +19,6 @@ from ..flmspecinfo import FLMMacroSpecBase
 from ..flmenvironment import FLMArgumentSpec
 
 from .._typing_helpers import Sequence, Any, Mapping
-from .._flm_args_schema import get_args_schema as _get_args_schema
 
 from ._base import Feature
 from ..counter import ValueWithSubNums
@@ -722,10 +721,6 @@ class FeatureRefs(Feature):
     feature_title = 'Labels and cross-references'
 
     RenderManager = FeatureRefsRenderManager
-
-    @classmethod
-    def get_args_schema(cls):
-        return _get_args_schema(cls)
 
     def __init__(self, external_ref_resolvers : Sequence[Any]|None = None,
                  allow_unresolved_refs : bool|TypeAllowUnresolvedRefsDef = False):

@@ -1115,12 +1115,14 @@ class FLMEnvironment:
 
 
 
+
+
 def standard_parsing_state(*,
-                           force_block_level=None,
-                           enable_comments=True,
-                           comment_start='%%',
-                           extra_forbidden_characters='',
-                           dollar_inline_math_mode=False):
+                           force_block_level : bool|None = None,
+                           enable_comments : bool = True,
+                           comment_start : str = '%%',
+                           extra_forbidden_characters : str = '',
+                           dollar_inline_math_mode : bool = False):
     r"""
     Return a `ParsingState` configured in a standard way for parsing FLM
     content.  E.g., we typically disable commands and $-math mode, unless you

@@ -384,43 +384,43 @@ class TestFeatureAnnotationsRenderManager(unittest.TestCase):
 
 
 
-# ----------------------------------------------------------------
-# Init / config
-# ----------------------------------------------------------------
+# # ----------------------------------------------------------------
+# # Init / config
+# # ----------------------------------------------------------------
 
-class TestFeatureAnnotationsArgsSchemas(unittest.TestCase):
+# class TestFeatureAnnotationsArgsSchemas(unittest.TestCase):
 
-    maxDiff = None
+#     maxDiff = None
 
-    def test_get_args_schema(self):
+#     def test_get_args_schema(self):
         
-        schema = FeatureAnnotations.get_args_schema()
-        
-        #import json
-        #print("SCHEMA=", json.dumps(schema))
+#         schema = FeatureAnnotations.get_args_schema()
 
-        self.assertEqual(schema, {
-            "init": {
-                "type": "object",
-                "properties": {
-                    "macrodefs": {'anyOf': [{'type': 'null'}, {
-                        "type": "object",
-                        "additionalProperties": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "properties": {
-                                "initials": { "anyOf": [{"type": "null"}, {"type": "string"}] },
-                            },
-                        },
-                    },],},
-                    "hide_all_annotations": {
-                        "type": "boolean"
-                    },
-                },
-                "required": [],
-                "additionalProperties": False,
-            }
-        })
+#         #import json
+#         #print("SCHEMA=", json.dumps(schema))
+
+#         self.assertEqual(schema, {
+#             "init": {
+#                 "type": "object",
+#                 "properties": {
+#                     "macrodefs": {'anyOf': [{'type': 'null'}, {
+#                         "type": "object",
+#                         "additionalProperties": {
+#                             "type": "object",
+#                             "additionalProperties": False,
+#                             "properties": {
+#                                 "initials": { "anyOf": [{"type": "null"}, {"type": "string"}] },
+#                             },
+#                         },
+#                     },],},
+#                     "hide_all_annotations": {
+#                         "type": "boolean"
+#                     },
+#                 },
+#                 "required": [],
+#                 "additionalProperties": False,
+#             }
+#         })
 
 
 

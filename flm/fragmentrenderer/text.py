@@ -1,6 +1,8 @@
 import logging
 logger = logging.getLogger(__name__)
 
+from .._typing_helpers import Callable, Mapping
+
 from ._base import FragmentRenderer
 
 
@@ -10,10 +12,26 @@ from ._base import FragmentRenderer
 
 class TextFragmentRenderer(FragmentRenderer):
 
-    display_href_urls = True
+    display_href_urls : bool = True
 
-    float_separator_top = '·'*80
-    float_separator_bottom = '·'*80
+    float_separator_top : str = '·'*80
+    float_separator_bottom : str = '·'*80
+
+    heading_level_formatter : Mapping[int|str, Callable[[str],str]] = {
+        1: lambda s: f"{s}\n{'='*len(s)}",
+        2: lambda s: f"{s}\n{'-'*len(s)}",
+        3: lambda s: f"{s}\n{'~'*len(s)}",
+        4: lambda s: f"{_add_punct(s, ':')}  ",
+        5: lambda s: f"    {_add_punct(s, ':')}  ",
+        6: lambda s: f"        {_add_punct(s, ':')}  ",
+
+        # special 'theorem' level
+        'theorem': lambda s: f"{s}.  ",
+    }
+
+    float_caption_title_separator : str = ': '
+
+    cells_column_sep : str = '   '
 
 
     #supports_delayed_render_markers = False # -- inherited already
@@ -123,18 +141,6 @@ class TextFragmentRenderer(FragmentRenderer):
         ], render_context)
 
 
-    heading_level_formatter = {
-        1: lambda s: f"{s}\n{'='*len(s)}",
-        2: lambda s: f"{s}\n{'-'*len(s)}",
-        3: lambda s: f"{s}\n{'~'*len(s)}",
-        4: lambda s: f"{_add_punct(s, ':')}  ",
-        5: lambda s: f"    {_add_punct(s, ':')}  ",
-        6: lambda s: f"        {_add_punct(s, ':')}  ",
-
-        # special 'theorem' level
-        'theorem': lambda s: f"{s}.  ",
-    }
-
     def render_heading(self, heading_nodelist, render_context, *,
                        heading_level=1,
                        #heading_formatted_number=None,
@@ -187,8 +193,6 @@ class TextFragmentRenderer(FragmentRenderer):
             return f"{display_content} <{href}>"
         return display_content
 
-
-    float_caption_title_separator = ': '
 
     def render_float(self, float_instance, render_context):
 
@@ -251,8 +255,6 @@ class TextFragmentRenderer(FragmentRenderer):
     def render_graphics_block(self, graphics_resource, render_context):
         return _center_text_sqbrkt_line(graphics_resource.src_url)
 
-
-    cells_column_sep = '   '
 
     def render_cells(self, cells_model, render_context, target_id=None):
 

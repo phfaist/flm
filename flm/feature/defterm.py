@@ -22,9 +22,8 @@ from ..flmenvironment import (
     FLMParsingStateDeltaSetBlockLevel,
     FLMArgumentSpec,
 )
-from .._flm_args_schema import get_args_schema as _get_args_schema
 
-from ._base import Feature
+from ._base import Feature, FeatureRenderManagerBase
 from . import refs
 
 
@@ -395,7 +394,7 @@ class FeatureDefTerm(Feature):
     feature_name = 'defterm'
     feature_title = 'Definition terms'
 
-    class RenderManager(Feature.RenderManager):
+    class RenderManager(FeatureRenderManagerBase):
         def initialize(self):
             self.registered_term_node_infos = {}
         def register_term_node_info(self, node, **kwargs):
@@ -406,10 +405,6 @@ class FeatureDefTerm(Feature):
 
     render_defterm_with_term = True
     render_defterm_with_term_suffix = ': '
-
-    @classmethod
-    def get_args_schema(cls):
-        return _get_args_schema(cls)
 
     def __init__(self, render_defterm_with_term : bool|None = None,
                  render_defterm_with_term_suffix : str|None = None):

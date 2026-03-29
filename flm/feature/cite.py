@@ -19,17 +19,16 @@ from ..flmspecinfo import FLMMacroSpecBase
 from ..flmfragment import FLMFragment
 from ..flmenvironment import FLMArgumentSpec
 
-from ..counter import build_counter_formatter
+from ..counter import build_counter_formatter, TypeCounterFormatterInput, TypeCounterFormatterSpecDict
 
 from .._typing_helpers import Sequence, Any, Mapping
-from .._flm_args_schema import get_args_schema as _get_args_schema
 
 from ._base import Feature
 
 from .endnotes import EndnoteCategory
 
 
-_cite_default_counter_formatter_spec = {
+_cite_default_counter_formatter_spec : TypeCounterFormatterSpecDict = {
     'format_num': 'arabic',
     'prefix_display': None,
     'delimiters': ('[',']'),
@@ -343,13 +342,9 @@ class FeatureExternalPrefixedCitations(Feature):
             )
 
 
-    @classmethod
-    def get_args_schema(cls):
-        return _get_args_schema(cls)
-
     def __init__(self,
                  external_citations_providers : Sequence[Any]|None,
-                 counter_formatter : str|Mapping[str, Any] = 'arabic',
+                 counter_formatter : TypeCounterFormatterInput = 'arabic',
                  citation_delimiters : tuple[str, str]|None = None,
                  citation_optional_text_separator : str = "; ",
                  references_heading_title : str = 'References',

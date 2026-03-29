@@ -1,3 +1,4 @@
+from typing import TypedDict
 from collections.abc import Mapping
 
 import logging
@@ -46,6 +47,10 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
         return outputformat or 'html'
 
     # ---
+
+    class TypeWorkflowConfigDict(TypedDict, total=False):
+        use_output_format_name : str|None
+        template_config_workflow_defaults : dict
 
     use_output_format_name = None
 

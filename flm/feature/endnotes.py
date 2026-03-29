@@ -13,17 +13,15 @@ from ..flmspecinfo import FLMMacroSpecBase
 from ..flmenvironment import FLMArgumentSpec
 from ..flmfragment import FLMFragment
 
-from .._typing_helpers import Sequence, Mapping, Any
+from .._typing_helpers import Sequence, Mapping, Any, TypeCounterFormatterInput, TypeCounterFormatterSpecDict
 
 from ._base import Feature
 from ..counter import build_counter_formatter
 from .numbering import Counter
 
-from .._flm_args_schema import get_args_schema as _get_args_schema
 
 
-
-_default_endnote_counter_formatter_spec = {
+_default_endnote_counter_formatter_spec : TypeCounterFormatterSpecDict = {
     'format_num': { 'template': '${roman}' },
     'prefix_display': None,
     'delimiters': ('',''),
@@ -46,8 +44,10 @@ class EndnoteCategory:
     mandatory argument, the contents of the endnote, think like
     `\footnote{...}`.  Leave this to `None` to not define such a macro.
     """
-    def __init__(self, category_name, counter_formatter, heading_title,
-                 endnote_command=None):
+    def __init__(self, category_name : str,
+                 counter_formatter : TypeCounterFormatterInput,
+                 heading_title : str,
+                 endnote_command : str|None = None):
         super().__init__()
         self.category_name = category_name
         counter_formatter = build_counter_formatter(
@@ -145,7 +145,7 @@ class EndnoteInstance:
 from typing import TypedDict
 class TypeEndnoteCategoryDef(TypedDict, total=False):
     category_name : str
-    counter_formatter : str|Mapping[str, Any]
+    counter_formatter : TypeCounterFormatterInput
     heading_title : str
     endnote_command : str|None
 ### END_FLM_PYTHON_TYPING
@@ -169,10 +169,6 @@ class FeatureEndnotes(Feature):
             supports the base category(ies): """
             + ','.join([f"‘{cat.category_name}’" for cat in self.base_categories])
         )
-
-    @classmethod
-    def get_args_schema(cls):
-        return _get_args_schema(cls)
 
     def __init__(self, categories : Sequence[TypeEndnoteCategoryDef]|None = None,
                  render_options : Mapping[str, Any]|None = None):

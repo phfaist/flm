@@ -32,8 +32,6 @@ from ..flmspecinfo import (
     FLMMacroSpecBase,
 )
 
-from .._flm_args_schema import get_args_schema as _get_args_schema
-
 from ._base import Feature, FeatureRenderManagerBase
 
 
@@ -218,10 +216,6 @@ class FeatureAnnotations(Feature):
     surrounding text and which would typically be deleted before completing the
     document.
     """
-
-    @classmethod
-    def get_args_schema(cls):
-        return _get_args_schema(cls)
 
     def __init__(
             self,

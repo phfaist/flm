@@ -9,12 +9,17 @@ TypeMacroSpec = Any
 Literal = Any
 Callable = Any
 
+Sequence = Any
+Mapping = Any
+Set = Any
+
 TypeCallableSpecBase = Any
 TypeDictWithLatexContextDefinitions = Any
 TypeRenderContext = Any
 TypeFragmentRenderer = Any
 TypeFLMDocument = Any
 
-Sequence = Any
-Mapping = Any
-Set = Any
+TypeCounterFormatterInput = Any
+TypeCounterFormatterInput = Any
+TypeCounterFormatterSpecDict = Any
+TypeFormatNumSpec = Any

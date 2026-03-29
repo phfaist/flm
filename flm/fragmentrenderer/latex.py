@@ -6,6 +6,8 @@ from pylatexenc.latexencode import get_builtin_rules as pyltxenc_lenc_get_builti
 import logging
 logger = logging.getLogger(__name__)
 
+from .._typing_helpers import Callable, Mapping, Any
+
 from ._base import FragmentRenderer
 
 
@@ -26,7 +28,9 @@ class LatexFragmentRenderer(FragmentRenderer):
     from this code generator.
     """
 
-    heading_commands_by_level = {
+
+
+    heading_commands_by_level : Mapping[int|str, str] = {
         1: "section",
         2: "subsection",
         3: "subsubsection",
@@ -38,14 +42,14 @@ class LatexFragmentRenderer(FragmentRenderer):
         'theorem': "flmTheoremHeading",
     }
 
-    text_format_cmds = {
+    text_format_cmds : Mapping[str,str|None] = {
         'textit': 'textit',
         'textbf': 'textbf',
         'defterm-term': 'flmDisplayTerm',
         'term-in-defining-defterm': None,
     }
 
-    latex_semantic_block_environments = {
+    latex_semantic_block_environments : Mapping[str,str] = {
         'defterm': 'flmDefterm',
         
         'theoremlike': 'flmThmTheoremLike',
@@ -61,26 +65,27 @@ class LatexFragmentRenderer(FragmentRenderer):
         'blockquote': 'flmBlockquote',
     }
 
-    latex_lines_environments = {
+    latex_lines_environments : Mapping[str, str|None] = {
         'quote': 'quote',
     }
 
     # this attribute is picked up by baseformatting.NoExtraSpaceAfterDotMacro
-    latex_macro_no_extra_space_after_dot = r'\@'
+    latex_macro_no_extra_space_after_dot : str = r'\@'
 
-    use_phantom_section = True
-    latex_label_prefix = 'x:'
+    use_phantom_section : bool = True
+    latex_label_prefix : str = 'x:'
 
-    debug_disable_pin_labels = False
+    debug_disable_pin_labels : bool = False
+    debug_disable_link_hyperref : bool = False
 
-    use_flm_macro_for_pinning_labels = True
+    use_flm_macro_for_pinning_labels : bool = True
 
     # can set to a macroname in which inline verbatim content will be wrapped.
     # The content will already be escaped appropriately.
-    latex_wrap_verbatim_macro = None
+    latex_wrap_verbatim_macro : str|None = None
 
-    use_endnote_latex_command = None #'textsuperscript'
-    use_citation_latex_command = None #'textsuperscript'
+    use_endnote_latex_command : str|None = None #'textsuperscript'
+    use_citation_latex_command : str|None = None #'textsuperscript'
 
 
     # ------------------
@@ -526,8 +531,6 @@ class LatexFragmentRenderer(FragmentRenderer):
 
         return s
 
-
-    debug_disable_link_hyperref = False
 
     def render_latex_link_hyperref(self, display_content, to_target_id):
         if self.debug_disable_link_hyperref:

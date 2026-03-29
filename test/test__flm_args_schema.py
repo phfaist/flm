@@ -7,7 +7,7 @@ import typing
 from typing import Optional, TypedDict
 from collections.abc import Sequence, Mapping
 
-from flm._flm_args_schema import type_to_json_schema, function_json_schema, get_args_schema
+from flm._flm_args_schema import type_to_json_schema, function_json_schema, get_args_schema_feature
 
 
 
@@ -191,15 +191,20 @@ class TestFunctionJsonSchema(unittest.TestCase):
         self.assertEqual(result["additionalProperties"], False)
 
 
-class TestGetArgsSchema(unittest.TestCase):
+# ---
+
+class TestGetArgsSchemaFeature(unittest.TestCase):
 
     def test_class_init(self):
         class MyClass:
             def __init__(self, x: int, y: str = "default"):
                 pass
+            DocumentManager = None
+            RenderManager = None
 
-        result = get_args_schema(MyClass)
+        result = get_args_schema_feature(MyClass)
         self.assertTrue("init" in result)
+        self.assertEqual(set(result.keys()), set(['init', 'render_manager_initialize', 'document_manager_initialize']))
         init_schema = result["init"]
         self.assertEqual(init_schema["properties"]["x"], {"type": "integer"})
         self.assertEqual(init_schema["properties"]["y"], {"type": "string"})

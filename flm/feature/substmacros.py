@@ -27,8 +27,6 @@ from ..flmspecinfo import (
 
 from .._typing_helpers import Any, Mapping, Sequence
 
-from .._flm_args_schema import get_args_schema as _get_args_schema
-
 from ._base import Feature
 
 
@@ -1088,10 +1086,6 @@ class FeatureSubstMacros(Feature):
     feature_name = 'macros'
     feature_title = 'Custom macros definitions'
     
-
-    @classmethod
-    def get_args_schema(cls):
-        return _get_args_schema(cls)
 
     def __init__(self, definitions : TypeSubstDefinitions|None):
         super().__init__()

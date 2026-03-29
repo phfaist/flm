@@ -1,5 +1,22 @@
 import re
 
+
+from ._typing_helpers import (
+    TypeFormatNumName,
+    TypeFormatNumFn,
+    TypeFormatNumSpec,
+    TypeFormatSubnumSpec,
+    TypeJoinSpecName,
+    TypeJoinSpecDict,
+    TypeCounterFormatterInput,
+    TypeCounterFormatterSpecDict,
+    TypePrefixDisplayInput,
+    TypeJoinSpecInput,
+    Sequence,
+    Mapping,
+)
+
+
 def alphacounter(n, lower=True):
     r"""
     Returns a string representing the number `n` using a latin letter,
@@ -150,7 +167,7 @@ def unicodesubscriptcounter(n):
 
 
 
-standard_counter_formatters = {
+standard_counter_formatters : dict[TypeFormatNumName, TypeFormatNumFn] = {
     'alph': lambda n: alphacounter(n, lower=True),
     'Alph': lambda n: alphacounter(n, lower=False),
     'roman': lambda n: romancounter(n, lower=True),
@@ -197,18 +214,14 @@ def _replace_dollar_template_delayed(x, vrs):
 
 
 def parse_counter_format_num(
-        counter_formatter,
-        named_counter_formatters=standard_counter_formatters,
-        str_use_tag_template=False,
-        tag_template_initials_counters=_standard_tag_template_initials_formatters,
+        counter_formatter : TypeFormatNumSpec,
+        named_counter_formatters : dict[str, TypeFormatNumFn] = standard_counter_formatters,
+        str_use_tag_template : bool = False,
+        tag_template_initials_counters : dict[str, TypeFormatNumFn] = _standard_tag_template_initials_formatters,
 ):
     r"""
     Doc...........
     """
-    #
-    # TODO, deprecate this function by this name (see below) -- rename to
-    # `parse_counter_format_num()` & document it under that name below.
-    #
 
     if callable(counter_formatter):
         return counter_formatter
@@ -231,9 +244,8 @@ def parse_counter_format_num(
     except:
         pass
     if counter_formatter_template:
-        tmpl = counter_formatter['template']
         # simple template parsing ${arabic}
-        return _replace_dollar_template_delayed(tmpl, named_counter_formatters)
+        return _replace_dollar_template_delayed(counter_formatter_template, named_counter_formatters)
 
     raise ValueError(f"Invalid counter_formatter: ‘{repr(counter_formatter)}’")
             
@@ -257,7 +269,7 @@ def _parse_counter_formatter_from_tag_template(
 
 
 
-def parse_counter_format_subnum(format_subnum):
+def parse_counter_format_subnum(format_subnum : TypeFormatSubnumSpec):
     if callable(format_subnum):
         return format_subnum
 
@@ -275,7 +287,7 @@ def parse_counter_format_subnum(format_subnum):
 
 
 
-_default_formatter_join_spec = {
+_default_formatter_join_spec : dict[TypeJoinSpecName, TypeJoinSpecDict] = {
     'default': {
         'one_pre': '',
         'one_post': '',
@@ -310,8 +322,9 @@ _default_formatter_join_spec = {
 
 
 
-def build_counter_formatter(counter_formatter, default_counter_formatter_spec, *,
-                            counter_formatter_id):
+def build_counter_formatter(counter_formatter : TypeCounterFormatterInput,
+                            default_counter_formatter_spec : TypeCounterFormatterSpecDict, *,
+                            counter_formatter_id : str) -> 'CounterFormatter':
     r"""
     Build a :py:class:`CounterFormatter` instance from the given
     configuration counter_formatter.  It can be a string (e.g. 'arabic') or a
@@ -356,7 +369,6 @@ _rx_safenumprefix = re.compile(r'[^A-Za-z0-9_-]+')
 
 class ValueWithSubNums:
     def __init__(self, value, subnums=()):
-        self.values_tuple = None
         if hasattr(value, 'values_tuple'):
             self.values_tuple = tuple(value.values_tuple)
         else:
@@ -431,12 +443,17 @@ class CounterFormatter:
     FIXME: Document me!  Doc.......................
     """
 
-    def __init__(self, format_num, prefix_display=None, 
-                 delimiters=None, join_spec=None, name_in_link=True,
-                 repeat_numprefix_in_range=False,
-                 counter_formatter_id=None,
-                 subnums_format_nums=(),
-                 ):
+    def __init__(
+        self,
+        format_num : TypeFormatNumSpec,
+        prefix_display : TypePrefixDisplayInput = None,
+        delimiters : tuple[str, str]|None = None,
+        join_spec : TypeJoinSpecInput = None,
+        name_in_link : bool = True,
+        repeat_numprefix_in_range : bool = False,
+        counter_formatter_id : str|None = None,
+        subnums_format_nums : Sequence[TypeFormatSubnumSpec] = (),
+    ):
 
         self.format_num = format_num
         self._format_num_fn = parse_counter_format_num(format_num)
@@ -483,6 +500,10 @@ class CounterFormatter:
             'counter_formatter_id',
             'subnums_format_nums',
         )
+
+    # needed for typing hints to work correctly
+    _flmtyping_is = 'CounterFormatter'
+    
 
     def format_number(self, n, numprefix=None, subnums=None):
         s = ''
@@ -654,7 +675,7 @@ class CounterFormatter:
 
         def _format_val(val, *, numprefix, range_from=None):
             n = val.values_tuple[0]
-            subnums = tuple(val.values_tuple[1:])
+            subnums = list(val.values_tuple[1:])
             if range_from is not None:
                 numprefix = None
                 if range_from.values_tuple[0] == n:
@@ -663,6 +684,7 @@ class CounterFormatter:
                 for j in range(len(subnums)):
                     if subnums[j] == v0subnums[j]:
                         subnums[j] = None
+            subnums = tuple(subnums)
             if wrap_format_num is not None:
                 return wrap_format_num(
                     self.format_number(

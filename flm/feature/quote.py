@@ -30,8 +30,6 @@ from ..flmspecinfo import (
 
 from .._typing_helpers import Mapping, Sequence
 
-from .._flm_args_schema import get_args_schema as _get_args_schema
-
 from ._base import Feature
 
 
@@ -574,10 +572,6 @@ class FeatureQuote(Feature):
     # processing or rendering time.
     DocumentManager = None
     RenderManager = None
-
-    @classmethod
-    def get_args_schema(cls):
-        return _get_args_schema(cls)
 
     def __init__(self, quote_environments : Mapping[str, TypeQuoteEnvironmentDef]|None = None):
         super().__init__()

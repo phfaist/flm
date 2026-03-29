@@ -29,9 +29,9 @@ def setup_logging(level):
             # 🎶 💭 📣 🔔 ⏳ 🔧 🔩 ✨ 💥 🔥 🐢 👉
             "DEBUG":    "%(log_color)s〰️    %(message)s", #'  [%(name)s]'
             "INFO":     "%(log_color)s✨  %(message)s",
-            "WARNING":  "%(log_color)s⚠️   %(message)s", # (%(module)s:%(lineno)d)",
-            "ERROR":    "%(log_color)s🚨  %(message)s", # (%(module)s:%(lineno)d)",
-            "CRITICAL": "%(log_color)s🚨  %(message)s", # (%(module)s:%(lineno)d)",
+            "WARNING":  "\n%(log_color)s⚠️   %(message)s\n", # (%(module)s:%(lineno)d)",
+            "ERROR":    "\n%(log_color)s🚨  %(message)s\n", # (%(module)s:%(lineno)d)",
+            "CRITICAL": "\n%(log_color)s🚨  %(message)s\n", # (%(module)s:%(lineno)d)",
         },
         stream=sys.stderr
     ) )

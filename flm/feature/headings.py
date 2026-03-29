@@ -15,13 +15,13 @@ from pylatexenc.latexnodes import (
 )
 
 from .. import flmspecinfo
-from ..counter import build_counter_formatter, CounterFormatter
+from ..counter import (
+    build_counter_formatter, CounterFormatter,
+)
 
-from .._typing_helpers import Mapping, Any
+from .._typing_helpers import Mapping, Any, TypeCounterFormatterInput, TypeCounterFormatterSpecDict, TypeFormatNumSpec
 
 from ._base import Feature
-
-from .._flm_args_schema import get_args_schema as _get_args_schema
 
 from . import refs
 from . import numbering
@@ -169,7 +169,7 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
         return s
 
 
-_default_counter_formatter_spec = {
+_default_counter_formatter_spec : TypeCounterFormatterSpecDict = {
     'format_num': { 'template': '${arabic}' },
     'prefix_display': {
         'singular': '§ ',
@@ -239,7 +239,7 @@ class TypeSectionCommandDef(TypedDict, total=False):
     inline : bool
 
 class TypeSectionNumberingDef(TypedDict, total=False):
-    counter_formatter : str|Mapping[str, Any]|None
+    counter_formatter : TypeCounterFormatterInput
     numprefix : str|None
     heading_joiner : str
     number_within_reset_at : str|bool|None
@@ -264,7 +264,7 @@ class FeatureHeadings(Feature):
                 self,
                 numbering_section_depth : int|bool|None = None,
                 section_numbering_by_level : Mapping[int, TypeSectionNumberingDef]|None = None,
-                counter_formatter : str|Mapping[str, Any]|None = None,
+                counter_formatter : TypeCounterFormatterInput = None,
         ):
             self.target_id_counters = {}
             self.target_ids = {}
@@ -495,11 +495,11 @@ class FeatureHeadings(Feature):
         the parent counter is determined automatically (no parent counter for
         top-level heading and last numbered heading level for sub-headings).
         """
-        def __init__(self, 
-                     numprefix=None,
-                     heading_joiner=' ',
-                     number_within_reset_at=True,
-                     counter_formatter=None,):
+        def __init__(self,
+                     numprefix : str|None = None,
+                     heading_joiner : str = ' ',
+                     number_within_reset_at : str|bool|None = True,
+                     counter_formatter : TypeCounterFormatterInput = None,):
             super().__init__()
             self.numprefix = numprefix
             self.heading_joiner = heading_joiner
@@ -522,15 +522,11 @@ class FeatureHeadings(Feature):
         'section_numbering_by_level': _default_section_numbering_by_level_with_nomerge,
     }
 
-    @classmethod
-    def get_args_schema(cls):
-        return _get_args_schema(cls)
-
     def __init__(
             self,
-            section_commands_by_level : Mapping[int, TypeSectionCommandDef]|None = None,
+            section_commands_by_level : Mapping[int, TypeSectionCommandDef|str]|None = None,
             numbering_section_depth : int|bool|None = False,
-            counter_formatter : str|Mapping[str, Any]|None = None,
+            counter_formatter : TypeCounterFormatterInput = None,
             section_numbering_by_level : Mapping[int, TypeSectionNumberingDef]|None = None,
     ):
         super().__init__()

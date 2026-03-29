@@ -1,3 +1,4 @@
+from typing import TypedDict
 
 # from ...fragmentrenderer._base import FragmentRenderer
 from ...flmrecomposer.purelatex import (
@@ -18,6 +19,12 @@ _default_config = {
 
 
 class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
+
+    class TypeWorkflowConfigDict(TypedDict, total=False):
+        recomposer_options : dict
+        skip_packages : list[str]
+        add_bibliography : bool
+
 
     @staticmethod
     def get_workflow_default_config(flm_run_info, config):

@@ -1,15 +1,15 @@
 
 
-# no-op implementation for Transcrypt
-get_args_schema = lambda _cls : {}      # type: ignore
-
 ### BEGIN_FLM_PYTHON_TYPING
 
 import collections.abc
 import inspect
 import types
 import typing
-from typing import get_type_hints, get_origin, get_args, is_typeddict
+from typing import (
+    TypedDict,
+    get_type_hints, get_origin, get_args, is_typeddict,
+)
 
 
 
@@ -84,9 +84,18 @@ def function_json_schema(fn):
 
     properties = {}
     required = []
+    additionalProperties = False
 
     for name, param in sig.parameters.items():
         if name == "self":
+            continue
+
+        if param.kind == inspect.Parameter.VAR_POSITIONAL:
+            # skip "*args"
+            continue
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            # have **kwargs, so allow additional properties
+            additionalProperties = {}
             continue
 
         hint = hints.get(name, typing.Any)
@@ -99,15 +108,35 @@ def function_json_schema(fn):
         "type": "object",
         "properties": properties,
         "required": required,
-        "additionalProperties": False,
+        "additionalProperties": additionalProperties,
     }
 
 
+def get_public_attr_types(cls):
+    hints = get_type_hints(cls)
+    return {
+        name: tp
+        for name, tp in hints.items()
+        if not name.startswith("_")
+    }
 
-def get_args_schema(cls):
+def class_typed_attributes_json_schema(cls):
+    hints = get_public_attr_types(cls)
+    tp = TypedDict(f"Type{cls.__name__}Dict", hints, total=False)
+    return type_to_json_schema(tp)
+
+
+def get_args_schema_feature(cls):
     # inspect the class' constructor arguments.
     return {
-        'init': function_json_schema(cls.__init__),
+        'init':
+            function_json_schema(cls.__init__) if hasattr(cls, '__init__') else False,
+        'document_manager_initialize':
+            function_json_schema(cls.DocumentManager.initialize)
+            if cls.DocumentManager is not None else False,
+        'render_manager_initialize':
+            function_json_schema(cls.RenderManager.initialize)
+            if cls.RenderManager is not None else False,
     }
 
 

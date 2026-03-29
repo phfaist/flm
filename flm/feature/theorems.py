@@ -25,9 +25,7 @@ from .. import flmspecinfo
 from ..counter import build_counter_formatter
 from . import numbering
 
-from .._typing_helpers import Any, Mapping, Sequence
-
-from .._flm_args_schema import get_args_schema as _get_args_schema
+from .._typing_helpers import Any, Mapping, Sequence, TypeCounterFormatterInput, TypeCounterFormatterSpecDict
 
 from ._base import Feature, FeatureRenderManagerBase
 from . import headings
@@ -632,7 +630,7 @@ default_theorem_theorem_types = {
     }
 }
 
-default_thm_shared_counter_formatter_spec = {
+default_thm_shared_counter_formatter_spec : TypeCounterFormatterSpecDict = {
     'format_num': 'arabic',
     'delimiters': ('',''),
     'join_spec': 'default',
@@ -654,6 +652,7 @@ class TypeTheoremTypeDef(TypedDict, total=False):
     numbered : bool
     shared_numbering : bool
     theorem_heading_level : int|str # special "heading level" can be string for fragment_renderer
+    counter_formatter : TypeCounterFormatterInput
     body_final_content : str
     heading_title_pre : str
     heading_title_post : str
@@ -716,14 +715,10 @@ class FeatureTheorems(Feature):
 
     # ---
 
-    @classmethod
-    def get_args_schema(cls):
-        return _get_args_schema(cls)
-
     def __init__(self,
                  environments : str|Mapping[str, Mapping[str, Mapping[str, Any]]]|None = None,
                  theorem_types : Mapping[str, TypeTheoremTypeDef]|None = None,
-                 shared_counter_formatter : str|Mapping[str, Any]|None = None,
+                 shared_counter_formatter : TypeCounterFormatterInput = None,
                  allowed_ref_label_prefixes : Sequence[str]|None = None):
         super().__init__()
         if environments is None:

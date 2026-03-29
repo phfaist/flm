@@ -54,6 +54,9 @@ class FragmentRenderer:
     etc.). If False, then the whole content must be rendered in two passes.
     """
 
+
+
+
     def __init__(self, config=None):
         super().__init__()
         # use kwargs to set properties on the class object.
