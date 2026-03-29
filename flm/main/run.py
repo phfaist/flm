@@ -525,13 +525,6 @@ def load_workflow_environment(*,
         config.get('flm', {}),
     )
 
-    # validate the workflow config
-    validate_config_for_tp(
-        _join_config_path(['flm', 'workflow_config', workflow_name]),
-        WorkflowClass.TypeWorkflowConfigDict,
-        config.get('flm',{}).get('workflow_config', {}),
-    )
-    
     #
     # Set up the correct output directory (temporary directory, if applicable)
     #
@@ -615,6 +608,13 @@ def load_workflow_environment(*,
 
     logger.debug("Loading workflow ‘%s’ with config = %s", workflow_name,
                  abbrev_value_str(workflow_config, maxstrlen=512))
+
+    # validate the workflow config
+    validate_config_for_tp(
+        _join_config_path(['flm', 'workflow_config', workflow_name]),
+        WorkflowClass.TypeWorkflowConfigDict,
+        workflow_config,
+    )
 
     workflow = WorkflowClass(
         workflow_config,
