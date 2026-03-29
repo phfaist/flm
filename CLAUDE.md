@@ -18,6 +18,7 @@ Packages are managed via `poetry`.  Prefix test and python-specific calls approp
   - `feature/` — pluggable feature modules (`href.py`, `quote.py`, `math.py`, …)
   - `fragmentrenderer/` — output backends (`html.py`, `latex.py`, `text.py`, …)
   - `flmrecomposer/` — pure-LaTeX recomposer (`purelatex.py`)
+  - `main/` — CLI entry point, config merging, workflows, JSON schema generation (`run.py`, `main.py`, `configmerger.py`, `_flm_args_schema.py`)
 - `test/` — unittest files, one per module/feature
 
 ## Key Patterns
@@ -119,4 +120,4 @@ Used for forward references (`\ref`, `\eqref`, `\cite`). The mechanism:
 
 ## Documentation
 
-Sphinx docs live in `doc/`. Build with `poetry run sphinx-build -b html doc doc/_build/html`. API docs use `autodoc` directives pulling from source docstrings. User guide pages (overview, standard-syntax, configuration, features, model, lib) are hand-written RST.
+Sphinx docs live in `doc/`. Build with `poetry run sphinx-build -b html doc doc/_build/html`. API docs use `autodoc` directives pulling from source docstrings. User guide pages (overview, standard-syntax, configuration, features, model, lib) are hand-written RST. The build generates `flm-config-json-schema.json` in the HTML output root via a `build-finished` hook in `conf.py`. CLI flags `--validate-config-only` and `--print-config-json-schema` expose schema validation and generation.
