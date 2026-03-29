@@ -48,6 +48,37 @@ flm:
            cmdname: 'subsubparagraph'
            inline: True
 
+     substmacros:
+       definitions:
+         macros:
+           mymacro:
+             arguments_spec_list:
+               - parser: '['
+                 argname: 'optarg'
+               - parser: '{'
+                 argname: 'myarg'
+             default_argument_values:
+               optarg: 'Greetings'
+             content: '\textit{#{optarg}, #{myarg}}'
+
+           wgt:
+             content:
+               textmode: null
+               mathmode: '\operatorname{wgt}'
+
+
+           attentionsign:
+             arguments_spec_list: '{'
+             content: '\textbf{⚠ #1}'
+             render_time_substitution: true
+             is_block_level: true
+
+           ArgEq:
+             arguments_spec_list: ['{', 't=']
+             content: '{#1}{\mkern 2mu}{=}{\mkern 2mu}'
+
+
+
    renderer:
      html:
        heading_tags_by_level:
@@ -89,6 +120,8 @@ flm:
 ---
 A Hello, world. \emph{Here I am.} What would you like
 to    see?
+
+\mymacro[Hello]{you}.
 
     \begin{itemize}
   \item cool things?

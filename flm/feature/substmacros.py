@@ -1057,12 +1057,13 @@ class SubstitutionSpecials(SubstitutionCallableSpecInfo):
 # Transcrypt does not need the type definition because it strips type
 # annotations.  Provide it in python.
 ### BEGIN_FLM_PYTHON_TYPING
-from typing import TypedDict
+from typing import TypedDict, Literal
+ContentMode = Literal['textmode', 'mathmode']
 class TypeSubstItemDef(TypedDict, total=False):
     arguments_spec_list : Sequence[Mapping[str, Any]]|None
     default_argument_values : Mapping[str, Any]|None
     argument_number_offset : int|None
-    content : str|Mapping[str, str]|None
+    content : str|Mapping[ContentMode, str|None]|None
     is_block_level : bool|None
     render_time_substitution : bool
 
