@@ -24,6 +24,7 @@ documents like a set of `lecture notes <https://phfaist.com/QEC>`_.
    overview
    standard-syntax
    command-line
+   workflows
    configuration
    features
    model

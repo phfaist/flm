@@ -18,14 +18,16 @@ class RenderWorkflow:
     :meth:`postprocess_rendered_document` method to implement
     format-specific behavior.
 
-    .. attribute:: binary_output
-
-        If ``True``, the workflow produces binary (non-text) output.
-        Defaults to ``False``.
     """
 
     binary_output = False
+    r"""
+    Subclasses should set this attribute to ``True`` if the workflow
+    produces binary (non-text) output.  If the workflow leaves this attribute as
+    ``False``, then the workflow produces text output.
+    """
 
+    
     @staticmethod
     def get_workflow_default_config(flm_run_info, config) -> dict:
         r"""
@@ -73,6 +75,14 @@ class RenderWorkflow:
 
 
     TypeWorkflowConfigDict : type = dict
+    r"""
+    Workflow modules may define a `TypeWorkflowConfigDict` as a guidance to
+    what argument structure their `workflow_config` should conform to.  This
+    should be set to a python type hint (e.g., a `TypedDict`).
+
+    This type hint is used to compose a JSON schema for validating workflow
+    configurations.  (E.g. for ``flm --print-config-json-schema``.)
+    """
 
 
     def __init__(

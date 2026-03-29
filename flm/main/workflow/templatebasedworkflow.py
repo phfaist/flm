@@ -188,3 +188,7 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
 
 
 RenderWorkflowClass = TemplateBasedRenderWorkflow
+r"""
+Module attribute that declares this module as a module that defines an FLM
+workflow.
+"""

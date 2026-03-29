@@ -78,11 +78,11 @@ for emphasis, ``\section{Title}`` for headings,
 ``\begin{enumerate}...\end{enumerate}`` for lists, ``\(E=mc^2\)`` for inline
 math, and so on.
 
-.. note::
-
-   This project is in active development.  While already used in production for
-   the Error Correction Zoo, you can expect the API to evolve.  The ``text``,
-   ``markdown``, and ``latex`` output formats are still experimental.
+This project is in fairly active development.  It is already used in production
+for the Error Correction Zoo and for my lecture notes.  I strive to keep the API
+as stable as possible, althought it is possible that some elements of the API
+might still evolve.  The ``text`` and ``markdown`` output formats are also still
+somewhat rudimentary.
 
 
 Installation
@@ -140,25 +140,95 @@ installed.
 Output formats
 --------------
 
-TODO: Brief overview of possible output formats. ... ...
+FLM can render your document to several output formats.  Use the ``-f`` /
+``--format`` flag to select the format, and the ``-w`` / ``--workflow`` flag to
+select the rendering workflow when needed.
 
-* HTML, note possible templates.  Check the ``simple`` or ``revtex`` templates.
-  More to follow.  See also the `flm-templates` package for a more robust
-  template engine and some additional example templates.
+HTML
+^^^^
 
-* Rendered LaTeX: Produce latex code that compiles to a PDF.  Most of the
-  document logic rendering will be taken care of by FLM.  E.g., section/equation
-  numbering, references will be resolved, etc.  This latex output is mainly a
-  tool to build a PDF.
+HTML is the default output format.  Math is marked up with ``<span>`` tags for
+use with `MathJax <https://www.mathjax.org/>`_, so equations render beautifully
+in the browser::
 
-* Direct PDF output: use the `runlatexpdf` workflow ... ...
+    flm mydocument.flm -o mydocument.html -f html -t simple
 
-* Recomposed LaTeX: Produce latex code that reproduces FLM's input.  Labels and
-  references are left for the TeX/LaTeX engine to handle.  Use this to produce a
-  part of a larger LaTeX document or book, for instance.  Use the `flmlatex`
-  workflow ... ...
+The ``-t`` / ``--template`` flag selects a template that wraps the rendered
+content in a complete HTML page with styling.  The built-in ``simple`` template
+provides a clean layout with configurable fonts and content width.  Use
+``-t ''`` (empty string) to output the raw rendered HTML fragment without any
+surrounding template.
 
-* Text and Markdown: rudimentary support, mainly as a proof of principle.
+See also the `flm-templates <https://github.com/phfaist/flm-templates>`_ and
+`flm-htmlplus <https://github.com/phfaist/flm-htmlplus>`_ extension packages
+for additional templates and a more powerful template engine::
+
+    pip install flm-templates flm-htmlplus
+    flm mydocument.flm -o output.html -w flm_htmlplus -P 'pkg:flm_templates' -t sunset
+
+Rendered LaTeX
+^^^^^^^^^^^^^^
+
+The ``latex`` output format produces LaTeX source code where FLM handles all
+the document logic: section and equation numbering, cross-references, endnotes,
+and float placement are all resolved by FLM.  The resulting LaTeX is primarily
+intended as a vehicle for producing a typeset PDF::
+
+    flm mydocument.flm -o mydocument.tex -f latex -t simple
+
+Built-in LaTeX templates include ``simple`` (``article`` class with customizable
+fonts) and ``revtex`` (for Physical Review-style documents).  Template settings
+such as the document class options, font packages, and preamble content can be
+customized via configuration (see :doc:`configuration`).
+
+PDF
+^^^
+
+To go directly from FLM to PDF, use the ``runlatexpdf`` workflow.  This renders
+your document to LaTeX, wraps it in a template, and compiles it to PDF using
+``latexmk``.  A LaTeX distribution such as `TeX Live
+<https://tug.org/texlive/>`_ must be installed on your system::
+
+    flm mydocument.flm -o mydocument.pdf -w runlatexpdf -f pdf
+
+You can select the LaTeX template with ``-t simple`` (the default) or
+``-t revtex``.
+
+Recomposed LaTeX
+^^^^^^^^^^^^^^^^
+
+The ``flmlatex`` workflow produces pure standard LaTeX source code that
+reproduces the intent of your FLM input, but leaves labels and cross-references
+for the TeX/LaTeX engine to handle (via ``\label`` and ``\ref``).  This is
+useful when you want to include FLM content as part of a larger LaTeX document
+or book::
+
+    flm mydocument.flm -o mydocument.tex -w flmlatex
+
+This differs from the rendered LaTeX output (``-f latex``) in an important way.
+The rendered LaTeX resolves all cross-references and numbering itself, producing
+LaTeX whose primary role is to be compiled to a PDF.  The recomposed LaTeX
+instead converts FLM constructs into their standard LaTeX equivalents, tracking
+required packages, so that the result integrates naturally into a LaTeX workflow
+where the LaTeX engine handles references, numbering, and compilation.
+
+Text and Markdown
+^^^^^^^^^^^^^^^^^
+
+FLM can also render to plain text and Markdown::
+
+    flm mydocument.flm -o mydocument.txt -f text
+    flm mydocument.flm -o mydocument.md -f markdown
+
+The text renderer produces ASCII-formatted output with headings underlined by
+``=`` and ``-`` characters, indented lists, and URLs displayed in angle
+brackets.  The Markdown renderer produces standard Markdown with ``# Heading``,
+``**bold**``, ``*italic*``, and ``[link](url)`` syntax.
+
+The ``text`` and ``markdown`` output formats are still rather rudimentary.  I
+might improve their implementation in the future.
+
+See :doc:`workflows` for more details on workflows and their configuration.
 
 
 

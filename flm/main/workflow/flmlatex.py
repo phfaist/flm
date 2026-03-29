@@ -19,6 +19,11 @@ _default_config = {
 
 
 class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
+    r"""
+    Workflow that uses :py:class:`flm.flmrecomposer.purelatex` to recompose
+    a document into LaTeX code that mirrors the original FLM's document
+    structure.
+    """
 
     class TypeWorkflowConfigDict(TypedDict, total=False):
         recomposer_options : dict
@@ -141,3 +146,7 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
 
 
 RenderWorkflowClass = FlmLatexWorkflow
+r"""
+Module attribute that declares this module as a module that defines an FLM
+workflow.
+"""

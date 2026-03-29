@@ -32,6 +32,11 @@ latexmk_exe = find_std_exe('latexmk')
 
 
 class RunPdfLatexRenderWorkflow(RenderWorkflow):
+    r"""
+    Workflow that uses a standard latex-output rendering pipeline with a
+    template and then compiles the document to PDF using `latexmk`.  Assumes a
+    LaTeX distribution is installed (e.g. TeXLive).
+    """
 
     binary_output = True
 
@@ -153,3 +158,7 @@ class RunPdfLatexRenderWorkflow(RenderWorkflow):
 # ------------------------------------------------
 
 RenderWorkflowClass = RunPdfLatexRenderWorkflow
+r"""
+Module attribute that declares this module as a module that defines an FLM
+workflow.
+"""
