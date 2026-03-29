@@ -23,7 +23,7 @@ from ._util import abbrev_value_str
 
 from flm import flmenvironment
 
-from flm._flm_args_schema import (
+from ._flm_args_schema import (
     function_json_schema, get_args_schema_feature, type_to_json_schema,
     class_typed_attributes_json_schema
 )

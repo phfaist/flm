@@ -7,7 +7,7 @@ import typing
 from typing import Optional, TypedDict
 from collections.abc import Sequence, Mapping
 
-from flm._flm_args_schema import type_to_json_schema, function_json_schema, get_args_schema_feature
+from flm.main._flm_args_schema import type_to_json_schema, function_json_schema, get_args_schema_feature
 
 
 
