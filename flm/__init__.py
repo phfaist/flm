@@ -10,6 +10,6 @@ See :py:func:`~flm.flmenvironment.make_standard_environment` and
 # magic, no pkg_resources, no other stuff like that), especially for possible
 # future use with transcrypt.
 
-__version__ = "0.3.0alpha000030"
+__version__ = "0.4.0beta000000"
 
 # ALSO BUMP VERSION NUMBER IN pyproject.toml !!
