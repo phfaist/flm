@@ -36,6 +36,8 @@ packages to write documents, try:
 $ pip install flm-core[maincmdl] flm-citations flm-templates flm-htmlplus
 ```
 
+Extensive **documentation** is available at: https://flm-core.readthedocs.io/
+
 Example `mydocument.flm`:
 ```latex
 ---
@@ -208,6 +210,7 @@ with ``pkg:some_flm_extension_package/some/preset/name``.
 
 Here's a basic parser configuration that you can adapt:
 ```yaml
+# yaml-language-server: $schema=https://flm-core.readthedocs.io/en/latest/flm-config-json-schema.json
 flm:
   parsing:
     # Enable/Disable comments as in LaTeX, led by ‘%%’
@@ -230,6 +233,7 @@ flm:
 Here's a basic renderer configuration that you can adapt **for HTML output**
 (`--format=html`):
 ```yaml
+# yaml-language-server: $schema=https://flm-core.readthedocs.io/en/latest/flm-config-json-schema.json
 flm:
   renderer:
     html:
@@ -249,6 +253,7 @@ flm:
 Here's a basic renderer configuration that you can adapt **for text output**
 (`--format=text`):
 ```yaml
+# yaml-language-server: $schema=https://flm-core.readthedocs.io/en/latest/flm-config-json-schema.json
 flm:
   renderer:
     text:
@@ -258,6 +263,7 @@ flm:
 Here's a basic renderer configuration that you can adapt **for LaTeX output**
 (`--format=latex`):
 ```yaml
+# yaml-language-server: $schema=https://flm-core.readthedocs.io/en/latest/flm-config-json-schema.json
 flm:
   renderer:
     latex:
@@ -273,6 +279,7 @@ flm:
 Here's a basic renderer configuration that you can adapt **for Markdown output**
 (`--format=markdown`):
 ```yaml
+# yaml-language-server: $schema=https://flm-core.readthedocs.io/en/latest/flm-config-json-schema.json
 flm:
   renderer:
     markdown:
@@ -298,6 +305,7 @@ Features can be selected and configured directly in the FLM config metadata.  Fo
 the following configuration is extracted from the default feature configuration when you run
 FLM:
 ```yaml
+# yaml-language-server: $schema=https://flm-core.readthedocs.io/en/latest/flm-config-json-schema.json
 flm:
   features:
     # list features that should be available here.
@@ -366,6 +374,58 @@ flm:
               mathmode: '\mathbb{1}'
 ```
 
+### Separate configuration file: `flmconfig.yaml`
+
+You don't have to type your entire FLM configuration as front matter in your FLM file.
+You probably want your FLM file to focus on content and some basic metadata (title, date,
+author).  Instead, you can put your extensive FLM customization in a separate file
+called `flmconfig.yaml` which will automatically be picked up and parsed by `flm`:
+
+**mydoc.flm**:
+```yaml
+---
+title: My Document
+date: May 15, 2026
+author: Me
+---
+
+Dollar-inline \emph{math mode} works here ($a+b=c$) because the setting is
+picked up in the sibling \verbcode{flmconfig.yaml} file.
+…
+```
+
+**flmconfig.yaml**:
+```yaml
+# yaml-language-server: $schema=https://flm-core.readthedocs.io/en/latest/flm-config-json-schema.json
+flm:
+  parsing:
+    # Enable/Disable math mode with $ signs as in LaTeX
+    # in addition to \( ...\)
+    dollar_inline_math_mode: true
+    #...
+
+  renderer:
+    html:
+      use_link_target_blank: false
+
+    # ...
+
+  features:
+    # ...
+```
+
+The line `# yaml-language-server: $schema=………` is a YAML comment that has no effect for FLM.  You
+can however likely set up your editor (VS Code, Emacs, ...) to give you additional hints as to
+which fields are allowed and what types are expected in the configuration.  In VS Code, install
+the *Red Hat YAML* extension.  In Emacs, try `lsp-mode` or `eglot` after doing
+`npm i -g yaml-language-server` and making sure that node is in your system environment
+`$PATH` seen by emacs.
+
+You can even create per-output-format flm config files.  Say we have the files
+**flmconfig.html.yaml**, **flmconfig.latex.yaml**, and **flmconfig.yaml**.  When
+compiling a FLM document into HTML, the files **flmconfig.html.yaml** and **flmconfig.yaml**
+are both merged into the config.  See the documentation for more details.
+
 ## Additional Features such as *Citations*
 
 Additional features can be imported in the flm config.  They can reside in other
@@ -398,7 +458,8 @@ hopefully come soon.
 
 # Using the `flm` package
 
-Needs doc.
+Please read the docs (or have your favorite AI companion read the docs) at
+https://flm-core.readthedocs.io/ .
 
 ## Example. Converting FLM to HTML
 
