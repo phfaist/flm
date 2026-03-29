@@ -43,6 +43,7 @@ class TypeFragmentRenderer(_Protocol):
 class TypeCounterFormatter(_TypedDict, total=False):
     _flmtyping_is : Literal['CounterFormatter']
 
+
 # --- format_num specs ---
 
 TypeFormatNumName = Literal[
@@ -85,6 +86,9 @@ class TypePrefixDisplaySpec(_TypedDict, total=False):
     capital: TypePrefixDisplayVariant
 
 TypePrefixDisplayInput = _Union[None, str, TypePrefixDisplaySpec]
+
+
+TypeStandardCounterFormattersDict = dict[TypeFormatNumName, TypeFormatNumFn]
 
 
 # --- join_spec ---

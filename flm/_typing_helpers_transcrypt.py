@@ -20,6 +20,16 @@ TypeFragmentRenderer = Any
 TypeFLMDocument = Any
 
 TypeCounterFormatterInput = Any
-TypeCounterFormatterInput = Any
 TypeCounterFormatterSpecDict = Any
+TypeFormatNumFn = Any
+TypeFormatNumName = Any
 TypeFormatNumSpec = Any
+TypeFormatSubnumSpec = Any
+TypeJoinSpecDict = Any
+TypeJoinSpecInput = Any
+TypeJoinSpecName = Any
+TypePrefixDisplayInput = Any
+TypeStandardCounterFormattersDict = Any
+
+TypeEnumerationCounterFormatterInput = Any
+TypeEnumerationCounterFormatterSingleSpec = Any

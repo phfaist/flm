@@ -12,6 +12,7 @@ from ._typing_helpers import (
     TypeCounterFormatterSpecDict,
     TypePrefixDisplayInput,
     TypeJoinSpecInput,
+    TypeStandardCounterFormattersDict,
     Sequence,
     Mapping,
 )
@@ -167,7 +168,7 @@ def unicodesubscriptcounter(n):
 
 
 
-standard_counter_formatters : dict[TypeFormatNumName, TypeFormatNumFn] = {
+_standard_counter_formatters : TypeStandardCounterFormattersDict = {
     'alph': lambda n: alphacounter(n, lower=True),
     'Alph': lambda n: alphacounter(n, lower=False),
     'roman': lambda n: romancounter(n, lower=True),
@@ -177,6 +178,8 @@ standard_counter_formatters : dict[TypeFormatNumName, TypeFormatNumFn] = {
     'unicodesuperscript': unicodesuperscriptcounter,
     'unicodesubscript': unicodesubscriptcounter,
 }
+# ??? No idea why Transcrypt does not export this if I don't do it this way...
+standard_counter_formatters = _standard_counter_formatters
 r"""
 Dictionary providing standard counter formatters by name.  Some names
 mirror their LaTeX counter formatter counterparts (e.g., 'arabic', 'Roman').
@@ -503,7 +506,7 @@ class CounterFormatter:
 
     # needed for typing hints to work correctly
     _flmtyping_is = 'CounterFormatter'
-    
+
 
     def format_number(self, n, numprefix=None, subnums=None):
         s = ''
