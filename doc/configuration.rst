@@ -81,6 +81,47 @@ You can also include top-level metadata such as a document title:
       ...
 
 
+.. _config-schema-validation:
+
+Schema Validation
+-----------------
+
+A JSON schema for FLM configuration files is available at:
+
+  https://flm-core.readthedocs.io/en/latest/flm-config-json-schema.json
+
+You can use this schema to get autocompletion and validation in your editor.
+
+**VS Code:** Install the `Red Hat YAML
+<https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml>`_
+extension and add the following comment as the first line of your
+``flmconfig.yaml``:
+
+.. code-block:: yaml
+
+    # yaml-language-server: $schema=https://flm-core.readthedocs.io/en/latest/flm-config-json-schema.json
+
+    flm:
+      parsing:
+        dollar_inline_math_mode: true
+      features:
+        headings: {}
+        ...
+
+You can also validate your configuration from the command line with
+``--validate-config-only``:
+
+.. code-block:: bash
+
+    flm myfile.flm --validate-config-only
+
+Or print the full JSON schema with ``--print-config-json-schema``:
+
+.. code-block:: bash
+
+    flm myfile.flm --print-config-json-schema
+
+
 .. _config-frontmatter:
 
 YAML Front Matter

@@ -1,122 +1,123 @@
 ---
+# yaml-language-server: $schema=https://flm-core.readthedocs.io/en/latest/flm-config-json-schema.json
 title: 'A funny \emph{test} of a FLM document'
 author: 'Ph. Faist'
 date: 'March 32, 2092'
 flm:
-   template:
-     html: 'simple'
-   template_config:
-     html:
+  template:
+    html: 'simple'
+  template_config:
+    html:
+      simple:
+        render_header: true
+        font:
+          #family: 'Droid Sans Mono'
+          #family: 'Comic Sans MS'
+          family: 'EB Garamond' #'Harrington'
+          size: '18px'
+    latex:
        simple:
-         render_header: true
-         font:
-           #family: 'Droid Sans Mono'
-           #family: 'Comic Sans MS'
-           family: 'EB Garamond' #'Harrington'
-           size: '18px'
-     latex:
-        simple:
-          preamble:
-            general: |
-              \usepackage{phfthm}
-              \usepackage{phfparen}
+         preamble:
+           general: |
+             \usepackage{phfthm}
+             \usepackage{phfparen}
 
-   features:
-     theorems: {}
-     quote: {}
-     numbering:
-       number_within:
-         equation:
-           reset_at: subsection
-           numprefix: '${subsection}.'
+  features:
+    theorems: {}
+    quote: {}
+    numbering:
+      number_within:
+        equation:
+          reset_at: subsection
+          numprefix: '${subsection}.'
 
-     headings:
-       numbering_section_depth: 3
-       section_commands_by_level:
-         0: 'part'
-         # will NOT merge in remaining dict from default options.
-         1: 'section'
-         2: 'subsection'
-         3: 'subsubsection'
-         4:
-           cmdname: 'paragraph'
-           inline: True
-         5:
-           cmdname: 'subparagraph'
-           inline: True
-         6:
-           cmdname: 'subsubparagraph'
-           inline: True
+    headings:
+      numbering_section_depth: 3
+      section_commands_by_level:
+        0: 'part'
+        # will NOT merge in remaining dict from default options.
+        1: 'section'
+        2: 'subsection'
+        3: 'subsubsection'
+        4:
+          cmdname: 'paragraph'
+          inline: True
+        5:
+          cmdname: 'subparagraph'
+          inline: True
+        6:
+          cmdname: 'subsubparagraph'
+          inline: True
 
-     substmacros:
-       definitions:
-         macros:
-           mymacro:
-             arguments_spec_list:
-               - parser: '['
-                 argname: 'optarg'
-               - parser: '{'
-                 argname: 'myarg'
-             default_argument_values:
-               optarg: 'Greetings'
-             content: '\textit{#{optarg}, #{myarg}}'
+    substmacros:
+      definitions:
+        macros:
+          mymacro:
+            arguments_spec_list:
+              - parser: '['
+                argname: 'optarg'
+              - parser: '{'
+                argname: 'myarg'
+            default_argument_values:
+              optarg: 'Greetings'
+            content: '\textit{#{optarg}, #{myarg}}'
 
-           wgt:
-             content:
-               textmode: null
-               mathmode: '\operatorname{wgt}'
+          wgt:
+            content:
+              textmode: null
+              mathmode: '\operatorname{wgt}'
 
 
-           attentionsign:
-             arguments_spec_list: '{'
-             content: '\textbf{⚠ #1}'
-             render_time_substitution: true
-             is_block_level: true
+          attentionsign:
+            arguments_spec_list: '{'
+            content: '\textbf{⚠ #1}'
+            render_time_substitution: true
+            is_block_level: true
 
-           ArgEq:
-             arguments_spec_list: ['{', 't=']
-             content: '{#1}{\mkern 2mu}{=}{\mkern 2mu}'
+          ArgEq:
+            arguments_spec_list: ['{', 't=']
+            content: '{#1}{\mkern 2mu}{=}{\mkern 2mu}'
 
 
 
-   renderer:
-     html:
-       heading_tags_by_level:
-         0: 'h1'
-         1: "h1"
-         2: "h2"
-         3: "h3"
-         # we use <span> instead of <h4> because these paragraph headings might
-         # be rendered inline within the <p> element, and <h4> isn't allowed
-         # within <p>...</p>
-         4: "span"
-         5: "span"
-         6: "span"
-         # special level for theorems:
-         theorem: "span"
-     latex:
-       heading_commands_by_level:
-         0: 'part'
-         1: "section"
-         2: "subsection"
-         3: "subsubsection"
-         4: "paragraph"
-         5: "subparagraph"
-         6: "subsubparagraph"
-         # special level for theorems:
-         theorem: "flmTheoremHeading"
-      
+  renderer:
+    html:
+      heading_tags_by_level:
+        0: 'h1'
+        1: "h1"
+        2: "h2"
+        3: "h3"
+        # we use <span> instead of <h4> because these paragraph headings might
+        # be rendered inline within the <p> element, and <h4> isn't allowed
+        # within <p>...</p>
+        4: "span"
+        5: "span"
+        6: "span"
+        # special level for theorems:
+        theorem: "span"
+    latex:
+      heading_commands_by_level:
+        0: 'part'
+        1: "section"
+        2: "subsection"
+        3: "subsubsection"
+        4: "paragraph"
+        5: "subparagraph"
+        6: "subsubparagraph"
+        # special level for theorems:
+        theorem: "flmTheoremHeading"
+     
 
-     # ### Will override format-specific FLM defaults
-     # endnotes:
-     #   categories:
-     #     - category_name: footnote
-     #       counter_formatter: roman #unicodesuperscript
-     #       heading_title: 'The Footnotes Are To Be Found Here'
-     #       endnote_command: 'footnote'
-     #   #render_options:
-     #     #include_headings_at_level: 2
-     #     #endnotes_heading_title: 'Endnotes'
+    # ### Will override format-specific FLM defaults
+    # endnotes:
+    #   categories:
+    #     - category_name: footnote
+    #       counter_formatter: roman #unicodesuperscript
+    #       heading_title: 'The Footnotes Are To Be Found Here'
+    #       endnote_command: 'footnote'
+    #   #render_options:
+    #     #include_headings_at_level: 2
+    #     #endnotes_heading_title: 'Endnotes'
 ---
 A Hello, world. \emph{Here I am.} What would you like
 to    see?
