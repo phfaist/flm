@@ -457,3 +457,16 @@ print(result_html)
 
 You can transpile the core part of this library to Javascript using Transcrypt.
 See [the `flm-js` subfolder](flm-js/README.md) for more details.
+
+
+
+# Developer notes and FLM repo maintenance
+
+## Updating the JSON schema
+
+It needs to be updated manually.  Run:
+
+```bash
+poetry run python -m flm --print-config-json-schema >flm-config-json-schema.json
+```
+
