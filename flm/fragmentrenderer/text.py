@@ -11,6 +11,15 @@ from ._base import FragmentRenderer
 
 
 class TextFragmentRenderer(FragmentRenderer):
+    r"""Fragment renderer that produces plain-text output.
+
+    Renders FLM content as plain Unicode text with no markup.  Headings
+    are underlined with ASCII characters, lists are indented, and links
+    optionally include the URL in angle brackets.
+
+    Does not support delayed-render markers; a two-pass rendering scheme
+    is used instead.
+    """
 
     display_href_urls : bool = True
 

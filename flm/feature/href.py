@@ -61,6 +61,16 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
             command_arguments=('target_href', 'target_email', 'display_text',),
             ref_type='href',
     ):
+        r"""
+        :param macroname: The LaTeX macro name (without backslash), e.g.
+            ``'href'``, ``'url'``, or ``'email'``.
+        :param command_arguments: Tuple of argument keys selecting which
+            arguments this macro accepts.  Valid keys are
+            ``'target_href'``, ``'target_email'``, ``'display_text'``,
+            ``'target_Xhref'``, and ``'target_Xemail'``.
+        :param ref_type: Link type string passed to
+            :meth:`FragmentRenderer.render_link` (default ``'href'``).
+        """
         arguments_spec_list = self._get_arguments_spec_list(command_arguments)
         super().__init__(
             macroname=macroname,
@@ -89,6 +99,15 @@ class HrefHyperlinkMacro(FLMMacroSpecBase):
 
     @classmethod
     def pretty_url(cls, target_href):
+        r"""
+        Return a human-friendly display form of *target_href*.
+
+        Strips common protocol prefixes (``http://``, ``https://``,
+        ``mailto:``) and trailing ``/``, ``#``, ``?`` characters.
+
+        :param target_href: The full URL or href string.
+        :returns: Prettified URL string suitable for display.
+        """
         url_display = str(target_href)
         for prefix in ('http://', 'https://', 'mailto:'):
             if url_display.startswith(prefix):

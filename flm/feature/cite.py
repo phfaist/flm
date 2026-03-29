@@ -350,6 +350,27 @@ class FeatureExternalPrefixedCitations(Feature):
                  references_heading_title : str = 'References',
                  sort_and_compress : bool = True
                  ):
+        r"""
+        :param external_citations_providers: A sequence of citation provider
+            objects, each implementing ``get_citation_full_text_flm(prefix,
+            key, resource_info)``.  May be ``None`` and set later via
+            :meth:`set_external_citations_providers`.
+        :param counter_formatter: How citation numbers are formatted.
+            Accepts any input recognized by
+            :func:`~flm.counter.build_counter_formatter`.  Defaults to
+            ``'arabic'``.
+        :param citation_delimiters: A two-element tuple of opening and
+            closing delimiter strings around citation marks (e.g.
+            ``('[', ']')``).  If ``None``, the default from
+            ``_cite_default_counter_formatter_spec`` is used.
+        :param citation_optional_text_separator: String inserted between the
+            citation number and optional extra text (e.g. ``'; '`` in
+            ``[31; Theorem 4]``).
+        :param references_heading_title: Heading text for the references
+            section when endnotes are rendered.
+        :param sort_and_compress: If ``True``, consecutive citation numbers
+            in a multi-cite are sorted and compressed into ranges.
+        """
         super().__init__()
         self.external_citations_providers = external_citations_providers
         dflt = dict(_cite_default_counter_formatter_spec)
@@ -432,10 +453,24 @@ class TackOnMultipleCiteCommandsMacroParser(
 
 
 class CiteMacro(FLMMacroSpecBase):
+    r"""
+    Macro spec for the ``\cite`` command.
+
+    Parses one or more citation keys (comma-separated), an optional extra-text
+    argument (``\cite[extra]{key}``), and any immediately following ``\cite``
+    calls that are tacked on via
+    :class:`TackOnMultipleCiteCommandsMacroParser`.  Parsed citation items are
+    stored on the node as ``node.flmarg_cite_items`` and rendered through the
+    citations render manager.
+    """
 
     allowed_in_standalone_mode = False
 
     def __init__(self, macroname):
+        r"""
+        :param macroname: The LaTeX macro name (without backslash), typically
+            ``'cite'``.
+        """
         arguments_spec_list = [] + cite_macro_arguments + [
             FLMArgumentSpec(
                 parser=TackOnMultipleCiteCommandsMacroParser(

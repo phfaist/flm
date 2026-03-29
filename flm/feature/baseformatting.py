@@ -26,6 +26,13 @@ class NoExtraSpaceAfterDotMacro(FLMMacroSpecBase):
     allowed_in_standalone_mode = True
 
     def render(self, node, render_context):
+        r"""
+        Render the ``\@`` macro.
+
+        Returns the fragment renderer's
+        ``latex_macro_no_extra_space_after_dot`` attribute if present,
+        otherwise returns the empty string.
+        """
         if hasattr(render_context.fragment_renderer, 'latex_macro_no_extra_space_after_dot'):
             return render_context.fragment_renderer.latex_macro_no_extra_space_after_dot
         # otherwise, just ignore this macro.

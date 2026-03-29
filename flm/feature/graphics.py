@@ -92,7 +92,7 @@ class GraphicsResource:
     """
     def __init__(
             self,
-            src_url, # 
+            src_url, #
             *,
             srcset=None,
             graphics_type=None,
@@ -101,6 +101,22 @@ class GraphicsResource:
             physical_dimensions=None, # (width_pt, height_pt) #  1 pt = 1/72 inch
             source_info=None,
     ):
+        r"""
+        :param src_url: Path or full URL to the graphics resource, as it
+            should appear in the rendered output.
+        :param srcset: Optional list of alternative source dicts for
+            ``<img srcset>``, each with ``'source'`` and optional
+            ``'pixel_density'`` keys.
+        :param graphics_type: ``'raster'`` or ``'vector'``, or *None* if
+            unknown.
+        :param dpi: Dots-per-inch resolution (relevant for raster images).
+        :param pixel_dimensions: Tuple ``(width_px, height_px)`` in pixels
+            (raster only).
+        :param physical_dimensions: Tuple ``(width_pt, height_pt)`` in
+            points (1 pt = 1/72 in).
+        :param source_info: Optional dict for storing arbitrary
+            provider-specific metadata.  Not used by core FLM routines.
+        """
         super().__init__()
         self.src_url = src_url
         self.srcset = srcset
@@ -130,6 +146,14 @@ class GraphicsResource:
 
 
 class SimpleIncludeGraphicsMacro(FLMMacroSpecBase):
+    r"""Spec info for the ``\includegraphics`` macro.
+
+    Parses an optional ``[options]`` argument and a mandatory
+    ``{graphics_path}`` argument.  At render time, delegates to a
+    ``graphics_resource_provider`` feature to resolve the path into a
+    :py:class:`GraphicsResource`, then calls
+    ``fragment_renderer.render_graphics_block()``.
+    """
 
     is_block_level = True
 

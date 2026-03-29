@@ -132,14 +132,32 @@ _skip_types = (
 
 class FLMDataDumper:
     r"""
-    Create JSON data dumps of FLM compiled objects (fragments).
+    Serializer that converts FLM compiled objects (fragments, nodes, parsing
+    states) into JSON-compatible data structures.
+
+    The dumper tracks shared resources (latex walkers, spec-info objects, parsing
+    states, nodes) in a resource table so that repeated references produce
+    lightweight ``$restype``/``$reskey`` pointers rather than duplicate copies.
+
+    Use :meth:`add_object_dump` to serialize objects under named keys, then
+    retrieve the full dump dictionary via :meth:`get_data`.
     """
 
     def __init__(self, *, environment):
+        r"""
+        :param environment: The :class:`~flm.flmenvironment.FLMEnvironment`
+            instance used to resolve environment-level references (e.g. the
+            environment itself and its default parsing state) during
+            serialization.
+        """
         self.environment = environment
         self.clear()
 
     def clear(self):
+        r"""
+        Reset the internal dump state, discarding all previously added object
+        dumps and resource entries.
+        """
         self.data = {
             'dumps': {},
             'resources': {},
@@ -288,9 +306,13 @@ class FLMDataDumper:
 
 class FLMDataLoadNotSupported:
     r"""
-    This object is stored in non-serializable properties (say
-    latex_context=) rather than `None`, in order to avoid having the user wonder
-    why latex_context is `None`.
+    Sentinel class used as a placeholder for properties that cannot be
+    deserialized from a dump (e.g. ``latex_context``).
+
+    When a property was marked as ``$skip`` during dumping, the loader stores
+    this class (not an instance) in place of the original value.  This
+    distinguishes genuinely absent data from properties that were ``None`` in
+    the original object.
     """
     pass
 
@@ -298,7 +320,20 @@ class FLMDataLoadNotSupported:
 
 class FLMDataLoader:
     r"""
-    Read JSON data dumps of FLM compiled objects (fragments).
+    Deserializer that reconstructs FLM objects from JSON data previously
+    produced by :class:`FLMDataDumper`.
+
+    The loader resolves resource references, re-creates node trees, parsing
+    states, spec-info objects, and fragments, reattaching them to the provided
+    *environment*.
+
+    :param data: The dump dictionary (as returned by
+        :meth:`FLMDataDumper.get_data`).
+    :param environment: The :class:`~flm.flmenvironment.FLMEnvironment`
+        instance used for reconstructing walkers, parsing states, and
+        fragments.
+    :raises ValueError: If the dump version in *data* does not match the
+        expected version.
     """
 
     def __init__(self, data, *, environment):

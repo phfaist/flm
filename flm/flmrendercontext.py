@@ -47,13 +47,22 @@ class FLMRenderContext:
             doc : TypeFLMDocument|None = None,
             **kwargs
         ):
+        r"""
+        Initialize the render context.
+
+        :param fragment_renderer: The
+            :py:class:`~flm.fragmentrenderer.FragmentRenderer` instance
+            that produces the output in a specific format (HTML, text, etc.).
+        :param doc: The :py:class:`~flm.flmdocument.FLMDocument` instance
+            this render context belongs to, or ``None`` for standalone mode.
+        """
         super().__init__(**kwargs)
         self.doc = doc
         self.fragment_renderer = fragment_renderer
         self.pass_name = None
         self.is_first_pass = True
         self._logical_state = {}
-        
+
         self._nodes_determined_as_delayed = {}
 
     # for python typing hints
@@ -81,6 +90,18 @@ class FLMRenderContext:
         raise RuntimeError("This render context does not support delayed rendering")
 
     def get_is_delayed_render(self, node) -> bool:
+        r"""
+        Determine whether *node* should use delayed rendering.
+
+        If the node's :py:attr:`~flm.flmspecinfo.FLMSpecInfo.delayed_render`
+        attribute is a callable, it is invoked with ``(node, self)`` and the
+        boolean result is cached by node ID so the callable is called at most
+        once per node.  If the attribute is a plain boolean, it is returned
+        directly.
+
+        :param node: A parsed LaTeX node with ``flm_specinfo`` set.
+        :returns: ``True`` if the node requires delayed rendering.
+        """
         if node._flm_node_id in self._nodes_determined_as_delayed:
             return self._nodes_determined_as_delayed[node._flm_node_id]
 
@@ -94,6 +115,17 @@ class FLMRenderContext:
         return yn
 
     def set_render_pass(self, pass_name : str|None) -> None:
+        r"""
+        Set the current rendering pass.
+
+        The rendering pipeline may perform multiple passes (e.g., a first pass
+        followed by a ``'second-pass'`` to resolve delayed content).  This
+        method updates :py:attr:`pass_name` and sets :py:attr:`is_first_pass`
+        to ``True`` when *pass_name* is ``None``, or ``False`` otherwise.
+
+        :param pass_name: The name of the rendering pass (e.g.,
+            ``'second-pass'``), or ``None`` to reset to the first pass.
+        """
         self.pass_name = pass_name
         if pass_name is None:
             self.is_first_pass = True

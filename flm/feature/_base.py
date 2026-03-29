@@ -5,12 +5,28 @@ from .._typing_helpers import (
 
 class FeatureDocumentManagerBase:
     r"""
-    The feature instance runs globally for the environment.  A document
-    manager is created for each new document.  It can be used to store
-    document-related information.
+    Per-document manager for a feature.
 
-    Subclasses should reimplement `initialize()` instead of providing a
-    constructor.
+    While the :py:class:`Feature` instance is shared across the entire
+    environment, a new :py:class:`FeatureDocumentManagerBase` is created for
+    each :py:class:`~flm.flmdocument.FLMDocument`.  It stores any state that
+    is scoped to a single document.
+
+    **Lifecycle** (driven by :py:class:`~flm.flmdocument.FLMDocument`):
+
+    1. The constructor is called automatically; subclasses should **not**
+       override it.
+    2. :py:meth:`initialize` is called immediately after construction.
+       Override this method for custom setup.
+
+    Attributes set automatically:
+
+    * :py:attr:`feature` -- the owning :py:class:`Feature` instance.
+    * :py:attr:`feature_name` -- shortcut for ``feature.feature_name``.
+    * :py:attr:`doc` -- the :py:class:`~flm.flmdocument.FLMDocument` this
+      manager belongs to.
+    * :py:attr:`RenderManager` -- the render-manager class taken from the
+      feature.
     """
 
     def __init__(self, feature, doc, **kwargs):
@@ -22,28 +38,60 @@ class FeatureDocumentManagerBase:
 
     def initialize(self) -> None:
         r"""
-        Called to initialize the object.  Better use this method
-        instead of providing a constructor in subclasses.
+        Called to initialize the document manager after construction.
+
+        Subclasses should override this method instead of ``__init__`` to
+        perform any per-document setup.
         """
         pass
 
     def get_node_id(self, node) -> TypeNodeId:
         r"""
-        Helper to obtain a unique ID associated with a node instance.
+        Return a unique hashable identifier for *node*.
+
+        Delegates to :py:meth:`Feature.get_node_id`.  The returned value
+        can be used as a dictionary key to associate data with a specific
+        node instance.
+
+        :param node: A :py:class:`~pylatexenc.latexnodes.nodes.LatexNode`
+            instance, or a tuple of hashable data used as an explicit key.
+        :returns: An integer (``id(node)``) or the tuple itself.
         """
         return self.feature.get_node_id(node)
 
 
 class FeatureRenderManagerBase:
     r"""
-    The feature instance runs globally for the environment.  A document
-    manager is created for each new document.  A render manager is created
-    for each rendering instance of the document.  It can be used to store
-    render-related information (for instance, an assignment of node objects
-    to equation/section/theorem numbers).
+    Per-render manager for a feature.
 
-    Subclasses should reimplement `initialize()` instead of providing a
-    constructor.
+    A new :py:class:`FeatureRenderManagerBase` is created each time a
+    :py:class:`~flm.flmdocument.FLMDocument` is rendered.  It stores state
+    that is specific to a single rendering pass (for example, the mapping
+    from nodes to assigned equation or section numbers).
+
+    **Lifecycle** (driven by :py:meth:`~flm.flmdocument.FLMDocument.render`):
+
+    1. The constructor is called automatically; subclasses should **not**
+       override it.
+    2. :py:meth:`initialize` is called.  Any ``feature_render_options``
+       supplied to :py:meth:`~flm.flmdocument.FLMDocument.render` for this
+       feature are forwarded as keyword arguments.
+    3. The first rendering pass runs (the document render callback executes,
+       nodes call ``render()`` or ``prepare_delayed_render()``).
+    4. :py:meth:`process` is called with the first-pass output, before
+       delayed-render nodes are resolved.
+    5. Delayed-render nodes are rendered with full document context.
+    6. :py:meth:`postprocess` is called with the final rendered output.
+
+    Attributes set automatically:
+
+    * :py:attr:`feature_document_manager` -- the owning
+      :py:class:`FeatureDocumentManagerBase`.
+    * :py:attr:`feature` -- shortcut for
+      ``feature_document_manager.feature``.
+    * :py:attr:`feature_name` -- shortcut for ``feature.feature_name``.
+    * :py:attr:`render_context` -- the active
+      :py:class:`~flm.flmrendercontext.FLMRenderContext`.
     """
 
     def __init__(self, feature_document_manager, render_context, **kwargs):
@@ -55,12 +103,12 @@ class FeatureRenderManagerBase:
 
     def initialize(self) -> None:
         r"""
-        Initialize the render manager.  You should subclass this
-        method, and avoid subclassing the constructor.
+        Initialize the render manager after construction.
 
-        You'll get all the `feature_render_options` for this feature (which
-        you provided to the document's render() method) as keyword arguments
-        to this method.
+        Subclasses should override this method instead of ``__init__``.
+        Any ``feature_render_options`` for this feature that were passed to
+        :py:meth:`~flm.flmdocument.FLMDocument.render` are forwarded here
+        as keyword arguments.
         """
         pass
 
@@ -85,7 +133,15 @@ class FeatureRenderManagerBase:
 
     def get_node_id(self, node) -> TypeNodeId:
         r"""
-        Helper to obtain a unique ID associated with a node instance.
+        Return a unique hashable identifier for *node*.
+
+        Delegates to :py:meth:`Feature.get_node_id`.  The returned value
+        can be used as a dictionary key to associate data with a specific
+        node instance.
+
+        :param node: A :py:class:`~pylatexenc.latexnodes.nodes.LatexNode`
+            instance, or a tuple of hashable data used as an explicit key.
+        :returns: An integer (``id(node)``) or the tuple itself.
         """
         return self.feature.get_node_id(node)
 

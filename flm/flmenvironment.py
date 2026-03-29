@@ -50,6 +50,17 @@ class FLMParsingState(latexnodes.ParsingState):
     _fields = tuple(list(latexnodes.ParsingState._fields)+['is_block_level'])
 
     def set_fields(self, *, is_block_level=None, **kwargs):
+        r"""
+        Create a new parsing state with modified fields.
+
+        This method is called internally by pylatexenc when constructing a
+        sub-context.  It sets the :py:attr:`is_block_level` attribute along
+        with any other fields forwarded to the parent class.
+
+        :param is_block_level: Whether the new state should parse block-level
+            content (``True``), inline content (``False``), or auto-detect
+            (``None``).
+        """
         super().set_fields(**kwargs)
         self.is_block_level = is_block_level
 
@@ -156,6 +167,23 @@ def _clone_flm_node(node):
 
 
 class BlocksBuilder:
+    r"""
+    Decomposes a :py:class:`~pylatexenc.latexnodes.nodes.LatexNodeList` into
+    a sequence of blocks (paragraphs and standalone block-level nodes).
+
+    Block decomposition is driven by nodes whose ``flm_is_block_level``
+    attribute is ``True``.  Paragraph break markers (``flm_is_paragraph_break_marker``)
+    cause a paragraph flush without producing their own block.  Block headings
+    (``flm_is_block_heading``) start a new paragraph and are included in it as
+    a leading element.
+
+    Whitespace between blocks is stripped, and whitespace within paragraphs
+    is simplified when *simplify_whitespace* is ``True``.
+
+    :param latexnodelist: The node list to decompose.
+    :param simplify_whitespace: If ``True`` (the default), collapse runs of
+        whitespace characters within paragraphs to a single space.
+    """
 
     rx_space = re.compile(r'[ \t\n\r]+')
     rx_only_space = re.compile(r'^[ \t\n\r]+$')
@@ -361,11 +389,28 @@ class NodesFinalizer:
     Responsible for adding additional meta-information to nodes to tell whether
     nodes and node lists are block-level or inline text.
 
+    This finalizer is invoked automatically by :py:class:`FLMLatexWalker` when
+    nodes and node lists are created during parsing.  It handles:
+
+    - Inferring whether a node list is block-level or inline (when not already
+      specified by the parsing state).
+    - Decomposing block-level node lists into blocks (paragraphs and standalone
+      block-level items) via :py:class:`BlocksBuilder`.
+    - Processing character nodes to apply text transformations (whitespace
+      simplification, automatic Unicode quote conversion, ligature replacements
+      for dashes and ellipses).
+
     REMEMBER: After a Node or NodeList is "finalized" (call to
     finalize_node/finalize_nodelist is over), then we should NOT modify any
     attributes on that node.  In particular, finalize_nodelist() should NOT
     set/modify any attributes on existing child nodes instances (we should clone
     them if necessary).
+
+    :param text_processing_options: A dictionary of text processing options.
+        Supported keys: ``'auto'`` (``True``/``False``/``'quotes'``/``'ligatures'``),
+        ``'simplify_whitespace'``, ``'auto_unicode_quotes'``,
+        ``'ligature_unicode_quotes'``, ``'ligature_unicode_dashes'``,
+        ``'ligature_unicode_ellipses'``.
     """
     
     def __init__(self, text_processing_options=None):
@@ -473,6 +518,18 @@ class NodesFinalizer:
 
 
     def finalize_node(self, node):
+        r"""
+        Finalize a single parsed node by applying text processing transformations.
+
+        For :py:class:`~pylatexenc.latexnodes.nodes.LatexCharsNode` instances
+        that do not already have an ``flm_chars_value`` attribute, this method
+        sets ``flm_chars_value`` to the result of :py:meth:`process_text` applied
+        to the node's character content.
+
+        :param node: The node to finalize.
+        :returns: The finalized node (the same object, possibly with
+            ``flm_chars_value`` set).
+        """
         # simplify any white space!
         if not hasattr(node, 'flm_chars_value') \
            and node.isNodeType(latexnodes_nodes.LatexCharsNode):
@@ -562,8 +619,30 @@ class FLMLatexWalker(latexwalker.LatexWalker):
                  what=None,
                  input_lineno_colno_offsets=None,
                  **kwargs):
+        r"""
+        :param flm_text: The FLM source string to parse.
+        :param default_parsing_state: The
+            :py:class:`FLMParsingState` to use as the default parsing state.
+        :param flm_environment: The :py:class:`FLMEnvironment` that owns
+            this walker.  Used for node finalization and feature lookups.
+        :param parsing_state_event_handler: An optional
+            :py:class:`~pylatexenc.latexnodes.LatexWalkerParsingStateEventHandler`
+            instance (e.g., for math-mode context switching).
+        :param standalone_mode: If ``True``, the walker is parsing a
+            standalone fragment where features requiring a document context
+            are disallowed.
+        :param resource_info: An arbitrary object used to locate external
+            resources referenced in the FLM text (e.g., filesystem paths
+            for ``\includegraphics``).
+        :param parsing_mode: A string identifying the parsing mode, stored
+            for informational purposes.
+        :param input_lineno_colno_offsets: A dictionary of line/column
+            offset options forwarded to the parent walker for accurate
+            position reporting.  Supported keys: ``'line_number_offset'``,
+            ``'first_line_column_offset'``, ``'column_offset'``.
+        """
 
-        if not input_lineno_colno_offsets: # is None: 
+        if not input_lineno_colno_offsets: # is None:
             input_lineno_colno_offsets = {}
 
         super().__init__(
@@ -642,6 +721,17 @@ class FLMLatexWalker(latexwalker.LatexWalker):
 
 
 def features_ensure_dependencies_are_met(features):
+    r"""
+    Verify that all required feature dependencies are present in the given
+    feature list.
+
+    Iterates over each feature's :py:attr:`~flm.feature.Feature.feature_dependencies`
+    and raises :py:exc:`ValueError` if any required dependency is missing
+    from *features*.  Optional dependencies are not checked.
+
+    :param features: An iterable of :py:class:`~flm.feature.Feature` instances.
+    :raises ValueError: If a feature has an unmet required dependency.
+    """
 
     feature_names = set([ f.feature_name for f in features ])
 
@@ -659,18 +749,26 @@ def features_ensure_dependencies_are_met(features):
 
 def features_sorted_by_dependencies(features):
     r"""
-    This function returns the given list of features, but sorted such that
-    features always appear after any of their dependencies.
+    Return the given features sorted so that each feature appears after all of
+    its dependencies (topological sort using Kahn's algorithm).
 
     The order is deterministic, and does not depend on the initial ordering.
     Any independent features are sorted by their name (to ensure a deterministic
     order, even if it is arbitrary).
-    
-    This function raises an error if:
 
-    - A feature was specified twice;
+    Both required (:py:attr:`~flm.feature.Feature.feature_dependencies`) and
+    optional (:py:attr:`~flm.feature.Feature.feature_optional_dependencies`)
+    dependencies are respected when ordering, but only required dependencies
+    must be present.
 
-    - The feature dependency graph has a cycle.
+    :param features: An iterable of :py:class:`~flm.feature.Feature` instances.
+    :returns: A tuple ``(sorted_features, features_by_name)`` where
+        *sorted_features* is the dependency-ordered list and
+        *features_by_name* is a ``dict`` mapping feature names to their
+        instances.
+    :raises ValueError: If a feature name appears more than once, if a
+        required dependency is missing, or if the dependency graph contains
+        a cycle.
     """
 
     # list() both for Transcrypt as well as to avoid modifying any original iterable/list
@@ -1091,10 +1189,43 @@ class FLMEnvironment:
 
 
     def finalize_nodelist(self, nodelist):
+        r"""
+        Finalize a node list by delegating to the environment's
+        :py:class:`NodesFinalizer`.
+
+        This method is called automatically by :py:class:`FLMLatexWalker`
+        when a node list is created via ``make_nodelist()``.  It sets the
+        ``flm_is_block_level`` attribute and, for block-level lists,
+        decomposes the list into blocks (``flm_blocks``).
+
+        :param nodelist: A
+            :py:class:`~pylatexenc.latexnodes.nodes.LatexNodeList` to
+            finalize.
+        :returns: The finalized node list.
+        """
         nl = self.nodes_finalizer.finalize_nodelist(nodelist)
         return nl
 
     def finalize_node(self, node):
+        r"""
+        Finalize a single node by delegating to the environment's
+        :py:class:`NodesFinalizer` and assigning a unique node identifier.
+
+        This method is called automatically by :py:class:`FLMLatexWalker`
+        when a node is created via ``make_node()``.  It applies text
+        processing (see :py:meth:`NodesFinalizer.finalize_node`) and sets
+        the internal ``_flm_node_id`` attribute on the node.
+
+        .. note::
+
+           FIXME: change method name --- This method has the same name
+           as ``macrospec._specclasses.CallableSpec.finalize_node()``, which
+           is called by pylatexenc's macro call parser; the present method
+           is unrelated.
+
+        :param node: The node to finalize.
+        :returns: The finalized node.
+        """
         ### !!!! FIXME: change method name !!!!  This method has the same name
         ### !!!! as macrospec._specclasses.CallableSpec, which is called by
         ### !!!! pylatexenc.macrospec._macrocallparser.LatexMacroCallParser; the

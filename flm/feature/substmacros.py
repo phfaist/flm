@@ -34,6 +34,12 @@ from ._base import Feature
 # ---
 
 class NothingParser(LatexParserBase):
+    r"""Parser that consumes no input and always returns an empty node list.
+
+    Used internally to create argument spec entries that serve as markers
+    (e.g. :py:data:`SetArgumentNumberOffset`) rather than actual parsed
+    arguments.
+    """
     def parse(self, latex_walker, token_reader, parsing_state, **kwargs):
         # parse nothing - always return None
         return latex_walker.make_nodelist([], parsing_state=parsing_state), None
@@ -43,6 +49,10 @@ SetArgumentNumberOffset = FLMArgumentSpec(
     parser=NothingParser(),
     argname='_SetArgumentNumberOffset',
 )
+r"""Sentinel argument spec that, when placed in an ``arguments_spec_list``,
+marks the position at which LaTeX-style numbered argument counting (``#1``,
+``#2``, ...) begins.  Arguments before this marker are ignored when
+resolving numeric placeholders."""
 
 
 
@@ -72,6 +82,11 @@ _macroarg_placeholder_arguments_spec_list = [
 
 
 class SimpleMacroArgumentPlaceholder(FLMSpecialsSpecBase):
+    r"""Specials handler for ``#`` argument placeholders inside substitution
+    macro content templates.  Parses ``#N`` (numeric) or ``#{argname}``
+    (named) references and replaces them with the corresponding argument
+    value from the enclosing :py:class:`MacroContentSubstitutor`.
+    """
 
     allowed_in_standalone_mode = True
 
@@ -1090,6 +1105,13 @@ class FeatureSubstMacros(Feature):
     
 
     def __init__(self, definitions : TypeSubstDefinitions|None):
+        r"""
+        :param definitions: Dict with optional keys ``'macros'``,
+            ``'environments'``, and ``'specials'``, each mapping a name
+            to a :py:class:`TypeSubstItemDef` configuration dict specifying
+            ``arguments_spec_list``, ``content``, and related options.
+            Missing keys default to empty dicts.
+        """
         super().__init__()
 
         if definitions is None:

@@ -12,7 +12,9 @@ technical documents, for content that needs to be automatically postprocessed,
 and can be rendered in various formats (html, text, latex, markdown).
 
 It was developed to typeset content in the
-[*Error Correction Zoo*](https://errorcorrectionzoo.org/).
+`Error Correction Zoo <https://errorcorrectionzoo.org/>`_, but I've since been
+using it for typesetting short scientific documents, as well as not-so-short
+documents like a set of `lecture notes <https://phfaist.com/QEC>`_.
 
 
 .. toctree::

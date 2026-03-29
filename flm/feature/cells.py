@@ -142,7 +142,18 @@ class CelldataMacroSpec(macrospec.MacroSpec):
 
 
 class CellIndexRangeModel:
+    r"""
+    A half-open range of cell indices along one axis (row or column).
+
+    Indices use zero-based numbering internally: *start* is inclusive and
+    *end* is exclusive (one past the last included index).
+    """
     def __init__(self, start, end):
+        r"""
+        :param start: Zero-based start index (inclusive).
+        :param end: Zero-based end index (exclusive), or ``None`` for an
+            open-ended range in placement mappings.
+        """
         super().__init__()
         # !! in this internal representation, the start index starts at zero and
         # !! the end index points one past the end !!
@@ -158,7 +169,15 @@ class CellIndexRangeModel:
 
 
 class CellPlacementModel:
+    r"""
+    Describes the grid placement of a single cell as a row range and a column
+    range, supporting multi-row and multi-column spans.
+    """
     def __init__(self, row_range, col_range):
+        r"""
+        :param row_range: A :class:`CellIndexRangeModel` for the row span.
+        :param col_range: A :class:`CellIndexRangeModel` for the column span.
+        """
         super().__init__()
         self.row_range = row_range
         self.col_range = col_range
@@ -170,7 +189,18 @@ class CellPlacementModel:
 
 
 class CellModel:
+    r"""
+    Represents a single cell within a ``cells`` environment, combining its
+    grid placement, style annotations, and content nodes.
+    """
     def __init__(self, placement, styles, content_nodes):
+        r"""
+        :param placement: A :class:`CellPlacementModel` specifying the cell's
+            row and column span.
+        :param styles: A list of style annotation strings (e.g. from the
+            ``<...>`` argument of ``\cell``).
+        :param content_nodes: A ``LatexNodeList`` containing the cell body.
+        """
         super().__init__()
         self.placement = placement
         self.styles = styles
@@ -237,7 +267,21 @@ class CellPlacementsMappingModel:
 
 
 class CellsModel:
+    r"""
+    Holds the complete grid of cells for one ``cells`` environment.
+
+    Built incrementally during parsing via :meth:`add_cell`,
+    :meth:`add_cell_node`, and :meth:`add_celldata_node`, then finalized with
+    :meth:`finalize` which populates the :attr:`grid_data` matrix used during
+    rendering.  Row and column indices are zero-based internally.
+    """
     def __init__(self, **kwargs):
+        r"""
+        :param kwargs: If non-empty, used to reconstruct a previously
+            serialized model.  Expects ``cells_size`` (``[rows, cols]``) and
+            ``cells_data`` (list of :class:`CellModel`).  When empty, an
+            empty model ready for incremental construction is created.
+        """
         super().__init__()
 
         # !! internally, rows and columns start at zero (let's not kid ourselves) !!

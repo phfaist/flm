@@ -12,8 +12,18 @@ import flm
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+import tomllib
+from datetime import datetime
+from pathlib import Path
+_pyproject_path = Path(__file__).resolve().parent.parent / "pyproject.toml"
+with open(_pyproject_path, "rb") as f:
+    _pyproject = tomllib.load(f)
+_author = ", ".join(_pyproject["tool"]["poetry"]["authors"])
+_year = datetime.now().year
+
+
 project = 'FLM'
-copyright = '2023, Philippe Faist'
+copyright = f"{_year}, {_author}"
 author = 'Philippe Faist'
 
 # The version info for the project you're documenting, acts as replacement for

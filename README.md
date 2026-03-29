@@ -460,13 +460,39 @@ See [the `flm-js` subfolder](flm-js/README.md) for more details.
 
 
 
-# Developer notes and FLM repo maintenance
+# Developer notes
 
-## Updating the JSON schema
+### Build documentation
 
-It needs to be updated manually.  Run:
+One-time setup:
 
 ```bash
-poetry run python -m flm --print-config-json-schema >flm-config-json-schema.json
+> poetry install --extras maincmdl --with builddoc
+```
+
+Compile docs:
+
+```bash
+> cd doc
+doc> poetry run make html
+```
+
+### Build JS lib
+
+Instructions in `./flm-js/README.md`.
+
+My one-liner to build FLM in Transcrypt/JS in test mode, run all tests, then
+rebuilds in final mode.  Assumes a sibling `pylatexenc/` folder where to get the
+pylatexenc sources.  Run:
+
+```bash
+(cd flm-js && poetry run python ./generate_flm_js.py --pylatexenc-src-dir=../../pylatexenc --delete-target-dir --compile-tests && node test-flm-js/runtests.js &&  poetry run python ./generate_flm_js.py --pylatexenc-src-dir=../../pylatexenc --delete-target-dir)
+```
+
+
+### Make a JSON schema for config
+
+```bash
+> poetry run python -m flm --print-config-json-schema >flm-config-json-schema.json
 ```
 

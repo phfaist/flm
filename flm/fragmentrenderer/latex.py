@@ -11,13 +11,40 @@ from .._typing_helpers import Callable, Mapping, Any
 from ._base import FragmentRenderer
 
 
+
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+
+class TypeFloatPlacementPolicySpecDict(TypedDict, total=False):
+    environment: str
+    environment_options_str : str
+    centering: str
+
+class TypeFloatPlacementPolicyDict(TypedDict, total=True):
+    nothing: TypeFloatPlacementPolicySpecDict
+    captiononly: TypeFloatPlacementPolicySpecDict
+    numberonly: TypeFloatPlacementPolicySpecDict
+    numbercaption: TypeFloatPlacementPolicySpecDict
+### END_FLM_PYTHON_TYPING
+
+
 class LatexFragmentRenderer(FragmentRenderer):
     r"""
-    Doc .............
+    Fragment renderer that produces LaTeX output.
 
-    AN IMPORTANT ASSUMPTION MADE BY THIS RENDERER: (No stray comments
-    assumption.) At no point in rendered content is there a comment without a
-    corresponding newline following it.
+    Renders FLM node trees into standard LaTeX code suitable for compilation
+    with ``pdflatex``, ``lualatex``, or ``xelatex``.  Uses
+    ``pylatexenc.latexencode`` for Unicode-to-LaTeX escaping and emits
+    ``\hyperref`` / ``\href`` commands for links.
+
+    Delayed render markers use the form ``\FLMDLYD{delayed_key}``.
+
+    .. important::
+
+       **No stray comments assumption.** At no point in rendered content is
+       there a comment without a corresponding newline following it.
     """
 
 
@@ -87,6 +114,32 @@ class LatexFragmentRenderer(FragmentRenderer):
     use_endnote_latex_command : str|None = None #'textsuperscript'
     use_citation_latex_command : str|None = None #'textsuperscript'
 
+    float_placement_policy : TypeFloatPlacementPolicyDict = {
+        'nothing': {
+            'environment': 'center',
+            'environment_options_str': '',
+            'centering': '',
+        },
+        'captiononly': {
+            'environment': 'center',
+            'environment_options_str': '',
+            'centering': '',
+        },
+        'numberonly': {
+            'environment_options_str': '[hbtp]',
+        },
+        'numbercaption': {
+            'environment_options_str': '[hbtp]',
+        }
+    }
+    float_use_centering : str = r'\centering{}'
+    float_caption_join : str = ': '
+    float_latex_before_caption : str = r'\flmFloatCaption{' # r'\par\vspace{1ex}\relax '
+    float_latex_after_caption : str = r'}'
+
+    graphics_raster_magnification : int|float = 1
+    graphics_vector_magnification : int|float = 1
+
 
     # ------------------
 
@@ -101,11 +154,39 @@ class LatexFragmentRenderer(FragmentRenderer):
     # ------------------
 
     def latexescape(self, value):
+        r"""
+        Escape a plain-text string for safe inclusion in LaTeX output.
+
+        Delegates to the ``UnicodeToLatexEncoder`` instance created during
+        initialization.  Characters that are special in LaTeX (``$``, ``&``,
+        ``%``, etc.) are replaced with their escaped equivalents; unknown
+        Unicode characters are kept as-is.
+
+        :param value: The plain-text string to escape.
+        :return: The LaTeX-safe string.
+        :rtype: str
+        """
         return self.latex_encoder.unicode_to_latex(value)
 
 
     def wrap_in_text_format_macro(self, value, text_formats, render_context):
-        
+        r"""
+        Wrap already-rendered content in LaTeX text-formatting commands.
+
+        Iterates over *text_formats* in reverse order and nests the content
+        inside the corresponding LaTeX command looked up from
+        :py:attr:`text_format_cmds`.  Formats whose mapping value is ``None``
+        are silently skipped.
+
+        :param str value: Already-rendered LaTeX content to wrap.
+        :param text_formats: Iterable of format names (e.g. ``'textbf'``,
+            ``'textit'``).
+        :param render_context: The current render context (unused by the
+            default implementation but available for subclass overrides).
+        :return: The wrapped LaTeX string.
+        :rtype: str
+        """
+
         content = value
 
         for txtfmt in reversed(list(text_formats)):  # "[::-1]" is not good for Transcrypt
@@ -119,6 +200,21 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     def wrap_in_latex_enumeration_environment(self, ltx_environment, annotations,
                                               items_content, render_context):
+        r"""
+        Wrap pre-rendered list/lines content in a LaTeX environment.
+
+        Produces ``\begin{<env>}...\end{<env>}`` with the *annotations*
+        emitted as a trailing LaTeX comment on the ``\begin`` line.
+
+        :param str ltx_environment: LaTeX environment name (e.g.
+            ``'itemize'``, ``'enumerate'``, ``'flmLines'``).
+        :param list annotations: Descriptive strings written as a comment
+            after ``\begin{...}``.
+        :param str items_content: Already-rendered inner content.
+        :param render_context: The current render context.
+        :return: The complete LaTeX environment string.
+        :rtype: str
+        """
         return (
             r'\begin{' + ltx_environment + r'}'
             + '% ' + ",".join([a.replace('\n',' ') for a in annotations]) + "\n" #"\\relax{}"
@@ -128,6 +224,27 @@ class LatexFragmentRenderer(FragmentRenderer):
         )
 
     def pin_label_here(self, target_id, display_latex, insert_phantom_section=True):
+        r"""
+        Emit LaTeX code that pins a ``\label`` at the current point.
+
+        The generated label can be referenced with ``\ref`` and will display
+        *display_latex* as the reference text.  Optionally prepends a
+        ``\phantomsection`` so that ``hyperref`` links point to the correct
+        location.
+
+        The label key is formed by prepending :py:attr:`latex_label_prefix`
+        to *target_id*.
+
+        :param str target_id: The logical target identifier (without prefix).
+        :param str display_latex: LaTeX code shown when the label is
+            referenced with ``\ref``.
+        :param bool insert_phantom_section: If ``True`` (default) and
+            :py:attr:`use_phantom_section` is also ``True``, a
+            ``\phantomsection`` is emitted before the label.
+        :return: The LaTeX string, or ``''`` if label pinning is disabled
+            via :py:attr:`debug_disable_pin_labels`.
+        :rtype: str
+        """
         if self.debug_disable_pin_labels:
             return ''
         s = ''
@@ -559,29 +676,6 @@ class LatexFragmentRenderer(FragmentRenderer):
 
     # --
 
-    float_placement_policy = {
-        'nothing': {
-            'environment': 'center',
-            'environment_options_str': '',
-            'centering': '',
-        },
-        'captiononly': {
-            'environment': 'center',
-            'environment_options_str': '',
-            'centering': '',
-        },
-        'numberonly': {
-            'environment_options_str': '[hbtp]',
-        },
-        'numbercaption': {
-            'environment_options_str': '[hbtp]',
-        }
-    }
-    float_use_centering = r'\centering{}'
-    float_caption_join = ': '
-    float_latex_before_caption = r'\flmFloatCaption{' # r'\par\vspace{1ex}\relax '
-    float_latex_after_caption = r'}'
-
     def render_float(self, float_instance, render_context):
         # see flm.features.floats for FloatInstance
         
@@ -682,11 +776,11 @@ class LatexFragmentRenderer(FragmentRenderer):
         else:
             pl_policy = self.float_placement_policy['numbercaption']
 
-        if 'environment' in pl_policy:
+        if 'environment' in pl_policy and pl_policy['environment']:
             env_name = pl_policy['environment']
-        if 'environment_options_str' in pl_policy:
+        if 'environment_options_str' in pl_policy and pl_policy['environment_options_str']:
             env_options_str = pl_policy['environment_options_str']
-        if 'centering' in pl_policy:
+        if 'centering' in pl_policy and pl_policy['centering']:
             centering = pl_policy['centering']
 
         return (
@@ -696,9 +790,6 @@ class LatexFragmentRenderer(FragmentRenderer):
             + r"\end{" + env_name + "}"
         )
 
-
-    graphics_raster_magnification = 1
-    graphics_vector_magnification = 1
 
     def render_graphics_block(self, graphics_resource, render_context):
 
@@ -1083,10 +1174,19 @@ _latex_preamble_suggested_defs = r"""
 # ------------------------------------------------------------------------------
 
 class FragmentRendererInformation:
+    r"""
+    Discovery descriptor for the LaTeX fragment renderer.
+
+    Exposes :py:class:`LatexFragmentRenderer` as the renderer class and
+    provides suggested LaTeX preamble definitions via
+    :py:meth:`get_style_information`.
+    """
+
     FragmentRendererClass = LatexFragmentRenderer
 
     @staticmethod
     def get_style_information(fragment_renderer):
+        """Return a dict with ``preamble_suggested_defs`` LaTeX preamble code."""
         return {
             'package_suggested_defs': _latex_preamble_suggested_defs,
             'preamble_suggested_defs': _latex_preamble_suggested_defs,

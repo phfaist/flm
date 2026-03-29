@@ -21,8 +21,14 @@ _rx_html_entity = re.compile(r'[&]([a-zA-Z]+|[#][0-9]+|[#]x[0-9a-fA-F]+);')
 
 
 class HtmlFragmentRenderer(FragmentRenderer):
-    r"""
-    HTML fragment renderer.
+    r"""Fragment renderer that produces HTML output.
+
+    Renders FLM content as HTML strings.  Supports delayed-render markers,
+    MathJax-compatible math output, and configurable link behaviour.
+
+    Configuration attributes can be set via the *config* dictionary passed
+    to the constructor or by setting them directly on the instance.  See
+    the class-level attribute documentation for available options.
     """
 
     use_link_target_blank : bool = False
@@ -138,8 +144,8 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     float_caption_title_separator : str = ': '
 
-    graphics_raster_magnification : float = 1
-    graphics_vector_magnification : float = 1
+    graphics_raster_magnification : int|float = 1
+    graphics_vector_magnification : int|float = 1
 
     # ------------------
 
@@ -160,6 +166,15 @@ class HtmlFragmentRenderer(FragmentRenderer):
     # ------------------
 
     def htmlescape(self, value):
+        r"""Escape a string for safe inclusion in HTML content.
+
+        Escapes ``<``, ``>``, ``&``, and ``"`` via :py:func:`html.escape`,
+        then replaces several Unicode space characters with their named
+        HTML entities (e.g., non-breaking space, thin space, em space).
+
+        :param value: The raw text string.
+        :returns: The HTML-escaped string.
+        """
         esc = html.escape(value)
         esc = (
             esc.replace(' ', '&nbsp;') # NON-BREAKING SPACE
@@ -191,6 +206,18 @@ class HtmlFragmentRenderer(FragmentRenderer):
         return value
 
     def generate_open_tag(self, tagname, *, attrs=None, class_names=None, self_close_tag=False):
+        r"""Generate an HTML opening tag string.
+
+        :param tagname: The HTML tag name (e.g., ``'div'``, ``'span'``).
+        :param attrs: Optional dictionary (or list of 2-tuples) of HTML
+            attributes.  Must not include ``'class'`` -- use *class_names*
+            instead.
+        :param class_names: Optional list of CSS class name strings.
+        :param self_close_tag: If ``True``, produce a self-closing tag
+            (e.g., ``<br/>``).
+        :returns: The opening tag string (e.g., ``'<div class="foo">'``).
+        :raises ValueError: If *attrs* contains a ``'class'`` key.
+        """
         s = f'<{tagname}'
         if not attrs:
             attrs = {}
@@ -213,12 +240,35 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     def wrap_in_tag(self, tagname, content_html, *,
                     attrs=None, class_names=None):
+        r"""Wrap content in an HTML element.
+
+        Produces ``<tagname ...>content_html</tagname>``.
+
+        :param tagname: The HTML tag name.
+        :param content_html: The already-escaped inner HTML string.
+        :param attrs: Optional dictionary of HTML attributes.
+        :param class_names: Optional list of CSS class name strings.
+        :returns: The complete HTML element string.
+        """
         s = self.generate_open_tag(tagname, attrs=attrs, class_names=class_names)
         s += str(content_html)
         s += f'</{tagname}>'
         return s
 
     def wrap_in_link(self, display_html, target_href, *, class_names=None, attrs=None):
+        r"""Wrap content in an ``<a>`` hyperlink tag.
+
+        Respects the :py:attr:`use_link_target_blank` setting to
+        conditionally add ``target="_blank"`` for external links.
+
+        :param display_html: The already-escaped inner HTML for the link.
+        :param target_href: The URL or anchor fragment.  If falsy,
+            defaults to ``'#'``.
+        :param class_names: Optional list of CSS class name strings.
+        :param attrs: Optional dictionary of additional HTML attributes
+            to set on the ``<a>`` tag.
+        :returns: The complete ``<a>...</a>`` HTML string.
+        """
         if not target_href: # e.g., None
             target_href = '#'
         a_attrs = {

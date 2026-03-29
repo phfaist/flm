@@ -574,6 +574,13 @@ class FeatureQuote(Feature):
     RenderManager = None
 
     def __init__(self, quote_environments : Mapping[str, TypeQuoteEnvironmentDef]|None = None):
+        r"""
+        :param quote_environments: Mapping of environment names to their
+            configuration dicts (keys: ``enabled_quote_sections``,
+            ``content_is_block_level``, ``auto_quote_section_bare_content``).
+            If *None*, uses :py:data:`default_quote_environments` which
+            provides ``quote``, ``address``, and ``blockquote``.
+        """
         super().__init__()
         if quote_environments is None:
             quote_environments = default_quote_environments

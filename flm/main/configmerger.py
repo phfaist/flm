@@ -15,11 +15,24 @@ logger = logging.getLogger(__name__)
 
 # marker
 class ListProperty:
+    r"""
+    Sentinel class used as a marker in ``property_path`` lists to indicate
+    that the current level of config traversal is inside a list (as opposed
+    to a dictionary key).
+    """
     pass
 
 
 
 class PresetKeepMarker:
+    r"""
+    Preset handler that copies a ``$``-prefixed key and its value into the
+    merged object under a renamed key.  Used for internal markers such as
+    ``$_cwd``.
+
+    :param marker: The destination key name to store the preset argument
+        value under.
+    """
     def __init__(self, marker):
         super().__init__()
         self.marker = marker
@@ -32,6 +45,15 @@ class PresetKeepMarker:
 
 # $defaults
 class PresetDefaults:
+    r"""
+    Preset handler for the ``$defaults`` directive.  When encountered in a
+    config list, appends the remaining objects in the merge chain (plus any
+    additional default sources) as recursively merged defaults.
+
+    :param defaults_additional_sources: Optional sequence of additional
+        default-providing objects whose ``fetch_defaults(property_path)``
+        method will be called to obtain extra defaults.
+    """
     def __init__(self, defaults_additional_sources=None):
         if defaults_additional_sources is not None:
             self.defaults_additional_sources = list(defaults_additional_sources)
@@ -58,6 +80,11 @@ class PresetDefaults:
 
 # $merge-config
 class PresetMergeConfig:
+    r"""
+    Preset handler for the ``$merge-config`` directive.  Locates an existing
+    item in the accumulated list result by its ``name`` field and recursively
+    merges additional ``config`` into that item's ``config`` dictionary.
+    """
     def process_list_item(self, configmerger,
                           presetarg, list_result, list_obj, j, remaining_obj_list,
                           property_path, top_level_obj):
@@ -91,6 +118,11 @@ class PresetMergeConfig:
 
 
 class PresetRemoveItem:
+    r"""
+    Preset handler for the ``$remove-item`` directive.  Removes an item from
+    the accumulated list result by matching its ``name`` field against the
+    preset argument string.
+    """
     def process_list_item(self, configmerger,
                           presetarg, list_result, list_obj, j, remaining_obj_list,
                           property_path, top_level_obj):
@@ -114,6 +146,12 @@ class PresetRemoveItem:
 
 
 class PresetImport:
+    r"""
+    Preset handler for the ``$import`` directive.  Fetches external
+    configuration from a file path, a ``pkg:`` URI (Python module attribute),
+    or an HTTP(S) URL, then merges the imported data into the current config
+    object or list.
+    """
     def _fetch_import(self, remote, cwd):
         u = urlparse(remote)
 
@@ -187,6 +225,16 @@ class PresetImport:
 
 
 def get_default_presets(defaults_additional_sources=None):
+    r"""
+    Return the default preset handlers dictionary used by :class:`ConfigMerger`.
+
+    Includes handlers for ``$defaults``, ``$merge-config``, ``$remove-item``,
+    ``$import``, and ``$_cwd``.
+
+    :param defaults_additional_sources: Forwarded to the
+        :class:`PresetDefaults` constructor.
+    :returns: A :class:`dict` mapping preset key strings to handler instances.
+    """
     return {
         '$defaults': PresetDefaults(defaults_additional_sources),
         '$merge-config': PresetMergeConfig(),
@@ -207,6 +255,21 @@ def _get_preset_keyvals(d):
 
 
 class ConfigMerger:
+    r"""
+    Recursively merges a chain of configuration dictionaries, applying
+    ``$``-prefixed preset directives (``$defaults``, ``$merge-config``,
+    ``$remove-item``, ``$import``, ``$_cwd``) during traversal.
+
+    Scalar values are taken from the first object in the chain that provides
+    them.  Nested dictionaries and lists are merged recursively.  A
+    ``$no-merge`` flag in a dictionary prevents further merging from
+    subsequent chain entries.
+
+    :param presets: Custom preset handlers dictionary.  When ``None``,
+        :func:`get_default_presets` is called.
+    :param defaults_additional_sources: Forwarded to
+        :func:`get_default_presets` when *presets* is ``None``.
+    """
     def __init__(self, presets=None, defaults_additional_sources=None):
         if presets is not None:
             self.presets = dict(presets)
@@ -216,6 +279,17 @@ class ConfigMerger:
             )
 
     def recursive_assign_defaults(self, obj_list):
+        r"""
+        Merge a list of configuration dictionaries, applying defaults from
+        later entries and processing any preset directives.
+
+        This is a convenience entry point that delegates to
+        :meth:`recursive_assign_defaults_dict` with an empty property path.
+
+        :param obj_list: Ordered list of configuration dictionaries.  Earlier
+            entries take priority over later ones for scalar values.
+        :returns: The merged configuration dictionary.
+        """
         return self.recursive_assign_defaults_dict(obj_list, [])
 
     def recursive_assign_defaults_dict(

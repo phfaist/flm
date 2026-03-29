@@ -66,13 +66,25 @@ class FragmentRenderer:
 
 
     def document_render_start(self, render_context):
-        r"""Called at the start of document rendering.  Override to set up
-        renderer-specific state in ``render_context.data``."""
+        r"""Called by :py:meth:`FLMDocument.render()
+        <flm.flmdocument.FLMDocument.render>` at the start of the rendering
+        pipeline, before the render callback is invoked.  Override to
+        initialise renderer-specific state in *render_context*.
+
+        :param render_context: The document render context for this render
+            pass.
+        """
         pass
 
     def document_render_finish(self, render_context):
-        r"""Called after document rendering is complete.  Override to clean
-        up renderer-specific state."""
+        r"""Called by :py:meth:`FLMDocument.render()
+        <flm.flmdocument.FLMDocument.render>` after the rendering pipeline
+        is complete (including delayed-render resolution).  Override to
+        tear down renderer-specific state.
+
+        :param render_context: The document render context for this render
+            pass.
+        """
         pass
 
 
@@ -108,18 +120,22 @@ class FragmentRenderer:
             raise
 
     def render_nodelist(self, nodelist, render_context, is_block_level=None):
-        r"""
-        Render a nodelist, splitting the contents into paragraphs if applicable.
+        r"""Render a node list, handling block-level decomposition.
 
-        If `is_block_level=False`, then paragraph breaks and other block-level
-        content (e.g., enumeration lists or figures) are reported as syntax
-        errors.
-        
-        If `is_block_level=None`, then we'll try to auto-detect if we are in
-        block level or not.  If we encounter any paragraph breaks or block-level
-        items (enumerations, etc.), then we'll render paragraphs, and otherwise,
-        we'll render inline content.  Useful for rendering fragments where we
-        don't know if the content is block-level or not.
+        If the node list contains block-level content (paragraphs, lists,
+        figures), it is split into blocks and rendered via
+        :py:meth:`render_blocks`.  Otherwise it is rendered as inline
+        content via :py:meth:`render_inline_content`.
+
+        :param nodelist: A :py:class:`~pylatexenc.latexnodes.nodes.LatexNodeList`
+            with ``flm_is_block_level`` and (if block-level) ``flm_blocks``
+            attributes set by the FLM finalizer.
+        :param render_context: The current render context.
+        :param is_block_level: Override block-level detection.  If ``None``
+            (the default), the node list's own ``flm_is_block_level`` flag
+            is used.  If ``False`` and the node list contains block-level
+            content, a :py:exc:`ValueError` is raised.
+        :returns: The rendered output string.
         """
 
         if nodelist is None:
@@ -164,6 +180,17 @@ class FragmentRenderer:
 
 
     def render_node(self, node, render_context):
+        r"""Render a single parsed node by dispatching to the appropriate
+        ``render_node_*`` method based on the node type (chars, group,
+        macro, environment, specials, math, or comment).  If the node has
+        an ``flm_replace_by_node`` attribute, that replacement node is
+        rendered instead.
+
+        :param node: A pylatexenc node.
+        :param render_context: The current render context.
+        :returns: The rendered output string for this node.
+        :raises ValueError: If the node type is not recognised.
+        """
         render_context = self.ensure_render_context(render_context)
 
         try:
@@ -324,6 +351,13 @@ class FragmentRenderer:
         return rendered
     
     def recompose_latex(self, node):
+        r"""Recompose a node or nodelist back into its FLM/LaTeX source text.
+
+        Used internally when rendering math content verbatim.
+
+        :param node: A pylatexenc node or nodelist.
+        :returns: The reconstructed FLM source string.
+        """
         flm = FLMNodesFlmRecomposer().recompose_flm_text(node)
         logger.debug("recomposed flm ‘%s’ for node: %r", flm, node)
         return flm
@@ -333,6 +367,18 @@ class FragmentRenderer:
 
 
     def render_blocks(self, node_blocks, render_context):
+        r"""Render a list of block-level items (paragraphs and standalone
+        block nodes) and join them together.
+
+        Each block is either a :py:class:`~pylatexenc.latexnodes.nodes.LatexNodeList`
+        (rendered as a paragraph via :py:meth:`render_build_paragraph`) or a
+        single block-level node (rendered via :py:meth:`render_node`).
+        The results are joined with :py:meth:`render_join_blocks`.
+
+        :param node_blocks: A list of node lists or single block-level nodes.
+        :param render_context: The current render context.
+        :returns: The rendered output string with all blocks joined.
+        """
 
         rendered_blocks = []
 
@@ -349,30 +395,55 @@ class FragmentRenderer:
 
 
     def render_build_paragraph(self, nodelist, render_context):
-        r"""
-        Render and join the given content together into one paragraph.
+        r"""Render a node list as a single paragraph.
+
+        By default this delegates to :py:meth:`render_inline_content`.
+        Subclasses may override to wrap the result in paragraph markup
+        (e.g., ``<p>...</p>`` in HTML).
+
+        :param nodelist: The node list forming one paragraph.
+        :param render_context: The current render context.
+        :returns: The rendered paragraph string.
         """
         return self.render_inline_content(nodelist, render_context)
 
     def render_inline_content(self, nodelist, render_context):
+        r"""Render all nodes in *nodelist* as inline content and join them.
+
+        Each node is rendered individually via :py:meth:`render_node`, then
+        the results are concatenated with :py:meth:`render_join`.
+
+        :param nodelist: The node list to render inline.
+        :param render_context: The current render context.
+        :returns: The rendered inline content string.
+        """
         return self.render_join([ self.render_node(n, render_context)
                                   for n in nodelist ], render_context)
 
 
     def render_join(self, content_list, render_context):
-        r"""
-        For inline content; content_list contains already rendered items.
+        r"""Join a list of already-rendered inline content strings.
+
+        The default implementation concatenates the strings with no
+        separator.
+
+        :param content_list: List of rendered content strings.
+        :param render_context: The current render context.
+        :returns: The concatenated result.
         """
         return "".join(content_list)
 
 
     def render_join_blocks(self, content_list, render_context):
-        r"""
-        Join together a collection of pieces of content that have already been
-        rendered.  Each piece is itself a block of content, which can assumed to
-        be at least paragraph-level or even semantic blocks.  Usually you'd want
-        to simply join the strings together with no joiner, which is what the
-        default implementation does.
+        r"""Join a list of already-rendered block-level content strings.
+
+        Each element is a paragraph or standalone block.  The default
+        implementation joins non-empty items with a double newline.
+
+        :param content_list: List of rendered block strings (may contain
+            ``None`` or empty strings, which are skipped).
+        :param render_context: The current render context.
+        :returns: The joined result.
         """
         return "\n\n".join([c for c in content_list if c is not None and len(c)])
 
@@ -382,19 +453,41 @@ class FragmentRenderer:
 
     def render_semantic_span(self, content, role, render_context, *,
                              annotations=None, target_id=None):
-        r"""
-        Possibly mark the given inline text content as belonging to a
-        single construct (e.g., a sequence of citations or endnotes).  This
-        might correspond to a ``<span>`` tag in HTML.
+        r"""Wrap inline content in a semantic span.
+
+        Marks the given already-rendered inline text as belonging to a
+        single construct (e.g., a sequence of citations or endnotes).
+        In HTML, this corresponds to a ``<span>`` tag.
+
+        The default implementation returns *content* unchanged.
+
+        :param content: The already-rendered inline content string.
+        :param role: A string identifying the semantic role (e.g.,
+            ``'citations'``, ``'footnotes'``).
+        :param render_context: The current render context.
+        :param annotations: Optional list of additional annotation strings.
+        :param target_id: Optional anchor ID for the element.
+        :returns: The wrapped content string.
         """
         return content
 
     def render_semantic_block(self, content, role, render_context, *,
                               annotations=None, target_id=None):
-        r"""
-        Enclose the given content in a block (say, a DOM <section> or such) that is
-        meant to convey semantic information about the document's structure, but
-        with no necessary impact on the layout or appearance of the text itself.
+        r"""Wrap block content in a semantic container.
+
+        Encloses the given already-rendered block in a semantic element
+        (e.g., an HTML ``<section>`` or ``<div>``) that conveys document
+        structure without necessarily affecting visual layout.
+
+        The default implementation returns *content* unchanged.
+
+        :param content: The already-rendered block content string.
+        :param role: A string identifying the semantic role (e.g.,
+            ``'section'``, ``'enumeration'``).
+        :param render_context: The current render context.
+        :param annotations: Optional list of additional annotation strings.
+        :param target_id: Optional anchor ID for the element.
+        :returns: The wrapped content string.
         """
         return content
 
@@ -402,15 +495,17 @@ class FragmentRenderer:
 
 
     def replace_delayed_markers_with_final_values(self, content, delayed_values):
-        r"""
-        Only used if the fragment renderer supports `markers` for items whose
-        rendering is delayed.
+        r"""Replace delayed-render markers in the output with final values.
 
-        - `content` is the string result of the first pass rendering, which
-          contains the markers generated on that pass
+        Only used when :py:attr:`supports_delayed_render_markers` is
+        ``True``.  After the first rendering pass, this method substitutes
+        the placeholder markers (produced by :py:meth:`render_delayed_marker`)
+        with the actual rendered content.
 
-        - `delayed_values` is a dictionary of `delayed_key` mapping to the final
-          rendered string values associated with the items with that key.
+        :param content: The first-pass output string containing markers.
+        :param delayed_values: A dictionary mapping delayed keys to their
+            final rendered content strings.
+        :returns: The output string with all markers replaced.
         """
         raise RuntimeError("Reimplement me!")
 
@@ -418,29 +513,113 @@ class FragmentRenderer:
     # --- to be reimplemented ---
 
     def render_value(self, value, render_context):
+        r"""Render a plain text value, applying any format-specific escaping.
+
+        For example, the HTML renderer escapes ``<``, ``>``, and ``&``
+        characters.  The plain text renderer returns *value* unchanged.
+
+        :param value: The raw text string to render.
+        :param render_context: The current render context.
+        :returns: The escaped/formatted output string.
+        """
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_delayed_marker(self, node, delayed_key, render_context):
+        r"""Return a placeholder marker for a delayed-render node.
+
+        Used when :py:attr:`supports_delayed_render_markers` is ``True``.
+        The marker is later replaced with the real content by
+        :py:meth:`replace_delayed_markers_with_final_values`.
+
+        :param node: The delayed-render node.
+        :param delayed_key: The unique key identifying this delayed node.
+        :param render_context: The current render context.
+        :returns: A marker string that will be substituted later.
+        """
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_delayed_dummy_placeholder(self, node, delayed_key, render_context):
+        r"""Return a disposable placeholder for a delayed-render node.
+
+        Used on the first pass of a two-pass rendering scheme (when
+        :py:attr:`supports_delayed_render_markers` is ``False``).  The
+        returned value is discarded after the first pass and never appears
+        in the final output.
+
+        :param node: The delayed-render node.
+        :param delayed_key: The unique key identifying this delayed node.
+        :param render_context: The current render context.
+        :returns: A dummy placeholder string.
+        """
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_nothing(self, render_context, annotations=None):
+        r"""Render an empty or invisible element.
+
+        May produce an empty string, an HTML comment, or another
+        format-appropriate representation of "nothing".
+
+        :param render_context: The current render context.
+        :param annotations: Optional list of annotation strings that
+            describe the empty element (e.g., for debugging).
+        :returns: A string representing empty content in the output format.
+        """
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_empty_error_placeholder(self, debug_str, render_context):
+        r"""Render a placeholder indicating a rendering error.
+
+        Used when a construct could not be rendered properly.  The output
+        should be minimal and may include *debug_str* for diagnostics.
+
+        :param debug_str: A short description of the error for debugging.
+        :param render_context: The current render context.
+        :returns: A placeholder string in the output format.
+        """
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_text_format(self, text_formats, nodelist, render_context):
+        r"""Render text with formatting such as bold, italic, or code.
+
+        :param text_formats: A list of format name strings (e.g.,
+            ``['textbf']``, ``['textit']``, ``['defterm-term']``).
+        :param nodelist: The node list containing the formatted content.
+        :param render_context: The current render context.
+        :returns: The rendered and formatted output string.
+        """
         raise RuntimeError("Subclasses need to reimplement this method")
     
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
                            *, target_id_generator=None, annotations=None):
+        r"""Render an enumeration (ordered or unordered list).
+
+        :param iter_items_nodelists: An iterable of node lists, one per
+            list item.
+        :param counter_formatter: A callable ``counter_formatter(n)``
+            returning the formatted tag for item number *n* (1-based).
+            Returns a string or a node list, or ``None`` for bullet lists.
+        :param render_context: The current render context.
+        :param target_id_generator: Optional callable
+            ``target_id_generator(n)`` returning a target anchor ID for
+            item *n*, or ``None``.
+        :param annotations: Optional list of annotation strings.
+        :returns: The rendered enumeration as a block-level string.
+        """
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_lines(self, lines_info_list, render_context,
                      *, role=None, annotations=None, target_id=None):
+        r"""Render a sequence of lines (e.g., from a ``lines`` environment).
+
+        :param lines_info_list: A list of line info objects, each having
+            at least a ``nodelist`` attribute and optional ``indent_left``,
+            ``indent_right``, and ``align`` attributes.
+        :param render_context: The current render context.
+        :param role: Optional semantic role string (e.g., ``'lines'``).
+        :param annotations: Optional list of annotation strings.
+        :param target_id: Optional anchor ID for the block.
+        :returns: The rendered lines as a string.
+        """
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_heading(self, heading_nodelist, render_context, *,
@@ -449,15 +628,37 @@ class FragmentRenderer:
                        inline_heading=False,
                        target_id=None,
                        annotations=None):
+        r"""Render a section heading.
+
+        :param heading_nodelist: The node list containing the heading text.
+        :param render_context: The current render context.
+        :param heading_level: Integer level (1--6) or the string
+            ``'theorem'`` for theorem-style headings.
+        :param inline_heading: If ``True``, the heading is a run-in
+            heading (e.g., ``\paragraph``) that does not start a new block.
+        :param target_id: Optional anchor ID for the heading.
+        :param annotations: Optional list of annotation strings.
+        :returns: The rendered heading string.
+        """
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_verbatim(self, value, render_context, *,
                         is_block_level=False, annotations=None, target_id=None):
+        r"""Render verbatim (pre-formatted) text, such as code or math source.
+
+        :param value: The raw verbatim text string.
+        :param render_context: The current render context.
+        :param is_block_level: ``True`` if the verbatim block should be
+            rendered as a block-level element.
+        :param annotations: Optional list of annotation strings (e.g.,
+            ``['verbatimcode']``, ``['inline-math']``).
+        :param target_id: Optional anchor ID for the element.
+        :returns: The rendered verbatim content string.
+        """
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_link(self, ref_type, href, display_nodelist, render_context, annotations=None):
-        r"""
-        Render a hyperlink.
+        r"""Render a hyperlink.
 
         :param ref_type: The type of reference (e.g., ``'href'``, ``'url'``,
             ``'ref'``).
@@ -466,27 +667,46 @@ class FragmentRenderer:
         :param display_nodelist: The node list for the displayed link text.
         :param render_context: The current render context.
         :param annotations: Optional list of annotation strings.
+        :returns: The rendered hyperlink string.
         """
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_annotation_comment(
             self,
-            display_nodelist, 
+            display_nodelist,
             render_context,
             is_block_level=False,
             color_index=0,
             initials=None,
     ):
+        r"""Render an annotation comment (e.g., from ``\annot``).
+
+        :param display_nodelist: The node list for the comment text.
+        :param render_context: The current render context.
+        :param is_block_level: Whether to render as a block element.
+        :param color_index: Integer selecting a color for the annotation.
+        :param initials: Optional string with the annotator's initials.
+        :returns: The rendered annotation comment string.
+        """
         raise RuntimeError("Subclasses need to reimplement this method")
 
     def render_annotation_highlight(
             self,
-            display_nodelist, 
+            display_nodelist,
             render_context,
             is_block_level=False,
             color_index=0,
             initials=None
     ):
+        r"""Render an annotation highlight (e.g., from ``\annot``).
+
+        :param display_nodelist: The node list for the highlighted text.
+        :param render_context: The current render context.
+        :param is_block_level: Whether to render as a block element.
+        :param color_index: Integer selecting a color for the highlight.
+        :param initials: Optional string with the annotator's initials.
+        :returns: The rendered annotation highlight string.
+        """
         raise RuntimeError("Subclasses need to reimplement this method")
 
 
@@ -494,12 +714,36 @@ class FragmentRenderer:
 
 
     def render_float(self, float_instance, render_context):
+        r"""Render a float (figure, table, or other captioned block).
+
+        :param float_instance: A float instance object providing
+            ``float_type_info``, ``content_nodelist``, ``caption_nodelist``,
+            ``counter_value``, and ``formatted_counter_value_flm``.
+        :param render_context: The current render context.
+        :returns: The rendered float as a block-level string.
+        """
         raise RuntimeError("Feature is not implemented by subclass")
 
     def render_graphics_block(self, graphics_resource, render_context):
+        r"""Render a graphics/image block.
+
+        :param graphics_resource: A graphics resource object with a
+            ``src_url`` attribute pointing to the image source.
+        :param render_context: The current render context.
+        :returns: The rendered graphics block string.
+        """
         raise RuntimeError("Feature is not implemented by subclass")
 
     def render_cells(self, cells_model, render_context, target_id=None):
+        r"""Render a cells/table structure.
+
+        :param cells_model: A cells model object with ``cells_data`` (list
+            of cell objects, each having ``content_nodes``, ``styles``, and
+            ``placement``) and ``cells_size``.
+        :param render_context: The current render context.
+        :param target_id: Optional anchor ID for the table element.
+        :returns: The rendered table/cells string.
+        """
         raise RuntimeError("Feature is not implemented by subclass")
 
 
@@ -508,6 +752,12 @@ class FragmentRenderer:
     # helpers
 
     def ensure_render_context(self, render_context):
+        r"""Return *render_context* if it is not ``None``, otherwise create
+        a minimal standalone :py:class:`~flm.flmrendercontext.FLMRenderContext`.
+
+        :param render_context: An existing render context, or ``None``.
+        :returns: A valid :py:class:`~flm.flmrendercontext.FLMRenderContext`.
+        """
         return render_context or FLMRenderContext(fragment_renderer=self)
 
 

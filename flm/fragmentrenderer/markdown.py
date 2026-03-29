@@ -14,6 +14,23 @@ rx_mdspecials = re.compile(r'[\\`*_~{}\[\]<>()#+.!|-]')
 
 
 class MarkdownFragmentRenderer(FragmentRenderer):
+    r"""
+    Fragment renderer that produces Markdown output.
+
+    Renders FLM node trees into Markdown syntax.  Text formatting is expressed
+    with ``*`` / ``**`` markers, headings use ``#`` prefixes, and links use
+    ``[text](url)`` notation.  Special characters are backslash-escaped.
+
+    For features not natively supported by Markdown (e.g. tables / cells),
+    the renderer falls back to HTML via
+    :py:class:`~flm.fragmentrenderer.html.HtmlFragmentRenderer`.
+
+    Target-id anchors can be emitted in several styles controlled by
+    :py:attr:`use_target_ids`: ``'anchor'`` (HTML ``<a>`` tags),
+    ``'pandoc'``, ``'github'``, or ``None``.
+
+    Delayed render markers use the form ``<FLM:DLYD:delayed_key/>``.
+    """
 
     supports_delayed_render_markers = True
     """
@@ -408,5 +425,11 @@ _rx_delayed_markers = re.compile(r'<FLM:DLYD:(?P<key>\d+)\s*/>')
 # ------------------------------------------------------------------------------
 
 class FragmentRendererInformation:
+    r"""
+    Discovery descriptor for the Markdown fragment renderer.
+
+    Exposes :py:class:`MarkdownFragmentRenderer` as the renderer class.
+    """
+
     FragmentRendererClass = MarkdownFragmentRenderer
     format_name = 'markdown'

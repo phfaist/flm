@@ -62,6 +62,19 @@ class TheoremEnvironment(flmspecinfo.FLMEnvironmentSpecBase):
 
     def __init__(self, environmentname, theorem_spec, theorem_type_spec,
                  allowed_ref_label_prefixes):
+        r"""
+        :param environmentname: LaTeX environment name (e.g. ``'theorem'``).
+        :param theorem_spec: Standardized theorem spec dict containing
+            ``'theorem_type'`` and ``'title'`` with ``'lowercase'``,
+            ``'capital'``, and ``'abbreviated'`` sub-dicts.
+        :param theorem_type_spec: Theorem type configuration dict with keys
+            such as ``'numbered'``, ``'shared_numbering'``,
+            ``'theorem_heading_level'``, ``'heading_title_pre'``,
+            ``'heading_title_post'``, ``'title_enable_relation_ref'``, and
+            ``'body_final_content'``.
+        :param allowed_ref_label_prefixes: List of allowed ``\label`` prefix
+            strings (e.g. ``['thm', 'prop', 'cor']``).
+        """
         super().__init__(
             environmentname,
             arguments_spec_list=[
@@ -720,6 +733,24 @@ class FeatureTheorems(Feature):
                  theorem_types : Mapping[str, TypeTheoremTypeDef]|None = None,
                  shared_counter_formatter : TypeCounterFormatterInput = None,
                  allowed_ref_label_prefixes : Sequence[str]|None = None):
+        r"""
+        :param environments: Either a preset name (``'simpleset'``,
+            ``'defaultset'``, ``'richset'``) or a nested mapping
+            ``{theorem_type: {env_name: thm_spec, ...}, ...}``.  If *None*,
+            defaults to the ``'defaultset'`` collection.
+        :param theorem_types: Mapping of theorem type names (e.g.
+            ``'theoremlike'``, ``'prooflike'``) to :py:class:`TypeTheoremTypeDef`
+            configuration dicts controlling numbering, heading style, and body
+            content.  If *None*, uses :py:data:`default_theorem_theorem_types`.
+        :param shared_counter_formatter: Counter formatter specification for
+            the shared numbering counter used when ``shared_numbering`` is
+            *True*.  Accepts any format recognized by
+            :py:func:`~flm.counter.build_counter_formatter` (e.g.
+            ``'arabic'``).  Defaults to ``'arabic'``.
+        :param allowed_ref_label_prefixes: List of allowed ``\label`` prefix
+            strings for theorem references.  If *None*, uses
+            :py:data:`default_allowed_ref_label_prefixes`.
+        """
         super().__init__()
         if environments is None:
             environments = default_theorem_environments['defaultset']

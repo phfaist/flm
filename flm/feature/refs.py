@@ -46,6 +46,15 @@ class ReferenceableInfo:
         self._fields = ('kind', 'formatted_ref_flm_text', 'labels',)
 
     def get_target_id(self):
+        r"""
+        Derive a safe HTML-anchor id from the first label.
+
+        Uses :py:func:`get_safe_target_id` on the first ``(ref_type,
+        ref_label)`` pair in :py:attr:`labels`.
+
+        :returns: A string suitable for use as an HTML ``id`` attribute, or
+            ``None`` if :py:attr:`labels` is empty.
+        """
 
         if not self.labels:
             return None
@@ -54,6 +63,12 @@ class ReferenceableInfo:
         return get_safe_target_id(lbl_ref_type, lbl_ref_label)
 
     def asdict(self):
+        r"""
+        Return a dictionary of this object's public fields.
+
+        The returned dict has keys ``'kind'``, ``'formatted_ref_flm_text'``,
+        and ``'labels'``.
+        """
         return {k: getattr(self, k) for k in self._fields}
 
     def __repr__(self):
@@ -66,8 +81,29 @@ class ReferenceableInfo:
 
 
 class RefInstance:
+    r"""
+    A resolved reference target, holding all information needed to render a
+    cross-reference link.
+    """
     def __init__(self, ref_type, ref_label, formatted_ref_flm_text, target_href,
                  counter_value, counter_numprefix, counter_formatter_id):
+        r"""
+        :param ref_type: The reference type prefix (e.g. ``'eq'``,
+            ``'sec'``, ``'fig'``), or ``None``.
+        :param ref_label: The reference label string.
+        :param formatted_ref_flm_text: Display text for the reference, as
+            an FLM string or :py:class:`~flm.flmfragment.FLMFragment`.
+        :param target_href: The URL or fragment identifier for the link
+            target (e.g. ``'#equation-1'``), or ``None``.
+        :param counter_value: The counter value
+            (:py:class:`~flm.counter.ValueWithSubNums` or plain int), or
+            ``None`` when no counter is associated.
+        :param counter_numprefix: A numprefix string for hierarchical
+            numbering (e.g. ``'1.'``), or ``None``.
+        :param counter_formatter_id: Identifier of the
+            :py:class:`~flm.counter.CounterFormatter` used to format
+            this reference, or ``None``.
+        """
         super().__init__()
         self.ref_type = ref_type
         self.ref_label = ref_label
@@ -115,6 +151,16 @@ def _rx_match_safechar(m):
     return f'_{hexstr(ord(m.group()))}X'
 
 def get_safe_target_id(ref_type, ref_label):
+    r"""
+    Build an HTML-safe anchor id from a reference type and label.
+
+    Characters outside ``[a-zA-Z0-9-]`` are escaped as ``_<hex>X``.  The
+    resulting string has the form ``<safe_type>-<safe_label>``.
+
+    :param ref_type: The reference type prefix string.
+    :param ref_label: The reference label string.
+    :returns: A string safe for use as an HTML ``id`` attribute.
+    """
     ref_type_safe = _rx_unsafe_char.sub(_rx_match_safechar, ref_type)
     ref_label_safe = _rx_unsafe_char.sub(_rx_match_safechar, ref_label)
     return f"{ref_type_safe}-{ref_label_safe}"
@@ -212,7 +258,7 @@ class FeatureRefsRenderManager(Feature.RenderManager):
                            counter_value=None, counter_numprefix=None,
                            counter_formatter_id=None):
         r"""
-        ........
+        Doc todo........
         
         If you call this method a second time on the same render context with
         the same `node` instance and the same `(ref_type, ref_label)`, then the

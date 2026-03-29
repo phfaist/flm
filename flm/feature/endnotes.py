@@ -48,6 +48,19 @@ class EndnoteCategory:
                  counter_formatter : TypeCounterFormatterInput,
                  heading_title : str,
                  endnote_command : str|None = None):
+        r"""
+        :param category_name: Unique identifier for this endnote category
+            (e.g. ``'footnote'``, ``'citation'``).
+        :param counter_formatter: Specification for how endnote numbers are
+            formatted.  Accepts any input recognized by
+            :func:`~flm.counter.build_counter_formatter`.
+        :param heading_title: Title text (FLM markup) rendered as the heading
+            above the collected endnotes for this category.
+        :param endnote_command: If not ``None``, a macro name (without
+            backslash) to register.  The macro takes a single mandatory
+            argument and adds an endnote of this category (e.g. ``'footnote'``
+            registers ``\footnote{...}``).
+        """
         super().__init__()
         self.category_name = category_name
         counter_formatter = build_counter_formatter(
@@ -62,10 +75,25 @@ class EndnoteCategory:
 
 
 class EndnoteMacro(FLMMacroSpecBase):
+    r"""
+    Macro spec that inserts an endnote of a given category.
+
+    When rendered, it registers the endnote content with the endnotes render
+    manager and returns the formatted endnote mark (e.g. a superscript number
+    linking to the endnote list).
+    """
 
     allowed_in_standalone_mode = False
 
     def __init__(self, macroname, endnote_category_name, **kwargs):
+        r"""
+        :param macroname: The LaTeX macro name (without backslash).
+        :param endnote_category_name: The name of the endnote category this
+            macro adds endnotes to (must match an
+            :class:`EndnoteCategory` registered with the feature).
+        :param kwargs: Additional keyword arguments forwarded to
+            :class:`~flm.flmspecinfo.FLMMacroSpecBase`.
+        """
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[
@@ -115,8 +143,26 @@ class EndnoteMacro(FLMMacroSpecBase):
 
 
 class EndnoteInstance:
+    r"""
+    Data object representing a single registered endnote.
+
+    Created by :meth:`FeatureEndnotes.RenderManager.add_endnote` during
+    rendering.  Carries the endnote's category, assigned number, formatted
+    counter value, content node list, and optional reference label information.
+    """
     def __init__(self, category_name, number, formatted_counter_value_flm,
                  content_nodelist, ref_label_prefix, ref_label):
+        r"""
+        :param category_name: The endnote category this instance belongs to.
+        :param number: The numeric counter value assigned to this endnote.
+        :param formatted_counter_value_flm: An :class:`~flm.flmfragment.FLMFragment`
+            containing the formatted counter value (e.g. roman numeral text).
+        :param content_nodelist: The parsed node list of the endnote body.
+        :param ref_label_prefix: Optional reference label prefix for
+            cross-referencing (e.g. a citation key prefix), or ``None``.
+        :param ref_label: Optional reference label for cross-referencing,
+            or ``None``.
+        """
         super().__init__()
         self.category_name = category_name
         self.number = number

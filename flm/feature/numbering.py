@@ -28,11 +28,22 @@ from .. import counter
 
 class Counter:
     r"""
-    A basic counter that can be formatted using a
-    :py:class:`CounterFormatter`.
+    A basic counter that can be incremented, reset, and formatted using a
+    :py:class:`~flm.counter.CounterFormatter`.
+
+    The counter holds an integer value starting at *initial_value* (default
+    ``0``).  Calling :py:meth:`step` increments the value by one and returns
+    the new value.
     """
 
     def __init__(self, counter_formatter, initial_value=0):
+        r"""
+        :param counter_formatter: A
+            :py:class:`~flm.counter.CounterFormatter` used by
+            :py:meth:`format_flm` and :py:meth:`step_and_format_flm`.
+        :param initial_value: The starting value of the counter (default
+            ``0``).  :py:meth:`reset` restores the counter to this value.
+        """
         self.formatter = counter_formatter
         self.initial_value = initial_value
         self.value = initial_value
@@ -63,12 +74,23 @@ class Counter:
 
 class CounterAlias:
     r"""
-    Looks like a :py:class:`Counter`, but always reflects the value stored
-    in another given :py:class:`Counter` instance.  The formatter can be set
-    independently of the reference counter's formatter.
+    A counter proxy that delegates stepping and resetting to another
+    :py:class:`Counter` instance while using its own formatter.
+
+    This is useful when two different element types share the same
+    underlying counter but need distinct display formatting.
     """
 
     def __init__(self, counter_formatter, alias_counter):
+        r"""
+        :param counter_formatter: A
+            :py:class:`~flm.counter.CounterFormatter` for formatting
+            values from this alias independently of the underlying
+            counter's formatter.
+        :param alias_counter: The :py:class:`Counter` instance whose
+            value is shared.  Calls to :py:meth:`step` and
+            :py:meth:`reset` are forwarded to this counter.
+        """
         self.formatter = counter_formatter
         self.alias_counter = alias_counter
 
@@ -133,7 +155,32 @@ def get_document_render_counter(
         alias_counter=None,
         always_number_within=None,
 ):
-    
+    r"""
+    Obtain or create a counter interface for the current render context.
+
+    When the ``numbering`` feature is enabled, the counter is registered
+    through :py:class:`FeatureNumbering.RenderManager` which supports
+    hierarchical numbering and document-state resets.  Otherwise a
+    lightweight :py:class:`Counter` (or :py:class:`CounterAlias`) is
+    created directly.
+
+    :param render_context: The active
+        :py:class:`~flm.flmrendercontext.FLMRenderContext`.
+    :param counter_name: A unique name identifying this counter (e.g.
+        ``'equation'``, ``'section'``).
+    :param counter_formatter: A
+        :py:class:`~flm.counter.CounterFormatter` for displaying counter
+        values.
+    :param alias_counter: If provided, the returned counter shares its
+        underlying value with *alias_counter* (a counter interface
+        previously returned by this function or by
+        ``RenderManager.register_counter``).
+    :param always_number_within: A dict with keys ``'reset_at'`` and
+        ``'numprefix'`` that forces hierarchical numbering.  Requires the
+        ``numbering`` feature; raises :py:exc:`ValueError` otherwise.
+    :returns: A counter interface object with a ``register_item()`` method.
+    """
+
     if not render_context.supports_feature('numbering'):
 
         logger.debug("Requesting counter ‘%s’, feature 'numbering' is not enabled. "

@@ -40,6 +40,20 @@ class VerbatimSpecInfo(FLMSpecInfo):
                  is_block_level=False,
                  include_environment_begin_end=False,
                  **kwargs):
+        r"""
+        :param annotations: Optional list of annotation strings appended to
+            the rendered output (used as CSS class names in HTML).
+        :param verbatimtype: A string identifying the verbatim flavor (e.g.
+            ``'text'``, ``'code'``, ``'a'``).  Determines annotation
+            prefixes added during rendering.
+        :param is_block_level: If ``True``, the verbatim content is rendered
+            as a block-level element; if ``False`` (default), inline.
+        :param include_environment_begin_end: If ``True``, the verbatim
+            output for environments includes the ``\begin``/``\end`` tags.
+            Defaults to ``False``.
+        :param kwargs: Additional keyword arguments forwarded to
+            :class:`~flm.flmspecinfo.FLMSpecInfo`.
+        """
         super().__init__(**kwargs)
         self.annotations = annotations
         self.verbatimtype = verbatimtype
@@ -176,6 +190,20 @@ class VerbatimSpecInfo(FLMSpecInfo):
 
 
 def make_verbatim_args_spec_list(ismacro, verbatim_delimiters, optional_lang_arg):
+    r"""
+    Build the argument spec list for a verbatim macro or environment.
+
+    :param ismacro: If ``True``, include a ``verbatim_content`` argument
+        parsed with the given *verbatim_delimiters*.  ``False`` for
+        environments (content comes from the environment body).
+    :param verbatim_delimiters: Delimiter specification passed to
+        :class:`~pylatexenc.latexnodes.parsers.LatexDelimitedVerbatimParser`.
+        Only used when *ismacro* is ``True``; may be ``None`` for auto-detect.
+    :param optional_lang_arg: If ``True``, prepend an optional
+        ``verbatim_lang`` bracket argument for specifying a programming
+        language.
+    :returns: A list of :class:`~flm.flmenvironment.FLMArgumentSpec` instances.
+    """
     a = []
     if optional_lang_arg:
         a.append(
@@ -209,11 +237,22 @@ def make_verbatim_args_spec_list(ismacro, verbatim_delimiters, optional_lang_arg
 
 
 class VerbatimMacro(VerbatimSpecInfo):
+    r"""Inline verbatim macro (e.g. ``\verbcode+...+``)."""
     def __init__(self, macroname,
                  verbatim_delimiters=None,
                  *,
                  optional_lang_arg=False,
                  **kwargs):
+        r"""
+        :param macroname: The LaTeX macro name (without backslash), e.g.
+            ``'verbcode'``.
+        :param verbatim_delimiters: Delimiter specification for the verbatim
+            content parser.  ``None`` for auto-detected matching delimiters.
+        :param optional_lang_arg: If ``True``, register an optional
+            ``[lang]`` argument before the verbatim content.
+        :param kwargs: Additional keyword arguments forwarded to
+            :class:`VerbatimSpecInfo`.
+        """
         super().__init__(
             macroname=macroname,
             spec_node_parser_type='macro',
@@ -232,7 +271,16 @@ class VerbatimMacro(VerbatimSpecInfo):
 
 
 class VerbatimEnvironment(VerbatimSpecInfo):
+    r"""Block-level verbatim environment (e.g. ``verbatimcode``)."""
     def __init__(self, environmentname, *, optional_lang_arg=False, **kwargs):
+        r"""
+        :param environmentname: The LaTeX environment name (e.g.
+            ``'verbatimcode'``).
+        :param optional_lang_arg: If ``True``, register an optional
+            ``[lang]`` argument on the environment.
+        :param kwargs: Additional keyword arguments forwarded to
+            :class:`VerbatimSpecInfo`.
+        """
         super().__init__(
             environmentname=environmentname,
             spec_node_parser_type='environment',

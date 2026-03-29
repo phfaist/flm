@@ -340,12 +340,47 @@ Figures and Graphics
       \label{figure:my-image}
     \end{figure}
 
-The ``\includegraphics`` macro accepts an optional argument for graphics
-options such as width:
+While the ``\includegraphics`` macro accepts an optional argument, this argument
+is currently completely ignored.  You should prepare your figure directly at the
+correct size.  Bear in mind that if you have text elements in your figure, then
+resizing the figure will cause a visual mismatch with the article text
+appearance.
 
-.. code-block:: latex
+The format to use for figures depends on what destination format you are
+targetting.  A good choice is to use SVG figures (for HTML output), PNG or JPEG
+figures (both HTML and LaTeX/PDF), and PDF figures (for LaTeX/PDF output).  You
+can use the
+:py:class:`flm.main.feature_graphics_collection:FeatureGraphicsCollection`
+feature (`standard-graphics-collection-feature`_) to automatically convert
+between formats while also collecting your source graphics to a common target
+location.
+  
+The size at which you place elements in your SVG file is important.  The stated
+physical dimensions that are present in the SVG file are used to place the image
+at the correct size and resolution to match the surrounding article.
+    
+Be sure also to **set the page dimensions of your SVG document correctly** to
+match the size of your graphic, with the correct scale for rendering on our web
+page.  If you use Inkscape, you can select “File” → “Document Properties” →
+“Resize page to drawing or selection” and make sure you have reasonable figure
+dimensions.  Take into account the final rendering target to decide your figure
+width (e.g., margins in your destination latex template).
 
-    \includegraphics[width=300px]{my-image}
+If you set the SVG image's dimensions in units of pixels ("px"), we'll assume a
+resolution of 96 DPI (as per web standards).  [If you're using Affinity
+Designer, set the document resolution to 96 dpi, and uncheck ‘Set viewBox’ in
+the SVG export options.]
+    
+If you use PNG or JPG/JPEG files.  **Please make sure you set the physical
+resolution (DPI) of the image correctly**, as this information is honored to
+determine the figure size.  Most graphics software will allow you to adjust this
+setting (look for "physical dimensions", "dots-per-inch", "pixels-per-inch", or
+"DPI").  In [GIMP](https://www.gimp.org/), you can set the resolution with
+"Image" -> "Resize" and providing any two of physical dimensions (e.g.,
+mm,cm,in,pt), pixel dimensions, and DPI.
+
+See also the `standard-graphics-collection-feature`_ (below).
+
 
 **Tables:**
 
@@ -366,8 +401,7 @@ options such as width:
 Float types (``figure``, ``table``, etc.), their caption names ("Fig.", "Tab."),
 counter formatters, and permitted content handlers are all configurable.
 
-TODO: missing docs: ``\cellstyle``, ``\cell``, optional style arguments to these
-commands and ``\celldata``; document styles.
+For typesetting tabular content (tables), see “cells” below.
 
 
 .. _standard-syntax-cells:
@@ -382,14 +416,140 @@ The ``cells`` environment provides a table-like layout:
 .. code-block:: latex
 
     \begin{cells}
-      \celldata
-        & Header 1 & Header 2 \\
-        & Row 1, Col 1 & Row 1, Col 2 \\
-        & Row 2, Col 1 & Row 2, Col 2
+      \celldata<H>{
+        Header 1 & Header 2
+      }
+      \celldata{
+        Row 1, Col 1 & Row 1, Col 2 \\
+        Row 2, Col 1 & Row 2, Col 2
+      }
     \end{cells}
+
+
+The ``{cells}`` environment may contain any number of calls to the
+macros ``\celldata`` and ``\cell``.  Each such macro call adds new
+cells to the table.  The macros have the following syntax:
+
+- ``\cell{contents}``, ``\cell<style1 style2 ...>{contents}``,
+  ``\cell[location]{contents}``,
+  ``\cell<styles...>[location]{contents}``: Add a single cell to
+  the table.  Unless a location is specified, the cell is added in
+  the next column on the current row.
+  
+  The ``[location]`` can either specify a column ``[COL]`` (will use the current
+  row) or a pair ``[ROW;COL]``.  Each of `COL` and `ROW` can be:
+
+  - a row/column number (row and column numbers start at 1);
+
+  - left empty, or set to the character ``.``, to mean the current
+    row/column;
+
+  - a ``\merge{INDEXRANGE}`` command to create a merged cell
+    spanning multiple rows/columns.  Here, the `INDEXRANGE` can
+    be comma-separated numbers (e.g., ``1,2,3`` to include the
+    given row/column numbers), including ranges specified as
+    ``START-END`` (such as e.g. ``2-4`` for row/column indices 2
+    through 4, included) as well as ``START+NUMBER`` to include
+    ``NUMBER`` columns starting at index number ``START`` (e.g.,
+    ``2+3`` will include column numbers ``2``, ``3`` and ``4``).
+    Ranges can be combined, separated by commas, but in any case
+    the `INDEXRANGE` must correspond to a contiguous set of
+    indices.
+    
+  The ``<styles...>`` argument specifies the style that will be
+  applied to the cell.  See information on cell styles below.  You
+  can specify multiple styles by separating them with spaces.
+  
+  *Example:* ``\cell<H l>[1;\merge{3-4}]{Hi!}`` will create a
+  left-aligned (``l``) header (``H``) cell at row ``1`` and
+  spanning the columns ``3`` and ``4``, with the contents
+  “``Hi!``”.
+  
+- ``\celldata{tabular data}``, ``\celldata<cellstyles>{tabular
+  data}``, ``\celldata[locations]{tabular data}``,
+  ``\celldata<cellstyles>[locations]{tabular data}``: A shorthand
+  for sequentially adding multiple cells.
+  
+  The ``{tabular data}`` is specified as you'd do for the LaTeX
+  ``\begin{tabular} ... \end{tabular}`` environment, by separating
+  rows with ``\\`` and separating columns with ``&``.
+
+  The cells can be placed at given locations, and each cell is
+  styled according to the given styles.
+  
+  The optional ``[locations]`` is of the form of either
+  ``[COLUMNS]`` or ``[ROWS;COLUMNS]``.  If `ROWS` are not
+  specified, then rows are added sequentially starting from the
+  current row.  Each of `ROWS` and `COLUMNS` specify a
+  sequence of row/column indices to which the given data will be
+  assigned.  For instance, ``\celldata[3,2,1]{A & B & C}`` will
+  place ``A`` in the 3rd column, ``B`` in the 2nd column, and
+  ``C`` in the 1st column.  More specifically, `ROWS` and
+  `COLUMNS` are specified a comma-separated list of indices, of
+  ranges of the form ``START-END`` or ``START+NUMBER`` (see
+  above), and of ``\merge{}`` commands (see above).  Omitting
+  `START` or `END` is interpreted as the current or the last
+  index, respectively.  For instance:
+
+  - ``\celldata[2-5]{A & B & C & D\\ E & F & G & H}`` will place
+    ``A``, ``B``, ``C``, ``D`` in columns 2, 3, 4, 5 of the first
+    row, and place ``E``, ``F``, ``G``, ``H`` in columns 2, 3, 4,
+    5 of the following row;
+
+  - ``\celldata[\merge{1,2},\merge{+2};4,6]{A & AA \\ B & BB}``
+    will place ``A`` in a merged cell spanning rows ``1,2`` and in
+    column ``4``, ``AA`` in a merged call spanning rows ``1,2``
+    and in column ``6``, ``B`` in a merged call spanning rows
+    ``3,4`` and in column ``4``, and ``BB`` in a merged call
+    spanning rows ``3,4`` and in column ``6``.
+  
+  The ``styles`` is a comma-separated list of styles to apply to
+  the different columns.  The same style is applied to all
+  provided cells of that column.  The sequence corresponds to the
+  given data, not the final column number.  If there are fewer
+  style specifications than columns, then the last style is
+  repeated as necessary.  For each column style you can specify
+  multiple styles by separating them with spaces.  For instance:
+  
+  - ``\celldata<H>{One & Two & Three}`` Creates three header
+    (``H``) cells on a single row.
+    
+  - ``\celldata<H l, H c>{One & Two & Three}`` Creates one
+    left-aligned (``l``) header (``H``) cell with content
+    “``One``”, and two centered (``c``) header (``H``) cells with
+    respective content “``Two``” and “``Three``”.
+
+  You can also override the style and/or location for individual cells
+  in the tabular data by wrapping that cell's content in an explicit
+  ``\cell`` call.  Styles are merged with any styles specified in the
+  ``\celldata`` call.  For instance, ``\celldata<H>{A & B &
+  \cell<green>[\merge{+2}]{C}}`` will generate a row with a header
+  cell ``A`` in the first column, a header cell ``B`` in the second
+  column, and a green-background header cell ``C`` spanning the third
+  and fouth columns.
+
+
+*Cell styles:*
+
+- ``H`` — this cell is a column header.  It will be typeset in a
+  more prominent form (e.g., boldface with a light bottom border);
+
+- ``rH`` — this cell is a row header.  It will be typeset more
+  prominently (e.g., boldface);
+  
+- ``l``, ``c``, ``r`` — align cell contents ``l``\ eft, ``c``\ entered
+  or ``r``\ ight;
+  
+- ``lvert``, ``rvert`` — add a thin vertical border on the left or
+  the right side of the cell;
+  
+- ``green``, ``blue``, ``yellow``, ``red`` — apply a background
+  color to the cell to emphasize it in some way.
+    
 
 Columns are separated by ``&`` and rows by ``\\``, similar to LaTeX tabular
 syntax.  Use ``\cell`` for individual cells and ``\merge`` for merged cells.
+
 
 
 .. _standard-syntax-defterm:
@@ -587,3 +747,17 @@ the type:
 
 See the `flm-citations documentation <https://github.com/phfaist/flm-citations>`_
 for configuration details.
+
+
+
+.. _standard-graphics-collection-feature:
+
+Graphics collections — autoconverting formats and collecting
+------------------------------------------------------------
+
+*Provided by the* ``flm.main.feature_graphics_collection`` *feature.*
+
+Collect input graphics files into a specific output folder, while applying a
+series of custom transformation rules to convert between chosen formats.
+
+TODO: Doc...

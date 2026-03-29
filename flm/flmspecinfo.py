@@ -161,18 +161,40 @@ class FLMSpecInfo(macrospec.CallableSpec):
 
     def prepare_delayed_render(self, node, render_context) -> None:
         r"""
-        For items with `delayed_render=True`, this method is called instead of
-        render() on the first pass, so that this document item has the
-        opportunity to register itself in document feature managers, etc.
+        Called during the first rendering pass for items with
+        :py:attr:`delayed_render` set to ``True``.  This method is called
+        *instead of* :py:meth:`render` so that the node can register itself
+        with document feature managers (e.g., to collect reference targets
+        or footnote content) before the full document has been traversed.
 
-        This method is never called if `delayed_render=False`.
+        Subclasses **must** override this method if they set
+        ``delayed_render=True``; the default implementation raises
+        :py:exc:`RuntimeError`.
+
+        This method is never called if ``delayed_render=False``.
+
+        :param node: The parsed :py:class:`~pylatexenc.latexnodes.nodes.LatexNode`.
+        :param render_context: The
+            :py:class:`~flm.flmrendercontext.FLMRenderContext`.
         """
         raise RuntimeError("Reimplement me!")
 
     def render(self, node, render_context) -> Any:
         r"""
-        Produce a final representation of the node, using the given
-        `render_context`.
+        Produce a rendered representation of the node using the given render
+        context.
+
+        Subclasses **must** override this method to return rendered output
+        appropriate for the active
+        :py:class:`~flm.fragmentrenderer.FragmentRenderer`.  The default
+        implementation raises :py:exc:`RuntimeError`.
+
+        :param node: The parsed :py:class:`~pylatexenc.latexnodes.nodes.LatexNode`.
+        :param render_context: The
+            :py:class:`~flm.flmrendercontext.FLMRenderContext` carrying the
+            current fragment renderer and document state.
+        :returns: A rendered output value (typically a string in the format
+            produced by the active fragment renderer).
         """
         raise RuntimeError(
             f"Element ‘{node}’ cannot be placed here, render() not reimplemented."
@@ -252,6 +274,24 @@ class FLMSpecInfo(macrospec.CallableSpec):
                                       nodeargd,
                                       arg_parsing_state_delta,
                                       latex_walker):
+        r"""
+        Compute the parsing state delta to apply when parsing the body of an
+        environment.
+
+        If :py:attr:`body_contents_is_block_level` is not ``None``, the
+        returned delta chains the parent class's delta with a
+        :py:class:`~flm.flmenvironment.FLMParsingStateDeltaSetBlockLevel` to
+        enforce the desired block-level mode inside the environment body.
+
+        :param token: The opening token of the environment.
+        :param nodeargd: The parsed arguments so far.
+        :param arg_parsing_state_delta: The parsing state delta from argument
+            parsing.
+        :param latex_walker: The :py:class:`~flm.flmenvironment.FLMLatexWalker`
+            instance.
+        :returns: A :py:class:`~pylatexenc.latexnodes.ParsingStateDelta`
+            instance (possibly chained).
+        """
 
         delta_base = super().make_body_parsing_state_delta(
             token,
@@ -512,6 +552,18 @@ class TextFormatMacro(FLMMacroSpecBase):
         )
 
     def render(self, node, render_context):
+        r"""
+        Render the macro's text argument with the configured text format(s).
+
+        Delegates to
+        :py:meth:`~flm.fragmentrenderer.FragmentRenderer.render_text_format`
+        on the active fragment renderer.
+
+        :param node: The parsed macro node.
+        :param render_context: The current
+            :py:class:`~flm.flmrendercontext.FLMRenderContext`.
+        :returns: The rendered output with the text formats applied.
+        """
 
         node_args = ParsedArgumentsInfo(node=node).get_all_arguments_info(
             ('text',) ,
@@ -557,6 +609,18 @@ class SemanticBlockEnvironment(FLMEnvironmentSpecBase):
         )
 
     def render(self, node, render_context):
+        r"""
+        Render the environment body as a semantic block.
+
+        First renders the body node list, then wraps it via
+        :py:meth:`~flm.fragmentrenderer.FragmentRenderer.render_semantic_block`
+        using the configured :py:attr:`role` and :py:attr:`annotations`.
+
+        :param node: The parsed environment node.
+        :param render_context: The current
+            :py:class:`~flm.flmrendercontext.FLMRenderContext`.
+        :returns: The rendered semantic block output.
+        """
 
         content = render_context.fragment_renderer.render_nodelist(
             node.nodelist,

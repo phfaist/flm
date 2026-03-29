@@ -28,11 +28,27 @@ from . import refs
 
 
 def simplify_trim_whitespace(x):
-    # any type of space (tab, etc.) -> single space.  Also remove entirely
-    # leading/trailing whitespace.
+    r"""
+    Collapse all whitespace sequences (tabs, newlines, etc.) in *x* to a
+    single space and strip leading/trailing whitespace.
+
+    :param x: Input string.
+    :returns: Normalized string.
+    """
     return re.sub(r'\s+', ' ', x.strip())
 
 def get_term_ref_label_verbatim(node_term_arg_nodelist):
+    r"""
+    Obtain a normalized reference label string from a term argument node list.
+
+    Extracts the verbatim LaTeX source of *node_term_arg_nodelist* and applies
+    :func:`simplify_trim_whitespace` to produce a canonical label suitable for
+    cross-referencing.
+
+    :param node_term_arg_nodelist: A ``LatexNodeList`` representing the parsed
+        term argument.
+    :returns: Whitespace-normalized verbatim string.
+    """
     return simplify_trim_whitespace(
         node_term_arg_nodelist.latex_verbatim()
     )
@@ -52,6 +68,17 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
 
     def __init__(self, environmentname, render_with_term=True, render_with_term_suffix=': ',
                  **kwargs):
+        r"""
+        :param environmentname: The LaTeX environment name (e.g.
+            ``'defterm'``).
+        :param render_with_term: If ``True`` (default), the defined term is
+            rendered inline as a bold heading at the start of the environment
+            body.
+        :param render_with_term_suffix: String appended after the inline term
+            heading when *render_with_term* is ``True`` (default ``': '``).
+        :param kwargs: Additional keyword arguments forwarded to
+            :class:`~flm.flmspecinfo.FLMEnvironmentSpecBase`.
+        """
         super().__init__(
             environmentname=environmentname,
             arguments_spec_list=[
@@ -221,6 +248,14 @@ class DefineTermEnvironment(FLMEnvironmentSpecBase):
 
 
 class RefTermMacro(FLMMacroSpecBase):
+    r"""
+    Macro spec for the ``\term`` command that references a defined term.
+
+    Uses delayed rendering so that forward references resolve correctly.
+    On render, produces a hyperlink to the defining ``defterm`` environment
+    (via the ``refs`` feature) or styled inline text when the reference
+    occurs within the term's own definition.
+    """
 
     allowed_in_standalone_mode = False
     delayed_render = True

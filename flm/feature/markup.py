@@ -52,6 +52,16 @@ class FeatureMarkup(Feature):
                  text_macros : Mapping[str, TypeTextMacroDef]|None = None,
                  semantic_environments : Mapping[str, TypeSemanticEnvironmentDef]|None = None,
                  ):
+        r"""
+        :param text_macros: Mapping of macro names to dicts with a
+            ``'text_formats'`` key listing format style names (e.g.
+            ``['textit']``).  Each entry registers a
+            :py:class:`~flm.flmspecinfo.TextFormatMacro`.
+        :param semantic_environments: Mapping of environment names to dicts
+            with a ``'role'`` key and an optional ``'annotations'`` key.
+            Each entry registers a
+            :py:class:`~flm.flmspecinfo.SemanticBlockEnvironment`.
+        """
         super().__init__()
         self.text_macros = text_macros or {}
         self.semantic_environments = semantic_environments or {}

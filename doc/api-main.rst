@@ -26,3 +26,17 @@ Module `flm.main.workflow`
 .. automodule:: flm.main.workflow
    :members:
 
+
+Module `flm.main.workflow.flmlatex`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: flm.main.workflow.flmlatex
+   :members:
+
+
+Module `flm.main.workflow.runlatexpdf`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: flm.main.workflow.runlatexpdf
+   :members:
+

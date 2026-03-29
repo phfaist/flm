@@ -80,6 +80,23 @@ _default_ifmarks = {
 
 
 class TemplateEngineBase:
+    r"""
+    Abstract base class for template engines used to render final output
+    documents from FLM-rendered content.
+
+    Subclasses must implement :meth:`render_template` to produce the final
+    output string from a merged configuration dictionary.  Optionally override
+    :meth:`initialize` to perform setup using ``template_engine_config`` keys.
+
+    :param template_info_path: Base folder path for the template.
+    :param template_info_file: Filename of the template descriptor
+        (``.yaml`` file).
+    :param flm_run_info: The run-info dictionary carrying resource accessor,
+        output format, and other run-time state.
+    :param document_template: The owning :class:`DocumentTemplate` instance.
+    :param template_engine_config: Dictionary of engine-specific configuration
+        options (passed as keyword arguments to :meth:`initialize`).
+    """
     def __init__(self, template_info_path, template_info_file,
                  flm_run_info, document_template,
                  template_engine_config, ):

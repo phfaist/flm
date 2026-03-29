@@ -70,23 +70,76 @@ def standard_features(
     Each feature can be disabled by setting its parameter to ``False``
     (e.g., ``headings=False``).
 
-    :param baseformatting: Enable text formatting (``\emph``, ``\textbf``,
-        etc.).
-    :param href: Enable hyperlinks (``\href``, ``\url``).
-    :param verbatim: Enable verbatim/code (``\verbcode``).
-    :param math: Enable math mode (``\(...\)``, ``equation``, etc.).
-    :param headings: Enable section headings.
-    :param refs: Enable cross-references (``\ref``, ``\label``).
-    :param enumeration_environments: Enable lists (``enumerate``,
-        ``itemize``).
-    :param endnotes: Enable footnotes.
-    :param floats: Enable figures and tables.
-    :param defterm: Enable definition terms.
-    :param theorems: Enable theorem environments.
-    :param eq_counter_formatter: Counter formatter for equations.
-    :param footnote_counter_formatter: Counter formatter for footnotes
-        (default: ``'alph'``).
-    :returns: A list of :py:class:`~flm.feature.Feature` instances.
+    :param baseformatting: Enable base text formatting macros (``\emph``,
+        ``\textbf``, ``\textit``, etc.).  Set to *False* to disable.
+    :param href: Enable hyperlink macros (``\href``, ``\url``, ``\email``).
+        Set to *False* to disable.
+    :param verbatim: Enable verbatim/code macros (``\verbcode``).  Set to
+        *False* to disable.
+    :param math: Enable math mode (``\(...\)``, ``equation`` environment,
+        etc.).  Set to *False* to disable.
+    :param headings: Enable section heading macros (``\section``,
+        ``\paragraph``, etc.).  Set to *False* to disable.
+    :param heading_section_commands_by_level: Custom mapping of heading
+        levels to command definitions, forwarded to
+        :py:class:`~flm.feature.headings.FeatureHeadings` as
+        ``section_commands_by_level``.  If *None*, uses the feature default.
+    :param heading_numbering_section_depth: Maximum heading depth at which
+        automatic numbering is applied, forwarded as
+        ``numbering_section_depth``.  If *None*, uses the feature default.
+    :param heading_section_numbering_by_level: Custom mapping of heading
+        levels to per-level numbering settings, forwarded as
+        ``section_numbering_by_level``.  If *None*, uses the feature default.
+    :param heading_counter_formatter: Counter formatter specification for
+        heading numbering, forwarded as ``counter_formatter``.
+    :param refs: Enable cross-references (``\ref``, ``\label``).  Set to
+        *False* to disable.
+    :param external_ref_resolvers: List of external reference resolver
+        objects forwarded to
+        :py:class:`~flm.feature.refs.FeatureRefs`.
+    :param enumeration_environments: Enable list environments (``enumerate``,
+        ``itemize``, ``description``).  Set to *False* to disable.
+    :param enumeration_environments_dict: Custom enumeration environment
+        definitions dict forwarded to
+        :py:class:`~flm.feature.enumeration.FeatureEnumeration` as
+        ``enumeration_environments``.
+    :param endnotes: Enable footnotes.  Set to *False* to disable.
+    :param citations: Enable citation support.  Requires
+        *external_citations_providers* to also be set.
+    :param external_citations_providers: List of external citation provider
+        objects forwarded to
+        :py:class:`~flm.feature.cite.FeatureExternalPrefixedCitations`.
+    :param eq_counter_formatter: Counter formatter specification for equation
+        numbering, forwarded to
+        :py:class:`~flm.feature.math.FeatureMath`.
+    :param footnote_counter_formatter: Counter formatter for footnotes.
+        Defaults to ``'alph'``.
+    :param citation_counter_formatter: Counter formatter for citations.
+        Defaults to ``'arabic'``.
+    :param use_simple_path_graphics_resource_provider: Register
+        :py:class:`~flm.feature.graphics.FeatureSimplePathGraphicsResourceProvider`
+        as the graphics resource provider.  Set to *False* if providing a
+        custom provider.
+    :param floats: Enable figure and table floats.  Set to *False* to
+        disable.
+    :param float_types: Custom float type definitions forwarded to
+        :py:class:`~flm.feature.floats.FeatureFloats`.
+    :param defterm: Enable definition term macros (``\defterm``).  Set to
+        *False* to disable.
+    :param render_defterm_with_term: Forwarded to
+        :py:class:`~flm.feature.defterm.FeatureDefTerm`.  Controls whether
+        the defining term text is rendered alongside the definition.
+    :param theorems: Enable theorem-like environments.  Pass *True* for
+        defaults, or a dict of keyword arguments forwarded to
+        :py:class:`~flm.feature.theorems.FeatureTheorems`.
+    :param substmacros_definitions: Dict of substitution macro/environment/
+        specials definitions forwarded to
+        :py:class:`~flm.feature.substmacros.FeatureSubstMacros`.  If falsy,
+        the feature is not registered.
+    :param quote_environments: Enable quote environments.  Pass *True* for
+        defaults, or a dict of keyword arguments forwarded to
+        :py:class:`~flm.feature.quote.FeatureQuote`.  *False* disables.
+    :returns: A list of :py:class:`~flm.feature._base.Feature` instances.
     """
 
     if footnote_counter_formatter is None:

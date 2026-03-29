@@ -36,6 +36,17 @@ from ._base import Feature, FeatureRenderManagerBase
 
 
 class AnnotationArgumentParser(LatexParserBase):
+    r"""Custom argument parser for annotation macros.
+
+    Dispatches based on the opening delimiter:
+
+    * ``{...}`` -- highlighted text
+    * ``[...]`` -- inline comment
+    * bare text until ``\end<macroname>`` -- highlighted text (alternative form)
+
+    :param macroname: The annotation macro name, used to derive the
+        ``\end<macroname>`` stop condition.
+    """
     def __init__(self, macroname):
         super().__init__()
         
@@ -94,6 +105,14 @@ class AnnotationArgumentParser(LatexParserBase):
 
 
 class AnnotationMacro(FLMMacroSpecBase):
+    r"""Spec info for a single annotation macro (e.g. ``\abc``).
+
+    Supports two syntactic forms: ``\abc{highlighted text}`` (or the
+    ``\abc ... \endabc`` variant) for highlighting, and ``\abc[comment]``
+    for inline comments.  Rendering delegates to
+    ``render_annotation_highlight`` or ``render_annotation_comment`` on the
+    fragment renderer.
+    """
 
     allowed_in_standalone_mode = True
 
@@ -103,6 +122,14 @@ class AnnotationMacro(FLMMacroSpecBase):
     _flm_main_text_argument = 'text'
 
     def __init__(self, macroname : str, initials : str|None = None, color_index : int = 0):
+        r"""
+        :param macroname: The macro name to register (e.g. ``'abc'``).
+        :param initials: Optional author initials displayed alongside the
+            annotation.
+        :param color_index: Zero-based index selecting the annotation color,
+            incremented automatically for each annotator defined in
+            :py:class:`FeatureAnnotations`.
+        """
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[
@@ -222,6 +249,14 @@ class FeatureAnnotations(Feature):
             macrodefs : Mapping[str, TypeAnnotationMacroDef]|None = None,
             hide_all_annotations : bool = False,
     ):
+        r"""
+        :param macrodefs: Mapping of macro names to annotation definition
+            dicts.  Each dict may contain an ``'initials'`` key with the
+            annotator's initials.  A unique ``color_index`` is assigned
+            automatically in iteration order.
+        :param hide_all_annotations: When *True*, highlights render only the
+            underlying text and inline comments are suppressed entirely.
+        """
         super().__init__()
         self.macrodefs = dict(macrodefs or {})
         self.hide_all_annotations = hide_all_annotations

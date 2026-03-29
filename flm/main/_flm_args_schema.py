@@ -3,11 +3,25 @@ import collections.abc
 import inspect
 import types
 import typing
+import json
+import enum
 from typing import (
-    TypedDict,
+    TypedDict, Literal,
     get_type_hints, get_origin, get_args, is_typeddict,
 )
 
+
+def _jsonable(v):
+    if isinstance(v, enum.Enum):
+        return v.value
+    try:
+        json.dumps(v)
+        return v
+    except TypeError:
+        # cannot represent this type as a constant in the schema -- use {} so
+        # that any value is allowed (fallback to anything is allowed)
+        return {}
+    
 
 
 def type_to_json_schema(tp):
@@ -25,12 +39,14 @@ def type_to_json_schema(tp):
         return {"type": "string"}
     if tp is bool:
         return {"type": "boolean"}
+
     if tp is list or origin is list or origin is collections.abc.Sequence:
         item_type = args[0] if args else typing.Any
         return {
             "type": "array",
             "items": type_to_json_schema(item_type),
         }
+
     if tp is tuple or origin is tuple:
         if args:
             return {
@@ -39,12 +55,14 @@ def type_to_json_schema(tp):
                                 if a is not Ellipsis],
             }
         return {"type": "array"}
+
     if tp is dict or origin is dict or origin is collections.abc.Mapping:
         value_type = args[1] if len(args) == 2 else typing.Any
         return {
             "type": "object",
             "additionalProperties": type_to_json_schema(value_type),
         }
+
     if origin is typing.Union or isinstance(tp, types.UnionType):
         # Optional[T] = Union[T, None]
         non_none = [a for a in args if a is not type(None)]
@@ -56,6 +74,13 @@ def type_to_json_schema(tp):
             return schemas[0]
         return {"anyOf": schemas}
 
+    if origin is typing.Literal:
+        values = [_jsonable(v) for v in args]
+        if len(values) == 1:
+            return {"const": values[0]}
+        else:
+            return {"enum": values}
+    
     if isinstance(tp, type) and is_typeddict(tp):
         hints = get_type_hints(tp)
         properties = {}

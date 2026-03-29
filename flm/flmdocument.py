@@ -59,22 +59,79 @@ class FLMDocumentRenderContext(FLMRenderContext):
 
 
     def supports_feature(self, feature_name):
+        r"""
+        Check whether a feature is active in this render context.
+
+        :param feature_name: The unique string identifier of the feature.
+        :returns: ``True`` if a render manager (possibly ``None``) was
+            created for *feature_name*, ``False`` otherwise.
+        """
         return ( feature_name in self.feature_render_managers_by_name )
 
     def feature_render_manager(self, feature_name):
+        r"""
+        Return the render manager for the given feature.
+
+        :param feature_name: The unique string identifier of the feature.
+        :returns: The
+            :py:class:`~flm.feature._base.FeatureRenderManagerBase` instance
+            for *feature_name*, or ``None`` if the feature has no render
+            manager.
+        :raises KeyError: If *feature_name* is not a supported feature.
+        """
         return self.feature_render_managers_by_name[feature_name]
 
     def register_delayed_render(self, node, fragment_renderer):
+        r"""
+        Register a node for delayed rendering.
+
+        The node is stored by its internal node ID so that its content can be
+        rendered after the first pass, once the full document structure is
+        known (e.g., for resolving ``\ref`` targets).
+
+        :param node: The parsed node to register.  Must have a
+            ``_flm_node_id`` attribute.
+        :param fragment_renderer: The active fragment renderer (currently
+            unused but kept for API consistency with the base class).
+        :returns: The node's ID key, used internally to store and later
+            retrieve the rendered content.
+        """
         # register the node for delayed render
         key = node._flm_node_id
         self._delayed_render_nodes[key] = node
         return key
 
     def get_delayed_render_content(self, node):
+        r"""
+        Retrieve the rendered content for a previously registered
+        delayed-render node.
+
+        This should be called after the document's
+        :py:meth:`~FLMDocument.render` method has completed the delayed
+        rendering phase.
+
+        :param node: The node whose delayed content is requested.
+        :returns: The rendered content string for the node.
+        :raises KeyError: If the node was not registered or its delayed
+            content has not yet been rendered.
+        """
         key = node._flm_node_id
         return self._delayed_render_content[key]
 
     def make_standalone_fragment(self, flm_text, **kwargs):
+        r"""
+        Create a standalone-mode fragment within the document context.
+
+        This is a convenience method that calls
+        :py:meth:`~flm.flmenvironment.FLMEnvironment.make_fragment` with
+        ``standalone_mode=True`` on the document's environment.
+
+        :param flm_text: The FLM source text to parse.
+        :param kwargs: Additional keyword arguments forwarded to
+            :py:meth:`~flm.flmenvironment.FLMEnvironment.make_fragment`.
+        :returns: A :py:class:`~flm.flmfragment.FLMFragment` in standalone
+            mode.
+        """
         return self.doc.environment.make_fragment(flm_text, standalone_mode=True, **kwargs)
 
 
@@ -147,6 +204,13 @@ class FLMDocument:
         #             self.feature_document_managers)
 
     def initialize(self):
+        r"""Initialize all feature document managers.
+
+        Calls ``initialize(**feature_options)`` on each feature's
+        :py:class:`~flm.feature._base.FeatureDocumentManagerBase`, passing
+        the corresponding options from *feature_document_options* (supplied
+        at construction time).  Must be called before :py:meth:`render`.
+        """
         #logger.debug("FLMDocument's initialize() called")
         # initialize our feature document managers
         for feature_name, feature_document_manager in self.feature_document_managers:
@@ -155,12 +219,38 @@ class FLMDocument:
                 feature_document_manager.initialize( **feature_options )
 
     def supports_feature(self, feature_name):
+        r"""Check whether a feature is enabled in this document.
+
+        :param feature_name: The unique string identifier of the feature.
+        :returns: ``True`` if *feature_name* has a document manager entry
+            (possibly ``None``), ``False`` otherwise.
+        """
         return ( feature_name in self.feature_document_managers_by_name )
 
     def feature_document_manager(self, feature_name):
+        r"""Return the document manager for the given feature.
+
+        :param feature_name: The unique string identifier of the feature.
+        :returns: The
+            :py:class:`~flm.feature._base.FeatureDocumentManagerBase`
+            instance, or ``None`` if the feature has no document manager.
+        :raises KeyError: If *feature_name* is not enabled in this document.
+        """
         return self.feature_document_managers_by_name[feature_name]
 
     def make_render_context(self, fragment_renderer, feature_render_options=None):
+        r"""Create and initialize a :py:class:`FLMDocumentRenderContext`.
+
+        Instantiates the render context with all feature document managers,
+        then initializes each feature's render manager with its options.
+
+        :param fragment_renderer: The
+            :py:class:`~flm.fragmentrenderer.FragmentRenderer` to use.
+        :param feature_render_options: Optional dictionary mapping feature
+            names to dictionaries of options passed to each feature's
+            ``RenderManager.initialize()``.
+        :returns: A fully initialized :py:class:`FLMDocumentRenderContext`.
+        """
         # create the render context
         render_context = FLMDocumentRenderContext(
             self,

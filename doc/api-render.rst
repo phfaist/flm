@@ -9,6 +9,13 @@ During rendering, two main objects work together:
   provides a logical-state mechanism that nodes can use to adjust their output
   depending on nesting depth or other context.
 
+  For document-mode rendering, the concrete subclass
+  :py:class:`~flm.flmdocument.FLMDocumentRenderContext` is used.  It adds
+  support for feature render managers, delayed rendering of forward
+  references, and per-render data storage.  In standalone mode, a minimal
+  :py:class:`~flm.flmrendercontext.FLMStandaloneModeRenderContext` is
+  used instead.
+
 - The **fragment renderer** (:py:class:`~flm.fragmentrenderer.FragmentRenderer`)
   is responsible for producing the final output string in a specific format.
   Each output format (HTML, text, LaTeX, Markdown) has its own fragment

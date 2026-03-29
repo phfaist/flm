@@ -6,6 +6,8 @@ import subprocess
 import json
 import hashlib
 
+from typing import Literal, TypedDict, Sequence, Mapping, Any, Union
+
 from urllib.parse import urlparse
 import urllib.request
 
@@ -14,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 from pylatexenc.latexnodes import LatexWalkerError
 from pylatexenc.latexnodes.nodes import LatexNodesVisitor
-from flm.feature._base import Feature
+from flm.feature._base import Feature, FeatureDocumentManagerBase, FeatureRenderManagerBase
 from flm.feature.graphics import GraphicsResource
 
 from ._inspectimagefile import get_image_file_info
@@ -23,6 +25,27 @@ from ._find_exe import find_std_exe, ExecutableNotFoundError
 
 
 # ------------------------------------------------------------------------------
+
+
+
+TypeGraphicsFormatConversionRuleDict = TypedDict(
+    'TypeGraphicsFormatConversionRuleDict',
+    # need this TypedDict decl syntax because 'from' is a python keyword
+    {
+        'from': Sequence[str],
+        'to': Sequence[str],
+        'via': Sequence[str],
+        'options': None|Mapping[str,Any],
+    },
+    total=False
+)
+
+
+TypeGraphicsFormatConversionRule = Union[
+    TypeGraphicsFormatConversionRuleDict,
+    'GraphicsFormatConversionRule',
+    str # 'from1,from2:to1,to2,to3
+]
 
 
 
@@ -226,16 +249,29 @@ class CairoSvgConverter(GraphicsConverter):
 
         if options is None:
             options = {}
-
+        else:
+            options = dict(options)
+        
         svgkwargs = {}
-        if 'dpi' in options:
-            svgkwargs['dpi'] = options['dpi']
-        if 'scale' in options:
-            svgkwargs['scale'] = options['scale']
-        if 'parent_width' in options:
-            svgkwargs['parent_width'] = options['parent_width']
-        if 'parent_height' in options:
-            svgkwargs['parent_height'] = options['parent_height']
+
+        dpi = options.pop('dpi', None)
+        if dpi is not None:
+            svgkwargs['dpi'] = dpi
+
+        scale = options.pop('scale', None)
+        if scale is not None:
+            svgkwargs['scale'] = scale
+
+        parent_width = options.pop('parent_width', None)
+        if parent_width is not None:
+            svgkwargs['parent_width'] = parent_width
+
+        parent_height = options.pop('parent_height', None)
+        if parent_height is not None:
+            svgkwargs['parent_height'] = parent_height
+
+        if len(options):
+            logger.warning(f"Invalid option(s) in CairoSvgConverter: {repr(options)}")
 
         import cairosvg
 
@@ -282,10 +318,13 @@ class GhostscriptConverter(GraphicsConverter):
 
         if options is None:
             options = {}
+        else:
+            options = dict(options)
 
-        dpi = 300
-        if 'dpi' in options:
-            dpi = options['dpi']
+        dpi = options.pop('dpi', 300)
+
+        if len(options):
+            logger.warning(f"Invalid option(s) in GhostscriptConverter: {repr(options)}")
 
         gs_device = None
         gs_device_options = None
@@ -369,13 +408,21 @@ class PdfToCairoCmdlConverter(GraphicsConverter):
 
         if options is None:
             options = {}
+        else:
+            options = dict(options)
 
         target_ext = converter_info['target_ext']
 
+        dpi = options.pop('dpi', None)
+        transparent_bg = options.pop('transparent_bg', False)
+
+        if len(options):
+            logger.warning(f"Invalid option(s) in PdfToCairoCmdlConverter: {repr(options)}")
+
         xtracmdargs = []
-        if 'dpi' in options:
-            xtracmdargs += [ '-r', str(options['dpi']) ]
-        if options.get('transparent_bg', False) and target_ext == '.png':
+        if dpi is not None:
+            xtracmdargs += [ '-r', str(dpi) ]
+        if transparent_bg and target_ext == '.png':
             xtracmdargs += [ '-transp' ]
 
         input_data = self.read_input(source_type, src_url, binary=True)
@@ -425,9 +472,14 @@ class MagickConverter(GraphicsConverter):
 
         if options is None:
             options = {}
+        else:
+            options = dict(options)
 
-        transparent_bg = options.get('transparent_bg', False)
-        dpi = options.get('dpi', None)
+        transparent_bg = options.pop('transparent_bg', False)
+        dpi = options.pop('dpi', None)
+
+        if len(options):
+            logger.warning(f"Invalid option(s) in MagickConverter: {repr(options)}")
 
         input_data = self.read_input(source_type, src_url, binary=True)
         
@@ -510,7 +562,7 @@ class FeatureGraphicsCollection(Feature):
     of custom transformation rules to convert between chosen formats.
     """
 
-    class DocumentManager(Feature.DocumentManager):
+    class DocumentManager(FeatureDocumentManagerBase):
 
         def initialize(self):
             self.document_graphics_by_source_key = {}
@@ -700,17 +752,17 @@ class FeatureGraphicsCollection(Feature):
             logger.info(f"Graphics: ‘{source_url}’ {info}")
 
 
-    class RenderManager(Feature.RenderManager):
+    class RenderManager(FeatureRenderManagerBase):
 
         def initialize(
                 self,
                 #src_url_resolver_fn=None, # recipe for catastrophes
-                allow_unknown_graphics=None,
-                collect_graphics_to_output_folder=None,
-                collect_graphics_relative_output_folder=None,
-                collect_graphics_filename_template=None,
-                collect_format_conversion_rules=None,
-                use_graphics_cache_file=True,
+                allow_unknown_graphics : None|bool = None,
+                collect_graphics_to_output_folder : None|Literal[False]|str = None,
+                collect_graphics_relative_output_folder : None|Literal[False]|str = None,
+                collect_graphics_filename_template : None|str = None,
+                collect_format_conversion_rules : None|Sequence[TypeGraphicsFormatConversionRule] = None,
+                use_graphics_cache_file : bool = True,
         ):
             # self.src_url_resolver_fn = src_url_resolver_fn
 
@@ -738,7 +790,8 @@ class FeatureGraphicsCollection(Feature):
                 self.collect_graphics_relative_output_folder = \
                     self.feature.collect_graphics_relative_output_folder
 
-            if self.collect_graphics_relative_output_folder is None:
+            if (self.collect_graphics_relative_output_folder is None
+                or self.collect_graphics_relative_output_folder is False):
                 self.collect_graphics_relative_output_folder = \
                     self.collect_graphics_to_output_folder
 
@@ -1089,12 +1142,12 @@ class FeatureGraphicsCollection(Feature):
 
     def __init__(
             self,
-            allow_unknown_graphics=False,
-            collect_graphics_to_output_folder=False,
-            collect_graphics_relative_output_folder=None,
-            collect_graphics_filename_template="gr${counter}${ext}",
-            collect_format_conversion_rules=None,
-            graphics_search_path=None,
+            allow_unknown_graphics : bool = False,
+            collect_graphics_to_output_folder : None|Literal[False]|str = False,
+            collect_graphics_relative_output_folder : None|Literal[False]|str = False,
+            collect_graphics_filename_template : None|str = "gr${counter}${ext}",
+            collect_format_conversion_rules : None|Sequence[TypeGraphicsFormatConversionRule] = None,
+            graphics_search_path : None|Sequence[str] = None,
     ):
         r"""
         If `collect_graphics_to_output_folder` is set to a string, then
@@ -1137,7 +1190,10 @@ class FeatureGraphicsCollection(Feature):
         self.collect_format_conversion_rules = collect_format_conversion_rules
 
         # All search paths are relative to the root document's path.
-        self.graphics_search_path = list(graphics_search_path or ['.'])
+        if not graphics_search_path or len(graphics_search_path) == 0:
+            self.graphics_search_path = ['.']
+        else:
+            self.graphics_search_path = list(graphics_search_path)
 
 
     def inspect_graphics_file(self, file_path, fp):

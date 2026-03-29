@@ -32,6 +32,16 @@ from ._flm_args_schema import (
 # ---
 
 class FLMMainRunError(Exception):
+    r"""
+    Exception raised by the FLM main run pipeline when a user-facing error
+    occurs (e.g. missing template, unresolvable feature class).
+
+    Carries a short *message* suitable for display and optional *details*
+    with diagnostic context (e.g. Python search path).
+
+    :param message: Human-readable error summary.
+    :param details: Optional extended diagnostic information.
+    """
     def __init__(self, message, details=None):
         super().__init__(message)
         self._message = message.strip()
@@ -39,19 +49,24 @@ class FLMMainRunError(Exception):
 
     def message(self):
         return self._message
-    
+
     def details(self):
         return self._details
 
 class ResourceAccessorBase:
     r"""
-    Interface to access templates, import feature/workflow class instances,
-    and read FS files.  See main subclass :py:class:`flm.main.ResourceAccessor`.
+    Abstract base interface for accessing templates, importing feature and
+    workflow class instances, and reading filesystem resources.
+
+    Subclasses must implement :meth:`import_class`, :meth:`read_file`,
+    :meth:`open_file_object_context`, :meth:`file_exists`, and
+    :meth:`dir_exists`.  See the concrete subclass
+    :py:class:`flm.main.ResourceAccessor`.
     """
 
 
     template_exts = ['', '.yaml', '.yml', '.json']
-    
+
     template_path = [
         None
     ]
@@ -88,6 +103,20 @@ class ResourceAccessorBase:
         return cwd
 
     def find_in_search_paths(self, search_paths, fname, ftype, flm_run_info, resource_info) -> tuple[str, str]:
+        r"""
+        Locate a file by searching through a list of directory paths.
+
+        Each search path is resolved relative to the working directory
+        derived from *resource_info* and *flm_run_info*.
+
+        :param search_paths: Ordered list of directory paths to search.
+        :param fname: Filename to look for.
+        :param ftype: A descriptive file-type string (e.g. ``'template_info'``).
+        :param flm_run_info: The run-info dictionary.
+        :param resource_info: A :class:`ResourceInfo` instance (or ``None``).
+        :returns: A ``(search_path, fname)`` tuple for the first match.
+        :raises FLMMainRunError: If the file is not found in any search path.
+        """
 
         cwd = self.get_cwd_for_resource_info(resource_info, flm_run_info)
 
@@ -108,18 +137,60 @@ class ResourceAccessorBase:
 
     def import_class(self, fullname, *, default_classnames=None, default_prefix=None,
                      flm_run_info=None) -> tuple[Any,Any]: # (ModuleObject, ClassObject)
+        r"""
+        Import and return a ``(module, class)`` pair for the given fully or
+        partially qualified class name.
+
+        :param fullname: Dotted module path, optionally including the class
+            name.
+        :param default_classnames: Candidate class attribute names to try
+            when *fullname* does not include a class name.
+        :param default_prefix: Module prefix to prepend when *fullname* is a
+            short name.
+        :param flm_run_info: The run-info dictionary.
+        :returns: A ``(module_object, class_object)`` tuple.
+        """
         raise RuntimeError("Must be reimplemented by subclasses!")
 
     def read_file(self, fpath, fname, ftype, flm_run_info, binary=False) -> str|bytes:
+        r"""
+        Read and return the contents of a file.
+
+        :param fpath: Directory path containing the file.
+        :param fname: Filename (joined with *fpath*).
+        :param ftype: Descriptive file-type string.
+        :param flm_run_info: The run-info dictionary.
+        :param binary: If ``True``, return raw bytes; otherwise return a
+            decoded string.
+        :returns: File contents as :class:`str` or :class:`bytes`.
+        """
         raise RuntimeError("Must be reimplemented by subclasses!")
 
     def open_file_object_context(self, fpath, fname, ftype, flm_run_info, binary=False) -> Any:
         raise RuntimeError("Must be reimplemented by subclasses!")
 
     def file_exists(self, fpath, fname, ftype, flm_run_info) -> bool:
+        r"""
+        Check whether a file exists.
+
+        :param fpath: Directory path.
+        :param fname: Filename (joined with *fpath*).
+        :param ftype: Descriptive file-type string.
+        :param flm_run_info: The run-info dictionary.
+        :returns: ``True`` if the file exists, ``False`` otherwise.
+        """
         raise RuntimeError("Must be reimplemented by subclasses!")
 
     def dir_exists(self, fpath, fname, ftype, flm_run_info) -> bool:
+        r"""
+        Check whether a directory exists.
+
+        :param fpath: Parent directory path.
+        :param fname: Subdirectory name (joined with *fpath*).
+        :param ftype: Descriptive file-type string.
+        :param flm_run_info: The run-info dictionary.
+        :returns: ``True`` if the directory exists, ``False`` otherwise.
+        """
         raise RuntimeError("Must be reimplemented by subclasses!")
         
 
@@ -152,8 +223,13 @@ def parse_frontmatter_content_linenumberoffset(input_content):
 
 class ResourceInfo:
     r"""
-    CONVENTION: The `source_path` of all document fragments are relative
-    to the document's root folder.
+    Describes the origin of a document fragment's source content.
+
+    By convention, :attr:`source_path` is relative to the document's root
+    folder.
+
+    :param source_path: Relative file path of the source, or ``None`` if
+        the fragment does not originate from a file.
     """
     def __init__(self, source_path):
         super().__init__()
@@ -165,6 +241,10 @@ class ResourceInfo:
             self._source_dirname = None
 
     def get_source_directory(self):
+        r"""
+        Return the directory portion of :attr:`source_path`, or ``None`` if
+        no source path was provided.
+        """
         return self._source_dirname
 
 

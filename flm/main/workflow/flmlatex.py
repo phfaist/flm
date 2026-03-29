@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import TypedDict, Literal
 
 # from ...fragmentrenderer._base import FragmentRenderer
 from ...flmrecomposer.purelatex import (
@@ -23,7 +23,7 @@ class FlmLatexWorkflow(TemplateBasedRenderWorkflow):
     class TypeWorkflowConfigDict(TypedDict, total=False):
         recomposer_options : dict
         skip_packages : list[str]
-        add_bibliography : bool
+        add_bibliography : str|Literal[False]
 
 
     @staticmethod

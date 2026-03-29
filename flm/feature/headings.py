@@ -44,17 +44,21 @@ class HeadingMacro(flmspecinfo.FLMMacroSpecBase):
     def __init__(self, macroname, *, heading_level=1, inline_heading=False,
                  unregistered_heading=False, target_id=None):
         r"""
-        Heading level is to be coordinated with fragment renderer and FLM
-        environment/context commands; for example `heading_level=1..6` with
-        commands ``\section`` ... ``\subsubparagraph``.
-
-        The `target_id` is typically only used in specific internal cases like
-        theorem headings.
-
-        If `unregistered_heading=True`, then the heading must not have an
-        associated counter and it is not "registered" like \section{}.  Used for
-        things like theorem inline headings.  It will bypass the heading render
-        manager completely, no call to new_heading().
+        :param macroname: The LaTeX command name (e.g. ``'section'``).
+        :param heading_level: Integer depth of this heading, typically 1--6,
+            coordinated with the fragment renderer and with the commands
+            registered in
+            :py:attr:`FeatureHeadings.section_commands_by_level`.
+        :param inline_heading: If ``True`` the heading is rendered inline
+            (run-in), like ``\paragraph``.  Sets
+            :py:attr:`is_block_heading` accordingly.
+        :param unregistered_heading: If ``True`` the heading is not
+            registered with the heading render manager (no counter, no call
+            to ``new_heading()``).  Used for auxiliary headings such as
+            theorem titles.
+        :param target_id: An explicit HTML anchor id.  When ``None``
+            (the default), the id is generated automatically from the
+            heading text or labels.
         """
         super().__init__(
             macroname,
@@ -532,6 +536,24 @@ class FeatureHeadings(Feature):
             counter_formatter : TypeCounterFormatterInput = None,
             section_numbering_by_level : TypeSectionNumberingByLevelDict|None = None,
     ):
+        r"""
+        :param section_commands_by_level: Mapping from heading level
+            (integer) to a :py:class:`SectionCommandInfo`, a dict with
+            keys ``cmdname`` and optional ``inline``, or a plain string
+            (interpreted as the command name).  Defaults to
+            ``\section`` through ``\subsubparagraph``.
+        :param numbering_section_depth: Controls which heading levels
+            are numbered.  An integer means "number levels up to and
+            including this value"; ``True`` means number all levels;
+            ``False`` or ``None`` disables numbering entirely.
+        :param counter_formatter: Base counter formatter specification
+            for section numbers.  Accepts any input understood by
+            :py:func:`~flm.counter.build_counter_formatter`.
+        :param section_numbering_by_level: Mapping from heading level
+            to a :py:class:`SectionNumberingInfo` or equivalent dict
+            controlling per-level numbering style, prefix template,
+            and ``number_within_reset_at`` behaviour.
+        """
         super().__init__()
 
         if section_commands_by_level is None:

@@ -40,6 +40,11 @@ inline components).
    :members:
    :undoc-members:
 
+.. autoclass:: BlocksBuilder
+   :show-inheritance:
+   :members:
+   :undoc-members:
+
 
 
 The main `FLMEnvironment` class

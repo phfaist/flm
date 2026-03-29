@@ -99,6 +99,22 @@ class FeatureMath(Feature):
             eqref_macro_name : str|None = 'eqref',
             eqref_ref_type : str = 'eq',
     ):
+        r"""
+        :param counter_formatter: Specification for formatting equation
+            numbers.  Accepts any input understood by
+            :py:func:`~flm.counter.build_counter_formatter`.  When
+            ``None``, the default from :py:attr:`feature_default_config` is
+            used.
+        :param math_environment_names: Names of LaTeX math environments to
+            register (e.g. ``'equation'``, ``'align*'``).  Defaults to
+            :py:data:`_default_math_environment_names`.
+        :param eqref_macro_name: The macro name for equation references
+            (default ``'eqref'``).  Set to ``None`` to disable the
+            ``\eqref`` macro entirely.
+        :param eqref_ref_type: The reference-type prefix required for
+            equation labels (default ``'eq'``).  Labels must start with
+            ``<eqref_ref_type>:``.
+        """
         super().__init__()
 
         if counter_formatter is None:
@@ -220,6 +236,14 @@ class _ProxyNodeWithRecomposedLatex:
 
 
 class MathEnvironment(FLMEnvironmentSpecBase):
+    r"""
+    Spec info for a display-math environment (e.g. ``equation``, ``align``).
+
+    Parses the environment body in math mode, recognises ``\label``,
+    ``\tag``, ``\nonumber``, and ``\\`` inside the body, and renders
+    numbered or unnumbered display equations.  Numbered environments
+    register equation references via the ``refs`` feature when available.
+    """
 
     # Nope! This environment adds reference labels in general
     #allowed_in_standalone_mode = True
@@ -228,6 +252,13 @@ class MathEnvironment(FLMEnvironmentSpecBase):
         return r"""Display equation typeset as the corresponding LaTeX environment."""
 
     def __init__(self, environmentname, is_numbered=None):
+        r"""
+        :param environmentname: The LaTeX environment name (e.g.
+            ``'equation'``, ``'align*'``).
+        :param is_numbered: Whether the environment produces numbered
+            equations.  When ``None`` (default), this is inferred from the
+            environment name: names ending in ``'*'`` are unnumbered.
+        """
         super().__init__(
             environmentname=environmentname
         )
@@ -615,6 +646,14 @@ _rx_newline_spaces = re.compile(r'([ \t]*?\n)+(?P<indent>[ \t]*)')
 
 
 class MathEqrefMacro(FLMMacroSpecBase):
+    r"""
+    Spec info for the ``\eqref`` macro that cross-references numbered
+    equations.
+
+    This is a delayed-render macro: on the first pass it records the
+    reference, and the actual display text is resolved after all equation
+    numbers have been assigned.
+    """
 
     delayed_render = True
 
@@ -624,6 +663,11 @@ class MathEqrefMacro(FLMMacroSpecBase):
     """
 
     def __init__(self, macroname='eqref', ref_type='eq', **kwargs):
+        r"""
+        :param macroname: The macro name (default ``'eqref'``).
+        :param ref_type: The reference-type prefix that equation labels
+            must begin with (default ``'eq'``).
+        """
         super().__init__(
             macroname=macroname,
             arguments_spec_list=[

@@ -43,10 +43,36 @@ _Dict = JsMapDict
 
 class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
     r"""
-    Doc ................
+    Recompose a parsed FLM node tree into pure (standard) LaTeX code.
+
+    Unlike :py:class:`~flm.flmrecomposer.FLMNodesFlmRecomposer`, which
+    round-trips back to FLM markup, this class converts FLM constructs into
+    their standard LaTeX equivalents so the output can be compiled directly
+    by a LaTeX engine.  Each FLM feature's ``flm_specinfo`` is expected to
+    provide a ``recompose_pure_latex(node, recomposer)`` method that emits
+    the appropriate LaTeX.
+
+    The recomposer tracks which LaTeX packages are required (via
+    :py:meth:`ensure_latex_package`) and manages label safety mapping so
+    that arbitrary FLM reference labels are converted to LaTeX-safe label
+    strings.
+
+    Per-feature options are stored in :py:attr:`options` and retrieved by
+    feature code via :py:meth:`get_options`.
     """
-    
+
     def __init__(self, options):
+        r"""
+        :param options: Configuration dictionary.  Top-level keys are
+            feature names whose values are dicts passed to
+            ``flm_specinfo.recompose_pure_latex()`` via
+            :py:meth:`get_options`.  The special key ``'recomposer'``
+            holds recomposer-level settings (e.g.
+            ``'safe_label_ref_types'``).  The optional key
+            ``'render_context'`` supplies a render context for features
+            that need document state during recomposition.  May be
+            ``None``.
+        """
         super().__init__()
 
         if options is None:
@@ -73,6 +99,18 @@ class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
 
 
     def recompose_pure_latex(self, node):
+        r"""
+        Recompose pure LaTeX code from the given node or node list.
+
+        This is the main entry point for pure-LaTeX recomposition.  Walks
+        the node tree and returns a dict containing the generated LaTeX
+        string and the set of required packages.
+
+        :param node: A pylatexenc node or node list.
+        :return: A dict with keys ``"latex"`` (the LaTeX string) and
+            ``"packages"`` (a dict mapping package names to their options).
+        :rtype: dict
+        """
         latex = self.start(node)
         return {
             "latex": latex,
@@ -84,9 +122,34 @@ class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
     rx_escape_chars_text = _default_rx_escape_chars_text
 
     def get_options(self, key):
+        r"""
+        Retrieve per-feature options from the recomposer configuration.
+
+        Called by feature ``recompose_pure_latex()`` methods to obtain
+        their feature-specific settings (e.g.
+        ``recomposer.get_options('math')``).
+
+        :param str key: The feature key to look up in :py:attr:`options`.
+        :return: A dict of options for the given feature, or an empty
+            dict if the key is absent.
+        :rtype: dict
+        """
         return dict(self.options.get(key, {}))
 
     def ensure_latex_package(self, packagename, options=None):
+        r"""
+        Declare that the recomposed LaTeX output requires a given package.
+
+        Feature ``recompose_pure_latex()`` methods call this to register
+        package dependencies.  If the package was already registered with
+        the same (or no) options, the call is a no-op.  If conflicting
+        options are requested, a :py:exc:`ValueError` is raised.
+
+        :param str packagename: LaTeX package name (e.g. ``'hyperref'``).
+        :param options: Optional package options string, or ``None``.
+        :raises ValueError: If the package was already registered with
+            different options.
+        """
         if packagename not in self.packages:
             self.packages[packagename] = {
                 'options': options,
@@ -104,7 +167,7 @@ class FLMPureLatexRecomposer(FLMNodesFlmRecomposer):
         # not good, conflicting options
         raise ValueError(
             f"Conflicting pure latex package options requested for package {packagename} in "
-            f"pure latex FLM export: ‘{self.packages[packagename]['options']}’ ≠ ‘{options}’"
+            f"pure latex FLM export: '{self.packages[packagename]['options']}' ≠ '{options}'"
         )
 
     def make_safe_label(self, ref_domain, ref_type, ref_label, resource_info):

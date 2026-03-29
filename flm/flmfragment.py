@@ -85,6 +85,30 @@ class FLMFragment:
             input_lineno_colno_offsets=None,
             _flm_text_if_loading_nodes=None,
     ):
+        r"""
+        :param flm_text: The FLM source text to parse, or a pre-parsed
+            :py:class:`~pylatexenc.latexnodes.nodes.LatexNodeList`.
+        :param environment: The :py:class:`~flm.flmenvironment.FLMEnvironment`
+            used to parse this fragment.
+        :param is_block_level: Whether to parse as block-level (``True``),
+            inline (``False``), or auto-detect (``None``, the default).
+        :param resource_info: An arbitrary object to help locate external
+            resources referenced by the FLM text.
+        :param standalone_mode: If ``True``, features requiring a document
+            context are disabled and :py:meth:`render_standalone` can be used.
+        :param tolerant_parsing: If ``True``, parsing errors are handled
+            more leniently by the underlying pylatexenc walker.
+        :param what: A short description for error messages (e.g.,
+            ``'abstract'``).
+        :param silent: If ``True``, suppress error logging on parse failure.
+        :param parsing_mode: An optional string selecting a named parsing
+            mode delta registered on the environment (see
+            :py:meth:`~flm.flmenvironment.FLMEnvironment.make_parsing_state`).
+        :param input_lineno_colno_offsets: A dictionary of line/column offset
+            options forwarded to the latex walker for accurate position
+            reporting.  Supported keys: ``'line_number_offset'``,
+            ``'first_line_column_offset'``, ``'column_offset'``.
+        """
 
         self.flm_text = flm_text
         self.environment = environment
@@ -218,6 +242,29 @@ class FLMFragment:
               resource_info=None, what=None,
               input_lineno_colno_offsets=None,
               ):
+        r"""
+        Parse FLM source text into a walker and node list without creating
+        an :py:class:`FLMFragment` instance.
+
+        This low-level classmethod creates an
+        :py:class:`~flm.flmenvironment.FLMLatexWalker` via the environment
+        and parses the full input.  It is used internally by ``__init__``
+        and can be called directly when only the raw parse result is needed.
+
+        :param flm_text: The FLM source string.
+        :param environment: The :py:class:`~flm.flmenvironment.FLMEnvironment`.
+        :param standalone_mode: If ``True``, parse in standalone mode.
+        :param tolerant_parsing: If ``True``, handle parse errors leniently.
+        :param is_block_level: Block-level mode (``True``/``False``/``None``).
+        :param parsing_mode: Optional named parsing mode string.
+        :param resource_info: Resource locator object.
+        :param what: Description for error messages.
+        :param input_lineno_colno_offsets: Line/column offset dictionary.
+        :returns: A tuple ``(latex_walker, nodes)`` where *latex_walker* is
+            the :py:class:`~flm.flmenvironment.FLMLatexWalker` instance and
+            *nodes* is the parsed
+            :py:class:`~pylatexenc.latexnodes.nodes.LatexNodeList`.
+        """
 
         logger.debug("Parsing FLM content %r", flm_text)
 
@@ -240,11 +287,25 @@ class FLMFragment:
 
 
     def start_node_visitor(self, node_visitor):
+        r"""
+        Start a node visitor traversal on this fragment's parsed node tree.
+
+        Calls ``node_visitor.start()`` with the fragment's root
+        :py:class:`~pylatexenc.latexnodes.nodes.LatexNodeList`.
+
+        :param node_visitor: A node visitor object implementing a
+            ``start(nodes)`` method.
+        """
         node_visitor.start(self.nodes)
 
 
     def is_empty(self):
-        r"""Return ``True`` if the fragment's source text is empty or whitespace-only."""
+        r"""
+        Return ``True`` if the fragment's source text is empty or
+        whitespace-only.
+
+        :rtype: bool
+        """
         return len(self.flm_text.strip()) == 0
 
     def __bool__(self):

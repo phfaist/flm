@@ -52,18 +52,20 @@ _default_enumeration_counter_formatter : TypeEnumerationCounterFormatterInput = 
 
 class Enumeration(FLMEnvironmentSpecBase):
     r"""
-    Doc ..............
+    Spec info for an enumeration or itemization list environment.
 
-    `counter_formatter` can be either:
-    
-    - A fixed string -- this string will be used as the item tag
+    Handles ``itemize``, ``enumerate``, ``description``, or any custom list
+    environment.  Parses ``\item`` macros (with optional ``[custom tag]``
+    and ``\label`` arguments) inside the environment body.
 
-    - A callable -- the callable should accept an integer (starting at one) and
-      return the string to display as item tag
+    The *counter_formatter* controls how item tags are displayed:
 
-    - A list, with elements being either fixed strings or callables; specify the
-      item tags or how to generate them for nested lists.  The first element is
-      used for the root list, the second is used for the first nested list, etc.
+    - A fixed string -- used verbatim as every item tag.
+    - A callable -- called with an integer (starting at 1) and returns the
+      tag string.
+    - A list of the above -- elements correspond to nesting depths.  The
+      first element is used for the outermost list, the second for the
+      first nested list, and so on.
     """
 
 
@@ -84,6 +86,16 @@ class Enumeration(FLMEnvironmentSpecBase):
                  counter_formatter : TypeEnumerationCounterFormatterInput|None = None,
                  annotations=None,
                  **kwargs):
+        r"""
+        :param environmentname: The LaTeX environment name (e.g.
+            ``'enumerate'``, ``'itemize'``, ``'description'``).
+        :param counter_formatter: Controls item tag formatting.  See the
+            class docstring for accepted forms.  When ``None``, the default
+            ``1., 2., ...`` / ``(i), (ii), ...`` / ``a-, b-, ...`` sequence
+            is used.
+        :param annotations: Optional list of annotation strings passed
+            through to the fragment renderer (e.g. ``['itemize']``).
+        """
         super().__init__(
             environmentname=environmentname,
             arguments_spec_list=[

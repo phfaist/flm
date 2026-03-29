@@ -33,19 +33,40 @@ from .cells import CellsEnvironment
 # ------------------------------------------------------------------------------
 
 class FloatContentHandlerBase:
+    r"""
+    Base class for float content handlers that validate and optionally
+    post-process the content nodes inside a float environment.
+    """
 
     def float_content_set_extra_definitions(self, extend_latex_context):
+        r"""
+        Register additional LaTeX context definitions needed by this handler.
+
+        Called during float environment body parsing to inject extra macros or
+        environments (e.g. ``\includegraphics``, ``\begin{cells}``).
+
+        :param extend_latex_context: A mutable dict with keys ``'macros'``,
+            ``'environments'``, ``'specials'``; append definitions to the
+            relevant lists.
+        """
         pass
 
     def float_handle_content_nodes(self, float_node, content_nodes):
-        # subclasses can choose to verify the float's content nodes to ensure
-        # that it only contains prescribed content nodes (e.g., only a single
-        # \includegraphics node)
-        #
-        # Return a (possibly post-processed) node list to use in place of
-        # content_nodes if the nodes were accepted; raise a
-        # LatexWalkerLocatedError if the nodes were not accepted (unacceptable
-        # macros, etc.)
+        r"""
+        Validate and optionally post-process a float's content nodes.
+
+        Subclasses must reimplement this method.  Return a (possibly
+        post-processed) node list to use in place of *content_nodes* if the
+        content is accepted.  Raise
+        :exc:`~pylatexenc.latexnodes.LatexWalkerLocatedError` if the content
+        is invalid for this handler.
+
+        :param float_node: The parsed float environment node.
+        :param content_nodes: A ``LatexNodeList`` of the float body nodes
+            (excluding ``\caption`` and ``\label``).
+        :returns: A ``LatexNodeList`` to use as the float content.
+        :raises RuntimeError: Always, in this base implementation.
+        """
         raise RuntimeError(
             f"This method needs to be reimplemented in subclasses!"
         )
@@ -154,6 +175,14 @@ float_caption_arg = MacroSpec('caption', arguments_spec_list=[
 
 
 class FloatEnvironment(FLMEnvironmentSpecBase):
+    r"""
+    Environment spec for a single float type (e.g. ``figure``, ``table``).
+
+    Parses the environment body for ``\label``, ``\caption``, and content
+    nodes, delegates content validation to :class:`FloatContentHandlerBase`
+    instances, and registers the float with the ``floats`` render manager
+    during rendering.  By default the float is rendered in-place.
+    """
 
     is_block_level = True
 
@@ -171,6 +200,16 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
     allowed_in_standalone_mode = False
 
     def __init__(self, float_type, content_handlers=None):
+        r"""
+        :param float_type: The float type name, used both as the LaTeX
+            environment name and the float type identifier (e.g.
+            ``'figure'``).
+        :param content_handlers: A list of content handler specifications.
+            Each element may be a :class:`FloatContentHandlerBase` instance, a
+            handler name string (key in :data:`available_content_handlers`),
+            or a dict with ``'name'`` and optional ``'config'`` keys.
+            Defaults to ``['includegraphics', 'cells']``.
+        """
         super().__init__(
             environmentname=float_type,
             arguments_spec_list=[],
@@ -420,6 +459,13 @@ class FloatEnvironment(FLMEnvironmentSpecBase):
 
 
 class FloatInstance:
+    r"""
+    Data object representing a single registered float (figure, table, etc.).
+
+    Created by :meth:`FeatureFloats.RenderManager.register_float` during
+    rendering.  Carries all information needed to render the float: its type,
+    counter value, formatted label, caption, and content nodes.
+    """
     def __init__(self,
                  *,
                  float_type=None,
@@ -433,6 +479,26 @@ class FloatInstance:
                  caption_nodelist=None,
                  content_nodelist=None,
                  ):
+        r"""
+        :param float_type: The float type name (e.g. ``'figure'``).
+        :param float_type_info: The :class:`FloatType` instance describing
+            this float's type configuration.
+        :param counter_value: The numeric counter value object, or ``None``
+            for unnumbered floats.
+        :param counter_numprefix: Optional numeric prefix for the counter
+            (used with hierarchical numbering), or ``None``.
+        :param formatted_counter_value_flm: An
+            :class:`~flm.flmfragment.FLMFragment` with the formatted counter
+            text, or ``None`` for unnumbered floats.
+        :param ref_label_prefix: Reference label prefix (equals
+            *float_type*), or ``None`` if unlabeled.
+        :param ref_label: Reference label string, or ``None`` if unlabeled.
+        :param target_id: HTML anchor target identifier (e.g.
+            ``'figure-1'``), or ``None``.
+        :param caption_nodelist: Parsed node list of the ``\caption`` text,
+            or ``None`` if no caption was provided.
+        :param content_nodelist: Parsed node list of the float body content.
+        """
         super().__init__()
         self.float_type = float_type
         self.float_type_info = float_type_info
@@ -501,10 +567,20 @@ class FloatType:
                  counter_formatter : TypeCounterFormatterInput = None,
                  content_handlers : Sequence[str]|None = None):
         r"""
-
-
-        Doc ..... float_caption_name can be a string ("Figure") or a callable
-        (`float_caption_name(number, fmt_value_flm_text)`) .......
+        :param float_type: Identifier for this float type (e.g.
+            ``'figure'``, ``'table'``).  Also used as the LaTeX environment
+            name.
+        :param float_caption_name: Display name used in captions and
+            cross-references (e.g. ``'Figure'``).  Can be a string or a
+            callable ``(number, fmt_value_flm_text) -> str``.  Defaults to
+            *float_type* if ``None``.
+        :param counter_formatter: How float numbers are formatted.  Accepts
+            any input recognized by
+            :func:`~flm.counter.build_counter_formatter`.  If ``None``,
+            a type-specific default is used.
+        :param content_handlers: List of content handler names (keys in
+            :data:`available_content_handlers`) that are allowed inside this
+            float type.  Passed through to :class:`FloatEnvironment`.
         """
         super().__init__()
 

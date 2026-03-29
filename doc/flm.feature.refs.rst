@@ -13,6 +13,13 @@ FLM Feature `flm.feature.refs`
    :members:
    :undoc-members:
 
+.. autofunction:: get_safe_target_id
+
+.. autoclass:: FeatureRefsRenderManager
+   :show-inheritance:
+   :members:
+   :undoc-members:
+
 .. autoclass:: RefMacro
    :show-inheritance:
    :members:
