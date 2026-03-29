@@ -137,6 +137,31 @@ your system has a LaTeX distribution such as `TeX Live <https://tug.org/texlive/
 installed.
 
 
+Output formats
+--------------
+
+TODO: Brief overview of possible output formats. ... ...
+
+* HTML, note possible templates.  Check the ``simple`` or ``revtex`` templates.
+  More to follow.  See also the `flm-templates` package for a more robust
+  template engine and some additional example templates.
+
+* Rendered LaTeX: Produce latex code that compiles to a PDF.  Most of the
+  document logic rendering will be taken care of by FLM.  E.g., section/equation
+  numbering, references will be resolved, etc.  This latex output is mainly a
+  tool to build a PDF.
+
+* Direct PDF output: use the `runlatexpdf` workflow ... ...
+
+* Recomposed LaTeX: Produce latex code that reproduces FLM's input.  Labels and
+  references are left for the TeX/LaTeX engine to handle.  Use this to produce a
+  part of a larger LaTeX document or book, for instance.  Use the `flmlatex`
+  workflow ... ...
+
+* Text and Markdown: rudimentary support, mainly as a proof of principle.
+
+
+
 What Next?
 ----------
 
