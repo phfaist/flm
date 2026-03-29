@@ -19,6 +19,8 @@ TypeRenderContext = Any
 TypeFragmentRenderer = Any
 TypeFLMDocument = Any
 
+TypeArgumentsSpecList = Any
+
 TypeCounterFormatterInput = Any
 TypeCounterFormatterSpecDict = Any
 TypeFormatNumFn = Any

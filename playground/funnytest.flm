@@ -68,7 +68,7 @@ flm:
 
 
            attentionsign:
-             arguments_spec_list: '{'
+             arguments_spec_list: ['{']
              content: '\textbf{⚠ #1}'
              render_time_substitution: true
              is_block_level: true

@@ -19,17 +19,19 @@ from typing import (
 )
 from collections.abc import Sequence, Mapping, Set, Hashable
 
+from pylatexenc.latexnodes.parsers import LatexParserBase
+from pylatexenc.latexnodes import CallableSpecBase, ParsingStateDelta
 
-# Type that provides get_node_parser() - should be sufficient for simple type checking
-class TypeCallableSpecBase(_Protocol):
-    def get_node_parser(self, token) -> Any:
-        ...
+TypeCallableSpecBase = CallableSpecBase
+
+# ---
 
 class TypeDictWithLatexContextDefinitions(_TypedDict, total=False):
     macros : Sequence[TypeCallableSpecBase]
     environments : Sequence[TypeCallableSpecBase]
     specials : Sequence[TypeCallableSpecBase]
 
+# ---
 
 class TypeRenderContext(_Protocol):
     _flmtyping_is : Literal['FLMRenderContext']
@@ -40,9 +42,19 @@ class TypeFLMDocument(_Protocol):
 class TypeFragmentRenderer(_Protocol):
     _flmtyping_is : Literal['FragmentRendererBase']
 
-class TypeCounterFormatter(_TypedDict, total=False):
+class TypeCounterFormatter(_Protocol):
     _flmtyping_is : Literal['CounterFormatter']
 
+# ---
+
+class TypeFLMArgumentSpecDict(_TypedDict, total=False):
+    parser : str|LatexParserBase
+    argname : str|None
+    is_block_level : bool|None
+    flm_doc : str|None
+    parsing_state_delta : ParsingStateDelta|None
+
+TypeArgumentsSpecList = Sequence[str|TypeFLMArgumentSpecDict]
 
 # --- format_num specs ---
 

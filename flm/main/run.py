@@ -416,17 +416,81 @@ def _join_config_path(parts):
     ])
 
 
+def _collect_leaf_errors(error):
+    """Collect user-friendly leaf errors from a jsonschema ValidationError tree.
+
+    For anyOf/oneOf nodes, discard shallow type-mismatch branches (e.g.
+    'not of type null') and recurse into all remaining deeper branches.
+    """
+    if error.validator in ('anyOf', 'oneOf') and error.context:
+        # Separate shallow type-only errors from deeper/structural errors
+        deep_subs = [e for e in error.context
+                     if len(list(e.path)) > 0 or e.context]
+        if not deep_subs:
+            # All sub-errors are at the same level with no nesting; treat
+            # this anyOf/oneOf as a leaf (will be summarized by _format_leaf_error)
+            return [error]
+        leaves = []
+        for sub in deep_subs:
+            leaves.extend(_collect_leaf_errors(sub))
+        return leaves if leaves else [error]
+
+    # If this error has sub-errors from other combinators, recurse
+    if error.context:
+        leaves = []
+        for sub in error.context:
+            leaves.extend(_collect_leaf_errors(sub))
+        return leaves if leaves else [error]
+
+    return [error]
+
+
+def _format_leaf_error(error):
+    """Format a single leaf ValidationError into a one-line string."""
+    path = list(error.absolute_path)
+    if path:
+        path_str = "$." + _join_config_path([str(p) for p in path])
+    else:
+        path_str = "$"
+
+    msg = error.message
+
+    # For anyOf/oneOf at the very leaf (all sub-errors are simple type checks),
+    # summarize expected types concisely
+    if error.validator in ('anyOf', 'oneOf') and error.context:
+        types = []
+        for sub in error.context:
+            if sub.validator == 'type':
+                types.append(sub.validator_value)
+        if types:
+            instance_repr = abbrev_value_str(error.instance)
+            msg = f"{instance_repr}: expected {' or '.join(types)}"
+
+    return f"  at {path_str}: {msg}"
+
+
 def validate_config_for_schema(name, schema, config):
 
     validator = jsonschema.Draft202012Validator(schema)
     iter_errors = validator.iter_errors(instance=config)
-    errors = sorted(iter_errors, key=lambda e: e.path)
+    errors = sorted(iter_errors, key=lambda e: list(e.path))
 
+    if not errors:
+        return
+
+    # there are errors - dump instance & schema to facilitate debugging
+    logger.debug(
+        "Schema validation error in ‘%s’:\nconfig=%r\nschema=%r",
+        name, config, schema
+    )
+
+    lines = [f"FLM config validation error(s) in \u2018{name}\u2019:"]
     for error in errors:
-        logger.warning(
-f"""FLM config validation error (‘{name}’):\n{error}\n"""
-)
+        leaves = _collect_leaf_errors(error)
+        for leaf in leaves:
+            lines.append(_format_leaf_error(leaf))
 
+    logger.warning("\n".join(lines) + "\n")
 
 def validate_config_for_fn_kwargs(name, fn, config):
     schema = function_json_schema(fn)

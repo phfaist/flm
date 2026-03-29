@@ -25,7 +25,7 @@ from ..flmspecinfo import (
     FLMArgumentSpec, FLMSpecInfo, FLMMacroSpecBase, FLMSpecialsSpecBase
 )
 
-from .._typing_helpers import Any, Mapping, Sequence
+from .._typing_helpers import Any, Mapping, Sequence, TypeArgumentsSpecList
 
 from ._base import Feature
 
@@ -407,9 +407,9 @@ def _get_arg_spec(argspec):
     except (TypeError, KeyError):
         # not a dict, okay, use default constructor (may still be a string)
         pass
+    if parser_val is None and argspec == 'SetArgumentNumberOffset':
+        return SetArgumentNumberOffset
     if parser_val is not None:
-        if argspec == 'SetArgumentNumberOffset':
-            return SetArgumentNumberOffset
         if isinstance(argspec, str):
             return FLMArgumentSpec(parser=argspec, argname=None)
         argspecargs = dict(argspec)
@@ -850,7 +850,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
 
     def __init__(self,
                  spec_node_parser_type,
-                 arguments_spec_list=None,
+                 arguments_spec_list : None|TypeArgumentsSpecList = None,
                  default_argument_values=None,
                  argument_number_offset=None,
                  content=None,
@@ -1060,7 +1060,7 @@ class SubstitutionSpecials(SubstitutionCallableSpecInfo):
 from typing import TypedDict, Literal
 ContentMode = Literal['textmode', 'mathmode']
 class TypeSubstItemDef(TypedDict, total=False):
-    arguments_spec_list : Sequence[Mapping[str, Any]]|None
+    arguments_spec_list : TypeArgumentsSpecList|None
     default_argument_values : Mapping[str, Any]|None
     argument_number_offset : int|None
     content : str|Mapping[ContentMode, str|None]|None

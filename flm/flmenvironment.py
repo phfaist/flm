@@ -8,7 +8,9 @@ from pylatexenc.latexnodes import (
     #LatexWalkerError, LatexWalkerLocatedError,
     LatexWalkerLocatedErrorFormatter,
     LatexWalkerParseError,
+    ParsingStateDelta
 )
+from pylatexenc.latexnodes.parsers import LatexParserBase
 from pylatexenc.latexnodes import nodes as latexnodes_nodes
 from pylatexenc import latexwalker
 
@@ -52,7 +54,7 @@ class FLMParsingState(latexnodes.ParsingState):
         self.is_block_level = is_block_level
 
 
-class FLMParsingStateDeltaSetBlockLevel(latexnodes.ParsingStateDelta):
+class FLMParsingStateDeltaSetBlockLevel(ParsingStateDelta):
     r"""
     Parsing state delta class (see
     :py:class:`pylatexenc.latexnodes.ParsingStateDelta`) that updates the
@@ -74,11 +76,11 @@ class _NotProvided:
     pass
 
 def FLMArgumentSpec(
-        parser,
-        argname,
+        parser : str|LatexParserBase,
+        argname : str|None,
         is_block_level : bool|None|Type[_NotProvided] = _NotProvided,
-        flm_doc=None,
-        parsing_state_delta=None
+        flm_doc : str|None = None,
+        parsing_state_delta : ParsingStateDelta|None = None
     ):
     r"""
     Create an argument specification for an FLM macro or environment.
