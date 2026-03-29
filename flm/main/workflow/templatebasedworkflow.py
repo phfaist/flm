@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import TypedDict, Callable, Any
 from collections.abc import Mapping
 
 import logging
@@ -49,10 +49,14 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
     class TypeWorkflowConfigDict(TypedDict, total=False):
         use_output_format_name : str|None
         template_config_workflow_defaults : dict
+        postprocess_actions_fn : Callable[[Any,Any,Any],Any]
 
     use_output_format_name = None
 
     template_config_workflow_defaults = {}
+
+    postprocess_actions_fn = None
+
 
     def get_wstyle_information(self):
         return {}
@@ -168,8 +172,6 @@ class TemplateBasedRenderWorkflow(RenderWorkflow):
 
 
     # ---
-
-    postprocess_actions_fn = None
 
     def postprocess_rendered_document(self, rendered_content, document, render_context):
         # At this point, we just have the bare compiled FLM content (no template stuff)

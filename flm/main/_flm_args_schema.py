@@ -1,7 +1,4 @@
 
-
-### BEGIN_FLM_PYTHON_TYPING
-
 import collections.abc
 import inspect
 import types
@@ -139,5 +136,3 @@ def get_args_schema_feature(cls):
             if cls.RenderManager is not None else False,
     }
 
-
-### END_FLM_PYTHON_TYPING

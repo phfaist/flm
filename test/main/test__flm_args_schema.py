@@ -1,8 +1,6 @@
 import unittest
 
 
-### BEGIN_FLM_PYTHON_TYPING
-
 import typing
 from typing import Optional, TypedDict
 from collections.abc import Sequence, Mapping
@@ -210,9 +208,6 @@ class TestGetArgsSchemaFeature(unittest.TestCase):
         self.assertEqual(init_schema["properties"]["y"], {"type": "string"})
         self.assertEqual(init_schema["required"], ["x"])
 
-
-
-### END_FLM_PYTHON_TYPING
 
 
 if __name__ == '__main__':

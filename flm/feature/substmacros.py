@@ -399,6 +399,8 @@ class SimpleMacroContentIfArgCondition(FLMMacroSpecBase):
 
 
 def _get_arg_spec(argspec):
+    if isinstance(argspec, str) and argspec == 'SetArgumentNumberOffset':
+        return SetArgumentNumberOffset
     parser_val = None
     try:
         parser_val = argspec['parser']
@@ -407,8 +409,6 @@ def _get_arg_spec(argspec):
     except (TypeError, KeyError):
         # not a dict, okay, use default constructor (may still be a string)
         pass
-    if parser_val is None and argspec == 'SetArgumentNumberOffset':
-        return SetArgumentNumberOffset
     if parser_val is not None:
         if isinstance(argspec, str):
             return FLMArgumentSpec(parser=argspec, argname=None)
@@ -862,6 +862,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
         
         # allow user to specify a latex argument spec as a dict
         if arguments_spec_list is not None and len(arguments_spec_list):
+            # this also works if arguments_spec_list is a string, like '[{{'
             arguments_spec_list = [ _get_arg_spec(arg) for arg in arguments_spec_list ]
 
         super().__init__(

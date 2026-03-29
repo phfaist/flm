@@ -54,7 +54,7 @@ class TypeFLMArgumentSpecDict(_TypedDict, total=False):
     flm_doc : str|None
     parsing_state_delta : ParsingStateDelta|None
 
-TypeArgumentsSpecList = Sequence[str|TypeFLMArgumentSpecDict]
+TypeArgumentsSpecList = Sequence[str|TypeFLMArgumentSpecDict]|str
 
 # --- format_num specs ---
 

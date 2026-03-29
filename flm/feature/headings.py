@@ -243,6 +243,8 @@ class TypeSectionNumberingDef(TypedDict, total=False):
     numprefix : str|None
     heading_joiner : str
     number_within_reset_at : str|bool|None
+
+TypeSectionNumberingByLevelDict = Mapping[int, None|TypeSectionNumberingDef]
 ### END_FLM_PYTHON_TYPING
 
 
@@ -263,7 +265,7 @@ class FeatureHeadings(Feature):
         def initialize(
                 self,
                 numbering_section_depth : int|bool|None = None,
-                section_numbering_by_level : Mapping[int, None|TypeSectionNumberingDef]|None = None,
+                section_numbering_by_level : TypeSectionNumberingByLevelDict|None = None,
                 counter_formatter : TypeCounterFormatterInput = None,
         ):
             self.target_id_counters = {}
@@ -528,7 +530,7 @@ class FeatureHeadings(Feature):
             section_commands_by_level : Mapping[int, TypeSectionCommandDef|str]|None = None,
             numbering_section_depth : int|bool|None = False,
             counter_formatter : TypeCounterFormatterInput = None,
-            section_numbering_by_level : Mapping[int, TypeSectionNumberingDef]|None = None,
+            section_numbering_by_level : TypeSectionNumberingByLevelDict|None = None,
     ):
         super().__init__()
 
