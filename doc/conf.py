@@ -142,3 +142,21 @@ intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
     'pylatexenc': ('https://pylatexenc.readthedocs.io/en/latest/', None)
 }
+
+
+# -- Generate FLM config JSON schema into _static/ at build time -----------
+
+def _generate_config_json_schema(app, exception):
+    if exception:
+        return
+    import json
+    from flm.main.main import Main
+    a = Main(flm_content='', _no_default_stdin=True)
+    run_object = a.make_run_object()
+    schema = run_object.get_config_json_schema()
+    outpath = os.path.join(app.outdir, 'flm-config-json-schema.json')
+    with open(outpath, 'w') as f:
+        json.dump(schema, f, indent=2)
+
+def setup(app):
+    app.connect('build-finished', _generate_config_json_schema)
