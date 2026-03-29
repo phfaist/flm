@@ -177,18 +177,28 @@ class TextFragmentRenderer(FragmentRenderer):
 
     def render_link(self, ref_type, href, display_nodelist, render_context,
                     annotations=None):
-        r"""
-        Doc .....
+        r"""Render a hyperlink as plain text.
 
-        `href` can be:
+        The displayed content is always rendered.  If
+        :attr:`display_href_urls` is ``True`` and the link is not a local
+        anchor, the URL is appended in angle brackets (e.g.,
+        ``display <href>``).  Local anchor links (starting with ``#``)
+        are never shown in the text output.
 
-        - a URL (external link)
-        
-        - an anchor fragment only (`#fragment-name`), for links within the
-          document; note that we use #fragment-name universally, even if the
-          output format is not HTML.  It's up to the output format's render
-          context features / fragment renderer subclass implementations to
-          translate the linking scheme correctly.
+        :param ref_type: The type of reference (e.g., ``'href'``, ``'url'``,
+            ``'ref'``).
+        :param href: The link target.  Can be:
+
+            - an external URL, or
+            - an anchor fragment (``'#fragment-name'``) for links within the
+              document.  The ``#fragment-name`` scheme is used universally,
+              even for non-HTML output formats; it is up to the renderer
+              subclass to translate the linking scheme.
+
+        :param display_nodelist: The node list for the displayed link text.
+        :param render_context: The current render context.
+        :param annotations: Optional list of annotation strings.
+        :returns: The rendered link as a plain-text string.
         """
 
         display_content = self.render_nodelist(

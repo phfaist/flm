@@ -581,13 +581,26 @@ class HtmlFragmentRenderer(FragmentRenderer):
     def render_enumeration(self, iter_items_nodelists, counter_formatter, render_context,
                            *, target_id_generator=None, annotations=None, nested_depth=None):
 
-        r"""
-        Doc ............. ... remember, counter_formatter is given a number starting at 1.
+        r"""Render an enumeration as an HTML ``<dl>`` definition list.
 
-        Doc ........... ... target_id_generator is a callable, takes one argument (item #
-        starting at 1, like counter_formatter), and returns the anchor name to
-        use for the enumeration item (in HTML, the value of the
-        id=... attribute)
+        Each item is wrapped in a ``<dt>``/``<dd>`` pair inside a ``<dl
+        class="enumeration">`` element.
+
+        :param iter_items_nodelists: An iterable of node lists, one per
+            list item.
+        :param counter_formatter: A callable ``counter_formatter(n)``
+            returning the formatted tag for item number *n* (1-based).
+            May return a string or a node list.
+        :param render_context: The current render context.
+        :param target_id_generator: Optional callable
+            ``target_id_generator(n)`` that takes a 1-based item number
+            and returns an anchor name to use as the ``id`` attribute on
+            the ``<dt>`` element, or ``None`` if no anchor is needed.
+        :param annotations: Optional list of annotation strings added as
+            CSS class names on the ``<dl>`` wrapper.
+        :param nested_depth: Optional nesting depth (unused in this
+            renderer).
+        :returns: The rendered enumeration as an HTML string.
         """
 
         s_items = []

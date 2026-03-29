@@ -1,3 +1,13 @@
+r"""
+Graphics collection feature for the FLM command-line pipeline.
+
+Provides :class:`FeatureGraphicsCollection`, a feature that scans FLM documents
+for graphics resources, optionally collects them into an output folder, and
+applies format-conversion rules (e.g. SVG to PDF, PDF to PNG) using pluggable
+converter backends (:class:`CairoSvgConverter`, :class:`GhostscriptConverter`,
+:class:`PdfToCairoCmdlConverter`, :class:`MagickConverter`).
+"""
+
 import os
 import os.path
 import string # string.Template
@@ -50,11 +60,25 @@ TypeGraphicsFormatConversionRule = Union[
 
 
 class ResourcesScanner(LatexNodesVisitor):
+    r"""
+    Node visitor that walks a parsed FLM node tree and collects external
+    resource references (e.g. graphics file paths) from nodes that carry an
+    ``flm_resources`` attribute.
+    """
+
     def __init__(self):
         super().__init__()
         self.encountered_resources = []
 
     def get_encountered_resources(self):
+        r"""
+        Return the list of resource dictionaries accumulated during the visit.
+
+        Each dictionary contains the keys from the node's ``flm_resources``
+        entry plus an ``encountered_in`` key recording provenance.
+
+        :rtype: list[dict]
+        """
         return self.encountered_resources
 
     # ---
@@ -83,6 +107,21 @@ class ResourcesScanner(LatexNodesVisitor):
 
 
 class ConverterNotAvailable(Exception):
+    r"""
+    Raised when a :class:`GraphicsConverter` subclass cannot be used because
+    its required external tool is missing or otherwise unavailable.
+
+    .. py:attribute:: msg
+       :type: str
+
+       Human-readable error message.
+
+    .. py:attribute:: exc
+       :type: Exception | None
+
+       The underlying exception, if any.
+    """
+
     def __init__(self, name, why, exc=None):
         msg = f'Graphics converter {name} not available: {why}'
         super().__init__(msg)
@@ -209,15 +248,42 @@ class GraphicsFormatConversionRule:
 
 
 class GraphicsConverter:
+    r"""
+    Abstract base class for graphics format converters.
+
+    Subclasses must set :attr:`name` to a unique string identifier, implement
+    :meth:`can_convert` as a classmethod, and provide a :meth:`convert` method
+    that performs the actual conversion.
+    """
+
     name = None
+    """Unique converter name used to match ``via`` entries in conversion rules."""
 
     @classmethod
     def get_instance(cls):
+        r"""
+        Return a lazily-created singleton instance of this converter class.
+
+        :rtype: GraphicsConverter
+        """
         if not hasattr(cls, '_instance') or cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
     def read_input(self, source_type, src_url, binary=True):
+        r"""
+        Read the source graphics data from a file path or URL.
+
+        :param source_type: ``'file'`` for local files, or any other value to
+            fetch via HTTP.
+        :type source_type: str
+        :param src_url: File path or URL to read from.
+        :type src_url: str
+        :param binary: If ``True``, return raw bytes; otherwise decode as
+            UTF-8.
+        :type binary: bool
+        :returns: The file contents as ``bytes`` (if *binary*) or ``str``.
+        """
         if source_type == 'file':
             if binary:
                 with open(src_url, 'rb') as f:
@@ -236,7 +302,11 @@ class GraphicsConverter:
 
 
 class CairoSvgConverter(GraphicsConverter):
-    
+    r"""
+    Converter using the ``cairosvg`` Python library to convert SVG files to
+    PDF, PNG, PS, or EPS.
+    """
+
     name = 'cairosvg'
 
     @classmethod
@@ -290,7 +360,11 @@ class CairoSvgConverter(GraphicsConverter):
 
 
 class GhostscriptConverter(GraphicsConverter):
-    
+    r"""
+    Converter using the ``gs`` (Ghostscript) command-line executable to
+    convert PDF, PS, or EPS files to PNG, JPEG, or PDF.
+    """
+
     name = 'gs'
 
     @classmethod
@@ -372,7 +446,11 @@ class GhostscriptConverter(GraphicsConverter):
 
 
 class PdfToCairoCmdlConverter(GraphicsConverter):
-    
+    r"""
+    Converter using the ``pdftocairo`` command-line tool (from Poppler) to
+    convert PDF files to PS, EPS, SVG, PNG, JPEG, or TIFF.
+    """
+
     name = 'pdftocairo'
 
     @classmethod
@@ -450,6 +528,11 @@ class PdfToCairoCmdlConverter(GraphicsConverter):
 
 
 class MagickConverter(GraphicsConverter):
+    r"""
+    Converter using the ImageMagick ``magick`` command-line tool.  Accepts a
+    wide range of input and output formats.  For animated formats (``.gif``,
+    ``.mng``), only the first frame is converted.
+    """
 
     name = 'magick'
 
@@ -579,7 +662,22 @@ class FeatureGraphicsCollection(Feature):
             self.graphics_collection = {}
 
         def flm_main_scan_fragment(self, fragment, document_parts_fragments=None, **kwargs):
-            
+            r"""
+            Scan a parsed FLM fragment (and optional additional document-part
+            fragments) for graphics resource references.
+
+            Sets up input/output reference directories from document metadata,
+            then uses :class:`ResourcesScanner` to walk the node trees and
+            inspect each discovered graphics resource.
+
+            :param fragment: The primary FLM fragment to scan.
+            :param document_parts_fragments: Optional additional fragments
+                (e.g. from document parts) to scan for resources.
+            :type document_parts_fragments: list or None
+            :param kwargs: Additional keyword arguments; if ``flm_run_info``
+                is present, it is used to determine the output directory.
+            """
+
             self.reference_input_dir = \
                 (self.doc.metadata or {}).get('filepath', {}).get('dirname', None)
             if self.reference_input_dir is None:
@@ -764,6 +862,43 @@ class FeatureGraphicsCollection(Feature):
                 collect_format_conversion_rules : None|Sequence[TypeGraphicsFormatConversionRule] = None,
                 use_graphics_cache_file : bool = True,
         ):
+            r"""
+            Set up the render manager for a specific rendering pass.
+
+            Each parameter defaults to ``None``, meaning the corresponding
+            value from the parent :class:`FeatureGraphicsCollection` instance
+            is used.  When the output format has entries in
+            :data:`default_rules_by_format`, those rules are applied
+            automatically if no explicit conversion rules are provided.
+
+            :param allow_unknown_graphics: Whether to permit
+                ``get_graphics_resource()`` calls for graphics paths that were
+                not found during the scan phase.  ``None`` defers to the
+                feature-level setting.
+            :type allow_unknown_graphics: None | bool
+            :param collect_graphics_to_output_folder: Folder (relative to
+                output dir) into which graphics files are collected.  ``False``
+                disables collection; ``None`` defers to the feature-level
+                setting.
+            :type collect_graphics_to_output_folder: None | Literal[False] | str
+            :param collect_graphics_relative_output_folder: Path used in
+                rendered output to reference collected graphics.  Falls back to
+                *collect_graphics_to_output_folder* when ``None`` or ``False``.
+            :type collect_graphics_relative_output_folder: None | Literal[False] | str
+            :param collect_graphics_filename_template: A
+                :class:`string.Template` pattern for naming collected files.
+                Available substitution keys: ``basename``, ``basenoext``,
+                ``ext``, ``counter``, ``hash``, ``hash6``.
+            :type collect_graphics_filename_template: None | str
+            :param collect_format_conversion_rules: Rules governing format
+                conversions applied when collecting.  Each element is coerced
+                to a :class:`GraphicsFormatConversionRule`.
+            :type collect_format_conversion_rules: None | Sequence[TypeGraphicsFormatConversionRule]
+            :param use_graphics_cache_file: Whether to read/write a cache
+                file to skip re-converting unchanged graphics.  Automatically
+                disabled when collection is turned off.
+            :type use_graphics_cache_file: bool
+            """
             # self.src_url_resolver_fn = src_url_resolver_fn
 
             flm_run_info = self.feature_document_manager.flm_run_info
@@ -1012,6 +1147,29 @@ class FeatureGraphicsCollection(Feature):
 
 
         def get_graphics_resource(self, graphics_path, resource_info):
+            r"""
+            Resolve a graphics path to a :class:`~flm.feature.graphics.GraphicsResource`.
+
+            Looks up *graphics_path* in the document manager's pre-scanned
+            collection.  If the path is not in the collection and
+            *allow_unknown_graphics* is ``True``, a bare
+            :class:`~flm.feature.graphics.GraphicsResource` is returned.
+
+            When graphics collection is active, the returned resource's
+            ``src_url`` points to the collected (and possibly converted) file.
+            Otherwise ``src_url`` is made relative to the output directory.
+
+            :param graphics_path: The graphics path as it appears in the FLM
+                source (may be a relative file path or a URL).
+            :type graphics_path: str
+            :param resource_info: Provenance information from the originating
+                latex walker, used to resolve search paths.
+            :returns: A :class:`~flm.feature.graphics.GraphicsResource` with
+                the appropriate ``src_url`` for the current render output.
+            :rtype: ~flm.feature.graphics.GraphicsResource
+            :raises ~pylatexenc.latexnodes.LatexWalkerError: If the path is
+                unknown and *allow_unknown_graphics* is ``False``.
+            """
 
             render_context = self.render_context
             # src_url_resolver_fn = self.src_url_resolver_fn
@@ -1177,7 +1335,39 @@ class FeatureGraphicsCollection(Feature):
         dicts or `GraphicsFormatConversionRule` instances.  Any string or dict
         will be used to create a `GraphicsFormatConversionRule` instance.
 
-        More doc.......
+        :param allow_unknown_graphics: If ``True``, allow
+            :meth:`RenderManager.get_graphics_resource` to return a default
+            resource for graphics paths that were not discovered during the
+            scan phase.  If ``False``, an error is raised for unknown paths.
+        :type allow_unknown_graphics: bool
+        :param collect_graphics_to_output_folder: Target folder for collecting
+            graphics files.  A string value is interpreted as a path (absolute
+            or relative to the output file).  ``False`` disables collection
+            entirely.  ``None`` applies simple output-format-dependent
+            defaults.
+        :type collect_graphics_to_output_folder: None | Literal[False] | str
+        :param collect_graphics_relative_output_folder: Path to use in the
+            rendered output (e.g. in ``<img src="...">`` or
+            ``\includegraphics{...}``) to reference collected files.  Useful
+            when the physical output folder is an absolute path but a relative
+            reference is desired.  ``False`` or ``None`` falls back to
+            *collect_graphics_to_output_folder*.
+        :type collect_graphics_relative_output_folder: None | Literal[False] | str
+        :param collect_graphics_filename_template: A :class:`string.Template`
+            pattern controlling the names of collected files.  Available
+            substitution keys: ``basename``, ``basenoext``, ``ext``,
+            ``counter``, ``hash``, ``hash6``.
+        :type collect_graphics_filename_template: None | str
+        :param collect_format_conversion_rules: Sequence of conversion rules.
+            Each element may be a string (``'from:to'``), a dict, or a
+            :class:`GraphicsFormatConversionRule`.  ``None`` means
+            output-format defaults from :data:`default_rules_by_format` are
+            used at render time.
+        :type collect_format_conversion_rules: None | Sequence[TypeGraphicsFormatConversionRule]
+        :param graphics_search_path: Directories to search when resolving
+            relative graphics paths.  All paths are relative to the root
+            document's directory.  Defaults to ``['.']``.
+        :type graphics_search_path: None | Sequence[str]
         """
         super().__init__()
 

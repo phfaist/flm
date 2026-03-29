@@ -760,4 +760,97 @@ Graphics collections — autoconverting formats and collecting
 Collect input graphics files into a specific output folder, while applying a
 series of custom transformation rules to convert between chosen formats.
 
-TODO: Doc...
+This feature is not part of the core FLM package; it is provided by the
+``flm.main`` module and is enabled by default in the command-line tool's
+configuration.
+
+When enabled, the feature scans all ``\includegraphics`` references in the
+document, resolves the source files (local files or URLs), and copies them into
+a designated output folder.  During this process, format conversion rules are
+applied so that graphics are automatically converted to formats suitable for the
+chosen output format.
+
+Configuration options
+^^^^^^^^^^^^^^^^^^^^^
+
+Set configuration options in your ``flmconfig.yaml`` (or your document's front
+matter):
+
+.. code-block:: yaml
+
+    flm:
+      features:
+        'flm.main.feature_graphics_collection':
+          collect_graphics_to_output_folder: '_flm_collected_graphics'
+          # ...
+
+
+``collect_graphics_to_output_folder``
+    Path to the folder where collected graphics are written.  Relative paths are
+    interpreted relative to the output file.  Set to ``false`` to disable
+    collection (original paths are used in the output).  Defaults to
+    ``'_flm_collected_graphics'`` in the built-in command-line configuration.
+
+``collect_graphics_relative_output_folder``
+    Path used in the rendered output (e.g., HTML ``src`` attributes) to refer to
+    the collected graphics files.  Useful when the actual output folder is an
+    absolute path but you want a relative path in the output.  Defaults to the
+    value of ``collect_graphics_to_output_folder``.
+
+``collect_graphics_filename_template``
+    A Python ``string.Template`` pattern for naming collected files.  Available
+    variables: ``${basename}``, ``${basenoext}``, ``${ext}``, ``${counter}``,
+    ``${hash}``, ``${hash6}``.  Default: ``"gr${counter}${ext}"``.
+
+``collect_format_conversion_rules``
+    A list of conversion rules.  Each rule specifies which input formats to
+    convert and to which output format, optionally via a specific converter.
+    Rules can be given as strings (``'.svg:.pdf'``), or as dictionaries:
+
+    .. code-block:: yaml
+
+        collect_format_conversion_rules:
+          - from: '.pdf'
+            to: '.png'
+            options:
+              dpi: 192
+
+    If not specified, sensible defaults are used depending on the output format.
+    For HTML output, ``.pdf`` files are converted to ``.png`` at 192 dpi.  For
+    LaTeX output, ``.svg`` files are converted to ``.pdf`` and ``.gif`` files to
+    ``.png``.
+
+``graphics_search_path``
+    A list of directories in which to search for graphics files.  Paths are
+    relative to the input document's directory.  Default: ``['.']``.
+
+``allow_unknown_graphics``
+    If ``true``, references to graphics files not found during scanning are
+    silently allowed.  Default: ``false``.
+
+Built-in converters
+^^^^^^^^^^^^^^^^^^^
+
+The following converters are available and are selected automatically based on
+the requested conversion and available system tools:
+
+- **cairosvg** --- converts SVG to PDF, PNG, PS, or EPS (requires the
+  ``cairosvg`` Python package).  Supports ``dpi``, ``scale``,
+  ``parent_width``, and ``parent_height`` options.
+- **gs** (Ghostscript) --- converts PDF/PS/EPS to PNG, JPEG, or PDF (requires
+  the ``gs`` executable).  Supports ``dpi`` option (default: 300).
+- **pdftocairo** --- converts PDF to PS, EPS, SVG, PNG, JPEG, or TIFF (requires
+  the ``pdftocairo`` executable from Poppler).  Supports ``dpi`` and
+  ``transparent_bg`` options.
+- **magick** (ImageMagick) --- general-purpose converter for many formats
+  (requires the ``magick`` executable).  Supports ``dpi`` and
+  ``transparent_bg`` options.
+
+You can restrict which converter is used for a given rule with the ``via`` key:
+
+.. code-block:: yaml
+
+    collect_format_conversion_rules:
+      - from: '.svg'
+        to: '.pdf'
+        via: 'cairosvg'

@@ -20,6 +20,25 @@ Module `flm.main.template`
    :members:
 
 
+Module `flm.main.feature_graphics_collection`
+-----------------------------------------------
+
+.. automodule:: flm.main.feature_graphics_collection
+
+.. autoclass:: GraphicsFormatConversionRule
+   :members:
+   :undoc-members:
+
+.. autoclass:: GraphicsConverter
+   :members:
+   :undoc-members:
+
+.. autoclass:: FeatureGraphicsCollection
+   :show-inheritance:
+   :members:
+   :undoc-members:
+
+
 Module `flm.main.workflow`
 --------------------------
 

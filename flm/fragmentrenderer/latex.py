@@ -18,9 +18,9 @@ from ._base import FragmentRenderer
 from typing import TypedDict
 
 class TypeFloatPlacementPolicySpecDict(TypedDict, total=False):
-    environment: str
-    environment_options_str : str
-    centering: str
+    environment: None|str
+    environment_options_str : None|str
+    centering: None|str
 
 class TypeFloatPlacementPolicyDict(TypedDict, total=True):
     nothing: TypeFloatPlacementPolicySpecDict
@@ -28,6 +28,26 @@ class TypeFloatPlacementPolicyDict(TypedDict, total=True):
     numberonly: TypeFloatPlacementPolicySpecDict
     numbercaption: TypeFloatPlacementPolicySpecDict
 ### END_FLM_PYTHON_TYPING
+
+
+_default_float_placement_policy : TypeFloatPlacementPolicyDict = {
+    'nothing': {
+        'environment': 'center',
+        'environment_options_str': '',
+        'centering': '',
+    },
+    'captiononly': {
+        'environment': 'center',
+        'environment_options_str': '',
+        'centering': '',
+    },
+    'numberonly': {
+        'environment_options_str': '[hbtp]',
+    },
+    'numbercaption': {
+        'environment_options_str': '[hbtp]',
+    }
+}
 
 
 class LatexFragmentRenderer(FragmentRenderer):
@@ -114,24 +134,8 @@ class LatexFragmentRenderer(FragmentRenderer):
     use_endnote_latex_command : str|None = None #'textsuperscript'
     use_citation_latex_command : str|None = None #'textsuperscript'
 
-    float_placement_policy : TypeFloatPlacementPolicyDict = {
-        'nothing': {
-            'environment': 'center',
-            'environment_options_str': '',
-            'centering': '',
-        },
-        'captiononly': {
-            'environment': 'center',
-            'environment_options_str': '',
-            'centering': '',
-        },
-        'numberonly': {
-            'environment_options_str': '[hbtp]',
-        },
-        'numbercaption': {
-            'environment_options_str': '[hbtp]',
-        }
-    }
+    float_placement_policy : TypeFloatPlacementPolicyDict = _default_float_placement_policy
+
     float_use_centering : str = r'\centering{}'
     float_caption_join : str = ': '
     float_latex_before_caption : str = r'\flmFloatCaption{' # r'\par\vspace{1ex}\relax '
@@ -776,11 +780,11 @@ class LatexFragmentRenderer(FragmentRenderer):
         else:
             pl_policy = self.float_placement_policy['numbercaption']
 
-        if 'environment' in pl_policy and pl_policy['environment']:
+        if 'environment' in pl_policy and pl_policy['environment'] is not None:
             env_name = pl_policy['environment']
-        if 'environment_options_str' in pl_policy and pl_policy['environment_options_str']:
+        if 'environment_options_str' in pl_policy and pl_policy['environment_options_str'] is not None:
             env_options_str = pl_policy['environment_options_str']
-        if 'centering' in pl_policy and pl_policy['centering']:
+        if 'centering' in pl_policy and pl_policy['centering'] is not None:
             centering = pl_policy['centering']
 
         return (
