@@ -13,8 +13,6 @@ from ._base import RenderWorkflow
 # ------------------------------------------------------------------------------
 
 _default_config = {
-    'template': None,
-    'template_config': {}
 }
 
 

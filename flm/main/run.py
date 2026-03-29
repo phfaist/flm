@@ -1,7 +1,8 @@
-import re
-import copy
+import sys
 import os # os.pathsep
 import os.path
+import re
+import copy
 import logging
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,18 @@ from flm._flm_args_schema import (
 
 # ---
 
+class FLMMainRunError(Exception):
+    def __init__(self, message, details=None):
+        super().__init__(message)
+        self._message = message.strip()
+        self._details = details.strip()
+
+    def message(self):
+        return self._message
+    
+    def details(self):
+        return self._details
+
 class ResourceAccessorBase:
     r"""
     Interface to access templates, import feature/workflow class instances,
@@ -57,7 +70,7 @@ class ResourceAccessorBase:
                 if self.file_exists(tpath, tfullname, 'template_info', flm_run_info):
                     return tpath, tfullname
 
-        raise ValueError(
+        raise FLMMainRunError(
             f"Template not found: ‘{template_name}’.  "
             f"Template path is = {repr(self.template_path)}"
         )
@@ -74,7 +87,7 @@ class ResourceAccessorBase:
                     return r_cwd
         return cwd
 
-    def find_in_search_paths(self, search_paths, fname, ftype, flm_run_info, resource_info):
+    def find_in_search_paths(self, search_paths, fname, ftype, flm_run_info, resource_info) -> tuple[str, str]:
 
         cwd = self.get_cwd_for_resource_info(resource_info, flm_run_info)
 
@@ -88,25 +101,25 @@ class ResourceAccessorBase:
             if self.file_exists(search_path, fname, ftype, flm_run_info):
                 return search_path, fname
 
-        raise ValueError(
+        raise FLMMainRunError(
             f"File not found: ‘{fname}’. Search path was = {repr(search_paths)}, "
             f"relative to ‘{cwd}’"
         )
 
     def import_class(self, fullname, *, default_classnames=None, default_prefix=None,
-                     flm_run_info=None):
+                     flm_run_info=None) -> tuple[Any,Any]: # (ModuleObject, ClassObject)
         raise RuntimeError("Must be reimplemented by subclasses!")
 
-    def read_file(self, fpath, fname, ftype, flm_run_info, binary=False):
+    def read_file(self, fpath, fname, ftype, flm_run_info, binary=False) -> str|bytes:
         raise RuntimeError("Must be reimplemented by subclasses!")
 
-    def open_file_object_context(self, fpath, fname, ftype, flm_run_info, binary=False):
+    def open_file_object_context(self, fpath, fname, ftype, flm_run_info, binary=False) -> Any:
         raise RuntimeError("Must be reimplemented by subclasses!")
 
-    def file_exists(self, fpath, fname, ftype, flm_run_info):
+    def file_exists(self, fpath, fname, ftype, flm_run_info) -> bool:
         raise RuntimeError("Must be reimplemented by subclasses!")
 
-    def dir_exists(self, fpath, fname, ftype, flm_run_info):
+    def dir_exists(self, fpath, fname, ftype, flm_run_info) -> bool:
         raise RuntimeError("Must be reimplemented by subclasses!")
         
 
@@ -189,6 +202,40 @@ class ResourceInfo:
 # ---
 
 
+
+def import_component_class(
+    resource_accessor : ResourceAccessorBase,
+    componentname : str,
+    default_prefix : str,
+    default_classnames : list[str],
+    flm_run_info : Any,
+    what: str,
+) -> tuple[Any,Any]:
+
+    try:
+        mod, cls = resource_accessor.import_class(
+            componentname,
+            default_prefix='flm.feature',
+            default_classnames=['FeatureClass'],
+            flm_run_info=flm_run_info
+        )
+        return mod, cls
+    except ValueError as e:
+        msg = (
+f"""
+Failed to locate {what} ‘{componentname}’.
+"""
+)
+        details = (
+f"""
+Current python search path is {repr(sys.path)}
+"""
+)
+        raise FLMMainRunError(msg, details)
+
+
+
+
 def load_features(features_merge_configs, flm_run_info):
 
     main_config = flm_run_info['main_config']
@@ -208,11 +255,13 @@ def load_features(features_merge_configs, flm_run_info):
         if featureconfig is True:
             featureconfig = {}
 
-        _, FeatureClass = resource_accessor.import_class(
+        _, FeatureClass = import_component_class(
+            resource_accessor,
             featurename,
             default_prefix='flm.feature',
             default_classnames=['FeatureClass'],
-            flm_run_info=flm_run_info
+            flm_run_info=flm_run_info,
+            what='feature',
         )
 
         # re-merge the config fully from the initial merge configs, so that we
@@ -293,13 +342,24 @@ properties:
             features: {}
             renderer: {}
             workflow_config: {}
-            template_config: {}
+                
 
             default_workflow:
                 type: ['string', 'null']
             default_format:
                 type: ['string', 'null']
 
+            template:
+                # Either a simple string (template name) or by format
+                anyOf:
+                  - type: string
+                  - type: object
+                    additionalProperties:
+                        type: string
+            template_config: # keys = output formats
+                type: object
+                additionalProperties:
+                    type: object
             template_path:
                 type: array
                 items:
@@ -363,7 +423,9 @@ def validate_config_for_schema(name, schema, config):
     errors = sorted(iter_errors, key=lambda e: e.path)
 
     for error in errors:
-        logger.warning("Validation error in FLM config ‘%s’: %s", name, str(error))
+        logger.warning(
+f"""FLM config validation error (‘{name}’):\n{error}\n"""
+)
 
 
 def validate_config_for_fn_kwargs(name, fn, config):
@@ -377,6 +439,75 @@ def validate_config_for_tp(name, tp, config):
 def validate_config_for_class_typed_attributes(name, cls, config):
     schema = class_typed_attributes_json_schema(cls)
     validate_config_for_schema(name, schema, config)
+
+
+
+def get_config_json_schema(
+        feature_classes,
+        renderer_classes,
+        workflow_classes
+    ):
+
+    configschema = copy.deepcopy(_global_config_schema)
+
+    #
+    # parsing
+    #
+
+    configschema['properties']['flm']['properties']['parsing'] = function_json_schema(
+        flmenvironment.standard_parsing_state
+    )
+    
+    #
+    # features
+    #
+    
+    features_schema = {}
+    for feature_name, feature_class in feature_classes.items():
+        features_schema[feature_name] = {
+            'anyOf': [
+                { 'type': 'boolean' },
+                function_json_schema( feature_class.__init__ ),
+            ]
+        }
+    
+    configschema['properties']['flm']['properties']['features'] = {
+        'type': 'object',
+        'additionalProperties': {},
+        'properties': features_schema,
+    }
+
+    #
+    # renderers
+    #
+    
+    renderers_schema = {}
+    for renderer_name, renderer_class in renderer_classes.items():
+        renderers_schema[renderer_name] = class_typed_attributes_json_schema(renderer_class)
+
+    configschema['properties']['flm']['properties']['renderer'] = {
+        'type': 'object',
+        'additionalProperties': {},
+        'properties': renderers_schema,
+    }
+
+    #
+    # workflows
+    #
+    
+    workflows_schema = {}
+    for workflow_name, workflow_class in workflow_classes.items():
+        workflows_schema[workflow_name] = \
+            type_to_json_schema(workflow_class.TypeWorkflowConfigDict)
+
+    configschema['properties']['flm']['properties']['workflow_config'] = workflows_schema,
+
+    return configschema
+
+
+
+
+
 
 
 
@@ -499,7 +630,7 @@ def load_workflow_environment(*,
             for workflowname, workflowconfig in flmconfig['workflow_config'].items():
                 if workflowname.startswith('$'):
                     raise ValueError(
-                        f"FIXME: presets not yet supported immediately inside "
+                        f"FIXME: $-instruction presets in YAML not yet supported immediately inside "
                         f"‘workflow_config:’ config, got {workflowname}"
                     )
                 workflow_merge_configs[workflowname] = workflowconfig
@@ -584,7 +715,7 @@ def load_workflow_environment(*,
     validate_config_for_class_typed_attributes(
         _join_config_path(['flm', 'renderer', fragment_renderer_name]),
         FragmentRendererClass,
-        fragment_renderer_config
+        fragment_renderer_config,
     )
 
     fragment_renderer = FragmentRendererClass(
@@ -603,6 +734,9 @@ def load_workflow_environment(*,
         WorkflowClass.get_workflow_default_config(flm_run_info, config)
     if workflow_own_default_config:
         workflow_config_merge_configs.extend([workflow_own_default_config])
+
+    logger.debug("Workflow config: merging configs for ‘%s’: %r",
+                 workflow_name, workflow_config_merge_configs)
 
     workflow_config = configmerger.recursive_assign_defaults(workflow_config_merge_configs)
 
@@ -934,6 +1068,100 @@ class Run:
         #
         return result, result_info
 
+    def get_config_json_schema(self):
+
+        # Use all loaded feature classes and all workflow classes that appear in
+        # workflow_config of the given config
+
+        flm_run_info = self.flm_run_info
+        resource_accessor = flm_run_info['resource_accessor']
+
+        def _extract_cls_load_name(
+                cls,
+                default_prefix,
+                default_classnames,
+                flm_run_info=flm_run_info,
+            ):
+            # see if we can import by module name only
+            modname = cls.__module__.removeprefix(default_prefix+'.')
+            try:
+                _, clsimport = resource_accessor.import_class(
+                    modname,
+                    default_prefix=default_prefix,
+                    default_classnames=default_classnames,
+                    flm_run_info=flm_run_info
+                )
+                if clsimport is cls:
+                    # it's the same class!
+                    return modname
+            except (ValueError,ImportError):
+                pass
+            return cls.__qualname__.removeprefix(default_prefix+'.')
+
+        feature_classes = dict([
+            (_extract_cls_load_name(f.__class__, default_prefix='flm.feature', default_classnames=['FeatureClass']),
+             f.__class__)
+            for f in self.wenv.environment.features
+        ])
+
+        import pkgutil
+
+
+        # include all known workflows
+        from . import workflow as workflow_parent_module
+        workflow_submodules = pkgutil.iter_modules(workflow_parent_module.__path__)
+        logger.debug('Discovered builtin workflow submodules: %r', workflow_submodules)
+        workflow_names = set([ m.name for m in workflow_submodules ])
+        for wname in self.wenv.config.get('flm', {}).get('workflow_config', {}).keys():
+            workflow_names.add(wname)
+
+        workflow_classes = {}
+        for wname in workflow_names:
+            if wname == '_base':
+                continue
+            try:
+                _, WorkflowClass = resource_accessor.import_class(
+                    wname,
+                    default_prefix='flm.main.workflow',
+                    default_classnames=['RenderWorkflowClass'],
+                    flm_run_info=flm_run_info
+                )
+                workflow_classes[wname] = WorkflowClass
+            except Exception as e:
+                logger.warning(f"Not including JSON schema for workflow ‘{wname}’, module load failed: {e}")
+                continue
+
+        # include all known renderers
+        from .. import fragmentrenderer as renderer_parent_module
+        renderer_submodules = pkgutil.iter_modules(renderer_parent_module.__path__)
+        logger.debug('Discovered builtin renderer submodules: %r', renderer_submodules)
+        renderer_names = set([ m.name for m in renderer_submodules] )
+        for rname in self.wenv.config.get('flm', {}).get('renderer', {}).keys():
+            renderer_names.add(rname)
+        
+        renderer_classes = {}
+        for rname in renderer_names:
+            if rname == '_base':
+                continue
+            try:
+                _, fragment_renderer_information = resource_accessor.import_class(
+                    rname,
+                    default_prefix='flm.fragmentrenderer',
+                    default_classnames=['FragmentRendererInformation'],
+                    flm_run_info=flm_run_info,
+                )
+                FragmentRendererClass = fragment_renderer_information.FragmentRendererClass
+                renderer_classes[rname] = FragmentRendererClass
+            except Exception as e:
+                logger.warning(f"Not including JSON schema for renderer ‘{rname}’, module load failed: {e}")
+                continue
+
+        # call module-level function
+        return get_config_json_schema(
+            feature_classes=feature_classes,
+            workflow_classes=workflow_classes,
+            renderer_classes=renderer_classes,
+        )
 
 
 def run(*args, **kwargs):
@@ -946,32 +1174,3 @@ def run(*args, **kwargs):
 
 
 
-
-
-
-
-# def get_config_json_schema(features : list[str],  workflow_names : list[str]):
-#     # the parsing
-#     parsing_schema = function_json_schema(flmenvironment.standard_parsing_state)
-
-#     features_schema = {}
-
-#     raise NotYetImplementedErrorIsSevere("Not yet implemented!")
-
-#     for feature in features:
-#         fsc = get_args_schema_feature(feature)
-#         ... ...
-
-#     flm_schema = {
-#         'properties': {
-#             'parsing': parsing_schema,
-#             'features': features_schema,
-#         }
-#     }
-
-#     return {
-#         'type': 'object',
-#         'properties': {
-#             'flm': flm_schema,
-#         }
-#     }

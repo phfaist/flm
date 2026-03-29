@@ -6,9 +6,14 @@ from pylatexenc.latexnodes import LatexWalkerError
 
 import colorlog
 
+from .main.run import FLMMainRunError
 from .main.main import main as _main
 from .main.watch import main_watch as _main_watch
-from .main.main import main_print_merged_config as _main_print_merged_config
+from .main.main import (
+    main_print_merged_config as _main_print_merged_config,
+    main_print_config_json_schema as _main_print_config_json_schema,
+    main_validate_config as _main_validate_config,
+)
 from .main import oshelper as flm_main_oshelper
 from flm import __version__ as flm_version
 
@@ -51,6 +56,10 @@ def run_main(cmdargs=None, enable_debug_pdb=False, exit_code_on_error=1):
         logging.getLogger('flm').critical(
             f"FLM Error\n{e}",
         )
+        if exit_code_on_error is not None:
+            sys.exit(exit_code_on_error)
+    except FLMMainRunError as e:
+        logging.getLogger('flm').critical('\n\n==> %s <==\n\n%s', e.message(), e.details())
         if exit_code_on_error is not None:
             sys.exit(exit_code_on_error)
     except Exception as e:
@@ -108,6 +117,22 @@ def _run_main_inner(cmdargs=None):
                              + (",".join([f'‘x’'
                                           for x in _main_print_merged_config.available_keys]))
                              + "; default ‘run’).")
+
+    args_parser.add_argument('--validate-config-only', nargs='?',
+                             default=None,
+                             const='run',
+                             help="Load the input and validate the config.  Print warnings "
+                             "for config validation failures.  Then exit.")
+
+    args_parser.add_argument('--print-config-json-schema', nargs='?',
+                             default=None,
+                             const='run',
+                             help="Output a JSON schema to validate the full input configuration "
+                             "against.  If any input or custom configuration is provided, its "
+                             "configuration keys for features, "
+                             "renderers, and workflows are collected and included in the schema. "
+                             "The folder-level config file(s) (e.g. 'flmconfig.yaml') are also read. "
+                             "(For now, $presets are not included in the schema...)")
 
     args_parser.add_argument('-o', '--output', action='store',
                              default=None,
@@ -196,6 +221,22 @@ def _run_main_inner(cmdargs=None):
     if args.print_merged_config is not None:
         d = args.__dict__
         _main_print_merged_config(**d)
+        return
+
+    #
+    # If we want a JSON schema of config tree:
+    #
+    if args.print_config_json_schema is not None:
+        d = args.__dict__
+        _main_print_config_json_schema(**d)
+        return
+
+    #
+    # If we simply want to validate the input config:
+    #
+    if args.validate_config_only is not None:
+        d = args.__dict__
+        _main_validate_config(**d)
         return
 
     #

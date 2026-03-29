@@ -63,6 +63,8 @@ def type_to_json_schema(tp):
         hints = get_type_hints(tp)
         properties = {}
         for key, val_type in hints.items():
+            if key == '_flmtyping_is':
+                continue # don't include this one, it's internal...
             properties[key] = type_to_json_schema(val_type)
         required = sorted(tp.__required_keys__)
         schema = {
