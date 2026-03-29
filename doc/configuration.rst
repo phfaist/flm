@@ -72,6 +72,10 @@ The top-level structure of an FLM configuration file is:
         # Workflow-specific configuration
         ...
 
+      # additional configuration possible: default format, default workflow,
+      # template settings...  (cf. below)
+      
+
 You can also include top-level metadata such as a document title:
 
 .. code-block:: yaml
@@ -135,6 +139,8 @@ priority than the ``flmconfig.yaml`` file:
 
     ---
     title: 'My FLM Document'
+    author: 'John Doe'
+    date: 'May 1, 2026'
     flm:
       parsing:
         dollar_inline_math_mode: true
@@ -369,6 +375,52 @@ Python module path as the feature name:
     flm:
       features:
         'flm.main.feature_graphics_collection': {}
+
+
+
+        
+Some additional configuration options
+-------------------------------------
+
+Some additional keys inside the `flm:` block can help you set a default format,
+workflow, and template so you don't have to specify them on the command line.
+You can also set configuration variables for the templates.
+
+.. code-block:: yaml
+
+   flm:
+      # ...
+      default_workflow: 'templatebasedworkflow'
+      default_format: 'html'
+      template:
+        # template to use when rendering html
+        html: 'simple'
+        # template to use when rendering latex
+        latex: 'revtex'
+      template_config:
+        html:
+          simple:
+            render_header: true
+            display_toc: true
+            font:
+              family: 'Source Serif Pro'
+              size: '16px'
+            layout:
+              content_width: '640px'
+            style:
+              extra_css: |
+                body { background-color: #e7e7f7; }
+        latex:
+          simple:
+            documentclass:
+              fontsize: '12pt'
+            preamble:
+              fonts: |
+                \usepackage{newtxtext}
+                \usepackage{newtxmath}
+            render_toc: true
+            
+
 
 
 .. _config-formats:
