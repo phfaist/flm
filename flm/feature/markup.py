@@ -10,9 +10,21 @@ from ..flmspecinfo import (
     TextFormatMacro, SemanticBlockEnvironment
 )
 
+from .._typing_helpers import Mapping, Sequence
+
 from ._base import Feature
 
-    
+
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeTextMacroDef(TypedDict, total=False):
+    text_formats : Sequence[str]
+
+class TypeSemanticEnvironmentDef(TypedDict, total=False):
+    role : str
+    annotations : Sequence[str]|None
+### END_FLM_PYTHON_TYPING
+
 
 
 class FeatureMarkup(Feature):
@@ -36,10 +48,9 @@ class FeatureMarkup(Feature):
     DocumentManager = None
     RenderManager = None
 
-
     def __init__(self,
-                 text_macros=None,
-                 semantic_environments=None,
+                 text_macros : Mapping[str, TypeTextMacroDef]|None = None,
+                 semantic_environments : Mapping[str, TypeSemanticEnvironmentDef]|None = None,
                  ):
         super().__init__()
         self.text_macros = text_macros or {}

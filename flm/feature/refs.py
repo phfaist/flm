@@ -18,6 +18,8 @@ from ..flmfragment import FLMFragment
 from ..flmspecinfo import FLMMacroSpecBase
 from ..flmenvironment import FLMArgumentSpec
 
+from .._typing_helpers import Sequence, Any, Mapping
+
 from ._base import Feature
 from ..counter import ValueWithSubNums
 
@@ -122,7 +124,7 @@ def get_safe_target_id(ref_type, ref_label):
 
 class FeatureRefsRenderManager(Feature.RenderManager):
 
-    def initialize(self, add_external_ref_resolvers=None):
+    def initialize(self, add_external_ref_resolvers : Sequence[Any]|None = None):
         self.ref_labels = {}
         self.registered_references = {}
         self.external_ref_resolvers = []
@@ -698,6 +700,15 @@ class RefMacro(FLMMacroSpecBase):
 
 
 
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeAllowUnresolvedRefsDef(TypedDict, total=False):
+    display_unresolved : str
+### END_FLM_PYTHON_TYPING
+
+
 class FeatureRefs(Feature):
     r"""
     Feature plugin for labels and cross-references.  Registers ``\ref`` and
@@ -711,7 +722,8 @@ class FeatureRefs(Feature):
 
     RenderManager = FeatureRefsRenderManager
 
-    def __init__(self, external_ref_resolvers=None, allow_unresolved_refs=False):
+    def __init__(self, external_ref_resolvers : Sequence[Any]|None = None,
+                 allow_unresolved_refs : bool|TypeAllowUnresolvedRefsDef = False):
         super().__init__()
         # e.g., resolve a reference to a different code page in the EC zoo!
         if external_ref_resolvers is not None:

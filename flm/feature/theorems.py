@@ -25,7 +25,9 @@ from .. import flmspecinfo
 from ..counter import build_counter_formatter
 from . import numbering
 
-from ._base import Feature
+from .._typing_helpers import Any, Mapping, Sequence, TypeCounterFormatterInput, TypeCounterFormatterSpecDict
+
+from ._base import Feature, FeatureRenderManagerBase
 from . import headings
 
 
@@ -511,10 +513,6 @@ def _merge_dicts(a, b):
 
 
 
-# REVIEW: The dict(a, **b) pattern used below to build defaultset/richset
-# may not work correctly in Transcrypt (JS), causing conjecture/remark
-# environments to be missing at runtime.  Consider using explicit dict
-# literals or a merge helper instead.
 _default_theorem_environments_defaultset = {
     'theoremlike': _merge_dicts(_default_theorem_environments_simpleset['theoremlike'], {
         'conjecture': {
@@ -632,7 +630,7 @@ default_theorem_theorem_types = {
     }
 }
 
-default_thm_shared_counter_formatter_spec = {
+default_thm_shared_counter_formatter_spec : TypeCounterFormatterSpecDict = {
     'format_num': 'arabic',
     'delimiters': ('',''),
     'join_spec': 'default',
@@ -644,6 +642,22 @@ default_allowed_ref_label_prefixes = [
     'rem', 'def', 'dfn',
     'x', 'topic'
 ]
+
+
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeTheoremTypeDef(TypedDict, total=False):
+    numbered : bool
+    shared_numbering : bool
+    theorem_heading_level : int|str # special "heading level" can be string for fragment_renderer
+    counter_formatter : TypeCounterFormatterInput
+    body_final_content : str
+    heading_title_pre : str
+    heading_title_post : str
+    title_enable_relation_ref : bool
+### END_FLM_PYTHON_TYPING
 
 
 class FeatureTheorems(Feature):
@@ -667,7 +681,7 @@ class FeatureTheorems(Feature):
 
 
 
-    class RenderManager(Feature.RenderManager):
+    class RenderManager(FeatureRenderManagerBase):
 
         def initialize(self):
 
@@ -702,10 +716,10 @@ class FeatureTheorems(Feature):
     # ---
 
     def __init__(self,
-                 environments=None,
-                 theorem_types=None,
-                 shared_counter_formatter=None,
-                 allowed_ref_label_prefixes=None):
+                 environments : str|Mapping[str, Mapping[str, Mapping[str, Any]]]|None = None,
+                 theorem_types : Mapping[str, TypeTheoremTypeDef]|None = None,
+                 shared_counter_formatter : TypeCounterFormatterInput = None,
+                 allowed_ref_label_prefixes : Sequence[str]|None = None):
         super().__init__()
         if environments is None:
             environments = default_theorem_environments['defaultset']
@@ -728,7 +742,7 @@ class FeatureTheorems(Feature):
         self.environments = {}
         for thm_type, env_list in environments.items():
             for env_name, thm_spec in env_list.items():
-                if 'env_name' in self.environments:
+                if env_name in self.environments:
                     raise ValueError(
                         f"Duplicate definition of theorem environment ‘{env_name}’"
                     )

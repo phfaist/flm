@@ -25,6 +25,8 @@ from ..flmspecinfo import (
     FLMArgumentSpec, FLMSpecInfo, FLMMacroSpecBase, FLMSpecialsSpecBase
 )
 
+from .._typing_helpers import Any, Mapping, Sequence, TypeArgumentsSpecList
+
 from ._base import Feature
 
 
@@ -397,6 +399,8 @@ class SimpleMacroContentIfArgCondition(FLMMacroSpecBase):
 
 
 def _get_arg_spec(argspec):
+    if isinstance(argspec, str) and argspec == 'SetArgumentNumberOffset':
+        return SetArgumentNumberOffset
     parser_val = None
     try:
         parser_val = argspec['parser']
@@ -406,8 +410,6 @@ def _get_arg_spec(argspec):
         # not a dict, okay, use default constructor (may still be a string)
         pass
     if parser_val is not None:
-        if argspec == 'SetArgumentNumberOffset':
-            return SetArgumentNumberOffset
         if isinstance(argspec, str):
             return FLMArgumentSpec(parser=argspec, argname=None)
         argspecargs = dict(argspec)
@@ -848,7 +850,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
 
     def __init__(self,
                  spec_node_parser_type,
-                 arguments_spec_list=None,
+                 arguments_spec_list : None|TypeArgumentsSpecList = None,
                  default_argument_values=None,
                  argument_number_offset=None,
                  content=None,
@@ -860,6 +862,7 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
         
         # allow user to specify a latex argument spec as a dict
         if arguments_spec_list is not None and len(arguments_spec_list):
+            # this also works if arguments_spec_list is a string, like '[{{'
             arguments_spec_list = [ _get_arg_spec(arg) for arg in arguments_spec_list ]
 
         super().__init__(
@@ -1052,6 +1055,26 @@ class SubstitutionSpecials(SubstitutionCallableSpecInfo):
 
 
 
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict, Literal
+ContentMode = Literal['textmode', 'mathmode']
+class TypeSubstItemDef(TypedDict, total=False):
+    arguments_spec_list : TypeArgumentsSpecList|None
+    default_argument_values : Mapping[str, Any]|None
+    argument_number_offset : int|None
+    content : str|Mapping[ContentMode, str|None]|None
+    is_block_level : bool|None
+    render_time_substitution : bool
+
+class TypeSubstDefinitions(TypedDict, total=False):
+    macros : Mapping[str, TypeSubstItemDef]
+    environments : Mapping[str, TypeSubstItemDef]
+    specials : Mapping[str, TypeSubstItemDef]
+### END_FLM_PYTHON_TYPING
+
+
 class FeatureSubstMacros(Feature):
     r"""
     Feature that registers user-defined substitution macros, environments, and
@@ -1066,7 +1089,7 @@ class FeatureSubstMacros(Feature):
     feature_title = 'Custom macros definitions'
     
 
-    def __init__(self, definitions):
+    def __init__(self, definitions : TypeSubstDefinitions|None):
         super().__init__()
 
         if definitions is None:

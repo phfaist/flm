@@ -19,7 +19,10 @@ from pylatexenc.macrospec import (
     ParsingStateDeltaExtendLatexContextDb,
 )
 
-from .._typing_helpers import Any, Sequence, TypeDictWithLatexContextDefinitions
+from .._typing_helpers import (
+    Any, Mapping, Sequence, TypeDictWithLatexContextDefinitions,
+    TypeEnumerationCounterFormatterInput, TypeEnumerationCounterFormatterSingleSpec
+)
 
 from ..flmspecinfo import (
     FLMEnvironmentSpecBase,
@@ -40,7 +43,7 @@ from .refs import get_safe_target_id
 
 
 # "1.", "2.", ...
-_default_enumeration_counter_formatter = [
+_default_enumeration_counter_formatter : TypeEnumerationCounterFormatterInput = [
     {'template': "${arabic}."},
     {'template': "(${roman})"},
     {'template': "${alph}-"},
@@ -78,7 +81,7 @@ class Enumeration(FLMEnvironmentSpecBase):
     def __init__(self,
                  environmentname : str,
                  *,
-                 counter_formatter : Sequence[Any]|None = None,
+                 counter_formatter : TypeEnumerationCounterFormatterInput|None = None,
                  annotations=None,
                  **kwargs):
         super().__init__(
@@ -319,6 +322,15 @@ class Enumeration(FLMEnvironmentSpecBase):
 
 
 
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeEnumerationEnvironmentDef(TypedDict, total=False):
+    counter_formatter : TypeEnumerationCounterFormatterInput|None
+### END_FLM_PYTHON_TYPING
+
+
 class FeatureEnumeration(Feature):
     r"""
     Add support for enumeration and itemization lists, e.g., via LaTeX commands
@@ -347,7 +359,7 @@ class FeatureEnumeration(Feature):
     RenderManager = None
 
 
-    def __init__(self, enumeration_environments=None):
+    def __init__(self, enumeration_environments : Mapping[str, TypeEnumerationEnvironmentDef]|None = None):
         super().__init__()
         if enumeration_environments is None:
             # This can normally only happen when the feature is instantiated

@@ -54,7 +54,7 @@ class ResourceAccessor(run.ResourceAccessorBase):
             return fname
         return os.path.join(fpath, fname)
 
-    def import_class(self, fullname, *, flm_run_info, **kwargs):
+    def import_class(self, fullname, *, flm_run_info=None, **kwargs):
         return _import_class(fullname, **kwargs)
 
 
@@ -160,6 +160,8 @@ class Main:
         self.arg_inline_configs = kwargs.get('inline_config', None)
         self.arg_inline_default_configs = kwargs.get('inline_default_config', None)
 
+        self._no_default_stdin = kwargs.get('_no_default_stdin', None)
+
         # ---
 
         self.arg_inline_configs = _process_arg_inline_configs(self.arg_inline_configs)
@@ -205,6 +207,9 @@ class Main:
             raise ValueError(
                 r"No input specified. Please use flm_content or specify input files."
             )
+        elif len(arg_files) == 0 and self._no_default_stdin:
+            logger.debug("No files provided but not defaulting to stdin per internal instructions")
+            input_content = ''
         else:
             if len(arg_files) >= 1 and arg_files[0] != '-':
                 dirname, basename = os.path.split(arg_files[0])
@@ -347,16 +352,21 @@ class Main:
 
         run_object = self.make_run_object()
 
-        #
-        # Run!
-        #
-        result, result_info = run_object.run()
+        try:
 
-        if skip_write_return_result:
-            return {
-                "result": result,
-                "result_info": result_info
-            }
+            #
+            # Run!
+            #
+            result, result_info = run_object.run()
+
+            if skip_write_return_result:
+                return {
+                    "result": result,
+                    "result_info": result_info
+                }
+            
+        finally:
+            run_object.cleanup()
 
         binary_output = result_info['binary_output']
 
@@ -454,6 +464,38 @@ def main_print_merged_config(**kwargs):
         )
     return None
 main_print_merged_config.available_keys = _acceptable_print_merged_config_keys
+
+
+
+
+
+
+def main_validate_config(*args, **kwargs):
+    r"""
+    Simply validate the config and emit logger warning errors for config validation failures.
+    Return after the loading of workflow, features, etc. is complete.  Does not compile the
+    FLM document.
+    """
+    a = Main(**kwargs)
+    # constructing the main object validates all the object's config
+    run_object = a.make_run_object()
+    return
+
+
+
+def main_print_config_json_schema(*args, _print_fn=print, **kwargs):
+    r"""
+    Output a JSON schema that FLM configurations should conform to.
+    """
+    a = Main(**kwargs, _no_default_stdin=True)
+    run_object = a.make_run_object()
+    schema = run_object.get_config_json_schema()
+    _print_fn( json.dumps(schema) )
+    return
+
+
+
+
 
 
 # ------------------------------------------------------------------------------

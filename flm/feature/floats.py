@@ -20,7 +20,10 @@ from ..flmenvironment import FLMArgumentSpec
 from ..flmspecinfo import FLMEnvironmentSpecBase, make_verb_argument
 from ..counter import build_counter_formatter
 
+from .._typing_helpers import Sequence, Mapping, Any, TypeCounterFormatterInput, TypeCounterFormatterSpecDict
+
 from ._base import Feature
+
 from . import numbering
 from .graphics import SimpleIncludeGraphicsMacro
 from .cells import CellsEnvironment
@@ -459,7 +462,7 @@ class FloatInstance:
 
 # ------------------------------------------------
 
-def _float_default_counter_formatter_spec(float_type):
+def _float_default_counter_formatter_spec(float_type : str) -> TypeCounterFormatterSpecDict:
     if float_type == 'figure':
         prefix_display = {
             'singular': 'Fig.~',
@@ -494,8 +497,9 @@ def _float_default_counter_formatter_spec(float_type):
 
 
 class FloatType:
-    def __init__(self, float_type, float_caption_name=None, counter_formatter=None,
-                 content_handlers=None):
+    def __init__(self, float_type : str, float_caption_name : str|None = None,
+                 counter_formatter : TypeCounterFormatterInput = None,
+                 content_handlers : Sequence[str]|None = None):
         r"""
 
 
@@ -548,6 +552,18 @@ _default_float_types = [
 ]
 
 
+# Transcrypt does not need the type definition because it strips type
+# annotations.  Provide it in python.
+### BEGIN_FLM_PYTHON_TYPING
+from typing import TypedDict
+class TypeFloatTypeDef(TypedDict, total=False):
+    float_type : str
+    float_caption_name : str|None
+    counter_formatter : TypeCounterFormatterInput
+    content_handlers : Sequence[str]|None
+### END_FLM_PYTHON_TYPING
+
+
 class FeatureFloats(Feature):
     r"""
     Feature plugin for floating elements such as figures and tables.  Registers
@@ -561,7 +577,7 @@ class FeatureFloats(Feature):
 
     feature_optional_dependencies = [ 'refs', 'numbering' ]
 
-    def __init__(self, float_types=None):
+    def __init__(self, float_types : Sequence[TypeFloatTypeDef]|None = None):
         super().__init__()
         logger.debug('FeatureFloats: param float_types=%r', float_types)
         if float_types is None:

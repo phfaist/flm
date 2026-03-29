@@ -4,8 +4,16 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 
+from .._typing_helpers import Callable, Any, Mapping
 
 from ._base import FragmentRenderer
+
+
+### BEGIN_FLM_PYTHON_TYPING
+from collections.abc import Mapping
+TypeHeadingTagsByLevelDict = Mapping[int|str, str]
+
+### END_FLM_PYTHON_TYPING
 
 
 
@@ -17,18 +25,12 @@ class HtmlFragmentRenderer(FragmentRenderer):
     HTML fragment renderer.
     """
 
-    supports_delayed_render_markers = True
+    use_link_target_blank : bool = False
     """
-    We use the marker ``<FLM:DLYD:delayed_key/>`` for delayed content, which
-    cannot be confused with the rest of the HTML code that can be generated from
-    this code generator.
-    """
-
-    use_link_target_blank = False
-    """
-    Links will never open in a new tab.  Set to `True` on a specific instance to
-    open links in a new tab (but this never applies to anchor links, i.e., urls
-    that begin with '#').
+    Usually, links will never open in a new tab.
+    Set this to `True` on a specific instance to add ``target="_blank"`` to
+    links so that they open in a new tab.  This never applies to anchor
+    links, i.e., urls that begin with '#'.
 
     Set this attribute to a callable to decide whether or not to set
     `target="_blank"` on a per-URL basis.  The callable accepts a single
@@ -36,8 +38,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
     False (don't).
     """
     
-
-    html_blocks_joiner = "\n"
+    html_blocks_joiner : str = "\n"
     """
     Raw HTML string to insert between different blocks.  By default, we use a
     simple newline to avoid having very long lines in the HTML code.  For
@@ -45,8 +46,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
     string here.
     """
 
-    
-    #fix_punctuation_line_wrapping = True  # TODO!
+    #fix_punctuation_line_wrapping : bool = True  # TODO!
     """
     Enable a fix that prevents punctuation marks (e.g., period, comma, etc.)
     from appearing on a new line after content wrapped in a tag, such as a
@@ -55,8 +55,7 @@ class HtmlFragmentRenderer(FragmentRenderer):
     FIXME: NOT SURE HOW TO DO THIS!
     """
 
-
-    heading_tags_by_level = {
+    heading_tags_by_level : TypeHeadingTagsByLevelDict = {
         1: "h1",
         2: "h2",
         3: "h3",
@@ -71,14 +70,14 @@ class HtmlFragmentRenderer(FragmentRenderer):
         'theorem': "span",
     }
 
-    inline_heading_add_space = True
+    inline_heading_add_space : bool = True
     r"""
     Whether or not to include a space after an inline (run-in) heading, e.g.,
     for ``\paragraph``.  Visually, the space should be there, but removing it
     makes it much easier to control the space using CSS.
     """
 
-    aggressively_escape_html_attributes = False
+    aggressively_escape_html_attributes : bool = False
     r"""
     If True, then values of HTML attributes, e.g., the URL in ``<a
     href="....">``, are escaped as normal HTML with HTML entities like '&amp;'.
@@ -96,17 +95,67 @@ class HtmlFragmentRenderer(FragmentRenderer):
     `aggressively_escape_html_attributes=False`.
     """
 
-    render_nothing_as_comment_with_annotations = True
+    render_nothing_as_comment_with_annotations : bool = True
 
-    render_links_with_empty_href = False
+    render_links_with_empty_href : bool = False
 
-    use_mathjax = True
+    use_mathjax : bool = True
 
-    use_standard_math_delimiters = True
+    use_standard_math_delimiters : bool = True
+
+
+    include_node_data_attrs_fn : None|Callable[[Any],dict] = None
+    r"""
+    Will pin data attributes to HTML tags that are associated with FLM tree
+    nodes.  This works for certain tags that have a direct relationship to
+    a specific node, such as a ``<p>...</p>`` block for a nodelist.
+
+    If non-None, this should be set to a callable that takes the node or
+    nodelist as first positional argument.  In the future I might add keyword
+    arguments to provide extra information, so please accept `**kwargs`, too.
+    The callable should return a dictionary of data attributes to set on the
+    HTML tag.  E.g.
+
+    .. code::
+
+        def my_include_node_data_attrs_fn(node, **kwargs):
+            if isinstance(node, LatexNodeList):
+                # set data-list-length="<the nodelist length>" on the
+                # <p> tag
+                return { 'list-length': len(node.nodelist) }
+            return None # returning None or {} does not set any additional attribs
+    """
+
+    verbatim_highlight_spaces : bool = False
+
+    verbatim_protect_backslashes : bool = True
+
+    lines_use_line_span : bool = True
+    lines_use_br : bool = True
+    lines_container_tag : Mapping[str, str] = {
+        #'lines': 'div', # or similar
+    }
+
+    float_caption_title_separator : str = ': '
+
+    graphics_raster_magnification : float = 1
+    graphics_vector_magnification : float = 1
 
     # ------------------
 
+    #
+    # Internal, do not modify in instances
+    #
     
+    supports_delayed_render_markers = True
+    """
+    We use the marker ``<FLM:DLYD:delayed_key/>`` for delayed content, which
+    cannot be confused with the rest of the HTML code that can be generated from
+    this code generator.
+
+    Do not change this value.
+    """
+
 
     # ------------------
 
@@ -191,28 +240,6 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     # -----------------
 
-    include_node_data_attrs_fn = None
-    r"""
-    Will pin data attributes to HTML tags that are associated with FLM tree
-    nodes.  This works for certain tags that have a direct relationship to
-    a specific node, such as a ``<p>...</p>`` block for a nodelist.
-
-    If non-None, this should be set to a callable that takes the node or
-    nodelist as first positional argument.  In the future I might add keyword
-    arguments to provide extra information, so please accept `**kwargs`, too.
-    The callable should return a dictionary of data attributes to set on the
-    HTML tag.  E.g.
-
-    .. code::
-
-        def my_include_node_data_attrs_fn(node, **kwargs):
-            if isinstance(node, LatexNodeList):
-                # set data-list-length="<the nodelist length>" on the
-                # <p> tag
-                return { 'list-length': len(node.nodelist) }
-            return None # returning None or {} does not set any additional attribs
-    """
-
     def _get_meta_info_data_attrs(self, node, when, render_context):
         if self.include_node_data_attrs_fn is None or node is None:
             return None
@@ -281,9 +308,6 @@ class HtmlFragmentRenderer(FragmentRenderer):
             annotations = []
         annotations = [a.replace('--', '- - ') for a in annotations]
         return '<!-- {} -->'.format(" ".join(annotations))
-
-    verbatim_highlight_spaces = False
-    verbatim_protect_backslashes = True
 
     def render_verbatim(self, value, render_context, *,
                         is_block_level=False, annotations=None, target_id=None):
@@ -431,12 +455,6 @@ class HtmlFragmentRenderer(FragmentRenderer):
         )
             
  
-    lines_use_line_span = True
-    lines_use_br = True
-    lines_container_tag = {
-        #'lines': 'div', # or similar
-    }
-
     def render_lines(self, lines_info_list, render_context,
                      *, role=None, annotations=None, target_id=None):
         r"""
@@ -702,8 +720,6 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
     # --
 
-    float_caption_title_separator = ': '
-
     def render_float(self, float_instance, render_context):
         # see flm.features.floats for FloatInstance
         
@@ -809,9 +825,6 @@ class HtmlFragmentRenderer(FragmentRenderer):
 
         return full_figure
 
-
-    graphics_raster_magnification = 1
-    graphics_vector_magnification = 1
 
     def render_graphics_block(self, graphics_resource, render_context):
 

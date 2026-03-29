@@ -8,13 +8,30 @@ Type = Any
 TypeMacroSpec = Any
 Literal = Any
 Callable = Any
-TypedDict = Any
-OptTypedDict = Any
-
-TypeCallableSpecBase = Any
-TypeDictWithLatexContextDefinitions = Any
-TypeRenderContext = Any
 
 Sequence = Any
 Mapping = Any
 Set = Any
+
+TypeCallableSpecBase = Any
+TypeDictWithLatexContextDefinitions = Any
+TypeRenderContext = Any
+TypeFragmentRenderer = Any
+TypeFLMDocument = Any
+
+TypeArgumentsSpecList = Any
+
+TypeCounterFormatterInput = Any
+TypeCounterFormatterSpecDict = Any
+TypeFormatNumFn = Any
+TypeFormatNumName = Any
+TypeFormatNumSpec = Any
+TypeFormatSubnumSpec = Any
+TypeJoinSpecDict = Any
+TypeJoinSpecInput = Any
+TypeJoinSpecName = Any
+TypePrefixDisplayInput = Any
+TypeStandardCounterFormattersDict = Any
+
+TypeEnumerationCounterFormatterInput = Any
+TypeEnumerationCounterFormatterSingleSpec = Any

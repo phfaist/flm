@@ -26,6 +26,8 @@ from pylatexenc.macrospec import (
 from ..flmspecinfo import FLMMacroSpecBase, FLMEnvironmentSpecBase
 from ..flmenvironment import FLMArgumentSpec
 
+from .._typing_helpers import Mapping, Sequence, Any, TypeCounterFormatterInput, TypeCounterFormatterSpecDict
+
 from ._base import Feature
 
 from ..counter import build_counter_formatter
@@ -45,7 +47,7 @@ _default_math_environment_names = (
 )
 
 
-eq_default_counter_formatter_spec = {
+eq_default_counter_formatter_spec : TypeCounterFormatterSpecDict = {
     'format_num': { 'template': '${arabic}' },
     'prefix_display': {
         'singular': 'Eq.~',
@@ -92,10 +94,10 @@ class FeatureMath(Feature):
 
     def __init__(
             self,
-            counter_formatter=None,
-            math_environment_names=None,
-            eqref_macro_name='eqref',
-            eqref_ref_type='eq',
+            counter_formatter : TypeCounterFormatterInput = None,
+            math_environment_names : Sequence[str]|None = None,
+            eqref_macro_name : str|None = 'eqref',
+            eqref_ref_type : str = 'eq',
     ):
         super().__init__()
 
@@ -119,7 +121,7 @@ class FeatureMath(Feature):
             pass
             
     class RenderManager(Feature.RenderManager):
-        def initialize(self, counter_formatter=None):
+        def initialize(self, counter_formatter : TypeCounterFormatterInput = None):
 
             if counter_formatter is not None:
                 self.counter_formatter = build_counter_formatter(

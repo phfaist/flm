@@ -3,6 +3,7 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 
+from .._typing_helpers import Literal, Mapping, Callable
 
 from flm.fragmentrenderer import FragmentRenderer
 from flm.fragmentrenderer.html import HtmlFragmentRenderer
@@ -21,13 +22,29 @@ class MarkdownFragmentRenderer(FragmentRenderer):
     this code generator.
     """
    
-    use_target_ids = 'anchor'
+    use_target_ids : Literal['anchor', 'pandoc', 'github', 'None'] = 'anchor'
     """
     Determine how target_id's are set (if they are set).  One of 'anchor'
     (``<a name="TARGET_ID"></a>``), 'pandoc' (``[]{#TARGET_ID}``), 'github'
     (``[](#TARGET_ID)``) or `None` (don't set any target ids).
     """
 
+
+    heading_level_formatter : Mapping[str|int, Callable[[str],str]] = {
+        1: lambda s: f"# {s}",
+        2: lambda s: f"## {s}",
+        3: lambda s: f"### {s}",
+        4: lambda s: f"#### {s}",
+        5: lambda s: f"##### {s}",
+        6: lambda s: f"###### {s}",
+
+        # special 'theorem' level
+        'theorem': lambda s: f"{s}.  ",
+    }
+
+    # These are unused.
+    #graphics_raster_magnification = 1
+    #graphics_vector_magnification = 1
 
     # ------------------
 
@@ -243,18 +260,6 @@ class MarkdownFragmentRenderer(FragmentRenderer):
         return content
 
 
-    heading_level_formatter = {
-        1: lambda s: f"# {s}",
-        2: lambda s: f"## {s}",
-        3: lambda s: f"### {s}",
-        4: lambda s: f"#### {s}",
-        5: lambda s: f"##### {s}",
-        6: lambda s: f"###### {s}",
-
-        # special 'theorem' level
-        'theorem': lambda s: f"{s}.  ",
-    }
-
     def render_heading(self, heading_nodelist, render_context, *,
                        heading_level=1,
                        #heading_formatted_number=None,
@@ -363,9 +368,6 @@ class MarkdownFragmentRenderer(FragmentRenderer):
             '---\n'
         ).replace('\n', '\n'+mdindent)
 
-
-    graphics_raster_magnification = 1
-    graphics_vector_magnification = 1
 
     def render_graphics_block(self, graphics_resource, render_context):
 
