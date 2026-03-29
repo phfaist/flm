@@ -263,7 +263,7 @@ class FeatureHeadings(Feature):
         def initialize(
                 self,
                 numbering_section_depth : int|bool|None = None,
-                section_numbering_by_level : Mapping[int, TypeSectionNumberingDef]|None = None,
+                section_numbering_by_level : Mapping[int, None|TypeSectionNumberingDef]|None = None,
                 counter_formatter : TypeCounterFormatterInput = None,
         ):
             self.target_id_counters = {}
@@ -278,6 +278,7 @@ class FeatureHeadings(Feature):
                 self.section_numbering_by_level = {
                     level: self.feature._make_section_numbering_info(x)
                     for level, x in dict(section_numbering_by_level).items()
+                    if x is not None
                 }
             else:
                 self.section_numbering_by_level = self.feature.section_numbering_by_level

@@ -483,14 +483,14 @@ def main_validate_config(*args, **kwargs):
 
 
 
-def main_print_config_json_schema(*args, **kwargs):
+def main_print_config_json_schema(*args, _print_fn=print, **kwargs):
     r"""
     Output a JSON schema that FLM configurations should conform to.
     """
     a = Main(**kwargs, _no_default_stdin=True)
     run_object = a.make_run_object()
     schema = run_object.get_config_json_schema()
-    print( json.dumps(schema) )
+    _print_fn( json.dumps(schema) )
     return
 
 
