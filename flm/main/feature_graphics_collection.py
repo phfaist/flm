@@ -150,7 +150,12 @@ class GraphicsFormatConversionRule:
           'via': [..list of converter names..],
           'options': <dict or None> }
 
-    Built-in converter names are: 'cairosvg', 'gs', 'pdftocairo', 'magick'.
+    Built-in converter names are: 'cairosvg', 'gs', 'pdftocairo', 'magick'.  If
+    you specify a list of converter names, these are meant to be acceptable
+    converters to use to perform the transformation.  The rule will pick the
+    first one that can perform the conversion.  (There is currently no way of
+    specifying a conversion chain through multiple converters with intermediate
+    formats.)
 
     Example rule in YAML::
 
@@ -159,7 +164,6 @@ class GraphicsFormatConversionRule:
             to: '.png'
             options:
               dpi: 192
-
     """
 
     def __init__(self, rule):
@@ -220,10 +224,17 @@ class GraphicsFormatConversionRule:
             if len(self.via_list) and converter.name not in self.via_list:
                 continue
 
-            try:
-                can_convert = converter.can_convert(ext, to_ext)
-            except ConverterNotAvailable as e:
-                converter_errors.append(e)
+            can_convert = None
+            if len(self.via_list) == 1 and self.via_list[0] == converter.name:
+                # user requested this converter specifically, don't call
+                # can_convert().
+                can_convert = True
+
+            if can_convert is None:
+                try:
+                    can_convert = converter.can_convert(ext, to_ext)
+                except ConverterNotAvailable as e:
+                    converter_errors.append(e)
 
             if not can_convert:
                 continue
@@ -353,7 +364,7 @@ class CairoSvgConverter(GraphicsConverter):
         elif target_ext in ('.ps', '.eps'):
             svgconvert = cairosvg.svg2ps
         else:
-            raise ValueError(f"Invalid target ext {target_ext}, shouldn't be here")
+            raise ValueError(f"Invalid target ext {target_ext}")
 
         svgconvert(url=src_url, write_to=target_path, **svgkwargs)
 
@@ -504,6 +515,11 @@ class PdfToCairoCmdlConverter(GraphicsConverter):
             xtracmdargs += [ '-transp' ]
 
         input_data = self.read_input(source_type, src_url, binary=True)
+
+        if target_ext not in self._fmts_to_opts:
+            raise ValueError(
+                f"Invalid target extension for PdfToCairoCmdlConverter: ‘{target_ext}’"
+            )
         
         cmdargs = [
             self.pdftocairo_exe,
@@ -545,7 +561,8 @@ class MagickConverter(GraphicsConverter):
             )
         except ExecutableNotFoundError as e:
             raise ConverterNotAvailable(cls.name, e.msg, exc=e)
-
+        # by default, any conversion is possible - magick supports pretty much
+        # everything
         return True
 
     def __init__(self):
@@ -558,7 +575,7 @@ class MagickConverter(GraphicsConverter):
         else:
             options = dict(options)
 
-        transparent_bg = options.pop('transparent_bg', False)
+        transparent_bg = options.pop('transparent_bg', None)
         dpi = options.pop('dpi', None)
 
         if len(options):
@@ -570,19 +587,27 @@ class MagickConverter(GraphicsConverter):
         if src_url.endswith( ('.gif', '.mng') ):
             ins = '-[0]'
 
-        extra_args = []
+        extra_settings = []
+        extra_operators = []
+        
         if transparent_bg:
-            extra_args = extra_args + [ '-background', 'none', ]
+            extra_settings = extra_settings + [ '-background', 'none', ]
+        elif transparent_bg is False:
+            extra_operators = extra_operators + [
+                '-background', 'white', '-alpha', 'remove',
+                '-alpha', 'off',
+            ]
+        
         if dpi is not None:
-            extra_args = extra_args + [
+            extra_settings = extra_settings + [
                 '-density', str(dpi),
             ]
 
         cmdargs = [
             self.magick_exe,
-            'convert',
-            *extra_args,
+            *extra_settings,
             ins,
+            *extra_operators,
             target_path
         ]
 
