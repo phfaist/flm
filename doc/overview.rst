@@ -144,6 +144,10 @@ FLM can render your document to several output formats.  Use the ``-f`` /
 ``--format`` flag to select the format, and the ``-w`` / ``--workflow`` flag to
 select the rendering workflow when needed.
 
+The main output formats are HTML, rendered or recomposed LaTeX, as well as
+makrdown and text (more information below).  See also more information on the
+:doc:`workflows` page.
+
 HTML
 ^^^^
 
@@ -156,23 +160,29 @@ in the browser::
 The ``-t`` / ``--template`` flag selects a template that wraps the rendered
 content in a complete HTML page with styling.  The built-in ``simple`` template
 provides a clean layout with configurable fonts and content width.  Use
-``-t ''`` (empty string) to output the raw rendered HTML fragment without any
-surrounding template.
+``-t ''`` (empty string) or ``-t none`` to output the raw rendered HTML fragment
+without any surrounding template.
 
-See also the `flm-templates <https://github.com/phfaist/flm-templates>`_ and
-`flm-htmlplus <https://github.com/phfaist/flm-htmlplus>`_ extension packages
-for additional templates and a more powerful template engine::
+See also the `flm-templates <https://github.com/phfaist/flm-templates>`_
+extension package for additional templates and a more powerful template engine::
 
-    pip install flm-templates flm-htmlplus
-    flm mydocument.flm -o output.html -w flm_htmlplus -P 'pkg:flm_templates' -t sunset
+    pip install flm-templates
+    flm mydocument.flm -o output.html -P 'pkg:flm_templates' -t sunset
 
+The HTML code is annotated with CSS classes for styling and formatting.
+Templates (other than ``none``) include default styling, which you can typically
+override by including your own CSS via a suitable template config option (like
+``template.config.style.extra_css``).  If you use ``-t ''`` or ``-t none``, no
+default style is included and you'll have to provide the entire CSS styling.
+    
 Rendered LaTeX
 ^^^^^^^^^^^^^^
 
-The ``latex`` output format produces LaTeX source code where FLM handles all
-the document logic: section and equation numbering, cross-references, endnotes,
-and float placement are all resolved by FLM.  The resulting LaTeX is primarily
-intended as a vehicle for producing a typeset PDF::
+The ``latex`` output format produces LaTeX source code where FLM handles all the
+document logic: section and equation numbering, cross-references, endnotes, and
+float placement are all resolved by FLM.  The resulting LaTeX is primarily
+intended as a vehicle for producing a typeset PDF, taking care of page layouts,
+fonts, margins, paragraph breaks, typography, etc.::
 
     flm mydocument.flm -o mydocument.tex -f latex -t simple
 
@@ -180,6 +190,13 @@ Built-in LaTeX templates include ``simple`` (``article`` class with customizable
 fonts) and ``revtex`` (for Physical Review-style documents).  Template settings
 such as the document class options, font packages, and preamble content can be
 customized via configuration (see :doc:`configuration`).
+
+Use ``-t none`` or ``-t ''`` to render the raw LaTeX content without surrounding
+boilerplate template code.  The rendered LaTeX might depend on custom
+convenience ``\flm***`` commands; these are usually packaged along in the
+templates, but will you'll have to provide them manually if you use ``-t ''``.
+The custom commands allow you to fine-tune and alter defaults appearance and
+typesetting choices (table header fonts, defterm term appearance, etc.).
 
 PDF
 ^^^
@@ -191,8 +208,8 @@ your document to LaTeX, wraps it in a template, and compiles it to PDF using
 
     flm mydocument.flm -o mydocument.pdf -w runlatexpdf -f pdf
 
-You can select the LaTeX template with ``-t simple`` (the default) or
-``-t revtex``.
+You can select the LaTeX template with the ``-t`` option as for rendered LaTeX.
+Try, for example, ``-t simple`` (the default) or ``-t revtex``.
 
 Recomposed LaTeX
 ^^^^^^^^^^^^^^^^

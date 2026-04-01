@@ -1,6 +1,6 @@
 template_engine: 'flm.main.template.SimpleStringTemplate'
 template_engine_config:
-  template_content_filename: 'html/simple.html'
+  template_content_filename: 'html/docgen.html'
 
 default_config:
 
@@ -10,22 +10,27 @@ default_config:
   render_header: true
 
   font:
-    family: 'Source Serif Pro'
-    default_families: 'serif, sans-serif'
-    size: '16px'
-    line_height: '1.3em'
+    family: 'Merriweather'
+    load_google_fonts: true
+    google_fonts_link_url: 'https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&display=swap'
+    default_families: 'Georgia, serif'
+    size: '15px'
+    line_height: '1.65em'
 
   layout:
-    content_width: '640px'
+    content_width: '760px'
 
   style:
-    extra_css: |
-      .verbatimcode {
-          font-family: 'DejaVu Sans Mono', 'Inconsolata', monospace;
-          font-size: 13px;
+    font_css: |
+      html, body { /* for Merriweather font */
+        font-optical-sizing: auto;
+        font-weight: 350;
+        font-style: normal;
+        font-variation-settings:
+            "wdth" 110,
+            "opsz" 35;
+        letter-spacing: .03em;
       }
-      .defterm {
-          font-style: normal;
-          margin-top: 1em;
-      }
+
+    extra_css: ''
     extra_js: ''

@@ -230,7 +230,7 @@ class Main:
         if arg_output is not None:
             if isinstance(arg_output, str) and arg_output != '-':
                 output_dirname, output_basename = os.path.split(arg_output)
-                output_jobname, output_jobnameext = os.path.splitext(basename)
+                output_jobname, output_jobnameext = os.path.splitext(output_basename)
 
         frontmatter_metadata, flm_content, line_number_offset = \
             run.parse_frontmatter_content_linenumberoffset(input_content)

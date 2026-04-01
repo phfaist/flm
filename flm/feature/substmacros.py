@@ -431,7 +431,7 @@ def _get_arg_spec(argspec):
         if 'argname' not in argspecargs:
             argspecargs['argname'] = None
         return FLMArgumentSpec(**argspecargs)
-    return argspec
+    return FLMArgumentSpec(parser=argspec, argname=None)
 
 
 # --------------------------------------

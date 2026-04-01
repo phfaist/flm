@@ -328,5 +328,5 @@ attribute that should be a subclass of ``RenderWorkflow``::
     flm mydocument.flm -w my_package.my_workflow_module
 
 See :doc:`command-line` for the full list of CLI flags, and :doc:`configuration`
-for details on the configuration system.  See :doc:`api-module-workflow` for API
+for details on the configuration system.  See :ref:`api-module-workflow` for API
 documentation of the relevant classes.
