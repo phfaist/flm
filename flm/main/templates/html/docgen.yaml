@@ -8,6 +8,7 @@ default_config:
     title: 'Documentation of an FLM Environment'
 
   render_header: true
+  display_toc: true
 
   font:
     family: 'Merriweather'

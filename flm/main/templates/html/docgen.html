@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-${if:load_google_fonts}
+${if:font.load_google_fonts}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="${google_fonts_link_href}" rel="stylesheet">
+<link href="${font.google_fonts_link_href}" rel="stylesheet">
 ${endif}
 <title>${flmrendertext:metadata.title}</title>
 <style type="text/css">
@@ -43,13 +43,80 @@ html, body {
   font-weight: 300;
   -webkit-font-smoothing: antialiased;
 }
-${font_css}
+${style.font_css}
 
 header, article {
   max-width: ${layout.content_width};
   margin: 0px auto;
   padding: 0 1.5rem;
 }
+
+/* ========== Sidebar TOC layout ========== */
+${if:display_toc}
+.page-layout {
+  display: block;
+}
+
+@media (min-width: 1100px) {
+  .page-layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 2rem;
+    max-width: calc(${layout.content_width} + 240px + 2rem);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    align-items: start;
+  }
+  .page-layout > header {
+    grid-column: 1 / -1;
+    max-width: none;
+    padding: 0;
+  }
+  .page-layout > article {
+    max-width: ${layout.content_width};
+    padding: 0;
+    margin: 0;
+  }
+  #TOC {
+    position: sticky;
+    top: 1.5rem;
+    max-height: calc(100vh - 3rem);
+    overflow-y: auto;
+    margin: 0;
+    max-width: none;
+    padding: 1rem;
+    font-size: 0.85rem;
+    border-right: 1px solid var(--color-border-light);
+    border-radius: 0;
+    background: transparent;
+    border-top: none;
+    border-bottom: none;
+    border-left: none;
+  }
+  #TOC > h1 {
+    font-size: 0.75rem;
+  }
+  #TOC > div.toc-hX {
+    margin-top: 0.2em;
+    line-height: 1.4;
+  }
+  #TOC > div.toc-h2 {
+    margin-left: 0.75em;
+    font-size: 0.92em;
+  }
+  /* Subtle scrollbar for the TOC */
+  #TOC::-webkit-scrollbar {
+    width: 4px;
+  }
+  #TOC::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 2px;
+  }
+  #TOC::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+${endif}
 
 /* ========== Header ========== */
 header {
@@ -150,6 +217,7 @@ ${if:display_toc}
   background: var(--color-toc-bg);
   border: 1px solid var(--color-border-light);
   border-radius: 6px;
+  font-size: 0.9rem;
 }
 #TOC > h1 {
   font-size: 0.85rem;
@@ -389,7 +457,7 @@ ${if:display_toc}
 window.flmBuildToc = function() {
     var rootEl = document.getElementById('Main');
     var headings = rootEl.querySelectorAll('h1, h2');
-    var tocEl = document.getElementById('TOC');
+    var tocEl = document.querySelector('#TOC');
     tocEl.innerHTML = '<h1>Contents</h1>';
     headings.forEach(function (heading, index) {
         var ref;
@@ -422,6 +490,9 @@ ${style.extra_js}
 </script>
 </head>
 <body>
+${if:display_toc}
+<div class="page-layout">
+${endif}
 ${if:render_header}
   <header>
     <h1 class="header-title">${flmrender:metadata.title}</h1>
@@ -434,11 +505,14 @@ ${if:render_header}
   </header>
 ${endif}
 ${if:display_toc}
-<div id="TOC"></div>
+<nav id="TOC"></nav>
 ${endif}
 <article id="Main"><!-- FLM_HOT_RELOAD_BEGIN_CONTENT -->
 ${content}
 <!-- FLM_HOT_RELOAD_END_CONTENT --></article>
+${if:display_toc}
+</div>
+${endif}
 ${style.body_end_js_scripts}
 </body>
 </html>

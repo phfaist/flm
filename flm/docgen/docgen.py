@@ -488,7 +488,7 @@ class FLMEnvironmentDocumentationGenerator:
         if definitions['macros']:
             s += (
                 # macros
-                r"\subsection{Available Macros}" + "\n"
+                r"\subsection{Macros}" + "\n"
                 + r"\begin{flmDocItemize}" + "\n"
                 + "".join([
                     r"\item " + self.document_callable_specinfo(spec) + "\n"
@@ -499,7 +499,7 @@ class FLMEnvironmentDocumentationGenerator:
         if definitions['environments']:
             s += (
                 # environments
-                r"\subsection{Available Environments}" + "\n"
+                r"\subsection{Environments}" + "\n"
                 + r"\begin{flmDocItemize}" + "\n"
                 + "".join([
                     r"\item " + self.document_callable_specinfo(spec) + "\n"
