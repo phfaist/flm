@@ -333,6 +333,44 @@ dl.enumeration.flmDocItemize > dd:hover {
   display: none;
 }
 
+/* ========== Generic dl.enumeration as bullet/enum lists ========== */
+/* These override the base renderer float layout with a cleaner approach */
+dl.enumeration:not(.flmDocItemize) {
+  display: block;
+  margin-left: 1.5em;
+  padding-left: 0;
+}
+dl.enumeration:not(.flmDocItemize) > dt {
+  float: left;
+  clear: left;
+  margin-left: -1.5em;
+  min-width: 1.2em;
+  margin-right: 0.3em;
+  text-align: left;
+  color: var(--color-text-secondary);
+  font-size: 0.95em;
+  line-height: inherit;
+}
+dl.enumeration:not(.flmDocItemize) > dd {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  margin-bottom: 0.3em;
+}
+dl.enumeration:not(.flmDocItemize) > dd:last-child {
+  margin-bottom: 0;
+}
+/* Numbered (enumerate) list items within content */
+dl.enumeration.enumerate:not(.flmDocItemize) > dt {
+  min-width: 1.5em;
+  text-align: right;
+  margin-right: 0.4em;
+}
+/* Top-level feature TOC enumerate keeps its own special styling */
+article > dl.enumeration.enumerate > dt {
+  text-align: right;
+}
+
 /* ========== Docgen: Arguments section ========== */
 .flm_doc_arguments {
   margin-top: 0.6em;

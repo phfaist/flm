@@ -330,20 +330,20 @@ class FeatureVerbatim(SimpleLatexDefinitionsFeature):
         """
         if 'text' in self.verbatim_include_types:
             s += r"""
-            \item \verba{text} — the verbatim characters are typeset as is, with no
+            \item \verba+\verbtext{…}+ — the verbatim characters are typeset as is, with no
                 special formatting applied to them.  This verbatim type is intended
                 for inputing special characters into normal text.
             """
         if 'code' in self.verbatim_include_types:
             s += r"""
-            \item \verba{code} — the verbatim characters are typeset as a block of
+            \item \verba+\verbcode{…}+ — the verbatim characters are typeset as a block of
                 code, possibly to be interpreted as a given programming language.
                 Renderers should represent the content as code, e.g., with a monospaced
                 font.
             """
         if 'a' in self.verbatim_include_types:
             s += r"""
-            \item \verba{a} — the verbatim characters are typeset as an identifier,
+            \item \verba+\verba{…}+ — the verbatim characters are typeset as an identifier,
                 typically in italic font.  This command is intended to typeset e.g.
                 keywords or other content that isn't necessarily to be highlighted as
                 computer code.
