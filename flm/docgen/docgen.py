@@ -185,6 +185,8 @@ class EnvironmentDocText(FLMEnvironmentSpecBase):
 
 class EnvironmentDocBlock(FLMEnvironmentSpecBase):
 
+    is_block_level = True
+
     def __init__(self, environmentname, thing_format_fn):
         super().__init__(
             environmentname=environmentname,
@@ -325,7 +327,6 @@ class FeatureFLMDocumentation(SimpleLatexDefinitionsFeature):
     latex_definitions = {
         'macros': [
             MacroDocArg(),
-            #MacroDocText(),
             TextFormatMacro('flmDocArgumentName', text_formats=['textbf', 'flm_doc_arg_name']),
             TextFormatMacro('flmFormatArgsSignature', text_formats=['flm_doc_arg_signature']),
             TextFormatMacro('flmFormatThingMacro',
@@ -489,34 +490,34 @@ class FLMEnvironmentDocumentationGenerator:
             s += (
                 # macros
                 r"\subsection{Macros}" + "\n"
-                + r"\begin{flmDocItemize}" + "\n"
+                + r"\begin{flmDocItemizeMacros}" + "\n"
                 + "".join([
                     r"\item " + self.document_callable_specinfo(spec) + "\n"
                 for spec in definitions['macros']
                 ])
-                + r"\end{flmDocItemize}" + "\n"
+                + r"\end{flmDocItemizeMacros}" + "\n"
             )
         if definitions['environments']:
             s += (
                 # environments
                 r"\subsection{Environments}" + "\n"
-                + r"\begin{flmDocItemize}" + "\n"
+                + r"\begin{flmDocItemizeEnvironments}" + "\n"
                 + "".join([
                     r"\item " + self.document_callable_specinfo(spec) + "\n"
                     for spec in definitions['environments']
                 ])
-                + r"\end{flmDocItemize}" + "\n"
+                + r"\end{flmDocItemizeEnvironments}" + "\n"
             )
         if definitions['specials']:
             s += (
                 # specials
                 r"\subsection{Specials}" + "\n"
-                + r"\begin{flmDocItemize}" + "\n"
+                + r"\begin{flmDocItemizeSpecials}" + "\n"
                 + "".join([
                     r"\item " + self.document_callable_specinfo(spec) + "\n"
                     for spec in definitions['specials']
                 ])
-                + r"\end{flmDocItemize}" + "\n"
+                + r"\end{flmDocItemizeSpecials}" + "\n"
             )
 
         return s

@@ -164,7 +164,9 @@ def main_docgen():
                     'flm.docgen.FeatureFLMDocumentation': True,
                     'enumeration': {
                         'enumeration_environments': {
-                            'flmDocItemize': {'counter_formatter':['▸'],},
+                            'flmDocItemizeMacros': {'counter_formatter':['▸'],},
+                            'flmDocItemizeEnvironments': {'counter_formatter':['▸'],},
+                            'flmDocItemizeSpecials': {'counter_formatter':['▸'],},
                         },
                     },
                 },

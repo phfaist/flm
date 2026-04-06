@@ -19,6 +19,9 @@ ${endif}
   --color-border-light: #e8ecf0;
   --color-accent: #2563eb;
   --color-accent-hover: #1d4ed8;
+  --color-macro: #2563eb;
+  --color-environment: #059669;
+  --color-specials: #9333ea;
   --color-code-bg: #f4f6f8;
   --color-code-border: #dde2e8;
   --color-entry-bg: #f9fafb;
@@ -159,12 +162,14 @@ h1.heading-level-1:first-child {
 }
 
 h2.heading-level-2 {
-  font-size: 1.15rem;
-  line-height: 1.3;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
   font-weight: 600;
-  margin: 1.75rem 0 0.6rem;
-  color: var(--color-text);
-  letter-spacing: 0.01em;
+  margin: 1.5rem 0 0.5rem;
+  border: none;
+  padding: 0;
 }
 
 h3 {
@@ -257,16 +262,23 @@ article > dl.enumeration.enumerate > dt {
   font-size: 0.9em;
   min-width: 1.8em;
 }
+article > dl.enumeration.enumerate > dd p {
+  margin: 0.15em 0;
+}
 
 /* ========== Docgen: Entry list (macro/env/specials items) ========== */
-dl.enumeration.flmDocItemize {
+dl.enumeration.flmDocItemizeMacros,
+dl.enumeration.flmDocItemizeEnvironments,
+dl.enumeration.flmDocItemizeSpecials {
   margin-left: 0;
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
 }
 
-dl.enumeration.flmDocItemize > dt {
+dl.enumeration.flmDocItemizeMacros > dt,
+dl.enumeration.flmDocItemizeEnvironments > dt,
+dl.enumeration.flmDocItemizeSpecials > dt {
   /* Hide the bullet markers — we use left-border styling instead */
   position: absolute;
   width: 1px;
@@ -275,7 +287,9 @@ dl.enumeration.flmDocItemize > dt {
   clip: rect(0, 0, 0, 0);
 }
 
-dl.enumeration.flmDocItemize > dd {
+dl.enumeration.flmDocItemizeMacros > dd,
+dl.enumeration.flmDocItemizeEnvironments > dd,
+dl.enumeration.flmDocItemizeSpecials > dd {
   margin: 0;
   padding: 0.875rem 1rem;
   background: var(--color-entry-bg);
@@ -285,9 +299,10 @@ dl.enumeration.flmDocItemize > dd {
   transition: border-color 0.15s;
 }
 
-dl.enumeration.flmDocItemize > dd:hover {
-  border-left-color: var(--color-accent-hover);
-}
+/* Color-coded left borders per section type */
+dl.enumeration.flmDocItemizeMacros > dd { border-left-color: var(--color-macro); }
+dl.enumeration.flmDocItemizeEnvironments > dd { border-left-color: var(--color-environment); }
+dl.enumeration.flmDocItemizeSpecials > dd { border-left-color: var(--color-specials); }
 
 /* ========== Docgen: Signature / call display ========== */
 .flm_doc_full_thing_call {
@@ -334,41 +349,46 @@ dl.enumeration.flmDocItemize > dd:hover {
 }
 
 /* ========== Generic dl.enumeration as bullet/enum lists ========== */
-/* These override the base renderer float layout with a cleaner approach */
-dl.enumeration:not(.flmDocItemize) {
-  display: block;
+/* Override base renderer float layout with grid for robust alignment */
+dl.enumeration {
+  display: grid !important;
+  grid-template-columns: auto 1fr;
   margin-left: 1.5em;
   padding-left: 0;
+  gap: 0 0.4em;
+  align-items: baseline;
 }
-dl.enumeration:not(.flmDocItemize) > dt {
-  float: left;
-  clear: left;
-  margin-left: -1.5em;
-  min-width: 1.2em;
-  margin-right: 0.3em;
+dl.enumeration > dt {
+  float: none !important;
+  grid-column: 1;
+  margin: 0 !important;
+  min-width: 0;
   text-align: left;
   color: var(--color-text-secondary);
   font-size: 0.95em;
   line-height: inherit;
 }
-dl.enumeration:not(.flmDocItemize) > dd {
+dl.enumeration > dd {
+  grid-column: 2;
   margin: 0;
   padding: 0;
   border: 0;
   margin-bottom: 0.3em;
+  min-width: 0;
+  width: 100%;
 }
-dl.enumeration:not(.flmDocItemize) > dd:last-child {
+dl.enumeration > dd:last-child {
   margin-bottom: 0;
 }
-/* Numbered (enumerate) list items within content */
-dl.enumeration.enumerate:not(.flmDocItemize) > dt {
-  min-width: 1.5em;
+/* Numbered (enumerate) list items */
+dl.enumeration.enumerate > dt {
   text-align: right;
-  margin-right: 0.4em;
 }
-/* Top-level feature TOC enumerate keeps its own special styling */
-article > dl.enumeration.enumerate > dt {
-  text-align: right;
+/* Docgen itemize lists override grid back to flex column */
+dl.enumeration.flmDocItemizeMacros,
+dl.enumeration.flmDocItemizeEnvironments,
+dl.enumeration.flmDocItemizeSpecials {
+  display: flex !important;
 }
 
 /* ========== Docgen: Arguments section ========== */
@@ -382,16 +402,19 @@ article > dl.enumeration.enumerate > dt {
 }
 
 .flm_doc_arguments_caption {
+  display: block;
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-text-secondary);
   font-weight: 600 !important;
+  margin-bottom: 0.3em;
 }
 
 .flm_doc_arguments dl.enumeration {
   margin-left: 1em;
-  margin-top: 0.4em;
+  margin-top: 0.2em;
+  margin-bottom: 0;
 }
 
 .flm_doc_arguments dl.enumeration > dt {
@@ -401,7 +424,8 @@ article > dl.enumeration.enumerate > dt {
 }
 
 .flm_doc_arguments dl.enumeration > dd {
-  margin-bottom: 0.35em;
+  margin-bottom: 0.25em;
+  padding: 0;
 }
 
 /* Argument name */
@@ -484,6 +508,18 @@ a:hover {
   font-weight: bold;
 }
 
+/* ========== Hover anchor links on headings ========== */
+h1.heading-level-1:hover::after, h2.heading-level-2:hover::after {
+  content: ' #';
+  color: var(--color-border);
+  font-weight: 400;
+  text-decoration: none;
+  font-size: 0.8em;
+}
+h1.heading-level-1, h2.heading-level-2 {
+  cursor: pointer;
+}
+
 /* ========== User extra CSS ========== */
 ${style.extra_css}
 /* ========== End ========== */
@@ -517,6 +553,17 @@ window.flmSetup = function() {
 ${if:display_toc}
     flmBuildToc();
 ${endif}
+    /* Make headings with IDs clickable to copy anchor link */
+    var headings = document.querySelectorAll('h1.heading-level-1[id], h2.heading-level-2[id]');
+    headings.forEach(function(heading) {
+        heading.addEventListener('click', function() {
+            var url = window.location.href.split('#')[0] + '#' + heading.getAttribute('id');
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(url);
+            }
+            window.location.hash = '#' + heading.getAttribute('id');
+        });
+    });
     if (window.MathJax) {
         window.MathJax.texReset && window.MathJax.texReset();
         window.MathJax.typesetPromise();
