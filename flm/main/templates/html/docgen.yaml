@@ -4,8 +4,8 @@ template_engine_config:
 
 default_config:
 
-  metadata:
-    title: 'Documentation of an FLM Environment'
+  # metadata:
+  #   title: 'Documentation of an FLM Environment'
 
   render_header: true
   display_toc: true

@@ -159,6 +159,7 @@ def main_docgen():
     if args.frontmatter:
         docgen_flm_content += '---\n'
         docgen_flm_content += yaml.dump({
+            'title': 'FLM Environment Documentation',
             'flm': {
                 'features': {
                     'flm.docgen.FeatureFLMDocumentation': True,

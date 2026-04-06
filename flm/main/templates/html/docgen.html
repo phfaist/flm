@@ -71,9 +71,10 @@ ${if:display_toc}
     align-items: start;
   }
   .page-layout > header {
-    grid-column: 1 / -1;
-    max-width: none;
+    grid-column: 2;
+    max-width: ${layout.content_width};
     padding: 0;
+    margin: 0;
   }
   .page-layout > article {
     max-width: ${layout.content_width};

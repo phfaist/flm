@@ -233,12 +233,14 @@ class BlocksBuilder:
         tail_char_node_info = None
         next_node_should_strip_leading_whitespace = False
         first_node = None
+        seen_content_after_heading = False
         char_nodes = []
         for j, node in enumerate(paragraph_nodes):
 
             # careful, Transcrypt doesn't allow getattr() with third "default" arg.
 
             if len(char_nodes) == 0 and first_node is not None \
+               and not seen_content_after_heading \
                and (#getattr(first_node, 'flm_is_block_heading', False):
                    hasattr(first_node, 'flm_is_block_heading')
                    and getattr(first_node, 'flm_is_block_heading')
@@ -263,6 +265,8 @@ class BlocksBuilder:
             elif not node.isNodeType(latexnodes_nodes.LatexCommentNode):
                 if first_node is None:
                     first_node = node
+                else:
+                    seen_content_after_heading = True
                 is_head = False
                 tail_char_node_info = None
 

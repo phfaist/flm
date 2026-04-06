@@ -390,26 +390,34 @@ class FLMEnvironmentDocumentationGenerator:
         return '\n\n'.join(s_items)
 
     def document_environment_introduction(self, environment):
+
+        env_section_title = ''
+        if self.document_title:
+            env_section_title = r"""
+\section{""" + self.document_title + r"""}
+
+"""
+
         env_features = r"""\begin{enumerate}""" + "\n" + "\n".join([
             r"\item " + r"\ref{" + self._get_feature_label_id(feature) + r"}" + "\n"
             #self._get_feature_title(feature) + "\n"
             for feature in environment.features ]) + r"""\end{enumerate}""" + "\n"
-        return (r"""
-\section{Environment documentation}
 
-""" + env_features + "\n\n")
+        return (env_section_title + env_features + "\n\n")
 
     def document_epilog(self):
         return r"""
 \section{Definitions}
 
 \begin{defterm}{delimited content}
-  Delimited content can be any FLM content delimited by either one of the
+  \term[delimited content]{Delimited content}
+  can be any FLM content delimited by either one of the
   characters '\{', '[', '(', or '<', up to a matching closing delimiter.
 \end{defterm}
 
 \begin{defterm}{verbatim delimited}
-  \emph{Verbatim delimited content} is accepted by the \verbcode+\verbcode+
+  \term[verbatim delimited]{Verbatim delimited content} is
+  accepted by the \verbcode+\verbcode+
   family of macro in the standard FLM environment.  The first character
   read determines how the argument is delimited.  If the first character is
   one of '\{', '[', '(', or '<', then the verbatim content is read until the
@@ -661,7 +669,7 @@ class FLMEnvironmentDocumentationGenerator:
             + r"}"
         )
             
-            
+    
 
 
 
@@ -676,5 +684,6 @@ def _get_callable_type(spec):
     if spec.spec_node_parser_type is macrospec.LatexSpecialsCallParser:
         return 'specials'
 
-    raise ValueError("Unknown spec_node_parser_type: " + repr(spec.spec_node_parser_type))
+    raise ValueError("Unknown spec_node_parser_type: "
+                     + repr(spec.spec_node_parser_type))
 

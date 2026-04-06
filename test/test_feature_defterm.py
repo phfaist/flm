@@ -241,6 +241,20 @@ class TestFeatureDefTermHtml(unittest.TestCase):
             '<p>A quantum code encodes information.</p></div>'
         )
 
+    def test_with_leading_macro(self):
+        environ = mk_flm_environ()
+        result = render_doc( environ, r"""
+\begin{defterm}{test}
+\textbf{Test} macro at beginning of a paragraph.
+\end{defterm}
+""".strip() )
+        self.assertEqual(
+            result, r"""
+<div id="defterm-test" class="defterm p-block">
+<p><span class="defterm-term">test: </span><span class="textbf">Test</span> macro at beginning of a paragraph.</p></div>
+""".strip().replace('\n', '')
+)
+
 
 # ----------------------------------------------------------------
 # Text Renderer
