@@ -367,10 +367,16 @@ class FeatureFLMDocumentation(SimpleLatexDefinitionsFeature):
 
 class FLMEnvironmentDocumentationGenerator:
 
-    include_feature_name = False
-    include_feature_dependencies = False
+    include_feature_name = True
+    include_feature_dependencies = True
 
     argument_parser_names_by_classname = {}
+
+
+    def __init__(self, document_title='FLM Environment Documentation'):
+        super().__init__()
+        self.document_title = document_title
+
 
     def document_environment(self, environment):
 
@@ -455,9 +461,9 @@ class FLMEnvironmentDocumentationGenerator:
         s += r"\label{" + self._get_feature_label_id(feature) + "}\n"
         
         if self.include_feature_name:
-            s += (r"""\textit{Documentation of the ‘\verbcode+"""
+            s += (r"""\textit{These definitions are part of the ‘\verba+"""
                   + feature.feature_name
-                  + r"""+’ feature.}""" + "\n\n")
+                  + r"""+’ FLM feature.}""" + "\n\n")
 
         if hasattr(feature, 'feature_flm_doc'):
             try:
@@ -470,20 +476,23 @@ class FLMEnvironmentDocumentationGenerator:
             if feature.feature_dependencies is not None \
                and len(feature.feature_dependencies):
                 s += (
-                    r"""\textit{This feature requires the following feature(s) to be loaded:}"""
-                    + ", ".join([ r"‘\verbcode+" + f + "+’"
+                    r"""\textit{The feature ‘\verba+""" + feature.feature_name
+                    + r"""+’ requires the """
+                    r"""following feature(s) to be loaded:}"""
+                    + ", ".join([ r"‘\verba+" + f + "+’"
                                   for f in feature.feature_dependencies ])
-                    + "\n\n"
+                    + ".\n\n"
                 )
 
             if feature.feature_optional_dependencies is not None \
                and len(feature.feature_optional_dependencies):
                 s += (
-                    r"""\textit{This feature suggests loading the following feature(s) """
+                    r"""\textit{The feature ‘\verba+""" + feature.feature_name
+                    + r"""+’ suggests loading the following feature(s) """
                     + r"""for enhanced functionality:}  """
-                    + ", ".join([ r"‘\verbcode+" + f + "+’"
+                    + ", ".join([ r"‘\verba+" + f + "+’"
                                   for f in feature.feature_optional_dependencies ])
-                    + "\n\n"
+                    + ".\n\n"
                 )
 
         if definitions['macros']:
