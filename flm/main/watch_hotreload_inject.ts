@@ -277,6 +277,14 @@ class HotReloadClient
 
     private _onMessage(m: MessageEvent) : void
     {
+        try {
+            this._processMessage(m);
+        } catch (err) {
+            console.error('Error while processing server message!', err);
+        }
+    }
+    private _processMessage(m: MessageEvent) : void
+    {
         console.log("Message!", m);
         const info = JSON.parse(m.data) as UpdateInfo;
         if (info.action === 'update-main-content') {
