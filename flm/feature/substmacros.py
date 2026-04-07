@@ -414,24 +414,38 @@ class SimpleMacroContentIfArgCondition(FLMMacroSpecBase):
 
 
 def _get_arg_spec(argspec):
-    if isinstance(argspec, str) and argspec == 'SetArgumentNumberOffset':
-        return SetArgumentNumberOffset
+    r"""
+    Take one element of the `arguments_spec_list` parameter of
+    SubstitutionCallableSpecInfo's constructor and return a corresponding
+    `LatexArgumentSpec` instance.  Note that argspec can be a string, an
+    LatexArgumentSpec instance, or a dictionary used to initialize a
+    LatexArgumentSpec.
+    """
+    if isinstance(argspec, str):
+        if argspec == 'SetArgumentNumberOffset':
+            return SetArgumentNumberOffset
+        return FLMArgumentSpec(parser=argspec, argname=None)
     parser_val = None
     try:
         parser_val = argspec['parser']
         # argspec is a dictionary and it has a 'parser' key.  (Don't use
         # isinstance(..., dict) so that this works with Transcrypt...)
     except (TypeError, KeyError):
-        # not a dict, okay, use default constructor (may still be a string)
+        # not a dict, okay.  Might already be a LatexArgumentSpec instance.
         pass
     if parser_val is not None:
-        if isinstance(argspec, str):
-            return FLMArgumentSpec(parser=argspec, argname=None)
+        # it's a dict, we need to create the FLMArgumentSpec instance from it
         argspecargs = dict(argspec)
         if 'argname' not in argspecargs:
             argspecargs['argname'] = None
         return FLMArgumentSpec(**argspecargs)
-    return FLMArgumentSpec(parser=argspec, argname=None)
+    # should be a LatexArgumentSpec instance.
+    if not hasattr(argspec, 'parser'):
+        raise ValueError(
+            f"Expected LatexArgumentSpec instance at this point in _get_arg_spec: "
+            f"{repr(argspec)}"
+        )
+    return argspec
 
 
 # --------------------------------------
@@ -843,6 +857,11 @@ class SubstitutionCallableSpecInfo(FLMSpecInfo):
       passing the dictionary's contents as keyword arguments to the constructor
       of `LatexArgumentSpec()`.  E.g. `arguments_spec_list = [ {'parser': '[',
       'argname': 'argone'}, {'parser': '{', 'argname': 'argtwo'} ]`.
+    
+      In simple cases, the `arguments_spec_list` may also be a single string,
+      in which case each character of the string represents a single-character
+      standard argument specification (so that ``'[{{'`` means one optional
+      argument in square brackets, and two mandatory arguents).
 
     - `default_argument_values` is a dictionary with values that should be used
       for the arguments if the argument is not specified.  The values are FLM

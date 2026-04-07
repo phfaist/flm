@@ -48,7 +48,11 @@ def setup_logging(level):
 
 
 
-def run_main(cmdargs=None, enable_debug_pdb=False, exit_code_on_error=1):
+_default_enable_debug_pdb = False
+#_default_enable_debug_pdb = True
+
+
+def run_main(cmdargs=None, enable_debug_pdb=_default_enable_debug_pdb, exit_code_on_error=1):
     try:
         _run_main_inner()
     except LatexWalkerError as e:
