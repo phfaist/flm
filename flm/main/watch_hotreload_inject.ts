@@ -6,6 +6,8 @@
 // JS source via parcel. Run "yarn build" in this folder to do that.
 // The optimized JS is then output to ./dist/watch_hotreload_inject.js.
 //
+// Any accompanying CSS style should be written in ./watch_hotreload_style.css.
+// It is automatically imported here.
 
 //
 // This code will be wrapped into a function(){...} body.  The
@@ -246,11 +248,84 @@ function stampMathContentSources(mainContainer: HTMLElement, elements: HTMLEleme
 type SourceLocation = [source_path: string, line: number|undefined, col: number|undefined];
 
 
+class ErrorPanel
+{
+    private panelDiv: HTMLElement;
+    private bodyDiv: HTMLElement;
+    private badgeDiv: HTMLElement;
+
+    constructor()
+    {
+        // panel container
+        const panel = document.createElement('div');
+        panel.setAttribute('id', 'ErrorOverlay');
+
+        // header bar
+        const header = document.createElement('div');
+        header.className = 'error-panel-header';
+        const title = document.createElement('span');
+        title.className = 'error-panel-title';
+        title.textContent = '\u{1F4A5} ERROR';
+        const collapseBtn = document.createElement('button');
+        collapseBtn.className = 'error-panel-collapse-btn';
+        collapseBtn.textContent = '\u2039';
+        collapseBtn.addEventListener('click', () => this.collapse());
+        header.appendChild(collapseBtn);
+        header.appendChild(title);
+        panel.appendChild(header);
+
+        // scrollable body
+        const body = document.createElement('div');
+        body.className = 'error-panel-body';
+        panel.appendChild(body);
+
+        document.body.appendChild(panel);
+        this.panelDiv = panel;
+        this.bodyDiv = body;
+
+        // collapsed badge icon
+        const badge = document.createElement('div');
+        badge.setAttribute('id', 'ErrorCollapsedBadge');
+        badge.textContent = '\u{1F4A5}';
+        badge.title = 'Show error panel';
+        badge.addEventListener('click', () => this.expand());
+        document.body.appendChild(badge);
+        this.badgeDiv = badge;
+    }
+
+    clear() : void
+    {
+        this.panelDiv.classList.remove('error-overlay-shown', 'error-overlay-collapsed');
+        this.badgeDiv.classList.remove('badge-shown');
+    }
+
+    show(contentHtml: string) : void
+    {
+        this.panelDiv.classList.remove('error-overlay-collapsed');
+        this.panelDiv.classList.add('error-overlay-shown');
+        this.badgeDiv.classList.remove('badge-shown');
+        this.bodyDiv.innerHTML = contentHtml;
+    }
+
+    collapse() : void
+    {
+        this.panelDiv.classList.add('error-overlay-collapsed');
+        this.badgeDiv.classList.add('badge-shown');
+    }
+
+    expand() : void
+    {
+        this.panelDiv.classList.remove('error-overlay-collapsed');
+        this.badgeDiv.classList.remove('badge-shown');
+    }
+}
+
+
 class HotReloadClient
 {
     private ws: WebSocket;
     private mainContainer: HTMLElement;
-    private errorOverlayDiv: HTMLElement;
+    private errorPanel: ErrorPanel;
     private compilingWidgetDiv: HTMLElement;
 
     constructor(url: string, mainContainer: HTMLElement)
@@ -260,14 +335,10 @@ class HotReloadClient
         this.ws.addEventListener("message", (m) => this._onMessage(m));
         this.ws.addEventListener("open",  () => console.log("websocket open"));
         this.ws.addEventListener("close", () => console.log("websocket closed"));
-        this.ws.addEventListener("error", (err) => console.log("websocket error", err));
+        this.ws.addEventListener("error", (err) => console.warn("websocket error", err));
         console.log("Started websocket and listening for update messages.");
 
-        // the error overlay div
-        const errorOverlayDiv = document.createElement('div');
-        errorOverlayDiv.setAttribute('id', 'ErrorOverlay');
-        document.body.appendChild(errorOverlayDiv);
-        this.errorOverlayDiv = errorOverlayDiv;
+        this.errorPanel = new ErrorPanel();
 
         const compilingWidgetDiv = document.createElement('div');
         compilingWidgetDiv.setAttribute('id', 'CompilingStateWidget');
@@ -288,7 +359,7 @@ class HotReloadClient
         console.log("Message!", m);
         const info = JSON.parse(m.data) as UpdateInfo;
         if (info.action === 'update-main-content') {
-            this.clearErrorState();
+            this.errorPanel.clear();
             this.setCompilingState('idle');
             try {
                 updateMainContent(this.mainContainer, info);
@@ -297,7 +368,7 @@ class HotReloadClient
                 window.location.reload();
             }
         } else if (info.action === 'error-display') {
-            this.displayErrorOverlay(info);
+            this.errorPanel.show(info.content_html);
             this.setCompilingState('idle');
         } else if (info.action === 'set-compiling-state') {
             this.setCompilingState(info.state);
@@ -306,18 +377,6 @@ class HotReloadClient
         }
     }
 
-    clearErrorState() : void
-    {
-        this.errorOverlayDiv.classList.remove('error-overlay-shown');
-    }
-    displayErrorOverlay(info : UpdateInfo)
-    {
-        if (info.action !== 'error-display') {
-            return;
-        }
-        this.errorOverlayDiv.classList.add('error-overlay-shown');
-        this.errorOverlayDiv.innerHTML = info.content_html;
-    }
     setCompilingState(state : CompilingState)
     {
         this.compilingWidgetDiv.classList.remove(
