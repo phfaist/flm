@@ -45,7 +45,7 @@ class FLMMainRunError(Exception):
     def __init__(self, message, details=None):
         super().__init__(message)
         self._message = message.strip()
-        self._details = details.strip()
+        self._details = details.strip() if details else None
 
     def message(self):
         return self._message

@@ -63,7 +63,13 @@ def run_main(cmdargs=None, enable_debug_pdb=_default_enable_debug_pdb, exit_code
         if exit_code_on_error is not None:
             sys.exit(exit_code_on_error)
     except FLMMainRunError as e:
-        logging.getLogger('flm').critical('\n\n==> %s <==\n\n%s', e.message(), e.details())
+        message = e.message()
+        details = e.details()
+        logging.getLogger('flm').critical(
+            '\n\n==> %s <==%s',
+            message,
+            '\n\n'+details if details else ''
+        )
         if exit_code_on_error is not None:
             sys.exit(exit_code_on_error)
     except Exception as e:
