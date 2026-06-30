@@ -60,7 +60,7 @@ def get_image_file_info_pil(filename, fp):
 
     if 'dpi' not in img.info:
         raise ValueError(
-            "Your PNG image does not provide any DPI information.  Please fix "
+            "Your image does not provide any DPI information.  Please fix "
             "your image so that it has a fixed DPI setting.  We need this information "
             "to know how large your image is."
         )

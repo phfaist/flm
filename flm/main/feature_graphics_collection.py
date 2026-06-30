@@ -15,6 +15,8 @@ import shutil
 import subprocess
 import json
 import hashlib
+import tempfile
+import mimetypes
 
 from typing import Literal, TypedDict, Sequence, Mapping, Any, Union
 
@@ -84,7 +86,7 @@ class ResourcesScanner(LatexNodesVisitor):
     # ---
 
     def visit(self, node, **kwargs):
-        logger.debug('Scanning for graphics resources - visiting node %s', node)
+        #logger.debug('Scanning for graphics resources - visiting node %s', node)
         if hasattr(node, 'flm_resources'):
             # it's a node that requires access to an external resource.
             for resource in node.flm_resources:
@@ -751,6 +753,12 @@ class FeatureGraphicsCollection(Feature):
             `graphics_search_path` where the file was found and `file_name` is
             the corresponding relative path and `full_file_path` is both parts
             concatenated.  For 'url' types, `source_resolved` is None.
+
+            This runs once per resource during scan *and* once per
+            ``\includegraphics`` at render time (see ``get_graphics_resource``).
+            It must stay cheap: it only classifies the source and computes a
+            stable ``source_key`` — no network, decode or disk I/O happens here.
+            (``data:`` URLs classify as ``'url'``.)
             """
 
             # Let's see if it's a local file (rather than a remote URL)
@@ -838,24 +846,25 @@ class FeatureGraphicsCollection(Feature):
 
             elif source_type == 'url':
 
-                # TODO: handle data:... type URL !
-
-                # won't be able to inspect meta-information
-                logger.warning("Can't inspect meta-information for remote resouce ‘%s’",
-                               source_url)
+                # download (at most once per URL per Feature lifetime), write to
+                # a temp file, and inspect it like a local file.
+                entry = self.feature.fetch_inspect_url(source_url)
 
                 graphics_resource = GraphicsResource(
                     src_url=source_url,
+                    ** entry['info'],
                 )
 
-                self.add_graphics(source_key, source_info, graphics_resource)
+                self.add_graphics(source_key, source_info, graphics_resource,
+                                  url_entry=entry)
 
             else:
                 raise LatexWalkerError(
                     "Unknown resource source type: " + repr(source_type)
                 )
 
-        def add_graphics(self, source_key, source_info, graphics_resource):
+        def add_graphics(self, source_key, source_info, graphics_resource,
+                         url_entry=None):
             if source_key in self.graphics_collection:
                 raise LatexWalkerError(
                     f"Graphics collection already has a graphics resource registered "
@@ -863,9 +872,31 @@ class FeatureGraphicsCollection(Feature):
                     f"‘{self.graphics_collection[source_key]['graphics_resource'].src_url}’, "
                     f"new target ‘{graphics_resource.src_url}’"
                 )
+            if url_entry is not None:
+                # URL source: reuse the downloaded temp file + cached hash/ext.
+                temp_file_path = url_entry['temp_file_path']
+                mimetype = url_entry['mimetype']
+                detected_ext = url_entry['detected_ext']
+                input_hash = url_entry['input_hash']
+            else:
+                # File source: extension comes from the resolved file path.
+                source_type, source_url, _, source_resolved = source_info
+                temp_file_path = None
+                mimetype = None
+                input_hash = None
+                if source_resolved is not None:
+                    _, _, full_file_path = source_resolved
+                    detected_ext = os.path.splitext(full_file_path)[1]
+                else:
+                    detected_ext = ''
             self.graphics_collection[source_key] = {
                 'source_info': source_info,
                 'graphics_resource': graphics_resource,
+                # internal-only, never serialized into GraphicsResource:
+                'temp_file_path': temp_file_path,
+                'mimetype': mimetype,
+                'detected_ext': detected_ext,
+                'input_hash': input_hash,
             }
             info = ''
             if graphics_resource.physical_dimensions:
@@ -1035,6 +1066,7 @@ class FeatureGraphicsCollection(Feature):
                         source_info,
                         resolved_src_url=src_url,
                         counter=counter,
+                        graphics_info=graphics_info,
                     )
 
             logger.debug(
@@ -1061,14 +1093,23 @@ class FeatureGraphicsCollection(Feature):
             # by default, same output extension as input extension
             return { 'target_ext': ext, 'instance': None }
 
-        def prepare_collect_graphics(self, source_info, resolved_src_url, counter):
+        def prepare_collect_graphics(self, source_info, resolved_src_url, counter,
+                                     graphics_info=None):
 
             source_type, source_url, source_key, source_resolved = source_info
 
             basename = os.path.basename(resolved_src_url)
             basenoext, ext = os.path.splitext(basename)
 
-            # TODO (2): check detected ext if necessary in source_resolved.
+            temp_file_path = None
+            if graphics_info is not None:
+                temp_file_path = graphics_info.get('temp_file_path', None)
+
+            if source_type == 'url':
+                # the data:/remote URL gives no usable extension via splitext;
+                # use the extension detected from the downloaded content.
+                if graphics_info is not None and graphics_info.get('detected_ext', None):
+                    ext = graphics_info['detected_ext']
 
             converter_info = self.prepare_collect_graphics_get_converter(
                 source_info, resolved_src_url, ext
@@ -1079,6 +1120,9 @@ class FeatureGraphicsCollection(Feature):
             if source_type == 'file':
                 with open(resolved_src_url, 'rb') as f:
                     input_hash = hashlib.file_digest(f, 'sha256').hexdigest()
+            elif graphics_info is not None:
+                # URL source: hash already computed by the Feature at download.
+                input_hash = graphics_info.get('input_hash', None)
 
             try:
                 target_fname = self.collect_graphics_filename_template_obj.substitute({
@@ -1111,6 +1155,7 @@ class FeatureGraphicsCollection(Feature):
                 'source_type': source_type,
                 'source_url': source_url,
                 'src_url_resolved': resolved_src_url,
+                'temp_file_path': temp_file_path,
                 'converter_info': converter_info,
                 'input_hash': input_hash,
                 'target_path': target_path,
@@ -1124,9 +1169,18 @@ class FeatureGraphicsCollection(Feature):
 
             source_type = collect_info['source_type']
             src_url = collect_info['src_url_resolved']
+            temp_file_path = collect_info.get('temp_file_path', None)
             converter_info = collect_info['converter_info']
             converter = converter_info['instance']
             target_path = collect_info['target_path']
+
+            # If the URL was downloaded to a temp file, treat it as a local
+            # file so converters/copies read it off disk (no second download).
+            read_source_type = source_type
+            read_src_url = src_url
+            if source_type == 'url' and temp_file_path is not None:
+                read_source_type = 'file'
+                read_src_url = temp_file_path
 
             converter_name = converter.name if converter is not None else '<None>'
 
@@ -1158,8 +1212,8 @@ class FeatureGraphicsCollection(Feature):
                 converter_options = converter_info['options']
 
                 converter.convert(
-                    source_type,
-                    src_url,
+                    read_source_type,
+                    read_src_url,
                     target_path,
                     converter_info=converter_info,
                     options=converter_options,
@@ -1167,10 +1221,12 @@ class FeatureGraphicsCollection(Feature):
 
             else:
 
-                if source_type == 'file':
-                    shutil.copyfile(src_url, target_path)
+                if read_source_type == 'file':
+                    shutil.copyfile(read_src_url, target_path)
                 else:
-                    with urllib.request.urlopen(src_url) as fr:
+                    # No temp file available (earlier download failed); fall
+                    # back to fetching the URL directly.
+                    with urllib.request.urlopen(read_src_url) as fr:
                         with open(target_path, 'wb') as fw:
                             shutil.copyfileobj(fr, fw)
 
@@ -1225,7 +1281,7 @@ class FeatureGraphicsCollection(Feature):
                 grkwargs = {
                     'src_url': collect_info['target_relative_path'],
                 }
-            else:
+            elif source_type == 'file':
                 # make sure the URL is relative to the output document path.
                 src_url_rel_output = os.path.relpath(
                     graphics_resource.src_url,
@@ -1233,6 +1289,11 @@ class FeatureGraphicsCollection(Feature):
                 )
                 grkwargs = {
                     'src_url': src_url_rel_output
+                }
+            else:
+                # remote / data: URL, not collected — pass it through verbatim.
+                grkwargs = {
+                    'src_url': graphics_resource.src_url
                 }
 
             # if src_url_resolver_fn is not None:
@@ -1413,6 +1474,90 @@ class FeatureGraphicsCollection(Feature):
             self.graphics_search_path = ['.']
         else:
             self.graphics_search_path = list(graphics_search_path)
+
+        # URL download cache, scoped to this Feature instance (see PLAN).  Keyed
+        # by the URL string; value is a dict with keys 'temp_file_path',
+        # 'mimetype', 'detected_ext', 'info', 'input_hash' (or a failure marker
+        # with temp_file_path=None).
+        self._url_cache = {}
+        # Created lazily on first URL download, held on the Feature so the temp
+        # files live as long as the Feature itself.
+        self._url_tempdir = None
+        # Monotonic counter to name temp files uniquely within the shared dir.
+        self._url_download_counter = 0
+
+
+    # Map mimetypes to file extensions where mimetypes.guess_extension() is
+    # absent or gives a less convenient answer (e.g. '.jpe' for image/jpeg).
+    _url_mimetype_ext_overrides = {
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/svg+xml': '.svg',
+        'application/pdf': '.pdf',
+        'image/gif': '.gif',
+    }
+
+    def fetch_inspect_url(self, source_url):
+        r"""
+        Download *source_url* (once per Feature lifetime), write its bytes to a
+        temp file, inspect it, and return a cache entry dict with keys
+        ``temp_file_path``, ``mimetype``, ``detected_ext``, ``info`` and
+        ``input_hash``.
+
+        The default ``urllib`` opener already has a ``DataHandler``, so
+        ``data:`` URLs are handled offline by the same call used for ``http``
+        etc.  On failure a warning is emitted and a failure marker (with
+        ``temp_file_path=None``) is cached so the bad URL is not retried.
+        """
+
+        if source_url in self._url_cache:
+            return self._url_cache[source_url]
+
+        try:
+            with urllib.request.urlopen(source_url) as r:
+                content = r.read()
+                mimetype = r.headers.get_content_type()
+
+            detected_ext = self._url_mimetype_ext_overrides.get(mimetype, None)
+            if detected_ext is None:
+                detected_ext = mimetypes.guess_extension(mimetype) or ''
+
+            if self._url_tempdir is None:
+                self._url_tempdir = tempfile.TemporaryDirectory()
+            self._url_download_counter += 1
+            tmp_path = os.path.join(
+                self._url_tempdir.name,
+                f"inline{self._url_download_counter}{detected_ext}"
+            )
+            with open(tmp_path, 'wb') as fw:
+                fw.write(content)
+
+            with open(tmp_path, 'rb') as fp:
+                info = self.inspect_graphics_file(tmp_path, fp)
+
+            input_hash = hashlib.sha256(content).hexdigest()
+
+            entry = {
+                'temp_file_path': tmp_path,
+                'mimetype': mimetype,
+                'detected_ext': detected_ext,
+                'info': info or {},
+                'input_hash': input_hash,
+            }
+
+        except Exception as e:
+            logger.warning("Failed to download/inspect graphics URL ‘%s’: %s",
+                           source_url, e)
+            entry = {
+                'temp_file_path': None,
+                'mimetype': None,
+                'detected_ext': '',
+                'info': {},
+                'input_hash': None,
+            }
+
+        self._url_cache[source_url] = entry
+        return entry
 
 
     def inspect_graphics_file(self, file_path, fp):
