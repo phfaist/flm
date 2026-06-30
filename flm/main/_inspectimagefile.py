@@ -41,6 +41,8 @@ def get_image_file_info_pdf(filename, fp):
     }
 
 
+gif_default_dpi = 96
+
 def get_image_file_info_pil(filename, fp):
 
     import PIL
@@ -59,11 +61,23 @@ def get_image_file_info_pil(filename, fp):
     width_px, height_px = img.width, img.height
 
     if 'dpi' not in img.info:
-        raise ValueError(
-            "Your image does not provide any DPI information.  Please fix "
-            "your image so that it has a fixed DPI setting.  We need this information "
-            "to know how large your image is."
-        )
+        # Some raster formats (notably GIF) have no way to store DPI
+        # information at all.  Rather than failing, assume a sensible default
+        # DPI for those formats so we can still compute physical dimensions.
+        if img.format == 'GIF':
+            logger.warning(
+                f"GIF image ‘{filename}’ does not (and cannot) carry DPI "
+                f"information; assuming {gif_default_dpi} DPI.  Consider using a "
+                f"format such as PNG with an explicit DPI setting if you need "
+                f"precise control over the physical size."
+            )
+            dpi_x, dpi_y = gif_default_dpi, gif_default_dpi
+        else:
+            raise ValueError(
+                "Your image does not provide any DPI information.  Please fix "
+                "your image so that it has a fixed DPI setting.  We need this information "
+                "to know how large your image is."
+            )
     else:
         dpi_x, dpi_y = img.info['dpi']
 
