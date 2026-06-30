@@ -838,6 +838,8 @@ class FeatureGraphicsCollection(Feature):
 
             elif source_type == 'url':
 
+                # TODO: handle data:... type URL !
+
                 # won't be able to inspect meta-information
                 logger.warning("Can't inspect meta-information for remote resouce ‘%s’",
                                source_url)
@@ -1065,6 +1067,8 @@ class FeatureGraphicsCollection(Feature):
 
             basename = os.path.basename(resolved_src_url)
             basenoext, ext = os.path.splitext(basename)
+
+            # TODO (2): check detected ext if necessary in source_resolved.
 
             converter_info = self.prepare_collect_graphics_get_converter(
                 source_info, resolved_src_url, ext
