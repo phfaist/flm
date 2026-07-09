@@ -10,7 +10,7 @@ Tests for the `flm.main` module and its submodules go in `test/main/`. All other
 
 **flm-core** is a Python library implementing *Flexible Latex-like Markup* (FLM): an approximate subset of LaTeX syntax parsed via `pylatexenc` (v3 pre-release) and rendered to multiple output formats (HTML, LaTeX, plain text, Markdown). The codebase is also transpiled to JavaScript via Transcrypt, which constrains Python idioms.
 
-Packages are managed via `poetry`. Run tests with `poetry run python -m pytest test/ -v`.
+Packages are managed via `uv`. Run tests with `uv run python -m pytest test/ -v`.
 
 ## Critical Rules
 
@@ -36,7 +36,7 @@ If you need an "in" check, write `self.assertTrue(x in items)`.
 ### Test Quality Requirements
 
 1. **Exact output matching**: Use `self.assertEqual(result, expected)` with the full expected output. Do NOT use `self.assertTrue(substring in result)` for testing rendered output.
-2. **To get exact outputs**: render the FLM input first by running the code, capture the actual output, then verify it is correct, then use that as the assertEqual expectation. You can run snippets via `poetry run python -c "..."` to see actual outputs before writing assertions.
+2. **To get exact outputs**: render the FLM input first by running the code, capture the actual output, then verify it is correct, then use that as the assertEqual expectation. You can run snippets via `uv run python -c "..."` to see actual outputs before writing assertions.
 3. **Test file naming**: `test/test_<module>.py` for core and feature modules, `test/main/test_main_<submodule>.py` for main submodules.
 4. **One test class per logical group** (e.g. `TestFeatureQuoteRendering`, `TestFeatureQuoteInit`, `TestFeatureQuoteRecomposer`).
 5. **Set `maxDiff = None`** on test classes that compare rendered output.
@@ -166,7 +166,7 @@ Skip these main submodules (they involve filesystem/process operations not suita
 3. **Decide**: if existing tests are already high quality with exact assertions and good coverage, skip to the next module. If they need improvement, **keep the existing tests** and add any additional test cases you deem necessary.  If existing tests are incomplete, add more tests to test other inputs or edge cases that were missed.
 4. **Capture actual outputs** by running the code first:
    ```bash
-   poetry run python -c "
+   uv run python -c "
    from flm.flmenvironment import make_standard_environment
    from flm.stdfeatures import standard_features
    from flm.fragmentrenderer.html import HtmlFragmentRenderer
@@ -177,11 +177,11 @@ Skip these main submodules (they involve filesystem/process operations not suita
    ```
 5. **CHECK THE OUTPUTS**: Make sure that the outputs are indeed expected for the test code you designed.  Flag any suspicious behavior or suspected bug with a comment `# REVIEW: <note>` in the source code.  Only fix the source code itself if the error is a typo or a missing import.  In all other cases, keep the failing test and mark it to be skipped pending code review.
 6. **Write the test file** with exact assertEqual assertions using the captured outputs, for test cases whose outputs match the expected output.
-7. **Run the tests** for that module: `poetry run python -m pytest test/test_<module>.py -v`
+7. **Run the tests** for that module: `uv run python -m pytest test/test_<module>.py -v`
 8. **Fix any failures** — if the expected output doesn't match, re-capture and correct.  Flag suspicious behavior (see point 5.) instead of adapting the test itself to the suspicious behavior.
-9. **Run the full test suite** periodically: `poetry run python -m pytest test/ -v` to check for regressions.
+9. **Run the full test suite** periodically: `uv run python -m pytest test/ -v` to check for regressions.
 10. **When you're finished with the module** — read the module again and identify classes, functions, methods, or attributes that are not sufficiently well tested according to the standards specified here.  If you find any, complete the tests.
-11. **Check also the JS-transpiled tests** — by running `(cd flm-js && poetry run python ./generate_flm_js.py --pylatexenc-src-dir=../../pylatexenc --delete-target-dir --compile-tests && node test-flm-js/runtests.js)`.  If tests fail, identify the failure location and identify its cause. Do not change the test logic. Remove the test only if it is clearly unnecessary. Ask for the user's input if fixing the test involves anything else than minor refactoring to remove a feature not supported by transcrypt. JS output and Python output must be the same (except for string-formatted floating-point numbers).
+11. **Check also the JS-transpiled tests** — by running `(cd flm-js && uv run --group buildjslib python ./generate_flm_js.py --pylatexenc-src-dir=../../pylatexenc --delete-target-dir --compile-tests && node test-flm-js/runtests.js)`.  If tests fail, identify the failure location and identify its cause. Do not change the test logic. Remove the test only if it is clearly unnecessary. Ask for the user's input if fixing the test involves anything else than minor refactoring to remove a feature not supported by transcrypt. JS output and Python output must be the same (except for string-formatted floating-point numbers).
 
 
 ## What to Test Per Module

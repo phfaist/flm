@@ -112,8 +112,9 @@ def main_watch(**kwargs):
                     'targets': d_refs,
                 }
                 s_refs_info_json = json.dumps(d_refs_info, cls=ReprValueFallbackJsonEncoder)
+                s_refs_info_json_insertcode = s_refs_info_json.replace('</script>','<\\/script>')
                 rendered_content = rendered_content + f"""
-<script id="FlmRefsData" type="application/json">{s_refs_info_json.replace('</script>','<\\/script>')}</script>
+<script id="FlmRefsData" type="application/json">{s_refs_info_json_insertcode}</script>
 """
             return rendered_content
 

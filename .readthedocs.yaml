@@ -1,8 +1,8 @@
 # Read the Docs configuration file
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
 
-# See poetry builds on RTD:
-# https://docs.readthedocs.io/en/stable/build-customization.html#install-dependencies-with-poetry
+# See uv builds on RTD:
+# https://docs.readthedocs.io/en/stable/build-customization.html#install-dependencies-with-uv
 
 # Required
 version: 2
@@ -17,16 +17,16 @@ build:
   jobs:
 
     post_create_environment:
-      # Install poetry
-      # https://python-poetry.org/docs/#installing-manually
-      - 'pip install "poetry>=1.4"'
+      # Install uv
+      # https://docs.astral.sh/uv/getting-started/installation/
+      - 'pip install uv'
 
     post_install:
-      # Install dependencies with 'docs' dependency group
-      # https://python-poetry.org/docs/managing-dependencies/#dependency-groups
-      # VIRTUAL_ENV needs to be set manually for now.
-      # See https://github.com/readthedocs/readthedocs.org/pull/11152/
-      - 'VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH poetry install --extras maincmdl --with builddoc'
+      # Install dependencies with the 'builddoc' dependency group.
+      # '--active' installs into the virtualenv that RTD created for us rather
+      # than into a project-local '.venv'; '--inexact' leaves the packages that
+      # RTD itself put there alone.
+      - 'VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH uv sync --active --inexact --extra maincmdl --group builddoc'
 
 
 sphinx:

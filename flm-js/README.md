@@ -15,9 +15,9 @@ read on below.
 The JS version of FLM's core modules is obtained by using the great tool
 [Transcrypt](https://www.transcrypt.org/).
 
-Set up your poetry environment with the 'buildjslib' dependency group:
+Set up your uv environment with the 'buildjslib' dependency group:
 
-    > poetry install --with buildjslib
+    > uv sync --group buildjslib
 
 Check out the pylatexenc sources. (If you've done this in the past, you might
 want to do `git pull` in that directory to get the latest version.)
@@ -28,7 +28,7 @@ want to do `git pull` in that directory to get the latest version.)
 
 Generate the relevant JavaScript FLM Sources by running the build script:
 
-    > poetry run python generate_flm_js.py --pylatexenc-src-dir=./pylatexenc-src/
+    > uv run --group buildjslib python generate_flm_js.py --pylatexenc-src-dir=./pylatexenc-src/
 
 Result: A new folder `flm-js/` with a flat layout of JS modules (with qualified
 names such as `flm.feature.math.js`) that you can import in your code.
@@ -42,5 +42,5 @@ Check the ZooDb sources to get a hang of it.
 To compile and run the tests, you can use the following command (WILL OVERWRITE
 TARGET DIRECTORY `test-flm-js`):
 
-    > poetry run python generate_flm_js.py --pylatexenc-src-dir=./pylatexenc-src/ --delete-target-dir --compile-tests
+    > uv run --group buildjslib python generate_flm_js.py --pylatexenc-src-dir=./pylatexenc-src/ --delete-target-dir --compile-tests
     > node test-flm-js/runtests.js

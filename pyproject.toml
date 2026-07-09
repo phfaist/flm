@@ -1,62 +1,88 @@
-[tool.poetry]
+[project]
 name = "flm-core"
-version = "0.4.0beta000000" # ALSO BUMP IN flm/flm/__init__.py
+version = "0.4.0beta000000" # ALSO BUMP IN flm/__init__.py
 description = "Flexible Latex-like Markup"
-authors = ["Philippe Faist"]
+authors = [ { name = "Philippe Faist" } ]
 license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
-include = ["flm/main/templates/**/*", "flm/main/dist/watch_hotreload_inject.js"]
-packages = [
-    { include = "flm" },
+requires-python = ">=3.10,<4.0"
+
+dependencies = [
+    "pylatexenc>=3.0a32,<4.0",
 ]
 
-[tool.poetry.scripts]
+[project.optional-dependencies]
+maincmdl = [
+    "websockets>=15.0,<16.0",
+    "watchfiles>=1.0.4,<2.0",
+    "python-frontmatter>=1.0.0,<2.0",
+    "PyYAML>=5.0",
+    "colorlog>=6.7.0,<7.0",
+    "pillow>=12.0.0,<13.0",
+    "cairosvg>=2.7.1,<3.0",
+    "pypdf>=6.1.3,<7.0",
+    "jsonschema>=4.26.0,<5.0",
+]
+
+[project.scripts]
 flm = 'flm.__main__:run_main'
 
-# define extras by pointing to the group
-[tool.poetry.extras]
-maincmdl = ['websockets', 'watchfiles', 'python-frontmatter', 'PyYAML', 'colorlog', 'pillow', 'cairosvg', 'pypdf', 'jsonschema']
 
+[dependency-groups]
+dev = [
+    "pytest>=7.1.2,<8.0",
+    "ipython>=8.3.0,<9.0",
+    "toml>=0.10.2,<0.11",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-pylatexenc = { version = "^3.0a32", allow-prereleases = true }
+buildjslib = [
+    "Transcrypt==3.9.3",
+    "PyYAML>=5.0",
+]
 
-# for maincmdl:
-websockets = { version = "^15.0", optional = true }
-watchfiles = { version = "^1.0.4", optional = true }
-python-frontmatter = { version = "^1.0.0", optional = true }
-PyYAML = { version = ">=5.0", optional = true }
-colorlog = { version = "^6.7.0", optional = true }
-pillow = { version = "^12.0.0", optional = true }
-cairosvg = { version = "^2.7.1", optional = true }
-pypdf = { version = "^6.1.3", optional = true }
-jsonschema = { version = "^4.26.0", optional = true }
+builddoc = [
+    "Sphinx>=5.0.0",
+    "sphinx-issues>=3.0.0",
+    "toml>=0.10.2,<0.11",
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.1.2"
-ipython = "^8.3.0"
-toml = "^0.10.2"
-
-[tool.poetry.group.buildjslib]
-optional = true
-
-[tool.poetry.group.buildjslib.dependencies]
-Transcrypt = "==3.9.3"
-PyYAML = ">=5.0"
-
-[tool.poetry.group.builddoc]
-optional = true
-
-[tool.poetry.group.builddoc.dependencies]
-Sphinx = ">=5.0.0"
-sphinx-issues = ">=3.0.0"
-
+[tool.uv]
+# 'buildjslib' and 'builddoc' are opt-in via `uv sync --group ...`
+default-groups = ["dev"]
 
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.9.0,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+module-name = "flm"
+
+# The `flm/main/` folder doubles as a JS/yarn project workspace; keep its build
+# scaffolding and editor backup files out of the distributions.  Only the
+# bundled `watch_hotreload_inject.js` is shipped from `flm/main/dist/`.
+source-exclude = [
+    '*\~',
+    "__pycache__",
+    "flm/main/.yarn",
+    "flm/main/.parcel-cache",
+    "flm/main/.pnp.cjs",
+    "flm/main/.pnp.loader.mjs",
+    "flm/main/dist/*.css",
+    "flm/main/dist/*.map",
+]
+wheel-exclude = [
+    '*\~',
+    "__pycache__",
+    "main/.yarn",
+    "main/.parcel-cache",
+    "main/.pnp.cjs",
+    "main/.pnp.loader.mjs",
+    "main/dist/*.css",
+    "main/dist/*.map",
+]
 
 
 

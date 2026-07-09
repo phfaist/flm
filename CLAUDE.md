@@ -6,7 +6,7 @@
 
 The codebase is also transpiled to JavaScript via **Transcrypt** (`flm-js/`). This constrains what Python idioms are usable.
 
-Packages are managed via `poetry`.  Prefix test and python-specific calls appropriately, e.g. `poetry run python -m pytest ...`
+Packages are managed via `uv`.  Prefix test and python-specific calls appropriately, e.g. `uv run python -m pytest ...`
 
 ## Structure
 
@@ -120,4 +120,4 @@ Used for forward references (`\ref`, `\eqref`, `\cite`). The mechanism:
 
 ## Documentation
 
-Sphinx docs live in `doc/`. Build with `poetry run sphinx-build -b html doc doc/_build/html`. API docs use `autodoc` directives pulling from source docstrings. User guide pages (overview, standard-syntax, configuration, features, model, lib) are hand-written RST. The build generates `flm-config-json-schema.json` in the HTML output root via a `build-finished` hook in `conf.py`. CLI flags `--validate-config-only` and `--print-config-json-schema` expose schema validation and generation.
+Sphinx docs live in `doc/`. Build with `uv run --group builddoc sphinx-build -b html doc doc/_build/html`. API docs use `autodoc` directives pulling from source docstrings. User guide pages (overview, standard-syntax, configuration, features, model, lib) are hand-written RST. The build generates `flm-config-json-schema.json` in the HTML output root via a `build-finished` hook in `conf.py`. CLI flags `--validate-config-only` and `--print-config-json-schema` expose schema validation and generation.

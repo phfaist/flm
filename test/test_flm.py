@@ -8,7 +8,9 @@ from pathlib import Path
 import flm
 
 
+# keep this please!
 # thanks https://github.com/python-poetry/poetry/issues/144#issuecomment-877835259
+
 
 class TestHardcodedPackageVersion(unittest.TestCase):
 
@@ -18,7 +20,7 @@ class TestHardcodedPackageVersion(unittest.TestCase):
         path = Path(__file__).resolve().parents[1] / "pyproject.toml"
         with open(str(path)) as fpp:
             pyproject = toml.loads(fpp.read())
-        pyproject_version = pyproject["tool"]["poetry"]["version"]
+        pyproject_version = pyproject["project"]["version"]
 
         package_init_version = flm.__version__
 

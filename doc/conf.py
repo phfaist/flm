@@ -16,7 +16,7 @@ import toml
 from datetime import datetime
 from pathlib import Path
 _pyproject = toml.load(Path(__file__).resolve().parent.parent / "pyproject.toml")
-_author = ", ".join(_pyproject["tool"]["poetry"]["authors"])
+_author = ", ".join(a["name"] for a in _pyproject["project"]["authors"])
 _year = datetime.now().year
 
 

@@ -528,14 +528,14 @@ See [the `flm-js` subfolder](flm-js/README.md) for more details.
 One-time setup:
 
 ```bash
-> poetry install --extras maincmdl --with builddoc
+> uv sync --extra maincmdl --group builddoc
 ```
 
 Compile docs:
 
 ```bash
 > cd doc
-doc> poetry run make html
+doc> uv run make html
 ```
 
 ### Build JS lib
@@ -547,13 +547,13 @@ rebuilds in final mode.  Assumes a sibling `pylatexenc/` folder where to get the
 pylatexenc sources.  Run:
 
 ```bash
-(cd flm-js && poetry run python ./generate_flm_js.py --pylatexenc-src-dir=../../pylatexenc --delete-target-dir --compile-tests && node test-flm-js/runtests.js &&  poetry run python ./generate_flm_js.py --pylatexenc-src-dir=../../pylatexenc --delete-target-dir)
+(cd flm-js && uv run --group buildjslib python ./generate_flm_js.py --pylatexenc-src-dir=../../pylatexenc --delete-target-dir --compile-tests && node test-flm-js/runtests.js &&  uv run --group buildjslib python ./generate_flm_js.py --pylatexenc-src-dir=../../pylatexenc --delete-target-dir)
 ```
 
 
 ### Make a JSON schema for config
 
 ```bash
-> poetry run python -m flm --print-config-json-schema >flm-config-json-schema.json
+> uv run python -m flm --print-config-json-schema >flm-config-json-schema.json
 ```
 
