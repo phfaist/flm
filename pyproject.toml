@@ -31,7 +31,7 @@ flm = 'flm.__main__:run_main'
 
 [dependency-groups]
 dev = [
-    "pytest>=7.1.2,<8.0",
+    "pytest>=9.0.3,<10.0",
     "ipython>=8.3.0,<9.0",
     "toml>=0.10.2,<0.11",
 ]
