@@ -606,15 +606,21 @@ def get_config_json_schema(
     # features
     #
     
+    # Note: we always iterate the feature/renderer/workflow names in sorted
+    # order so that the generated schema is reproducible from one run to the
+    # next (the caller might well hand us names collected in a set, whose
+    # iteration order varies with the interpreter's hash seed).
+
     features_schema = {}
-    for feature_name, feature_class in feature_classes.items():
+    for feature_name in sorted(feature_classes.keys()):
+        feature_class = feature_classes[feature_name]
         features_schema[feature_name] = {
             'anyOf': [
                 { 'type': 'boolean' },
                 function_json_schema( feature_class.__init__ ),
             ]
         }
-    
+
     configschema['properties']['flm']['properties']['features'] = {
         'type': 'object',
         'additionalProperties': {},
@@ -626,7 +632,8 @@ def get_config_json_schema(
     #
     
     renderers_schema = {}
-    for renderer_name, renderer_class in renderer_classes.items():
+    for renderer_name in sorted(renderer_classes.keys()):
+        renderer_class = renderer_classes[renderer_name]
         renderers_schema[renderer_name] = class_typed_attributes_json_schema(renderer_class)
 
     configschema['properties']['flm']['properties']['renderer'] = {
@@ -640,11 +647,16 @@ def get_config_json_schema(
     #
     
     workflows_schema = {}
-    for workflow_name, workflow_class in workflow_classes.items():
+    for workflow_name in sorted(workflow_classes.keys()):
+        workflow_class = workflow_classes[workflow_name]
         workflows_schema[workflow_name] = \
             type_to_json_schema(workflow_class.TypeWorkflowConfigDict)
 
-    configschema['properties']['flm']['properties']['workflow_config'] = workflows_schema,
+    configschema['properties']['flm']['properties']['workflow_config'] = {
+        'type': 'object',
+        'additionalProperties': {},
+        'properties': workflows_schema,
+    }
 
     return configschema
 
@@ -1260,7 +1272,7 @@ class Run:
             workflow_names.add(wname)
 
         workflow_classes = {}
-        for wname in workflow_names:
+        for wname in sorted(workflow_names):
             if wname == '_base':
                 continue
             try:
@@ -1284,7 +1296,7 @@ class Run:
             renderer_names.add(rname)
         
         renderer_classes = {}
-        for rname in renderer_names:
+        for rname in sorted(renderer_names):
             if rname == '_base':
                 continue
             try:

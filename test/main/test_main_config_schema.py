@@ -1,6 +1,8 @@
 import unittest
 import logging
 import json
+import io
+import contextlib
 
 from flm.main.run import (
     validate_config_for_schema,
@@ -243,10 +245,56 @@ class TestGetConfigJsonSchema(unittest.TestCase):
         )
         dumped = json.dumps(schema)
         reloaded = json.loads(dumped)
-        # Schema may contain tuples that become lists after round-trip;
-        # verify it at least produces a valid JSON object with the same keys
         self.assertTrue(isinstance(reloaded, dict))
         self.assertTrue('properties' in reloaded)
+
+    def test_workflow_config_is_an_object_schema(self):
+        from flm.main.workflow.templatebasedworkflow import (
+            RenderWorkflowClass as TemplateBasedWorkflow
+        )
+        schema = get_config_json_schema(
+            feature_classes={},
+            renderer_classes={},
+            workflow_classes={'templatebasedworkflow': TemplateBasedWorkflow},
+        )
+        workflow_config = (
+            schema['properties']['flm']['properties']['workflow_config']
+        )
+        # must be a subschema object, not a list/tuple of them
+        self.assertTrue(isinstance(workflow_config, dict))
+        self.assertEqual(workflow_config['type'], 'object')
+        self.assertTrue(
+            'templatebasedworkflow' in workflow_config['properties']
+        )
+
+    def test_schema_keys_are_normalized(self):
+        # The generated schema must not depend on the order in which the
+        # feature/renderer/workflow classes are handed to us -- callers may
+        # well collect those names in a set, whose iteration order varies
+        # from one interpreter run to the next.
+        from flm.feature.math import FeatureClass as MathFeature
+        from flm.feature.href import FeatureClass as HrefFeature
+        from flm.feature.defterm import FeatureClass as DeftermFeature
+
+        def _make(feature_classes):
+            return get_config_json_schema(
+                feature_classes=feature_classes,
+                renderer_classes={},
+                workflow_classes={},
+            )
+
+        schema_a = _make({
+            'math': MathFeature, 'href': HrefFeature, 'defterm': DeftermFeature,
+        })
+        schema_b = _make({
+            'defterm': DeftermFeature, 'math': MathFeature, 'href': HrefFeature,
+        })
+
+        keys_a = list(
+            schema_a['properties']['flm']['properties']['features']['properties'].keys()
+        )
+        self.assertEqual(keys_a, ['defterm', 'href', 'math'])
+        self.assertEqual(json.dumps(schema_a), json.dumps(schema_b))
 
 
 # ---------------------------------------------------------------------------
@@ -303,6 +351,43 @@ class TestMainPrintConfigJsonSchema(unittest.TestCase):
         flm_props = schema['properties']['flm']['properties']
         self.assertTrue('features' in flm_props)
         self.assertTrue('parsing' in flm_props)
+
+    def test_output_is_reproducible(self):
+        captured = []
+        for _ in range(2):
+            main_print_config_json_schema(
+                flm_content='Hello',
+                format='html',
+                _print_fn=captured.append,
+            )
+        self.assertEqual(captured[0], captured[1])
+        # keys are emitted in sorted order
+        self.assertTrue('"additionalProperties"' in captured[0])
+        schema = json.loads(captured[0])
+        renderer_keys = list(
+            schema['properties']['flm']['properties']['renderer']['properties'].keys()
+        )
+        self.assertEqual(renderer_keys, sorted(renderer_keys))
+
+    def test_writes_to_output_file_object(self):
+        fout = io.StringIO()
+        main_print_config_json_schema(
+            flm_content='Hello',
+            format='html',
+            output=fout,
+        )
+        schema = json.loads(fout.getvalue())
+        self.assertEqual(schema.get('type'), 'object')
+
+    def test_writes_to_stdout_by_default(self):
+        fout = io.StringIO()
+        with contextlib.redirect_stdout(fout):
+            main_print_config_json_schema(
+                flm_content='Hello',
+                format='html',
+            )
+        schema = json.loads(fout.getvalue())
+        self.assertEqual(schema.get('type'), 'object')
 
 
 if __name__ == '__main__':

@@ -54,7 +54,7 @@ _default_enable_debug_pdb = False
 
 def run_main(cmdargs=None, enable_debug_pdb=_default_enable_debug_pdb, exit_code_on_error=1):
     try:
-        _run_main_inner()
+        _run_main_inner(cmdargs=cmdargs)
     except LatexWalkerError as e:
         logging.getLogger('flm').debug("Got LatexWalkerError, traceback = ", exc_info=True)
         logging.getLogger('flm').critical(
@@ -81,8 +81,8 @@ def run_main(cmdargs=None, enable_debug_pdb=_default_enable_debug_pdb, exit_code
             sys.exit(exit_code_on_error)
 
 
-def _run_main_inner(cmdargs=None):
-    
+def make_args_parser():
+
     args_parser = argparse.ArgumentParser(
         prog='flm',
         description='Latex-Like Markup parser and formatter - https://github.com/phfaist/flm',
@@ -128,21 +128,21 @@ def _run_main_inner(cmdargs=None):
                                           for x in _main_print_merged_config.available_keys]))
                              + "; default ‘run’).")
 
-    args_parser.add_argument('--validate-config-only', nargs='?',
-                             default=None,
-                             const='run',
+    args_parser.add_argument('--validate-config-only', action='store_true',
+                             default=False,
                              help="Load the input and validate the config.  Print warnings "
                              "for config validation failures.  Then exit.")
 
-    args_parser.add_argument('--print-config-json-schema', nargs='?',
-                             default=None,
-                             const='run',
+    args_parser.add_argument('--print-config-json-schema', action='store_true',
+                             default=False,
                              help="Output a JSON schema to validate the full input configuration "
                              "against.  If any input or custom configuration is provided, its "
                              "configuration keys for features, "
                              "renderers, and workflows are collected and included in the schema. "
                              "The folder-level config file(s) (e.g. 'flmconfig.yaml') are also read. "
-                             "(For now, $presets are not included in the schema...)")
+                             "(For now, $presets are not included in the schema...)  "
+                             "The schema is written to the file given by --output, or to "
+                             "stdout by default.")
 
     args_parser.add_argument('-o', '--output', action='store',
                              default=None,
@@ -206,7 +206,12 @@ def _run_main_inner(cmdargs=None):
     args_parser.add_argument('files', metavar="FILE", nargs='*',
                              help='Input files (if none specified, read from stdandard input)')
 
-    # --
+    return args_parser
+
+
+def _run_main_inner(cmdargs=None):
+
+    args_parser = make_args_parser()
 
     args = args_parser.parse_args(args=cmdargs)
 
@@ -236,7 +241,7 @@ def _run_main_inner(cmdargs=None):
     #
     # If we want a JSON schema of config tree:
     #
-    if args.print_config_json_schema is not None:
+    if args.print_config_json_schema:
         d = args.__dict__
         _main_print_config_json_schema(**d)
         return
@@ -244,7 +249,7 @@ def _run_main_inner(cmdargs=None):
     #
     # If we simply want to validate the input config:
     #
-    if args.validate_config_only is not None:
+    if args.validate_config_only:
         d = args.__dict__
         _main_validate_config(**d)
         return

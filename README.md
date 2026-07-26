@@ -554,6 +554,10 @@ pylatexenc sources.  Run:
 ### Make a JSON schema for config
 
 ```bash
-> uv run python -m flm --print-config-json-schema >flm-config-json-schema.json
+> uv run python -m flm --print-config-json-schema -o flm-config-json-schema.json
 ```
+
+The schema is emitted in normalized form (sorted keys, fixed indentation), so
+repeated runs produce byte-identical output and the file can be committed and
+diffed.
 

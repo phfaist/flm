@@ -164,7 +164,8 @@ def _generate_config_json_schema(app, exception):
     schema = run_object.get_config_json_schema()
     outpath = os.path.join(app.outdir, 'flm-config-json-schema.json')
     with open(outpath, 'w') as f:
-        json.dump(schema, f, indent=2)
+        # normalized form, same as `flm --print-config-json-schema`
+        json.dump(schema, f, indent=2, sort_keys=True)
 
 def setup(app):
     app.connect('build-finished', _generate_config_json_schema)

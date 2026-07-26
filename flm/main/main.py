@@ -483,14 +483,36 @@ def main_validate_config(*args, **kwargs):
 
 
 
-def main_print_config_json_schema(*args, _print_fn=print, **kwargs):
+def main_print_config_json_schema(*args, _print_fn=None, **kwargs):
     r"""
     Output a JSON schema that FLM configurations should conform to.
+
+    The schema is serialized in a normalized form (sorted keys, fixed
+    indentation) so that repeated runs produce byte-identical output and the
+    result can meaningfully be committed and diffed.
+
+    The output goes to the file given by the `output` argument (i.e., the
+    ``--output`` command-line option), or to stdout if that is unset or is
+    ``'-'``.
     """
     a = Main(**kwargs, _no_default_stdin=True)
     run_object = a.make_run_object()
     schema = run_object.get_config_json_schema()
-    _print_fn( json.dumps(schema) )
+    schema_json = json.dumps(schema, indent=2, sort_keys=True)
+    if _print_fn is not None:
+        _print_fn( schema_json )
+        return
+    arg_output = kwargs.get('output', None)
+    if not arg_output or arg_output == '-':
+        print(schema_json)
+        return
+    if hasattr(arg_output, 'write'):
+        # it's a file-like object, use it directly
+        arg_output.write(schema_json + "\n")
+        return
+    with open(arg_output, 'w', encoding='utf-8') as fout:
+        fout.write(schema_json + "\n")
+    logger.info('Output to ‘%s’', arg_output)
     return
 
 

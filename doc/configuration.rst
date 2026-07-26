@@ -119,11 +119,16 @@ You can also validate your configuration from the command line with
 
     flm myfile.flm --validate-config-only
 
-Or print the full JSON schema with ``--print-config-json-schema``:
+Or print the full JSON schema with ``--print-config-json-schema``.  The schema
+goes to standard output, or to the file given by ``--output``:
 
 .. code-block:: bash
 
-    flm myfile.flm --print-config-json-schema
+    flm myfile.flm --print-config-json-schema -o flm-config-json-schema.json
+
+The schema is emitted in a normalized form (sorted keys, fixed indentation), so
+that repeated runs produce byte-identical output and the resulting file can be
+committed to version control and diffed.
 
 
 .. _config-frontmatter:
