@@ -16,9 +16,13 @@ jobs:
 
     environment: env-deploy-pypi
 
-    steps:
-      - uses: actions/checkout@v3
+    permissions:
+      id-token: write
+      contents: read
 
+    steps:
+      - uses: actions/checkout@v4
+          
       - name: 'Set up uv'
         uses: astral-sh/setup-uv@v5
         with:
@@ -29,4 +33,4 @@ jobs:
         run: 'uv build'
 
       - name: 'uv Publish package'
-        run: 'uv publish --token ${{ secrets.PYPI_API_TOKEN }}'
+        run: 'uv publish --trusted-publishing always'
