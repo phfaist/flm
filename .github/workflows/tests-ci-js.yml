@@ -4,9 +4,9 @@ name: 'tests-ci-js'
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main-py" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main-py" ]
   # schedule:
   #   - cron: "13 20 * * 3"
 
