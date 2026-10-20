@@ -1,0 +1,52 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.2e4a131e.sty
+A chunk with notes\flmCitePreSpace\flmCite[Thm 4]{a,b}\flmCite{c}.
+
+Written with no space: text\flmCitePreSpace\flmCite{a}. Written with one: text \flmCitePreSpace\flmCite{a}.
+
+Keys as typed\flmCitePreSpace\flmCite{arxiv:1234_5,knuth_84}; through a definition\flmUDknuth.
+%%
+% ===== latex-recomposed:style flmrecomposed.2e4a131e.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.2e4a131e}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.citations
+% Citations, written as the document wrote them. The list of the cited works
+% is LaTeX's own (thebibliography, BibTeX, biblatex), built from your
+% database.
+% \flmCite[<note>]{<keys>}: one citation, its keys as written, separated by
+%   commas, and its note where it has one; by default LaTeX's \cite. To show
+%   the entries in place, redefine it, with biblatex's \fullcite for instance.
+% \flmCitePreSpace: written before citations attached to the text before
+%   them; by default \unskip~, a space that does not break. For superscript
+%   citations, redefine it to \unskip.
+% \flmRefCite{<word>}{<citations>}: citations used as a noun of the sentence,
+%   with the word written before them (refs.~, Refs.~, or nothing); by
+%   default the word, then the citations.
+% A change of case (\MakeUppercase) leaves the keys of \flmCite unchanged and
+% changes its note, as it does for \cite; as for \cite, it protects the
+% first brace group after the command, so where the note holds one
+% ([{...}], \emph{...}) the keys are changed too.
+\ProvideDocumentCommand\flmCite{o m}{\IfValueTF{#1}{\cite[{#1}]{#2}}{\cite{#2}}}
+\ProvideDocumentCommand\flmCitePreSpace{}{\unskip~}
+\ProvideDocumentCommand\flmRefCite{m m}{#1#2}
+% What a citation contributes to a PDF bookmark: nothing. The \AtBeginDocument
+% block below runs when the document begins, so that it also applies where
+% hyperref is loaded after this file; it does nothing without hyperref.
+% \flm@cite@bookmark, defined first, reads \flmCite's optional note, if any,
+% then its keys, and writes nothing.
+\def\flm@cite@bookmark#1{\ifx[#1\expandafter\flm@cite@bookmark@note\fi}
+\def\flm@cite@bookmark@note#1]#2{}
+\AtBeginDocument{\ifdefined\pdfstringdefDisableCommands
+  \pdfstringdefDisableCommands{%
+    \def\flmCitePreSpace{}%
+    \let\flmCite\flm@cite@bookmark
+    \def\flmRefCite#1#2{}%
+  }\fi}
+\ExplSyntaxOn
+\tl_if_in:NnF \l_text_case_exclude_arg_tl { \flmCite } { \tl_put_right:Nn \l_text_case_exclude_arg_tl { \flmCite } }
+\ExplSyntaxOff
+% --- user definitions ---
+% \flmUDknuth (the document's \knuth): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDknuth{\flmCitePreSpace\flmCite{knuth_84}}
+\endinput

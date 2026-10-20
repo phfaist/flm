@@ -1,0 +1,21 @@
+# The house style, an extension of the engine `data` written as a folder: it uses another
+# extension, sets features, parsing settings and a workflow, and ships a template.
+extension:
+  description: The house style.
+flm:
+  use: [margins]
+  features:
+    userdefs:
+      macros:
+        project:
+          content: 'the \emph{Example} project'
+    compose:
+      template: house
+  parsing:
+    dollar_math: true
+  workflows:
+    draft:
+      extends: text
+      settings:
+        text: {width: 30}
+      docs: The text output, narrow.

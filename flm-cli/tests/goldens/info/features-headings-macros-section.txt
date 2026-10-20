@@ -1,0 +1,33 @@
+Macro \section
+
+macro \section
+
+\section*[options]{title}\label{target}
+
+\section*[…]{title}\label{…}: A heading of level 1.
+
+Arguments
+
+* star: A star: not numbered (numbered=false).
+
+[options] options: Key-values: numbered=true|false, toc=true|false.
+
+{title} title: The heading’s title.
+
+Fields written after it
+
+\label{target} label: Attaches a label to the construct, which a reference can
+point at; may be repeated. It may be written more than once.
+
+{target} target (flm.refs.defined-label): The label, written type:label
+(sec:intro). (an argument of the field \label)
+
+Declared by: the feature headings <flm info features/headings>
+
+Available in: text mode
+
+Element: flm.heading <flm info namespaces/element/flm.heading>: section: A
+heading of level 1.
+
+Aspects: flm_core::model::aspects::BlockRoleAspect,
+flm_core::model::aspects::Sectioning, flm_core::model::aspects::Referenceable

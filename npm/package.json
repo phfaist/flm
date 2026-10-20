@@ -1,0 +1,14 @@
+{
+  "name": "flm-npm-workspace",
+  "private": true,
+  "description": "The development tooling of the FLM repository: the builds of the committed bundles of its extensions, and the TypeScript check of flm-ext's declarations. Nothing here is needed to build or install the program.",
+  "workspaces": [
+    "lecturenotes",
+    "math-mathjax",
+    "flm-ext"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm test --workspaces --if-present"
+  }
+}

@@ -1,0 +1,211 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.c57af267.sty
+\begin{defterm}{Entropy}\phantomsection\flmLabelsWithDisplayText{Entropy}{\flmLabels{\label{ref1}\label{ref2}}}\ignorespaces
+A measure.
+\end{defterm}
+
+See \flmRef{ref2}.
+%%
+% ===== latex-recomposed:style flmrecomposed.c57af267.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.c57af267}
+% --- packages ---
+% flm.latex.pkg.hyperref
+\RequirePackage{hyperref}
+% flm.latex.pkg.zref-clever
+\RequirePackage{zref-clever}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.defterm
+% Defined terms. A term definition is written as the environment defterm,
+% whose one argument is the term. This file defines the environment further
+% below, in the part headed "definitions written from the configuration of
+% FLM features"; the environment's opening text is the lead-in that the
+% document was recomposed with. The body of a term definition opens with
+% \phantomsection, so that a link to the term definition leads to it, and
+% with \flmLabelsWithDisplayText, so that a reference to one of its labels
+% prints the term.
+% \flmTerm{<label>}{<shown>}: <shown>, a link to the definition of a term,
+%   <label> being a label of that definition, as \flmHyperref takes it.
+% \flmTermInDefterm{<shown>}: <shown> written inside the definition of its
+%   own term: the term being defined, set apart, with no link.
+% Redefine either command to set term links another way.
+\ProvideDocumentCommand\flmTerm{m m}{\flmHyperref{#1}{#2}}
+\ProvideDocumentCommand\flmTermInDefterm{m}{\emph{#1}}
+% What a term link contributes to a PDF bookmark: its text alone. The code
+% below runs when the document begins (\AtBeginDocument) and does nothing
+% where hyperref is not loaded.
+\AtBeginDocument{\ifdefined\pdfstringdefDisableCommands
+  \pdfstringdefDisableCommands{%
+    \def\flmTerm#1#2{#2}%
+    \def\flmTermInDefterm#1{#1}%
+  }\fi}
+% flm.latex.def.refs
+% \flmRef[<options>]{<label>}: a reference that gives the name of its target
+% ("Section 2"), set by \zcref of the zref-clever package.
+%
+% The options are the ones the document wrote, in FLM's own vocabulary. This
+% definition translates each of them by its key -- a value written after the
+% key is ignored, as in FLM -- and drops every key it has no translation for:
+%
+%   noprefix    -> noname                 the number or title alone, with no
+%                                         name before it ("2", not
+%                                         "Section 2")
+%   S           -> S                      the first name capitalized and
+%                                         unabbreviated, for a reference that
+%                                         opens a sentence
+%   capital     -> cap=true,abbrev=false  the names capitalized ("Lemma 1")
+%   lowercase   -> cap=false,abbrev=false the names in lowercase ("lemma 1")
+%   abbreviated -> abbrev=true            the abbreviated names ("Lem. 1")
+%                                         where the reference type declares
+%                                         them, the full names otherwise
+%   anything else -> dropped              the default wording; a variant of
+%                                         your own naming has no counterpart
+%                                         in zref-clever, which would stop on
+%                                         a key it does not know
+%
+% Redefine \flmRef to set references differently -- another package, another
+% wording, your own variants, no link. Your definition sees the options as the
+% document wrote them, in FLM's vocabulary, and maps them as it likes.
+%
+% The translation uses expl3, LaTeX's programming layer, which is part of the
+% format and needs no package; its names read only between \ExplSyntaxOn and
+% \ExplSyntaxOff. \keyval_parse:NNn reads the option list as LaTeX reads any
+% key-value list: it hands a key written alone to the first macro below and a
+% key with its value to the second, which drops the value. \str_case:nnF looks
+% the key up in the table and appends what \zcref is to be given, or nothing.
+% The macros with @ in their names are internals, not a customization point:
+% redefine \flmRef, not its parts.
+\ExplSyntaxOn
+\def\flm@ref@add#1{\tl_put_right:Nn \flm@ref@options {#1,}}
+\def\flm@ref@key#1{\str_case:nnF {#1}
+  {{noprefix}{\flm@ref@add{noname}}
+   {S}{\flm@ref@add{S}}
+   {capital}{\flm@ref@add{cap=true,abbrev=false}}
+   {lowercase}{\flm@ref@add{cap=false,abbrev=false}}
+   {abbreviated}{\flm@ref@add{abbrev=true}}}
+  {}}
+\def\flm@ref@pair#1#2{\flm@ref@key{#1}}
+\def\flm@ref@zcref#1#2{\zcref[#1]{#2}}
+\ProvideDocumentCommand\flmRef{O{} m}{%
+  \def\flm@ref@options{}%
+  \keyval_parse:NNn \flm@ref@key \flm@ref@pair {#1}%
+  \exp_args:No \flm@ref@zcref {\flm@ref@options} {#2}}
+\ExplSyntaxOff
+% flm.latex.def.hyperref
+% \flmHyperref{<label>}{<text>}: <text>, shown as a link to the place <label>
+% refers to.
+%
+% Making a link in a PDF takes the hyperref package, and loading it changes a
+% whole document -- every reference becomes a link, bookmarks are built. That
+% is the author's decision, not this file's, so this file neither loads
+% hyperref nor asks for it: the definition below links through it where the
+% document loaded it and prints the text alone where it did not, so the
+% document compiles either way. The question is about this document's own
+% preamble, so the answer is the same wherever the document is compiled; it is
+% asked here, at the reference, so it is right whether this file was loaded
+% before hyperref or after it.
+%
+% Redefine \flmHyperref to link differently -- another package, a footnote
+% with the target's number, no link at all.
+\ProvideDocumentCommand\flmHyperref{m m}{%
+  \IfPackageLoadedTF{hyperref}{\hyperref[{#1}]{#2}}{#2}}
+% What such a reference contributes to a PDF bookmark: the text alone. A
+% bookmark is plain text and carries no link, and without this line the label
+% would appear in it beside the text. The hook runs when the document begins
+% and does nothing where hyperref is absent.
+\AtBeginDocument{\ifdefined\pdfstringdefDisableCommands
+  \pdfstringdefDisableCommands{%
+    \def\flmHyperref#1#2{#2}%
+  }\fi}
+% flm.latex.def.label-display-text
+% \flmLabelsWithDisplayText{<text>}{<labels>}: makes <labels> refer to this
+% place, with <text> as what a reference to them prints. It is the only
+% command for that: a heading the class did not number uses it, and so does
+% anything else that has a name but no number.
+%
+% It places no anchor of its own. Under hyperref a sectioning command, starred
+% or not, already places one at the title; a \label after it points there.
+% \refstepcounter would place a second anchor here, below the title, and a
+% link would lead below the heading. So the counter is stepped with
+% the plain \stepcounter and the two things this needs are set here:
+% \@currentlabel, which is what a \label records, and \@currentcounter,
+% which is what zref-clever reads to give the label its reference type. The
+% group keeps every change local.
+%
+% <text> is expanded to make \@currentlabel, and \label does not survive that
+% expansion; so a \label inside <text> (for example a footnote's) is dropped
+% from the label's text only. At its own place in the document it still makes
+% its own label.
+%
+% A caller with no sectioning command before it -- for example a defined term
+% in running text -- writes \phantomsection at its own place, so that a link
+% has an anchor of its own to lead to.
+%
+% Redefine \flmLabelsWithDisplayText to change how such labels are made.
+\ifcsname c@flm@internal@refcnt\endcsname\else\newcounter{flm@internal@refcnt}\fi
+\ProvideDocumentCommand\flmLabelsWithDisplayText{m m}{%
+  \begingroup
+    \stepcounter{flm@internal@refcnt}%
+    {\let\label\@gobble\protected@xdef\flm@lwdt@text{#1}}%
+    \let\@currentlabel\flm@lwdt@text
+    \def\@currentcounter{flm@internal@refcnt}%
+    #2%
+  \endgroup}
+% flm.latex.def.zref-clever-type
+% The zref-clever reference type of the counter \flmLabelsWithDisplayText
+% steps, with every name prefix empty, so that a reference to such a label
+% prints its text alone ("Introduction", not "Section Introduction").
+% Every other label keeps the name its own type gives it. Redefine these
+% settings, or the type of the counter, to put something before the text.
+\zcsetup{countertype={flm@internal@refcnt=flm--internal--ref}}
+\zcRefTypeSetup{flm--internal--ref}{Name-sg = , name-sg = , Name-pl = , name-pl = ,}
+% flm.latex.def.labels
+% \flmLabels{<\label commands>}: the labels of one place in the document.
+% In text it runs them as written. On a line of a display-math
+% environment, where amsmath keeps the last label of a line and loses the
+% ones before it, it runs the first and records every further one as an alias:
+% a line per alias is written to the .aux file after the last page and read on
+% the next run, making the alias refer to what the first label refers to
+% (for \ref and for \zcref alike). Redefine \flmLabels to change what a
+% group of labels does; \def\flmLabels#1{#1} restores plain LaTeX behavior,
+% amsmath's "Multiple \label's" message included.
+\ProvideDocumentCommand\flmLabels{m}{%
+  \ifmmode\expandafter\flm@labels@math\else\expandafter\@firstofone\fi{#1}}
+% Reading the group: the first \label as written, the rest as aliases of it.
+\def\flm@labels@math#1{\def\flm@lbl@first{}\flm@lbl@scan#1\flm@lbl@stop}
+\def\flm@lbl@scan{\@ifnextchar\label\flm@lbl@take\flm@lbl@rest}
+\def\flm@lbl@take\label#1{%
+  \ifx\flm@lbl@first\@empty
+    \def\flm@lbl@first{#1}%
+    \label{#1}%
+  \else
+    \expandafter\flm@recordalias\expandafter{\flm@lbl@first}{#1}%
+  \fi
+  \flm@lbl@scan}
+\def\flm@lbl@rest#1\flm@lbl@stop{#1}
+% Collecting the aliases. A name is recorded once however often the line is
+% typeset (amsmath measures a line before setting it).
+\def\flm@aliaslist{}
+\def\flm@recordalias#1#2{%
+  \ifcsname flm@alias@#2\endcsname\else
+    \expandafter\gdef\csname flm@alias@#2\endcsname{}%
+    \g@addto@macro\flm@aliaslist{\flm@alias@entry{#2}{#1}}%
+  \fi}
+% Writing them, from the hook that runs after the last page has been shipped
+% out: every \newlabel of that page has reached the .aux file by then, so the
+% alias lines come after them. \AtEndDocument would run too early.
+\def\flm@alias@write#1#2{\immediate\write\@auxout{\string\flm@aliaslabel{#1}{#2}}}
+\AddToHook{enddocument/afterlastpage}{\let\flm@alias@entry\flm@alias@write\flm@aliaslist}
+% Reading them back: the alias refers to what the original refers to. The
+% assignments are global because the .aux file is read inside a group.
+\def\flm@aliaslabel#1#2{%
+  \ifcsname r@#2\endcsname
+    \global\expandafter\let\csname r@#1\expandafter\endcsname\csname r@#2\endcsname
+  \fi
+  \ifcsname Z@R@#2\endcsname
+    \global\expandafter\let\csname Z@R@#1\expandafter\endcsname\csname Z@R@#2\endcsname
+  \fi}
+% --- definitions written from the configuration of FLM features ---
+% defterm (the defterm feature's, written from its configuration): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \RenewDocumentEnvironment after loading this file changes it
+\ProvideDocumentEnvironment{defterm}{+m}{}{}
+\endinput

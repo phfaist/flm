@@ -1,0 +1,71 @@
+Quotations [PhF] marked [PhF: a remark in a title]
+==================================================
+
+To be or not to be.
+
+Line one
+    Line two, [PhF] marked
+        Line three
+
+Shakespeare [check the source]
+
+A block section holding [PhF] a highlight and [a remark].
+
+A second paragraph with a comment cut [PhF: across a
+
+paragraph break] and a list:
+
+• one
+
+• two, [PhF] marked
+
+A blockquote’s first paragraph, [PhF] marked.
+
+Its second paragraph, before a list:
+
+1. an item
+
+123 Main St
+    City, ST 12345
+
+Roses are red,
+    violets are blue.
+
+Anonymous
+
+Some text [PhF: A comment.
+
+With multiple paragraphs.] More text.
+
+Some text [PhF] A highlight
+
+across a paragraph break, then a highlight of abc’s and [PhF] x[y].
+
+[PhF] see
+
+• a list in a passage
+
+here
+
+• An entry [PhF] marked and [PhF: remarked].
+
+• An entry holding a quotation:
+
+  Quoted in a list.
+
+• An entry with a comment [PhF: cut
+
+  across a break] in it.
+
+A footnote.¹
+
+A formula \(x = y \text{where yPhF is marked}\) in the text.
+
+A user definition’s template: [PhF: check this].
+
+Footnotes
+---------
+
+¹ Holding [PhF] a passage, [a remark], and [PhF: a comment
+
+  cut in the note].

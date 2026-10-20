@@ -1,0 +1,2 @@
+:root { --ln-family: {{ config.font_family }}; }
+{{ include_raw("dist/lecturenotes.css") }}

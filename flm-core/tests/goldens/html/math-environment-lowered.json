@@ -1,0 +1,72 @@
+[
+  {
+    "elem": "flm.pres.math-passthrough",
+    "body": [
+      {
+        "elem": "flm.pres.math-text",
+        "body": [],
+        "payload": {
+          "anchor": "eq-x"
+        }
+      },
+      {
+        "chars": "\n  x &= y  "
+      },
+      {
+        "chars": "\\tag*{"
+      },
+      {
+        "elem": "flm.pres.math-text",
+        "body": [
+          {
+            "chars": "(1)"
+          }
+        ],
+        "payload": {
+          "at_tag": true
+        }
+      },
+      {
+        "chars": "}"
+      },
+      {
+        "elem": "flm.field",
+        "name": "\\"
+      },
+      {
+        "elem": "flm.pres.math-text",
+        "body": [],
+        "payload": {
+          "anchor": "eq--2oqua"
+        }
+      },
+      {
+        "chars": "\n  z &= w"
+      },
+      {
+        "chars": "\\tag*{"
+      },
+      {
+        "elem": "flm.pres.math-text",
+        "body": [
+          {
+            "chars": "(2)"
+          }
+        ],
+        "payload": {
+          "at_tag": true
+        }
+      },
+      {
+        "chars": "}"
+      },
+      {
+        "chars": "\n"
+      }
+    ],
+    "payload": {
+      "display": "display",
+      "env": "align"
+    }
+  }
+]

@@ -1,0 +1,117 @@
+% flm.latex.def.flmx.annotations -- a reviewer's highlights and comments.
+%
+% The annotations feature writes a highlight as a span of role
+% flm.annotations.highlight and a comment as a span of role
+% flm.annotations.comment, whose kind tokens are the annotator's command
+% name and annotator-<n>, <n> the annotator's number counted from 0; the
+% annotator's initials stand at the start, in a span of role
+% flm.annotations.initials (with the same kind tokens) inside a margin
+% decoration:
+%   \flmxSpan[role=flm.annotations.highlight, kinds={phf annotator-0}]{%
+%     \flmxDecoMargin{\flmxSpan[role=flm.annotations.initials,
+%     kinds={phf annotator-0}]{PhF}}a passage}
+% An annotation cut around a block (a list inside a highlighted passage) is
+% a block of the same role. A cut part also carries the kind token
+% mark-continues when a part follows it, and mark-continued when one
+% precedes it.
+%
+% Defaults: the color of annotator <n> is flmxAnnotatorColor<n> for <n> from
+% 0 to 7 (the eight colors the phfcc package presets, in its order), and
+% flmxAnnotatorColorFallback (red) for any other number. A highlight is in
+% its annotator's color; a comment is in the color, in \sffamily and between
+% brackets, the opening one left out on a part marked mark-continued and the
+% closing one on a part marked mark-continues (a block's bracket stands on a
+% line of its own); the initials are in the color and in \sffamily, in the
+% margin decoration's default (\marginpar, in \footnotesize). A template
+% changes the colors with \colorlet{flmxAnnotatorColor0}{...} and the look
+% with
+%   \flmxDefineSpan{flm.annotations.highlight}{<code over #1>}
+%   \flmxDefineSpan{flm.annotations.comment}{<code over #1>}
+%   \flmxDefineSpan{flm.annotations.initials}{<code over #1>}
+%   \flmxDefineBlock{flm.annotations.highlight}{<begin code>}{<end code>}
+%   \flmxDefineBlock{flm.annotations.comment}{<begin code>}{<end code>}
+% in which \flmxAnnotatorColor expands to the name of the color of the
+% annotator the element's kind tokens give.
+
+\definecolor{flmxAnnotatorColor0}{RGB}{0,148,240}
+\definecolor{flmxAnnotatorColor1}{RGB}{242,108,13}
+\definecolor{flmxAnnotatorColor2}{RGB}{65,149,42}
+\definecolor{flmxAnnotatorColor3}{RGB}{128,55,134}
+\definecolor{flmxAnnotatorColor4}{RGB}{0,129,129}
+\definecolor{flmxAnnotatorColor5}{RGB}{148,7,24}
+\definecolor{flmxAnnotatorColor6}{RGB}{160,120,0}
+\definecolor{flmxAnnotatorColor7}{RGB}{35,195,155}
+\colorlet{flmxAnnotatorColorFallback}{red}
+
+\ExplSyntaxOn
+
+\tl_new:N \l__flmx_annotations_kinds_tl
+\tl_new:N \l__flmx_annotations_number_tl
+
+% The name of the color of the annotator the kind tokens give.
+\NewExpandableDocumentCommand \flmxAnnotatorColor { }
+  { \__flmx_annotations_color:e { \__flmx_annotations_number: } }
+\cs_new:Npn \__flmx_annotations_color:n #1
+  {
+    \bool_lazy_and:nnTF
+      { ! \tl_if_blank_p:n {#1} }
+      { \int_compare_p:nNn {#1} < { 8 } }
+      { flmxAnnotatorColor #1 }
+      { flmxAnnotatorColorFallback }
+  }
+\cs_generate_variant:Nn \__flmx_annotations_color:n { e }
+% The annotator's number: what follows annotator- in the first kind token
+% that begins with it, or nothing.
+\cs_new:Npn \__flmx_annotations_number:
+  {
+    \exp_last_unbraced:Ne \__flmx_annotations_number:w
+      { \flmxKey { kinds } \c_space_tl annotator- \c_space_tl }
+    \q_stop
+  }
+\cs_new:Npn \__flmx_annotations_number:w #1 annotator- #2 \q_stop
+  { \tl_if_blank:nF {#2} { \__flmx_annotations_digits:w #2 ~ \q_stop } }
+\cs_new:Npn \__flmx_annotations_digits:w #1 ~ #2 \q_stop {#1}
+
+% Whether the element carries the kind token #1.
+\prg_new_protected_conditional:Npnn \__flmx_annotations_if_kind:n #1 { T, F, TF }
+  {
+    \tl_set:Ne \l__flmx_annotations_kinds_tl { \flmxKey { kinds } }
+    \tl_replace_all:Nnn \l__flmx_annotations_kinds_tl { ~ } { , }
+    \clist_if_in:NnTF \l__flmx_annotations_kinds_tl {#1}
+      { \prg_return_true: }
+      { \prg_return_false: }
+  }
+
+\cs_new_protected:Npn \__flmx_annotations_anchor:
+  { \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } }
+
+\flmxDefineSpan { flm.annotations.highlight }
+  { \__flmx_annotations_anchor: \textcolor { \flmxAnnotatorColor } {#1} }
+\flmxDefineSpan { flm.annotations.comment }
+  {
+    \__flmx_annotations_anchor:
+    \textcolor { \flmxAnnotatorColor }
+      {
+        \sffamily
+        \__flmx_annotations_if_kind:nF { mark-continued } { [ }
+        #1
+        \__flmx_annotations_if_kind:nF { mark-continues } { ] }
+      }
+  }
+\flmxDefineSpan { flm.annotations.initials }
+  { \__flmx_annotations_anchor: \textcolor { \flmxAnnotatorColor } { \sffamily #1 } }
+
+\flmxDefineBlock { flm.annotations.highlight }
+  { \par \__flmx_annotations_anchor: \color { \flmxAnnotatorColor } }
+  { \par }
+\flmxDefineBlock { flm.annotations.comment }
+  {
+    \par \__flmx_annotations_anchor: \color { \flmxAnnotatorColor } \sffamily
+    \__flmx_annotations_if_kind:nF { mark-continued } { \noindent [ \par }
+  }
+  {
+    \par
+    \__flmx_annotations_if_kind:nF { mark-continues } { \noindent ] \par }
+  }
+
+\ExplSyntaxOff

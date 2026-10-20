@@ -1,0 +1,75 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.4cc24c08.sty
+\flmHref{https://doi.org/10.1000/a\%20b\#c}{10.1000/a\%20b\#c} \flmHref{https://doi.org/a^b}{a\textasciicircum{}b} \flmHref{https://doi.org/10.1000/x~y\\z^w}{10.1000/x\textasciitilde{}y\textbackslash{}z\textasciicircum{}w} \flmUrl{https://x.org/a\%20b\#c} \flmUDcode{x\%y}%%
+% ===== latex-recomposed:style flmrecomposed.4cc24c08.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.4cc24c08}
+% --- packages ---
+% flm.latex.pkg.hyperref
+\RequirePackage{hyperref}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.href
+% Links to an address outside the document, one hook per FLM command:
+% \flmHref{<address>}{<text>}: <text>, linked to <address>, as \href does.
+% \flmUrl{<address>}: the display of <address>, linked to <address> and
+%   typeset the way \url typesets an address.
+% \flmEmail{<address>}: the display of mailto:<address> -- the address --
+%   linked to mailto:<address> and typeset the same way.
+% The display is what the other outputs of FLM show of such a link: its target
+% without one leading http://, https:// or mailto: and without the trailing
+% run of the characters / # ? -- https://example.com/?# shows example.com.
+% Every argument is an ordinary one: in <address> the characters # % \ are
+% written \# \% \\. Redefine a hook to link or typeset differently.
+%
+% The display is derived by \flm@href@display{<address>}, written in expl3,
+% LaTeX's programming layer, which is part of the format and needs no package;
+% its names read only between \ExplSyntaxOn and \ExplSyntaxOff. It reads the
+% address as a string of characters (\tl_to_str:n), drops the backslash of
+% each \# \% \\, then the prefix, then the trailing run, one character at a
+% time. It works by expansion alone and leaves the display and nothing else,
+% so that it serves where a hook is typeset and where hyperref builds a PDF
+% bookmark by expansion. The macros with @ in their names are internals, not a
+% customization point: redefine a hook, not its parts.
+\ExplSyntaxOn
+\def\flm@href@display#1{\exp_args:Ne \flm@href@trim
+  {\exp_args:Ne \flm@href@unprefix
+    {\exp_args:Ne \flm@href@unescape {\tl_to_str:n {#1}}}}}
+% Every character, a backslash dropped and the character after it kept.
+\def\flm@href@unescape#1{\str_if_empty:nF {#1}
+  {\str_if_eq:eeTF {\str_head:n {#1}} {\c_backslash_str}
+    {\exp_args:Ne \flm@href@unescape@one {\str_tail:n {#1}}}
+    {\flm@href@unescape@one {#1}}}}
+\def\flm@href@unescape@one#1{\str_head:n {#1}
+  \exp_args:Ne \flm@href@unescape {\str_tail:n {#1}}}
+% The first of the three prefixes the string begins with, taken off.
+\def\flm@href@unprefix#1{\flm@href@unprefix@try {#1} {http://}
+  {\flm@href@unprefix@try {#1} {https://}
+    {\flm@href@unprefix@try {#1} {mailto:} {#1}}}}
+\def\flm@href@unprefix@try#1#2#3{\str_if_eq:eeTF
+  {\str_range:nnn {#1} {1} {\str_count:n {#2}}} {#2}
+  {\str_range:nnn {#1} {\str_count:n {#2} + 1} {-1}} {#3}}
+% The last character taken off while it is one of / # ?.
+\def\flm@href@trim#1{\exp_args:Ne \flm@href@trim@last {\str_item:nn {#1} {-1}} {#1}}
+\def\flm@href@trim@last#1#2{\bool_lazy_any:nTF
+  {{\str_if_eq_p:nn {#1} {/}} {\str_if_eq_p:ee {#1} {\c_hash_str}} {\str_if_eq_p:nn {#1} {?}}}
+  {\exp_args:Ne \flm@href@trim {\str_range:nnn {#2} {1} {-2}}} {#2}}
+% The display of <target>, typeset by \nolinkurl.
+\def\flm@href@show#1{\exp_args:Ne \nolinkurl {\flm@href@display {#1}}}
+\ExplSyntaxOff
+\ProvideDocumentCommand\flmHref{m m}{\href{#1}{#2}}
+\ProvideDocumentCommand\flmUrl{m}{\href{#1}{\flm@href@show{#1}}}
+\ProvideDocumentCommand\flmEmail{m}{\href{mailto:#1}{\flm@href@show{mailto:#1}}}
+% What such a link contributes to a PDF bookmark: its text or its display
+% alone. The hook runs when the document begins, so that it also holds where
+% the document loads hyperref itself, after this file, having named it in the
+% render option skip_packages; it does nothing where hyperref is absent.
+\AtBeginDocument{\ifdefined\pdfstringdefDisableCommands
+  \pdfstringdefDisableCommands{%
+    \def\flmHref#1#2{#2}%
+    \def\flmUrl#1{\flm@href@display{#1}}%
+    \def\flmEmail#1{\flm@href@display{mailto:#1}}%
+  }\fi}
+% --- user definitions ---
+% \flmUDcode (the document's \code): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDcode[1]{\textbf{#1}}
+\endinput

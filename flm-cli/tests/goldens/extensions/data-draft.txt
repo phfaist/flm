@@ -1,0 +1,11 @@
+== HOUSE ==
+A house report
+
+Here the Example project
+measures the line \(x\) of
+every page, in short words
+that the text output wraps at
+the width that the house style
+sets for its draft.
+
+== END ==

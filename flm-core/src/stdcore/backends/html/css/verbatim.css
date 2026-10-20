@@ -1,0 +1,49 @@
+/* flm.html.style.verbatim */
+/* The look of content set character for character (verbatim content): code,
+   an identifier, or plain characters, inline or as a block. */
+@layer flm {
+  :root {
+    --flm-verbatim-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --flm-verbatim-size: 0.9em;
+    /* The background behind code, and the rounding of its corners. */
+    --flm-verbatim-background: #f2f2f2;
+    --flm-verbatim-radius: 0.2em;
+    --flm-verbatim-inline-padding: 0.1em 0.3em;
+    --flm-verbatim-block-padding: 0.6em 0.8em;
+    --flm-verbatim-block-spacing: 1em;
+  }
+
+  /* Every kind of verbatim content is set in the same font, at the same
+     size. */
+  .flm-pres-verbatim {
+    font-family: var(--flm-verbatim-family);
+    font-size: var(--flm-verbatim-size);
+  }
+
+  /* Code (the verbatim kind code), inline and as a block: the only kind with
+     a background, so that plain verbatim characters read as text. */
+  .flm-pres-verbatim[data-flm-kind="code"] {
+    background: var(--flm-verbatim-background);
+    border-radius: var(--flm-verbatim-radius);
+  }
+  .flm-pres-verbatim[data-flm-kind="code"][data-flm-display="inline"] {
+    padding: var(--flm-verbatim-inline-padding);
+  }
+  .flm-pres-verbatim[data-flm-kind="code"][data-flm-display="block"] {
+    padding: var(--flm-verbatim-block-padding);
+  }
+
+  /* An identifier (the verbatim kind a), such as a keyword or a name taken
+     from a program, is set apart by italics instead of a background. */
+  .flm-pres-verbatim[data-flm-kind="a"] {
+    font-style: italic;
+  }
+
+  /* A block keeps its own line breaks and scrolls sideways rather than
+     breaking a long line where the author did not. */
+  .flm-pres-verbatim[data-flm-display="block"] {
+    margin: var(--flm-verbatim-block-spacing) 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+}

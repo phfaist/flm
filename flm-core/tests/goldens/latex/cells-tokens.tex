@@ -1,0 +1,95 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.6b6a41b1.sty
+\flmCellsTable{ccc}{X[-1]X[-1]X[-1]}{hspan=minimal,
+  cell{1}{1}={}{l, font={\flmCellsHeaderFont}},
+  cell{1}{2}={}{c, font={\flmCellsHeaderFont}},
+  cell{1}{3}={}{r, font={\flmCellsHeaderFont}},
+  cell{2}{1}={}{m, font={\flmCellsHeaderFont}},
+  cell{2}{2}={r=2}{m},
+  cell{3}{1}={}{m, font={\flmCellsHeaderFont}},
+  cell{4}{1}={c=3}{m},
+  hline{2}={1}{.4pt,solid},
+  hline{2}={2}{.4pt,solid},
+  hline{2}={3}{.4pt,solid},
+  vline{1}={3}{.4pt,solid},
+  vline{4}={3}{.4pt,solid},
+  hline{4}={1-3}{.4pt,solid},
+  hline{5}={1-3}{.4pt,solid}}{\toprule
+Name&City&Height\\
+John&\flmCellsSet{green}Berlin&\flmCellsSet{red}\flmCellsSet{blue}180\\
+Anna&&\flmCellsSet{yellow}170\\
+Together&&\\
+\bottomrule
+}
+%%
+% ===== latex-recomposed:style flmrecomposed.6b6a41b1.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.6b6a41b1}
+% --- packages ---
+% flm.latex.pkg.tabularray
+\RequirePackage{tabularray}
+% flm.latex.pkg.xcolor
+\RequirePackage{xcolor}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.cells
+% Tables of cells. A table is written
+% \flmCellsTable{<natural>}{<fitted>}{<options>}{<rows>}: <natural> and
+% <fitted> are two column specifications of the tblr environment of the
+% tabularray package (<natural> has c for each column, <fitted> has X[-1]
+% for each column),
+% <options> are the table's other tblr options (the cells' spans, alignment
+% and header font, and the lines), and <rows> are the rows, the cells
+% separated by & and each row ended by \\.
+% By default the table is set at its natural width with <natural>; where it
+% is wider than \flmCellsMaxWidth, it is set again at that width with
+% <fitted>. It is set between \flmCellsBeginCenter and \flmCellsEndCenter,
+% except where LaTeX sets a single line, as in a cell of another table set
+% at its natural width, where no paragraph can begin. A header cell is set
+% in \flmCellsHeaderFont. Redefine \flmCellsTable to set tables another way,
+% or one of the four other commands to change one part of it.
+% A cell's custom style <name> is written \flmCellsSet{<name>} at the start
+% of the cell's text: a tabularray table command that applies the tabularray
+% cell keys held in \flmCellsKeys<name>. \flmCellsStyleKeys{<name>}{<keys>}
+% sets those keys unless keys are already set for <name>: define
+% \flmCellsKeys<name> before loading this file, or redefine it after, to
+% change how a style looks. The shipped styles green, blue, yellow and red
+% set the background colors flmCellsColor<name>, which you can define before
+% loading this file.
+% tabularray's counter library restores LaTeX's counters after the passes in
+% which tabularray sets a cell only to measure it.
+% The macros with @ in their names are internals, not a customization point.
+\UseTblrLibrary{booktabs}
+\UseTblrLibrary{counter}
+\providecommand\flmCellsHeaderFont{\bfseries}
+\providecommand\flmCellsBeginCenter{\begin{center}}
+\providecommand\flmCellsEndCenter{\end{center}}
+\providecommand\flmCellsMaxWidth{0.96\linewidth}
+\ExplSyntaxOn
+\long\def\flm@cells@fit#1#2#3#4{%
+  \setbox0=\hbox{\begin{tblr}{colspec={#1},#3}#4\end{tblr}}%
+  \dim_compare:nNnTF {\wd0} < {\flmCellsMaxWidth}
+    {\leavevmode\box0}
+    {\begin{tblr}{width=\flmCellsMaxWidth,colspec={#2},#3}#4\end{tblr}}}
+\long\def\flm@cells@iflr#1#2{\mode_if_horizontal:TF {\mode_if_inner:TF {#1} {#2}} {#2}}
+\def\flm@cells@set#1{\ifcsname flmCellsKeys#1\endcsname
+  \exp_args:Nnv \tblr_set_cell:nn {} {flmCellsKeys#1}\fi}
+\ExplSyntaxOff
+\ProvideDocumentCommand\flmCellsTable{+m +m +m +m}{%
+  \flm@cells@iflr
+    {\flm@cells@fit{#1}{#2}{#3}{#4}}%
+    {\flmCellsBeginCenter\flm@cells@fit{#1}{#2}{#3}{#4}\flmCellsEndCenter}}
+\ProvideDocumentCommand\flmCellsStyleKeys{m m}{%
+  \expandafter\providecommand\csname flmCellsKeys#1\endcsname{#2}}
+\ifcsname flmCellsSet\endcsname\else
+  \NewTableCommand\flmCellsSet[1]{\flm@cells@set{#1}}
+  \ProvideDocumentCommand\flmCellsSet{m}{}
+\fi
+\providecolor{flmCellsColorgreen}{RGB}{200,255,200}
+\providecolor{flmCellsColorblue}{RGB}{200,220,255}
+\providecolor{flmCellsColoryellow}{RGB}{255,255,200}
+\providecolor{flmCellsColorred}{RGB}{255,200,200}
+\flmCellsStyleKeys{green}{bg=flmCellsColorgreen}
+\flmCellsStyleKeys{blue}{bg=flmCellsColorblue}
+\flmCellsStyleKeys{yellow}{bg=flmCellsColoryellow}
+\flmCellsStyleKeys{red}{bg=flmCellsColorred}
+\endinput

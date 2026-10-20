@@ -1,0 +1,10 @@
+A title defines
+title term: Defined in a title.
+===============================================
+
+A term nobody defines: nothing, and one holding markup: no such term.
+
+See sec:nowhere
+===============
+
+Shown again: See sec:nowhere.

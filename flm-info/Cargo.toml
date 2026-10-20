@@ -1,0 +1,48 @@
+[package]
+name = "flm-info"
+description = "Introspection of an FLM environment: queries over a registry, a plan and the package factories, a typed description that serializes to JSON, documentation pages written as FLM, and the engine of `flm dump`"
+version.workspace = true
+edition.workspace = true
+# Rust 1.86, the floor of the library `flm-core`. The cargo feature `flm-main` turns on
+# the host library, whose floor is 1.88: with that feature, 1.88 is the effective floor.
+rust-version = "1.86"
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# The layer over the host library `flm-main`: `Environment::of_prepared`,
+# `Environment::of_request`, and the views' fields that only a prepared document gives
+# (where each package comes from, with the manifest of an extension, the settings in
+# effect with where they were written, the front matter, the search path). Named after
+# the crate it turns on; it turns on the extension layer too, for the type of a manifest.
+flm-main = ["dep:flm-main", "dep:flm-ext"]
+
+[dependencies]
+# Without the library's default cargo features (its stages run in parallel; it keeps the
+# documentation texts of declarations, `docs`), as the extension layer depends on it: a
+# program chooses them through its own dependency on `flm-core`, and keeps `docs` on to
+# see the documentation texts that the views show.
+flm-core = { path = "../flm-core", default-features = false }
+# The host library (cargo feature `flm-main`), without its default features: the layer
+# reads a prepared document and touches no file of its own.
+flm-main = { path = "../flm-main", default-features = false, optional = true }
+# The extension layer (cargo feature `flm-main`), for the type of an extension's manifest
+# that the host keeps; without its default features, as the host library chooses its
+# engines.
+flm-ext = { path = "../flm-ext", default-features = false, optional = true }
+# The views derive `Serialize`; the description is written as JSON.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The JSON Schema of the description, derived from the same types, as `flm-core` declares
+# the crate.
+schemars = { version = "1", default-features = false, features = ["derive", "std", "preserve_order"] }
+
+[dev-dependencies]
+# The tests read the documentation texts of the standard features, so they build the
+# library with its default features, which keep them (the cargo feature `docs`).
+flm-core = { path = "../flm-core" }

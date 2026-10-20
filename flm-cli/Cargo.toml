@@ -1,0 +1,87 @@
+[package]
+name = "flm-cli"
+description = "The flm command-line program: the command line over the FLM host library"
+version.workspace = true
+edition.workspace = true
+# Rust 1.88, the floor of the host library `flm-main` it is built on (the library
+# `flm-core` stays on the workspace's 1.86).
+rust-version = "1.88"
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+name = "flm_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "flm"
+path = "src/main.rs"
+
+[dependencies]
+# The library: the program's commands use its package factories and its standard names;
+# the tests of `flm dump` read techy's serialized values through flm-core's re-export,
+# `flm_core::techy`, so the program declares no techy dependency of its own.
+flm-core = { path = "../flm-core" }
+flm-main = { path = "../flm-main", default-features = false, features = ["fs", "graphics", "citations", "watch"] }
+# The engine of the command `dump` (`flm_info::dump`), which processes a file with the
+# library alone; the description of an environment and its pages for the command `info`
+# (`flm_info::pages`), over a document the host prepared (cargo feature `flm-main`).
+flm-info = { path = "../flm-info", features = ["flm-main"] }
+# The package `phfpack` (notation macros for quantum information), carried by the
+# program under the cargo feature of the same name, on by default.
+flm-phfpack = { path = "../flm-phfpack", optional = true }
+# The arguments of the command line (floor Rust 1.85 for the versions 4.6).
+clap = { version = "4", features = ["derive"] }
+# Opening the preview's address in the default browser, and a written output (`-V`) with
+# the system's default application.
+open = "5"
+# The schema of a front matter, handed to the preview's *Settings* tool, the pages of
+# `flm info --json` and the records of `--json-diagnostics`; the tests of `flm dump` read
+# the command's JSON output back with it too.
+serde_json = "1"
+# The width of the terminal in columns, with which `flm info` writes its pages when
+# standard output is a terminal and `COLUMNS` does not give it (floor Rust 1.63 for the
+# version 0.4.1, locked so that it shares `rustix` 0.38 with the other dependencies).
+terminal_size = "0.4"
+
+# On Unix, the signals that ask the program to end (Ctrl+C's interrupt, Ctrl+\'s quit
+# signal, the hang-up of a closed terminal, `SIGTERM`), handled under `watch`, `render` and
+# `check` to stop the programs that extensions run before the program ends: `signal-hook`
+# tells which signal arrived and ends the process by that signal; `libc` tells whether the
+# program's parent left a signal ignored, which then stays ignored.
+[target.'cfg(unix)'.dependencies]
+signal-hook = { version = "0.4", default-features = false, features = ["iterator"] }
+libc = "0.2"
+
+# On other systems, Ctrl+C, which ends `flm watch` with the status 0.
+[target.'cfg(not(unix))'.dependencies]
+ctrlc = "3"
+
+[features]
+default = ["phfpack", "js", "wasm", "bundled-extensions"]
+# The program carries the package `phfpack`: a document that names it in its `use`
+# list gets its macros.
+phfpack = ["dep:flm-phfpack"]
+# The program runs JavaScript extensions (the engine `js`), on by default.
+js = ["flm-main/js"]
+# The program runs extensions compiled to WebAssembly (the engine `wasm`), on by default.
+wasm = ["flm-main/wasm"]
+# The program carries the extensions shipped with FLM (`lecturenotes`, `math-mathjax`, and
+# `profile-pdf-latex`, written in Rust and compiled in), found by name with nothing installed,
+# after every folder of the search path.
+bundled-extensions = ["flm-main/bundled-extensions"]
+
+[dev-dependencies]
+# The example program over the library entry point carries `phfpack` as a package of
+# its own (`examples/own_package.rs`), whatever the cargo features.
+flm-phfpack = { path = "../flm-phfpack" }
+# The address of an image written into a page, compared in a test (`tests/graphics.rs`).
+base64 = "0.22"
+# The BibTeX export read back by a reader of that format (`tests/citations.rs`).
+biblatex = "0.12"
+# The keyword `pattern` of the schemas of settings, checked by the validator shared with
+# `flm-core`'s tests (`flm-core/tests/support/json_schema.rs`).
+regex = "1"

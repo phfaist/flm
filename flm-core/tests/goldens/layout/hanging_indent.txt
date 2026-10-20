@@ -1,0 +1,4 @@
+  • This is a fairly long paragraph of text inside a list item which
+    really would like to be wrapped at some sensible width like 72 or 80
+    columns, and whose continuation lines ought to be aligned under the
+    first character of the item text rather than at column zero.

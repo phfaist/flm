@@ -1,0 +1,149 @@
+{
+  "flm.refpoints": {
+    "flm.heading@1:1#0": {
+      "kind": "section",
+      "labels": [
+        "sec:intro"
+      ],
+      "anchor": "from-first-label",
+      "display": {
+        "content": "argument title"
+      }
+    },
+    "flm.heading@7:1#0": {
+      "kind": "section",
+      "labels": [
+        "sec:fmt"
+      ],
+      "anchor": "from-first-label",
+      "display": {
+        "content": "argument title"
+      }
+    },
+    "flm.heading@13:1#0": {
+      "kind": "section",
+      "labels": [],
+      "anchor": "slug:sec:argument title",
+      "display": {
+        "content": "argument title"
+      }
+    },
+    "flm.math.environment@18:1#0": {
+      "kind": "equation",
+      "labels": [],
+      "anchor": "auto:eq",
+      "display": {
+        "number": {
+          "counter": "flm.math.equation",
+          "style": "flm.math.style.equation",
+          "advance": [
+            0
+          ]
+        }
+      }
+    },
+    "flm.math.environment@22:1#0": {
+      "kind": "equation",
+      "labels": [],
+      "anchor": "auto:eq",
+      "display": {}
+    },
+    "flm.math.environment@22:1#1": {
+      "kind": "equation",
+      "labels": [],
+      "anchor": "auto:eq",
+      "display": {}
+    },
+    "flm.heading@27:1#0": {
+      "kind": "section",
+      "labels": [],
+      "anchor": "slug:sec:argument title",
+      "display": {
+        "content": "argument title"
+      }
+    },
+    "flm.heading@38:1#0": {
+      "kind": "section",
+      "labels": [],
+      "anchor": "slug:sec:argument title",
+      "display": {
+        "content": "argument title"
+      }
+    },
+    "flm.heading@43:1#0": {
+      "kind": "section",
+      "labels": [],
+      "anchor": "slug:sec:argument title",
+      "display": {
+        "content": "argument title"
+      }
+    },
+    "flm.heading@47:1#0": {
+      "kind": "section",
+      "labels": [],
+      "anchor": "slug:sec:argument title",
+      "display": {
+        "content": "argument title"
+      }
+    }
+  },
+  "flm.labels": {
+    "labels": {
+      "sec:fmt": "flm.heading@7:1#0",
+      "sec:intro": "flm.heading@1:1#0"
+    },
+    "duplicates": [],
+    "refused": []
+  },
+  "flm.anchors": {
+    "flm.heading@1:1#0": "sec-intro",
+    "flm.heading@7:1#0": "sec-fmt",
+    "flm.heading@13:1#0": "sec--Math",
+    "flm.math.environment@18:1#0": "eq--1opqm",
+    "flm.math.environment@22:1#0": "eq--2oqua",
+    "flm.math.environment@22:1#1": "eq--3oqke",
+    "flm.heading@27:1#0": "sec--Verbatim",
+    "flm.heading@38:1#0": "sec--Definitions",
+    "flm.heading@43:1#0": "sec--References",
+    "flm.heading@47:1#0": "sec--Unnumbered"
+  },
+  "flm.refs.targets": {
+    "sec:fmt": {
+      "point": "flm.heading@7:1#0",
+      "href": "#sec-fmt",
+      "display": {
+        "content": "Formatting"
+      }
+    },
+    "sec:intro": {
+      "point": "flm.heading@1:1#0",
+      "href": "#sec-intro",
+      "display": {
+        "content": "Introduction"
+      }
+    }
+  },
+  "flm.refs.resolutions": {
+    "flm.ref@45:5#0": {
+      "resolved": {
+        "point": "flm.heading@1:1#0",
+        "href": "#sec-intro",
+        "display": {
+          "content": "Introduction"
+        }
+      }
+    },
+    "flm.ref@45:22#0": {
+      "resolved": {
+        "point": "flm.heading@7:1#0",
+        "href": "#sec-fmt",
+        "display": {
+          "content": "Formatting"
+        }
+      }
+    },
+    "flm.ref@45:50#0": {
+      "unresolved": "sec:missing"
+    }
+  }
+}

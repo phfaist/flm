@@ -1,0 +1,17 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.acf7db3f.sty
+\(\begin{pmatrix}\flmUDcalN & 0\\ 0 & \flmUDcalN\end{pmatrix}\)
+\begin{align}
+  M &= \begin{pmatrix} \flmUDcalN \end{pmatrix}
+\end{align}
+%%
+% ===== latex-recomposed:style flmrecomposed.acf7db3f.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.acf7db3f}
+% --- packages ---
+% flm.latex.pkg.amsmath
+\RequirePackage{amsmath}
+% --- user definitions ---
+% \flmUDcalN (the document's \calN): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDcalN{\mathcal{N}}
+\endinput

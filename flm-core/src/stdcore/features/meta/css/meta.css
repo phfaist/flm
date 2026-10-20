@@ -1,0 +1,38 @@
+/* flm.meta.style */
+/* The document's title, authors and date, as the pieces flm.meta.title,
+   flm.meta.author and flm.meta.date hold them: the title large and bold,
+   the authors and the date each on a line of its own, indented under the
+   title.  It applies wherever a page places the pieces, whatever the compose
+   template; a page that wants another presentation adds a stylesheet of its
+   own. */
+@layer flm {
+  :root {
+    /* The title's size and line height. */
+    --flm-meta-title-size: 1.6rem;
+    --flm-meta-title-line-height: 1.3em;
+    /* The size of the authors and of the date, their indentation under the
+       title, and the space above each. */
+    --flm-meta-line-size: 1.1rem;
+    --flm-meta-line-indent: 2em;
+    --flm-meta-line-space: 0.5em;
+  }
+
+  /* The title. */
+  .flm-pres-block.flm-meta-title[data-flm-kind~="meta"] {
+    font-size: var(--flm-meta-title-size);
+    font-weight: bold;
+    line-height: var(--flm-meta-title-line-height);
+  }
+
+  /* The authors and the date: indented, with a small space above each. */
+  .flm-pres-block.flm-meta-author[data-flm-kind~="meta"],
+  .flm-pres-block.flm-meta-date[data-flm-kind~="meta"] {
+    margin-inline-start: var(--flm-meta-line-indent);
+    margin-block-start: var(--flm-meta-line-space);
+    font-size: var(--flm-meta-line-size);
+  }
+  .flm-pres-block.flm-meta-author[data-flm-kind~="meta"] > .flm-pres-par,
+  .flm-pres-block.flm-meta-date[data-flm-kind~="meta"] > .flm-pres-par {
+    margin: 0;
+  }
+}

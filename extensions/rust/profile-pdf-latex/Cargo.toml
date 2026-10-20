@@ -1,0 +1,28 @@
+# The extension `profile-pdf-latex`: the PDF output `pdf-latex` and the workflow `pdf-latex`
+# (the profile `pdf-latex`), made by compiling the files of the output `latex-rendered` with
+# `latexmk -lualatex`, run through the host service `programs`.
+#
+# One crate written against the guest client `flm_ext::guest`, in two forms: compiled into
+# the `flm` program (the crate `flm-extensions` lists it under its cargo feature `native`),
+# and built as a WebAssembly module by `extensions/rust/build-wasm.sh`. The library keeps
+# its default type, which a program depends on; the script builds the module with
+# `cargo rustc --crate-type cdylib`.
+[package]
+name = "profile-pdf-latex"
+description = "The FLM extension `profile-pdf-latex`: PDF output, compiled by LaTeX from the output `latex-rendered`"
+version.workspace = true
+edition.workspace = true
+# Rust 1.88, the floor of `flm-ext`, which the crate is written against.
+rust-version = "1.88"
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# The guest client alone: the program that compiles the crate in turns on `flm-ext`'s
+# feature `native`, and a build of the WebAssembly form leaves it off.
+flm-ext = { path = "../../../flm-ext", default-features = false, features = ["guest"] }
+serde_json = "1"

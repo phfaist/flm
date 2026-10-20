@@ -1,0 +1,22 @@
+plan abstract
+  rewrites: []
+  order: [collect, resolve-final, inspect]
+  committed: [inspect, resolve-final, collect]
+  excluded: [inspect-exotic by inspect over flm.graphics.inspected; resolve-draft by resolve-final over flm.graphics.resolved]
+  externals: []
+plan incoherent
+  error: unsatisfiable cap=flm.graphics.resolved.final blocked=[resolve-final/resolve-draft/flm.graphics.resolved]
+plan preview
+  rewrites: []
+  order: [collect, resolve-draft]
+  committed: [resolve-draft, collect]
+  excluded: [resolve-final by resolve-draft over flm.graphics.resolved]
+  externals: []
+plan print
+  rewrites: []
+  order: [collect, resolve-final, inspect-exotic]
+  committed: [inspect-exotic, resolve-final, collect]
+  excluded: [inspect by inspect-exotic over flm.graphics.inspected; resolve-draft by resolve-final over flm.graphics.resolved]
+  externals: []
+plan print-default
+  error: contested cap=flm.graphics.inspected candidates=[inspect, inspect-exotic]

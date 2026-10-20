@@ -1,0 +1,54 @@
+% flm.latex.def.flmx.images -- images.
+%
+% The element:
+%   \flmxImage[width, height, alt, display, anchor]{<path>}
+%       an image: <path> is the file the program published for this output
+%       (beside the document, or as the author wrote it). Its keys:
+%   width, height  the size FLM computed, LaTeX lengths (4.5cm, 120bp,
+%                  ...), each where known;
+%   alt            the alternative text, where the author gave one;
+%   display        block (the image stands as a paragraph of its own) or
+%                  inline (in the line of text), always written;
+%   anchor         where the image is a reference target.
+%   default: \includegraphics[width=..., height=...]{<path>}, with the width
+%       and the height where given (at its natural size where neither is),
+%       inside \par\centering ... \par for display=block, in the line
+%       otherwise; the target of the anchor first; alt is not typeset.
+%
+% A template changes the look with
+%   \flmxDefineImageDefault{<code over #1, the path>}
+% whose code sees the keys (\flmxKey{width}, \flmxIfKey{alt}{...}{...}).
+
+\ExplSyntaxOn
+
+\NewDocumentCommand \flmxImage { O { } m }
+  { \__flmx_command:nnnn { image } { } {#1} {#2} }
+
+% The options of \includegraphics: the width and the height where given.
+\cs_new:Npn \__flmx_image_options:
+  {
+    \flmxIfKey { width } { width = \flmxKey { width } , } { }
+    \flmxIfKey { height } { height = \flmxKey { height } } { }
+  }
+% #1 the path.
+\cs_new_protected:Npn \__flmx_image:n #1
+  {
+    \use:e { \exp_not:N \includegraphics [ \__flmx_image_options: ] }
+      {#1}
+  }
+\flmxDefineImageDefault
+  {
+    \str_if_eq:eeTF { \flmxKey { display } } { block }
+      {
+        \par
+        \group_begin:
+          \centering
+          \__flmx_anchor:
+          \__flmx_image:n {#1}
+          \par
+        \group_end:
+      }
+      { \__flmx_anchor: \__flmx_image:n {#1} }
+  }
+
+\ExplSyntaxOff

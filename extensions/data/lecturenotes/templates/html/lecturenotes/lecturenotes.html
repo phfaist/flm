@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html{% if "lang" in regions %} lang="{{ regions.lang }}"{% endif %}>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ regions.title }}</title>
+{% if regions.styles %}
+{{ regions.styles }}
+{% endif %}
+    <link rel="stylesheet" href="{{ artifacts.style }}">
+{% for href in config.stylesheets %}
+    <link rel="stylesheet" href="{{ href }}">
+{% endfor %}
+  </head>
+  <body>
+    <div class="ln-app">
+      <header class="ln-topbar">
+        <a class="ln-book-title" href="#top">{{ regions.title }}</a>
+        <span class="ln-current-chapter" aria-live="polite"></span>
+        <span class="ln-topbar-nav">
+          <button class="ln-prev" type="button" aria-label="Previous chapter" title="Previous chapter">&#8592;</button>
+          <button class="ln-next" type="button" aria-label="Next chapter" title="Next chapter">&#8594;</button>
+          <button class="ln-sidebar-toggle" type="button" aria-label="Contents" title="Contents">&#9776;</button>
+        </span>
+{% if config.links %}
+        <span class="ln-topbar-links">
+{% for link in config.links %}
+          <a class="ln-topbar-link" href="{{ link.href }}">{{ link.text }}</a>
+{% endfor %}
+        </span>
+{% endif %}
+      </header>
+      <aside class="ln-sidebar">
+        <div class="ln-sidebar-label"><span class="ln-sidebar-word">Contents</span> <span class="ln-sidebar-buttons"><button class="ln-toc-toggle" type="button" title="Expand all sections" aria-label="Expand all sections"></button></span></div>
+{% if "flm.toc" in pieces %}
+{{ pieces["flm.toc"].text }}
+{% endif %}
+      </aside>
+      <main class="ln-main" id="top">
+        <div class="ln-column">
+          <header class="ln-titleblock">
+{% if "flm.meta.title" in pieces %}
+{{ pieces["flm.meta.title"].text }}
+{% endif %}
+{% if "flm.meta.author" in pieces %}
+{{ pieces["flm.meta.author"].text }}
+{% endif %}
+{% if "flm.meta.date" in pieces %}
+{{ pieces["flm.meta.date"].text }}
+{% endif %}
+          </header>
+          <article class="flm-content" id="flm-content">
+{{ regions.content }}
+          </article>
+          <section class="ln-backmatter">
+{% for name, piece in pieces|items if piece.place == "after-content" %}
+{{ piece.text }}
+{% endfor %}
+          </section>
+        </div>
+      </main>
+    </div>
+{% if regions.scripts %}
+{{ regions.scripts }}
+{% endif %}
+    <script src="{{ artifacts.script }}"></script>
+  </body>
+</html>

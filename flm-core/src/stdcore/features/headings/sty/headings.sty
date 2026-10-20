@@ -1,0 +1,16 @@
+% flm.latex.def.flmx.headings.number -- the number of a heading.
+%
+% The headings feature writes a numbered heading's number inside its title,
+% in a span of role flm.heading.number, the title template supplying the
+% separator after it:
+%   \flmxHeading[...]{\flmxSpan[role=flm.heading.number]{2.1}. Results}
+% The headings feature's rule requires the style identifier
+% flm.headings.style at every heading it stages, and this piece delivers it,
+% so that it is in every style file that holds a heading.
+%
+% Default: the number as it stands, the target of the span's anchor first.
+% A template changes it with
+%   \flmxDefineSpan{flm.heading.number}{<code over #1, the number>}
+
+\flmxDefineSpan{flm.heading.number}%
+  {\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}#1}

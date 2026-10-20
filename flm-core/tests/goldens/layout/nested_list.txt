@@ -1,0 +1,12 @@
+  1. The first outer item has a body
+     that is comfortably longer than
+     forty columns, and it is followed
+     by a nested list.
+       - the first inner bullet, whose
+         text is long enough that it has
+         to wrap
+       - a second inner bullet, shorter
+         but still wrapping once
+
+  2. The second outer item is separated
+     from the first by one blank line.

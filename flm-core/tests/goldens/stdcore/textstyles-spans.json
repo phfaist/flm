@@ -1,0 +1,30 @@
+[
+  {
+    "chars": "Some "
+  },
+  {
+    "elem": "flm.pres.span",
+    "body": [
+      {
+        "chars": "emphasized "
+      },
+      {
+        "elem": "flm.pres.span",
+        "body": [
+          {
+            "chars": "and bold"
+          }
+        ],
+        "payload": {
+          "style": "bold"
+        }
+      }
+    ],
+    "payload": {
+      "style": "emph"
+    }
+  },
+  {
+    "chars": " text."
+  }
+]

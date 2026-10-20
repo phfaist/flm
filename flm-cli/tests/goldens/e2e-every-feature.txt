@@ -1,0 +1,53 @@
+On codes and \(x^2\)
+
+Ann Author, Bob Writer
+
+30 September 2026
+
+Introduction
+============
+
+A paragraph with emphasis, bold text, a literal dash – and a tie here, a
+footnoteᵃ, a user macro \(\mathcal{H}\) and (a, b). Some verbatim \text and a
+link to a page <https://example.com>, see Introduction and (1), with \(x = y\)
+in dollars. A remark [PhF] marked[PhF: check this].
+
+\begin{equation} a + b = c(1) \end{equation}
+
+Definitions and results
+-----------------------
+
+Entropy: A measure of uncertainty.
+
+Theorem 1 (Main). Every code is a code.
+
+Proof (Theorem 1). Obvious. □
+
+• One
+
+• Two
+
+1. First
+
+Term Its description.
+
+To be or not to be.
+
+Shakespeare
+
+[image: figures/plot.png]
+
+Fig. I: A plot
+
+A  B
+
+Tab. I: A table of cells
+
+let x = 1;
+
+See Tab. I, Fig. I, Theorem 1 and item •.
+
+Footnotes
+=========
+
+ᵃ A note with \(a+b\).

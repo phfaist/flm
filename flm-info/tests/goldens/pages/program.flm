@@ -1,0 +1,37 @@
+---
+title: "The program"
+flm:
+  use: [flmdoc]
+  math: false
+---
+The program's commands with their options, and the environment variables it reads.
+
+\docfield{Version}{\verbcode{0.5.0}}
+
+\section*{Commands}
+
+\begin{docitem}{command}{info}
+
+\docsummary{Describe the environment \{packages, features \& more\}}
+
+\begin{docparams}[Options]
+\docparam{PATH}{}{}{A page's path}
+\docparam{-r, --recursive}{}{}{Include the pages below in full (100\%)}
+\docparam{-p, --profile}{PROFILE}{}{The profile in view (default: \verbcode{html})}
+\end{docparams}
+
+\end{docitem}
+
+\section*{Environment variables}
+
+\begin{itemize}
+\item \verbcode{FLMPATH}: Folders of extensions, separated by \verbtext{`}:\verbtext{`} (C:\textbackslash{} on Windows \verbtext{~} ;)
+\end{itemize}
+
+\section*{More about the program}
+
+\begin{itemize}
+\item \docref{program/paths}{The program's folders}: The folders the program reads: the search path of extensions, the folder of the citation cache, the image folders.
+\item \docref{program/extensions}{Packages and extensions available}: The packages and extensions a document may use: those compiled into the program, those found on the search path, and those bundled into the program.
+\end{itemize}
+

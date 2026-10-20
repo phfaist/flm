@@ -1,0 +1,10 @@
+# The compose template `including` for the page: its page includes a template file
+# (`partials/head.html`) and the text of a file as it is (`dist/x.js`); its two shipped
+# files, applied as templates, include the text of a file as it is and write the
+# template's settings as JSON.
+extension:
+  description: A page including files of the extension.
+flm:
+  features:
+    compose:
+      template: including

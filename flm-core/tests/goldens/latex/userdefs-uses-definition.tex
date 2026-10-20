@@ -1,0 +1,12 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.543f2f07.sty
+\flmUDgreet{you}%%
+% ===== latex-recomposed:style flmrecomposed.543f2f07.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.543f2f07}
+% --- user definitions ---
+% \flmUDhello (the document's \hello): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDhello[1]{Hello, #1!}
+% \flmUDgreet (the document's \greet): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDgreet[1]{\flmUDhello{#1} \emph{again}}
+\endinput

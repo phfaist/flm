@@ -1,0 +1,58 @@
+[
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "elem": "flm.pres.deco-mark",
+        "body": [],
+        "payload": {
+          "slot": 1
+        }
+      },
+      {
+        "chars": "Every x."
+      },
+      {
+        "elem": "flm.pres.deco-mark",
+        "body": [],
+        "payload": {
+          "slot": 2
+        }
+      }
+    ],
+    "slots": {
+      "flm.pres.deco.runin": [
+        {
+          "elem": "flm.pres.deco.runin",
+          "body": [
+            {
+              "chars": "Theorem"
+            }
+          ],
+          "payload": {}
+        }
+      ],
+      "flm.pres.deco.final": [
+        {
+          "elem": "flm.pres.deco.final",
+          "body": [
+            {
+              "chars": "□"
+            }
+          ],
+          "payload": {}
+        }
+      ]
+    },
+    "payload": {}
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "Next."
+      }
+    ],
+    "payload": {}
+  }
+]

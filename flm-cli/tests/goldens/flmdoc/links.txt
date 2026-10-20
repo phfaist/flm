@@ -1,0 +1,2 @@
+See the feature headings <flm info features/headings>, and the page of the
+program’s paths <flm info program/paths>.

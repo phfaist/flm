@@ -1,0 +1,7 @@
+# A setting of the feature `text`, an extension written as one file, which `paper.flm` uses.
+extension:
+  description: The margins of the text.
+flm:
+  features:
+    text:
+      width: 50

@@ -1,0 +1,189 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage{index-flmx.37ca24e7}
+\usepackage[hmargin=21mm,top=19mm,bottom=20mm,includeheadfoot,headheight=24pt,headsep=7mm,footskip=10mm,marginparwidth=15mm,marginparsep=3mm]{geometry}
+\usepackage{fontspec}
+% Load the font files and weight/italic mappings supplied by TeX Live.
+\usepackage[oldstyle,proportional]{sourceserifpro}
+\usepackage[semibold]{sourcesanspro}
+\usepackage[lining,regular,bold]{sourcecodepro}
+\usepackage{unicode-math}
+\setmathfont{STIX Two Math}
+% Supply two characters emitted by FLM that Source Serif Pro can lack:
+% the narrow nonbreaking space in references and the proof's closing square.
+\usepackage{newunicodechar}
+\newunicodechar{ }{\nobreak\thinspace}
+\newunicodechar{□}{\ensuremath{\mdlgwhtsquare}}
+% Hanging punctuation and restrained font expansion improve justification.
+% Expansion limits are in thousandths (15 = 1.5%); keep monospaced text out.
+\usepackage[protrusion=true,expansion=true,stretch=15,shrink=15,step=1]{microtype}
+\UseMicrotypeSet[expansion]{alltext-nott}
+\usepackage{fancyhdr}
+\usepackage{truncate}
+\usepackage{framed}
+
+\definecolor{memoAccent}{HTML}{245C63}
+\definecolor{memoInk}{HTML}{252D30}
+\definecolor{memoMuted}{HTML}{657477}
+\colorlet{memoRule}{memoAccent!25!white}
+\colorlet{shadecolor}{memoAccent!5!white}
+\colorlet{flmxLinkColor}{memoAccent}
+\colorlet{flmxUrlColor}{memoAccent}
+\colorlet{flmxCiteColor}{memoAccent}
+
+% Smaller text with more leading relative to its size, and modest paragraph gaps.
+\linespread{1.18}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.48em plus 0.12em minus 0.08em}
+\setlength{\emergencystretch}{1.5em}
+\setlength{\textfloatsep}{14pt plus 3pt minus 2pt}
+\setlength{\intextsep}{12pt plus 3pt minus 2pt}
+\setlength{\abovecaptionskip}{6pt}
+\setlength{\FrameSep}{9pt}
+\raggedbottom
+\clubpenalty=3000
+\widowpenalty=3000
+
+% Section marks are provided by FLM, including alternative heading text.
+% Abbreviate unusually long running heads to keep the header on one line.
+\pagestyle{fancy}
+\fancyhf{}
+%\fancyhead[L]{\sffamily\fontsize{8}{10}\selectfont\color{memoMuted}\truncate{\textwidth}{\nouppercase{\rightmark}}}
+%\fancyfoot[R]{\sffamily\fontsize{9}{11}\selectfont\color{memoAccent}\thepage}
+\fancyfoot[C]{\sffamily\fontsize{9}{11}\selectfont\color{memoAccent}\thepage}
+\renewcommand{\headrulewidth}{0pt}%.3pt}
+\renewcommand{\footrulewidth}{0pt}
+%\renewcommand{\headrule}{\hbox to\headwidth{\color{memoRule}\leaders\hrule height\headrulewidth\hfill}}
+\fancypagestyle{memoFirst}{\fancyhead{}\renewcommand{\headrulewidth}{0pt}}
+
+% Keep anchors in every block whose default look is replaced.
+\newcommand{\memoAnchor}{\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}}
+
+% Metadata stays in FLM's rendered form, so emphasis, mathematics and links
+% in titles and author names retain their original meaning.
+\newcommand{\memoMetadataFont}{\sffamily\mdseries\upshape\fontsize{9.5}{12}\selectfont\color{memoInk}}
+\flmxDefineBlock{flm.meta.title}
+  {\par\memoAnchor\raggedright\sffamily\bfseries\fontsize{20}{25}\selectfont\color{memoInk}}
+  {\par\vspace{10pt}}
+\flmxDefineBlock{flm.meta.author}
+  {\par\memoAnchor\raggedright\memoMetadataFont
+    \leftskip=2em\relax}
+  {\par\vspace{5pt}}
+\flmxDefineBlock{flm.meta.date}
+  {\par\memoAnchor\raggedright\memoMetadataFont
+    \leftskip=2em\relax}
+  {\par}
+
+% Delegate placement to FLM: numbering, targets, PDF bookmarks and running
+% heads remain intact. Change only the type within each heading level.
+\flmxDefineHeading{0}{\flmxHeadingLevel{0}{{\sffamily\fontsize{19}{23}\selectfont\color{memoAccent}#1}}}
+\flmxDefineHeading{1}{\flmxHeadingLevel{1}{{\sffamily\fontsize{14}{18}\selectfont\color{memoAccent}#1}}}
+\flmxDefineHeading{2}{\flmxHeadingLevel{2}{{\sffamily\fontsize{11.5}{15}\selectfont\color{memoInk}#1}}}
+\flmxDefineHeading{3}{\flmxHeadingLevel{3}{{\sffamily\normalsize\color{memoInk}#1}}}
+\flmxDefineHeading{4}{\flmxHeadingLevel{4}{{\sffamily\normalsize\color{memoInk}#1}}}
+\flmxDefineHeading{5}{\flmxHeadingLevel{5}{{\sffamily\normalsize\color{memoInk}#1}}}
+\flmxDefineHeading{xnotes}{\flmxHeadingLevel{2}{{\sffamily\small\color{memoMuted}#1}}}
+\flmxDefineHeading{citations}{\flmxHeadingLevel{2}{{\sffamily\small\color{memoMuted}#1}}}
+
+\makeatletter
+\def\flmxHeadingLevel#1#2{%
+  \ifcase#1\relax % case #1 = 0
+    \par\addpenalty{-\@highpenalty}%
+    \@startsection{flmxheading}{0}{\z@}%
+      {-4.5ex \@plus -2ex \@minus -.4ex}{1.8ex \@plus .2ex}%
+      {\normalfont\huge\bfseries}*{\flmx@headingplace #2}%
+  \or % case #1 = 1
+    \@startsection{flmxheading}{1}{\z@}%
+      {-3.5ex \@plus -2ex \@minus -.4ex}{1.8ex \@plus .2ex}%
+      {\normalfont\Large\bfseries}*{\flmx@headingplace #2}%
+  \or % case #1 = 2
+    \@startsection{flmxheading}{2}{\z@}%
+      {-3.25ex \@plus -1ex \@minus -.2ex}{1.3ex \@plus .2ex}%
+      {\normalfont\large\bfseries}*{\flmx@headingplace #2}%
+  \or % case #1 = 3
+    \@startsection{flmxheading}{3}{\z@}%
+      {-3.25ex \@plus -1ex \@minus -.2ex}{1.1ex \@plus .2ex}%
+      {\normalfont\normalsize\bfseries}*{\flmx@headingplace #2}%
+  \or % case #1 = 4
+    \@startsection{flmxheading}{4}{\z@}%
+      {3.0ex \@plus .8ex \@minus .2ex}{-1em}%
+      {\normalfont\normalsize\bfseries}*{\flmx@headingplace #2}%
+  \or % case #1 = 5
+    \@startsection{flmxheading}{5}{\parindent}%
+      {3.25ex \@plus 1ex \@minus .2ex}{-1em}%
+      {\normalfont\normalsize\bfseries}*{\flmx@headingplace #2}%
+  \else
+    [UNKNOWN HEADING LEVEL]
+  \fi
+}
+\makeatother
+
+
+% End-note and bibliography entries, including displays, use the smaller size.
+\flmxDefineBlock{xnotes}
+  {\par\memoAnchor\small}
+  {\par}
+\flmxDefineBlock{flm.citations.bibliography}
+  {\par\memoAnchor\small}
+  {\par}
+
+% Plain, symmetric quotation indents; native lists can break across pages.
+\flmxDefineBlock{flm.quote}
+  {\begin{list}{}{\setlength{\leftmargin}{1.75em}\setlength{\rightmargin}{1.75em}%
+     \setlength{\listparindent}{0pt}\setlength{\parsep}{\parskip}%
+     \setlength{\topsep}{0.4\baselineskip}}%
+   \item\relax\memoAnchor\color{memoMuted}}
+  {\end{list}}
+\flmxDefineBlock{flm.quote.attributed}
+  {\par\memoAnchor\raggedleft\sffamily\footnotesize\color{memoMuted}}
+  {\par}
+\flmxDefineBlock{flm.floats.float.caption}
+  {\par\vspace{\abovecaptionskip}\memoAnchor
+    \sffamily\small\color{memoMuted}}
+  {\par}
+
+% Only override verbatim hooks when the generated package provides them:
+% a document without code does not necessarily load this FLM component.
+\ifdefined\flmxVerbatimFont
+  \renewcommand{\flmxVerbatimFont}{\ttfamily\small}
+  \renewcommand{\flmxVerbatimBlockBegin}{\begin{snugshade*}}
+  \renewcommand{\flmxVerbatimBlockEnd}{\end{snugshade*}}
+\fi
+
+\begin{document}
+\color{memoInk}
+\thispagestyle{memoFirst}
+% The first page has no running head; give its space back to the title.
+\vspace*{\dimexpr-\headheight-\headsep\relax}
+\noindent\begin{minipage}{\linewidth}
+\setlength{\parskip}{0pt}
+{\color{memoAccent}\hrule height 1.0pt\relax}
+\vspace{12pt}
+\begin{flmxBlock}[role=flm.meta.title, kinds={meta}]
+A \flmxSpan[style=emph]{fine} paper on \(x^2\)
+\end{flmxBlock}
+
+\begin{flmxBlock}[role=flm.meta.author, kinds={meta}]
+\flmxSpan[role=flm.meta.author.name]{Ann}, \flmxSpan[role=flm.meta.author.name]{Bob}
+\end{flmxBlock}
+
+\begin{flmxBlock}[role=flm.meta.date, kinds={meta}]
+30 September 2026
+\end{flmxBlock}
+
+\vspace{10pt}
+{\color{memoAccent}\hrule height 0.8pt\relax}
+\end{minipage}\par\vspace{4pt}
+\flmxHeading[kind=section, level=1, toc=true, anchor=sec--Introduction, plain={Introduction}]{Introduction}
+
+Hello world\flmxSpan[style=superscript, role=flm.xnotes.xnote.mark, anchor=fnref--1yuhk]{\flmxLink[kind=xnote, href={\#fn-1}, target=fn-1, doc-role=noteref, label={Footnote a}]{a}},
+with \(a+b\).
+
+\begin{flmxBlock}[role=flm.xnotes.footnote.list, kinds={xnotes footnote}, doc-role=endnotes]
+\flmxHeading[kind=xnotes, level=1, toc=false, plain={Footnotes}]{Footnotes}
+\begin{flmxList}[kinds={numbered xnotes footnote labeled}, depth=1]
+\flmxItem[label={\flmxSpan[style=superscript, role=flm.xnotes.entry.mark]{a}}, anchor=fn-1]
+A note.
+\end{flmxList}
+\end{flmxBlock}
+
+\end{document}

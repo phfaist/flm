@@ -1,0 +1,14 @@
+===== check =====
+Error flm.blocks.block-in-inline: ‘flm.xnotes.xnote’ is a block-level construct and must not appear inside inline content — at `\footnote{The heading's first paragraph.\n\nThe heading's seco`
+Error flm.blocks.block-in-inline: ‘flm.xnotes.xnote’ is a block-level construct and must not appear inside inline content — at `\footnote{The formula's first paragraph.\n\nThe formula's seco`
+Warning flm.refs.unresolved: the reference points at the label `fn:nowhere`, which is not defined — at `\ref{fn:nowhere}`
+===== text =====
+Error flm.blocks.block-in-inline: ‘flm.xnotes.xnote’ is a block-level construct and must not appear inside inline content — at `\footnote{The heading's first paragraph.\n\nThe heading's seco`
+Error flm.blocks.block-in-inline: ‘flm.xnotes.xnote’ is a block-level construct and must not appear inside inline content — at `\footnote{The formula's first paragraph.\n\nThe formula's seco`
+Error flm.refs.unresolved: the reference points at the label `fn:nowhere`, which is not defined — at `\ref{fn:nowhere}`
+===== html =====
+Error flm.blocks.block-in-inline: ‘flm.xnotes.xnote’ is a block-level construct and must not appear inside inline content — at `\footnote{The heading's first paragraph.\n\nThe heading's seco`
+Error flm.blocks.block-in-inline: ‘flm.xnotes.xnote’ is a block-level construct and must not appear inside inline content — at `\footnote{The formula's first paragraph.\n\nThe formula's seco`
+Error flm.refs.unresolved: the reference points at the label `fn:nowhere`, which is not defined — at `\ref{fn:nowhere}`
+===== latex-recomposed =====
+Error flm.refs.unresolved: the reference points at the label `fn:nowhere`, which is not defined — at `\ref{fn:nowhere}`

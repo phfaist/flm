@@ -1,0 +1,7 @@
+Two paragraphs.
+
+[¹First paragraph.
+
+Second paragraph.]
+
+And on.

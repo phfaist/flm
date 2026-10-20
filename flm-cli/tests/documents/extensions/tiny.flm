@@ -1,0 +1,14 @@
+---
+title: Tiny notes
+flm:
+  use: [tinytpl]
+  features:
+    tinytpl:
+      heading: Notes
+    compose:
+      template_config:
+        html:
+          tiny:
+            banner: logo.png
+---
+A paragraph of \emph{tiny} notes.

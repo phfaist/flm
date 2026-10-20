@@ -1,0 +1,5 @@
+# The journal's page: the title and the content inside one article.
+output: html
+engine: minijinja
+main: journal.html
+accepts: all

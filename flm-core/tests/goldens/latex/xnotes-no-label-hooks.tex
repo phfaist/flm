@@ -1,0 +1,16 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.5e9b237c.sty
+A note.\flmXNfootnote[{\label{ref1}\label{ref2}}]{Text.} See \zcref{ref1}.%%
+% ===== latex-recomposed:style flmrecomposed.5e9b237c.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.5e9b237c}
+% --- packages ---
+% flm.latex.pkg.zref-clever
+\RequirePackage{zref-clever}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.xnotes.footnote
+% \flmXNfootnote[<labels>]{<note>}: a note of the kind `footnote' in the FLM document;
+% by default it passes the note, its labels first, to \footnote.
+% Redefine it to set these notes another way.
+\ProvideDocumentCommand\flmXNfootnote{+O{} +m}{\footnote{#1#2}}
+\endinput

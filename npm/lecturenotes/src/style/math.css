@@ -1,0 +1,31 @@
+/* flm-lecturenotes: mathematics.
+   The formulas are delivered by the FLM library and its math extension; this
+   page lets a wide displayed formula scroll sideways on a narrow screen, and
+   names the fonts of a formula written as MathML.  The space around a
+   displayed formula is the library's, through its properties
+   --flm-math-display-space-above and -below, set in base.css. */
+
+/* A formula typeset by MathJax: its container stands inside the source
+   element, which the library spaces; the container adds no space of its own
+   (MathJax gives it a margin otherwise). The preview popup holds copies of
+   the page's formulas, a displayed one possibly on its own, and gets the same
+   rules. */
+.flm-content mjx-container[display="true"],
+.flm-pres-block mjx-container[display="true"],
+.ln-preview mjx-container[display="true"] {
+  margin: 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+/* A formula written as MathML. */
+.flm-content math,
+.flm-pres-block math,
+.ln-preview math {
+  font-family: var(--ln-math-family);
+}
+.flm-content math[display="block"],
+.flm-pres-block math[display="block"],
+.ln-preview math[display="block"] {
+  overflow-x: auto;
+  overflow-y: hidden;
+}

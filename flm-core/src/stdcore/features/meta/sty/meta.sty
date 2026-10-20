@@ -1,0 +1,36 @@
+% flm.latex.def.flmx.meta -- the document's title, authors and date.
+%
+% The meta feature places three blocks before the content, each of kind
+% token meta and of the role of what it shows:
+%   \begin{flmxBlock}[role=flm.meta.title, kinds=meta] <the title> \end{flmxBlock}
+%   \begin{flmxBlock}[role=flm.meta.author, kinds=meta]
+%     \flmxSpan[role=flm.meta.author.name]{<an author>}, \flmxSpan[...]{...}
+%   \end{flmxBlock}
+%   \begin{flmxBlock}[role=flm.meta.date, kinds=meta] <the date> \end{flmxBlock}
+% The authors are one paragraph, each author's name in a span of role
+% flm.meta.author.name, separated by a comma.
+%
+% Default: a title block as LaTeX's \maketitle sets one, with its spacing:
+% every line centered; the title in \LARGE\bfseries after 2em of space, then
+% 1.5em; the authors in \large, then 1em; the date in \normalsize, then
+% 1.5em. An author's name as it stands. A template changes the look with
+%   \flmxDefineBlock{flm.meta.title}{<begin code>}{<end code>}
+% (likewise flm.meta.author and flm.meta.date; the kind token meta is
+% reached only where a role has no registration) and
+%   \flmxDefineSpan{flm.meta.author.name}{<code over #1, the name>}
+
+\flmxDefineBlock{flm.meta.title}%
+  {\par\null\vskip 2em\relax
+   \flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}%
+   \centering\LARGE\bfseries}%
+  {\par\vskip 1.5em\relax}
+\flmxDefineBlock{flm.meta.author}%
+  {\par\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}%
+   \centering\large\lineskip .5em\relax}%
+  {\par\vskip 1em\relax}
+\flmxDefineBlock{flm.meta.date}%
+  {\par\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}%
+   \centering\normalsize}%
+  {\par\vskip 1.5em\relax}
+\flmxDefineSpan{flm.meta.author.name}%
+  {\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}#1}

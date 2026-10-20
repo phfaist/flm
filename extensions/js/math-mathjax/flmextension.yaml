@@ -1,0 +1,6 @@
+extension:
+  description: Mathematics processed by MathJax, as MathML in the page or typeset in the reader's browser
+  engine: js
+  js:
+    main: ./main.js
+    limits: { stack_mib: 16, memory_mib: 64, time_s: 120 }

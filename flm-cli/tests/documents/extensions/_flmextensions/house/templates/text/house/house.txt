@@ -1,0 +1,3 @@
+== HOUSE ==
+{{ regions.content }}
+== END ==

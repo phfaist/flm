@@ -1,0 +1,134 @@
+[package]
+name = "flm-core"
+description = "FLM semantic markup framework — core library, built on techy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+# Dependency policy:
+# - techy: a version requirement on crates.io; 0.1.2 is flm's techy floor,
+#   the first release with the terminated argument parser
+#   (`TerminatedArgumentParser`, behind the standard argument kind
+#   `ArgStdKind::Terminated`), and Cargo.lock records the version a build uses. Its
+#   `serde` feature is on: `flm dump` renders techy's `SerialValue` through
+#   serde_json. flm-core re-exports the crate as `flm_core::techy`, so an
+#   embedder reaches the very version flm-core builds against instead of
+#   declaring a techy dependency of its own.
+# - serde: unconditional, never feature-gated.
+# - serde_json: unconditional (see its line below), with the feature
+#   `preserve_order`: a JSON map keeps the order its entries were inserted in
+#   (it is then backed by indexmap, whose floor is Rust 1.85) instead of
+#   sorting its keys. Settings given as data rely on it: a collection of named
+#   things is read in the order written. Cargo turns the feature on for the
+#   whole build, so every JSON map of a program that embeds this library keeps
+#   the order of insertion.
+# - serde_path_to_error: the path of a value that cannot be read
+#   (`html.heading_tags.section`), which a settings error names; small (serde
+#   and itoa), by serde's author, floor Rust 1.61.
+# - schemars: unconditional, with `default-features = false` and the features
+#   `derive`, `std` and `preserve_order`: the JSON Schema of every feature's
+#   settings, derived from the same Rust types the settings are read into, so
+#   that a crate declaring settings derives it with no cargo feature to turn
+#   on. Light (dyn-clone, ref-cast and its own derive macro), pure Rust, floor
+#   Rust 1.74.
+# - rayon: behind the default-on `parallel` feature; the sequential path is
+#   always compiled and is what the WebAssembly build uses.
+# - unicode-width / unicode-segmentation: the layout engine's width measurement;
+#   zero-dependency crates.
+# - unicode-normalization: the NFKD decomposition of the anchor encoder;
+#   `default-features = false` keeps it `alloc`-only, so the WebAssembly build
+#   stays as it is.
+# - untechxt: the Unicode-to-LaTeX table and encoder, a version requirement on
+#   crates.io; 0.1 is flm's floor, and Cargo.lock records the version a build
+#   uses. Its floor is Rust 1.86, this workspace's own; its one dependency is
+#   unicode-normalization, which flm-core already carries; it is no_std with
+#   alloc, so the WebAssembly build stays as it is. Its default feature `std`
+#   stays on: it adds only the adapter that writes to a `std::io::Write`,
+#   which flm-core does not use but an embedder may, and flm-core re-exports
+#   the crate whole as `flm_core::untechxt` so that an embedder reaches the
+#   very version flm-core builds against instead of declaring an untechxt
+#   dependency of its own — as for techy.
+# - fixed: the exact amount of a length in the presentation vocabulary, a
+#   fixed-point number with sixteen fractional bits (`I48F16`), TeX's model;
+#   `default-features = false`, as nothing beyond the number types is used.
+#   The requirement admits 1.30 and every later 1.x release. The workspace's
+#   dependency resolver (version 3) honors `rust-version` when it picks a
+#   version, so the lock stays on a release that builds on this workspace's
+#   floor of Rust 1.86 (1.30; 1.31 needs Rust 1.93). A crate depending on
+#   flm-core resolves the requirement by its own resolver.
+# - base64: the encoder of an image written into a page's address under the
+#   `graphics` feature's strategy `data-uri` (`data:<type>;base64,<content>`);
+#   no dependency of its own, floor Rust 1.48.
+# - flm-core performs no input or output of its own (files, network and
+#   processes live in flm-main and in service implementations), but it is NOT
+#   no_std: std collections and threads are fine.
+# - html5ever / markup5ever_rcdom: dev-dependencies, used by two test suites.
+#   `tests/html_validity.rs` parses every HTML golden the way a browser parses
+#   a page and fails on a parse error; `tests/html_emitter.rs` reads one
+#   attribute back out of a parsed fragment, to check what a script would get.
+#   They are compiled for the tests only: they reach no user of the library,
+#   and the WebAssembly check, which
+#   builds no test target, does not see them. Continuous integration compiles
+#   every target on this workspace's floor of Rust 1.86, and both crates build
+#   there: html5ever 0.39 declares a minimum supported Rust version of 1.71,
+#   and markup5ever_rcdom declares none at all.
+[dependencies]
+techy = { version = "0.1.2", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+# JSON rendering of projections, goldens and wire segments: the `dump` module's
+# JSON helpers and the golden-file helper are public API (there is no
+# test-support cargo feature), so flm supplies serde_json itself — techy only
+# has it as a dev-dependency.
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_path_to_error = "0.1"
+schemars = { version = "1", default-features = false, features = ["derive", "std", "preserve_order"] }
+rayon = { version = "1.12", optional = true }
+unicode-width = { version = "0.2", default-features = true }
+unicode-segmentation = "1.13.2"
+unicode-normalization = { version = "0.1", default-features = false }
+untechxt = "0.1"
+fixed = { version = "1.30", default-features = false }
+base64 = "0.22"
+
+# The HTML parser behind `tests/html_validity.rs` and `tests/html_emitter.rs`,
+# and the tree it builds into.
+# `markup5ever_rcdom` is the reference tree of the html5ever project, which
+# html5ever's own test suite parses into; it records the parse errors the
+# parser reports, which is what the validity check asserts on. Its version
+# requirement must stay in step with html5ever's: a tree sink is written
+# against one version of the parser's interface.
+[dev-dependencies]
+html5ever = "0.39"
+markup5ever_rcdom = "0.39"
+# The keyword `pattern` of the schemas of settings, checked by the validator the tests of
+# the settings share with `flm-main` and `flm-cli` (`tests/support/json_schema.rs`).
+regex = "1"
+
+[features]
+default = ["parallel", "docs"]
+# Per-tree stages run as a rayon map; the output is bit-identical to the
+# sequential path, and the goldens are run under both settings in continuous
+# integration.
+parallel = ["dep:rayon"]
+# The documentation texts of the declarations a registry is built from (a
+# command, an argument, a feature, a stage, a table, a setting, a heading kind,
+# a counter, a cell style): kept when on, dropped when off, so that a program
+# that never shows these texts (a WebAssembly build, say) does not carry them.
+# Without it, every builder method, builder function and constructor that takes
+# a documentation text stores an empty one, and so does the feature builder's
+# registration of a scoped package, a stylesheet or a script; the texts read
+# from settings data (a user definition, a heading kind, a workflow) go through
+# the same builders. Kept: a text a program assigns directly to a public `docs`
+# field, and that of a LaTeX package request given among a backend's render
+# options (an option, not a declaration). Neither a rendered document nor the
+# registry digest changes. What does change, besides the texts: the top-level
+# description of each feature's settings JSON Schema (made of those texts; the
+# descriptions of the individual settings stay, being part of the schema), and
+# the message of `RunError::MissingExternal`, which quotes the table's text.
+# See decision rationale at [§flm-dd-dr:docs-feature].
+docs = []

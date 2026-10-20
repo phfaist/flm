@@ -1,0 +1,7 @@
+{% set href = link.url|default("")|trim %}
+{% set lower = href|lower %}
+{% if href and (":" not in href or lower[:7] == "http://" or lower[:8] == "https://" or lower[:7] == "mailto:") %}
+<a href="{{ href }}">{{ link.text }}</a>
+{% else %}
+<span>{{ link.text }}</span>
+{% endif %}

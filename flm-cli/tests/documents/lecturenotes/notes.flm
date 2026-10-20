@@ -1,0 +1,218 @@
+---
+title: "Quantum Error Correction: Lecture Notes"
+author: [A. Lecturer]
+date: Autumn 2026
+flm:
+  use: [lecturenotes]
+  features:
+    compose:
+      template_config:
+        html:
+          lecturenotes:
+            links:
+              - {text: Course page, href: "https://example.org/course/"}
+              - {text: Exercises, href: "exercises.html"}
+            stylesheets: [notes-extra.css]
+    html:
+      root_heading_level: 0
+    toc: {depth: 2}
+    headings:
+      headings:
+        part: {level: 0, counter: null, style: null}
+        section: {level: 1, title_number_format: "#{number} "}
+        subsection: {level: 2, within: {parents: {one: flm.headings.section}, joiner: {joined: "."}, no_restart: false}, title_number_format: "#{number} "}
+      commands:
+        part: {heading: part}
+      numbering: {up-to-depth: 2}
+---
+\section{Preface}
+
+These notes grew out of a one-semester course. They assume a first course in quantum
+information theory and aim at the reader who wants to understand \emph{why} the standard
+constructions work, not only what they are.\footnote{Comments and corrections are
+welcome; see the course page.} The notes are organized in parts, each part holding a
+few chapters, each chapter a few sections, so that a reader can study one chapter at a
+time.
+
+\subsection{What we'll cover here}
+
+We begin with the fundamental theory of protecting information against noise, continue
+with stabilizer codes, and end with the surface code and its friends. Throughout we use
+the formalism recalled in \ref{sec:recap}.
+
+\subsection{Recommended literature}
+
+The standard references are the textbooks \cite{manual:{M. A. Nielsen and I. L. Chuang, Quantum Computation and Quantum Information, Cambridge University Press (2000)}} and \cite{manual:{D. Gottesman, Stabilizer Codes and Quantum Error Correction, PhD thesis, Caltech (1997)}}, and the surveys \cite{manual:{B. M. Terhal, Quantum error correction for quantum memories, Rev. Mod. Phys. 87, 307 (2015)},manual:{D. A. Lidar and T. A. Brun (eds.), Quantum Error Correction, Cambridge University Press (2013)},manual:{J. Roffe, Quantum error correction: an introductory guide, Contemp. Phys. 60, 226 (2019)}}.
+
+\part{Fundamental theory of quantum error correction}
+
+\section{Protecting information against noise}\label{sec:fndthry}
+
+Consider a quantum system that is subject to noise. We would like to store a quantum
+state in it for a while and recover that state later. The idea of
+\term{error correction} is to store the state not directly but in a cleverly chosen
+subspace, the \term{code}, such that the effect of the noise can be undone.
+
+\begin{figure}
+  \includegraphics{cycle.svg}
+  \caption[alt=The cycle]{The error-correction cycle: a logical state is encoded into a
+  physical system, noise acts, and a recovery operation restores the logical state.}
+  \label{figure:cycle}
+\end{figure}
+
+\subsection{Encoding logical information on a physical system}\label{sec:encoding}
+
+\begin{defterm}{code}\label{topic:code}\aliasterm{codes}
+  A \emph{code} is a subspace \(\mathcal{C} \subseteq \mathcal{H}\) of the Hilbert space
+  of a physical system, together with an identification of \(\mathcal{C}\) with the
+  logical Hilbert space \(\mathcal{H}_L\) through an isometry
+  \(V\colon \mathcal{H}_L \to \mathcal{H}\).
+\end{defterm}
+
+\begin{defterm}{error correction}\label{topic:ec}
+  \emph{Error correction} is the task of finding, for a given noise channel
+  \(\mathcal{N}\) and a given \term{code}, a recovery channel \(\mathcal{R}\) such that
+  \(\mathcal{R}\circ\mathcal{N}\circ V = V\) up to a trivial map on the logical system.
+\end{defterm}
+
+The channel \(\mathcal{N}\) is described by Kraus operators \(\{E_k\}\),
+\begin{align}
+  \mathcal{N}(\rho) &= \sum_k E_k \rho E_k^\dagger,
+  \label{eq:kraus}\\
+  \sum_k E_k^\dagger E_k &= \mathbb{1}.
+  \label{eq:tp}
+\end{align}
+Condition \ref{eq:tp} says that the channel is trace preserving. We write
+\(P = V V^\dagger\) for the projector onto the code space.
+
+\subsection{Criteria for quantum error correction}\label{sec:criteria}
+
+\begin{theorem}[Knill--Laflamme conditions]\label{thm:kl}
+  Let \(\mathcal{C}\) be a \term{code} with projector \(P\), and let \(\{E_k\}\) be a set
+  of error operators. There exists a recovery channel \(\mathcal{R}\) correcting every
+  channel whose Kraus operators lie in the span of the \(E_k\) if and only if
+  \begin{align}
+    P E_k^\dagger E_\ell P = c_{k\ell}\, P
+    \label{eq:kl}
+  \end{align}
+  for some Hermitian matrix \((c_{k\ell})\).
+\end{theorem}
+
+\begin{proof}[*thm:kl]
+  We prove the easier direction, that the condition is necessary. Suppose a recovery
+  channel \(\mathcal{R}\) with Kraus operators \(\{R_j\}\) exists. For any code state
+  \(|\psi\rangle\), the recovered state must equal \(|\psi\rangle\), so
+  \(R_j E_k |\psi\rangle = \lambda_{jk} |\psi\rangle\) for every code state. Taking inner
+  products and summing over \(j\) gives \ref{eq:kl} with
+  \(c_{k\ell} = \sum_j \overline{\lambda_{jk}}\lambda_{j\ell}\). The converse is left to
+  the exercises.
+\end{proof}
+
+\begin{remark}
+  The matrix \((c_{k\ell})\) can be diagonalized by choosing a new basis of error
+  operators; the conditions are then simply \(P E_k^\dagger E_\ell P = \delta_{k\ell}
+  d_k P\). Errors with \(d_k = 0\) never happen on the code space.
+\end{remark}
+
+\begin{lemma}\label{lem:detect}
+  A set of errors \(\{E_k\}\) is \emph{detectable} by the code \(\mathcal{C}\) if and
+  only if \(P E_k P = c_k P\) for all \(k\).
+\end{lemma}
+
+\begin{proof}[*lem:detect]
+  Apply \ref{thm:kl} with the identity as one of the error operators. \ref{lem:detect}
+  is thus a special case of the general criterion.
+\end{proof}
+
+\subsection{Error-detecting codes}
+
+Detection is weaker than correction: we learn that something went wrong, but not what.
+In many settings, for instance in \emph{post-selected} experiments, this is already
+useful. As noted in \ref{sec:criteria}, detectability is a statement about the
+projected error operators alone.
+
+\begin{itemize}
+\item A code detects an error \(E\) if \(PEP \propto P\).
+\item A code corrects a set of errors if it detects every product \(E_k^\dagger E_\ell\).
+\item The trivial code \(\mathcal{C} = \mathcal{H}\) detects nothing.
+\end{itemize}
+
+\section{Encoding information on multiple subsystems}\label{sec:multi}
+
+Most codes of interest live on \(n\) physical qubits, and the errors of interest act on
+few of them at a time. This chapter makes that intuition precise.
+
+\subsection{Weights of errors}
+
+The \emph{weight} of an operator \(E\) on \(n\) qubits is the number of qubits on which it
+acts non-trivially. The Pauli operators \(\{\mathbb{1}, X, Y, Z\}^{\otimes n}\) form a
+basis, and every error can be expanded in it.
+
+\subsection{Code distance}\label{sec:distance}
+
+\begin{definition}\label{def:distance}
+  The \emph{distance} \(d\) of a code is the smallest weight of a Pauli operator \(E\)
+  that is not detectable, that is, with \(PEP \not\propto P\).
+\end{definition}
+
+A code of distance \(d\) corrects all errors of weight at most \(\lfloor (d-1)/2
+\rfloor\), by \ref{lem:detect}. We write \([[n, k, d]]\) for a code on \(n\) qubits
+encoding \(k\) logical qubits with distance \(d\).
+
+\begin{quote}
+  \text{A code is a way of writing a message so that the message survives the loss of some of
+  its letters.}
+\end{quote}
+
+\part{Stabilizer codes}
+
+\section{Qubit stabilizer codes}\label{sec:stabilizer}
+
+The \term{stabilizer formalism} is the workhorse of quantum error correction; nearly
+every code in practical use is a stabilizer code.
+
+\subsection{The stabilizer formalism}\label{sec:recap}
+
+\begin{defterm}{stabilizer formalism}\label{topic:stab}
+  A \emph{stabilizer group} is an abelian subgroup \(\mathcal{S}\) of the \(n\)-qubit
+  Pauli group not containing \(-\mathbb{1}\). The \emph{stabilizer code} it defines is
+  the joint \(+1\) eigenspace of all of its elements.
+\end{defterm}
+
+\begin{proposition}\label{prop:dim}
+  A stabilizer group with \(n - k\) independent generators defines a code of dimension
+  \(2^k\).
+\end{proposition}
+
+\begin{proof}[**prop:dim]
+  Each independent generator halves the dimension of the joint eigenspace.
+\end{proof}
+
+\subsection{Correcting errors in stabilizer codes}
+
+A Pauli error \(E\) either commutes or anticommutes with each generator; the pattern of
+anticommutations is the \emph{syndrome} of \(E\). Errors with distinct syndromes are
+distinguishable, and the decoder's job is to guess the most likely error given the
+syndrome.\footnote{For most codes of interest, optimal decoding is computationally
+hard, which is why so much effort goes into clever approximate decoders.}
+
+\begin{enumerate}
+\item Measure every generator of \(\mathcal{S}\).
+\item Compute the syndrome.
+\item Apply the correction the decoder suggests.
+\end{enumerate}
+
+\section{Some essential stabilizer codes}\label{sec:examples}
+
+\subsection{The repetition code}
+
+The three-qubit repetition code is stabilized by \(Z_1 Z_2\) and \(Z_2 Z_3\). It corrects
+one bit flip but no phase flip, and so it is not a quantum code in the full sense; it is
+nonetheless the right place to start.
+
+\subsection{The Shor code}
+
+Concatenating the bit-flip repetition code with its phase-flip counterpart gives the
+nine-qubit code of Shor \cite{manual:{P. W. Shor, Scheme for reducing decoherence in quantum computer memory, Phys. Rev. A 52, R2493 (1995)}}, the first quantum error-correcting code. See also the
+discussion of the distance in \ref{sec:distance} and the original
+\href{https://arxiv.org/abs/quant-ph/9705052}{thesis of Gottesman}.

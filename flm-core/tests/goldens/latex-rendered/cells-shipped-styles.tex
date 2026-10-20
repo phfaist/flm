@@ -1,0 +1,664 @@
+% ===== latex-rendered:document =====
+% flm: latex-rendered; style file flmx.b0bcbf23.sty
+\documentclass{article}
+\usepackage{flmx.b0bcbf23}
+\begin{document}
+\begin{flmxCells}[rows=2, cols=4, cells={{row=1, col=1, header=column}, {row=1, col=2, header=column}, {row=1, col=3, header=column}, {row=1, col=4, header=column}, {row=2, col=1, styles={green}}, {row=2, col=2, styles={blue}}, {row=2, col=3, styles={yellow}}, {row=2, col=4, styles={red}}}]
+{Green} & {Blue} & {Yellow} & {Red} \\
+{g} & {b} & {y} & {r} \\
+\end{flmxCells}
+\end{document}
+% ===== latex-rendered:style flmx.b0bcbf23.sty =====
+\NeedsTeXFormat{LaTeX2e}[2022/06/01]
+\ProvidesPackage{flmx.b0bcbf23}
+% the definitions of a document written by FLM's latex-rendered backend
+% the engine: LuaLaTeX
+\RequirePackage{iftex}
+\RequireLuaTeX
+% the packages
+% flm.latex.pkg.fontspec
+\RequirePackage{fontspec}
+% flm.latex.pkg.amsmath
+\RequirePackage{amsmath}
+% flm.latex.pkg.xcolor
+\RequirePackage{xcolor}
+% flm.latex.pkg.tabularray
+\RequirePackage{tabularray}
+% hyperref, loaded at the end of the preamble
+\AddToHook{begindocument/before}{\RequirePackage[colorlinks=true, linkcolor=flmxLinkColor, urlcolor=flmxUrlColor, citecolor=flmxCiteColor]{hyperref}}
+% flm.latex.def.flmx.core
+% flm.latex.def.flmx.core -- the core of the latex-rendered contract.
+%
+% The rendered LaTeX writes one command or environment per presentation
+% element, all named \flmx...; this chunk defines the machinery every one of
+% them uses, the paragraph-level elements (flmxBlock, \flmxSpan), the three
+% decorations, the target of an anchor, two lengths and the colors.
+%
+% Keys. Every element takes an optional key-value argument first, holding
+% the facts FLM knows about it ([role=..., kinds={a b}, anchor=...]). While
+% an element is written, its keys are in scope:
+%   \flmxKey{<key>}               expands to the key's value, empty where the
+%                                 element does not carry the key;
+%   \flmxIfKey{<key>}{<yes>}{<no>} tests whether the element carries the key.
+% Each element sees its own keys only: a block inside a block sees its own,
+% and the outer block's are back after it.
+%
+% Registering a look. A template changes how an element looks by registering
+% code under a role, a kind token, a style name, a heading kind or level, or a
+% link kind; a later registration wins:
+%   \flmxDefineBlock{<role or kind token>}{<begin code>}{<end code>}
+%   \flmxDefineSpan{<role, kind token or style name>}{<code over #1>}
+%   \flmxDefineHeading{<kind name or level>}{<code over #1>}
+%   \flmxDefineRuninHeading{<kind name or level>}{<code over #1>}
+%   \flmxDefineLink{<kind>}{<code over #1>}
+%   \flmxDefineList{<kind token>}{<begin code>}{<end code>}
+%   \flmxDefineItem{<kind token>}{<code run at the item>}
+%   \flmxDefineVerbatim{<kind>}{<code over #1>}
+%   \flmxDefineVerbatimBlock{<kind>}{<begin code>}{<end code>}
+%   \flmxDefineXnote{<kind>}{<code over #1 (the mark) and #2 (the content)>}
+%   \flmxDefineCellStyle{<style name>}{<tblr cell keys>}
+% An element is written with the first registration found, in this order:
+%   flmxBlock: its role, then each kind token in order;
+%   \flmxSpan: its role, then each kind token, then its style;
+%   \flmxHeading, \flmxRuninHeading: its kind, then its level;
+%   \flmxLink, \flmxVerbatim, flmxVerbatimBlock, \flmxXnote: its kind;
+%   flmxList, \flmxItem: each kind token of the list in order;
+%   a cell of flmxCells: the keys registered for each of its styles, in
+%   order, added to the cell's own;
+% and with the element's default where none is registered. Each element's
+% default is replaced with
+%   \flmxDefine<Element>Default{<code>}
+% (\flmxDefineBlockDefault{<begin>}{<end>}, \flmxDefineSpanDefault{<code
+% over #1>}, and so on for Heading, RuninHeading, Link, List, Item, Cells,
+% Lines, Line, Verbatim, VerbatimBlock, Image, Xnote, the three decorations
+% DecoRunin, DecoFinal, DecoMargin, and the three marks Dropped,
+% Unsupported and Unknown, whose code is over #1 and #2).
+%
+% The elements this chunk defines:
+%   \begin{flmxBlock}[role, kinds, anchor, doc-role] ... \end{flmxBlock}
+%       a block of paragraphs; default: a paragraph break before and after,
+%       the target of its anchor first.
+%   \flmxSpan[style, role, kinds, anchor, doc-role]{<content>}
+%       inline content; defaults by style: emph \emph, bold \textbf, italic
+%       \textit, monospace \texttt, underline \underline, small-caps \textsc,
+%       superscript \textsuperscript, subscript \textsubscript,
+%       unresolved-reference in flmxMarkColor; no style: the content.
+%   \flmxDecoRunin[stop]{<content>}  the title set at the start of a
+%       paragraph: the content and the stop in bold, then \flmxRuninSep.
+%   \flmxDecoFinal{<content>}  set flush right at the end of the last line;
+%       where it stands alone (after a list, for instance), it starts a
+%       paragraph of its own.
+%   \flmxDecoMargin{<content>}  a margin note, in \footnotesize.
+%   \flmxTarget{<anchor>}
+%       makes the current place a target named <anchor>: in text,
+%       \phantomsection and \label{flmx:<anchor>}; in mathematics, a
+%       hyperlink target and the label written by hand. Redefine it to change
+%       the scheme; the prefix flmx: of the label is fixed, so that
+%       \pageref{flmx:<anchor>} and \hyperref[flmx:<anchor>]{...} find it.
+%
+% Lengths and colors (redefine with \setlength and \colorlet):
+%   \flmxTabWidth   one tab of an indentation, 2em;
+%   \flmxRuninSep   the space after a run-in title, 0.8em;
+%   flmxLinkColor, flmxUrlColor, flmxCiteColor  the link colors hyperref is
+%                   given; flmxMarkColor  the color of what FLM could not
+%                   write (the marks and an unresolved reference).
+%
+% Paragraphs are LaTeX paragraphs; this chunk changes no paragraph setting.
+
+\newlength\flmxTabWidth
+\setlength\flmxTabWidth{2em}
+\newlength\flmxRuninSep
+\setlength\flmxRuninSep{0.8em}
+\colorlet{flmxLinkColor}{blue!60!black}
+\colorlet{flmxUrlColor}{blue!60!black}
+\colorlet{flmxCiteColor}{green!40!black}
+\colorlet{flmxMarkColor}{red}
+
+\ExplSyntaxOn
+
+% --- the keys of the element being written ---------------------------------
+
+\seq_new:N \l__flmx_keys_seq
+\tl_new:N \l__flmx_kinds_tl
+\tl_new:N \l__flmx_found_tl
+\bool_new:N \l__flmx_found_bool
+
+\cs_new_protected:Npn \__flmx_set_keys:n #1
+  {
+    \seq_map_inline:Nn \l__flmx_keys_seq
+      { \cs_set_eq:cN { l__flmx_key_##1_tl } \tex_undefined:D }
+    \seq_clear:N \l__flmx_keys_seq
+    \keyval_parse:nnn { \__flmx_key_flag:n } { \__flmx_key_value:nn } {#1}
+  }
+\cs_new_protected:Npn \__flmx_key_flag:n #1
+  { \__flmx_key_value:nn {#1} { true } }
+\cs_new_protected:Npn \__flmx_key_value:nn #1#2
+  {
+    \cs_set_nopar:cpn { l__flmx_key_#1_tl } {#2}
+    \seq_put_right:Nn \l__flmx_keys_seq {#1}
+  }
+
+\NewExpandableDocumentCommand \flmxKey { m }
+  { \cs_if_exist_use:c { l__flmx_key_#1_tl } }
+\NewExpandableDocumentCommand \flmxIfKey { m m m }
+  { \cs_if_exist:cTF { l__flmx_key_#1_tl } {#2} {#3} }
+
+% --- finding the registered code ------------------------------------------
+
+% #1 the element, #2 the keys to try in order (`kinds' tries each token).
+% Leaves the name of the code to run in \l__flmx_found_tl.
+\cs_new_protected:Npn \__flmx_find:nn #1#2
+  {
+    \bool_set_false:N \l__flmx_found_bool
+    \tl_set:Nn \l__flmx_found_tl { __flmx_#1_default }
+    \clist_map_inline:nn {#2}
+      {
+        \str_if_eq:nnTF {##1} { kinds }
+          {
+            \cs_if_exist:cT { l__flmx_key_kinds_tl }
+              {
+                \tl_set_eq:Nc \l__flmx_kinds_tl { l__flmx_key_kinds_tl }
+                \tl_replace_all:Nnn \l__flmx_kinds_tl { ~ } { , }
+                \clist_map_inline:Nn \l__flmx_kinds_tl
+                  { \__flmx_try:nn {#1} {####1} }
+              }
+          }
+          {
+            \cs_if_exist:cT { l__flmx_key_##1_tl }
+              { \__flmx_try:nv {#1} { l__flmx_key_##1_tl } }
+          }
+      }
+  }
+\cs_new_protected:Npn \__flmx_try:nn #1#2
+  {
+    \bool_if:NF \l__flmx_found_bool
+      {
+        \cs_if_exist:cT { __flmx_#1_reg_#2 }
+          {
+            \tl_set:Nn \l__flmx_found_tl { __flmx_#1_reg_#2 }
+            \bool_set_true:N \l__flmx_found_bool
+          }
+      }
+  }
+\cs_generate_variant:Nn \__flmx_try:nn { nv }
+
+% --- writing an element ------------------------------------------------------
+
+% A command of one content argument: #1 element, #2 keys to try, #3 the
+% key-value list, #4 the content.
+\cs_new_protected:Npn \__flmx_command:nnnn #1#2#3#4
+  {
+    \group_begin:
+      \__flmx_set_keys:n {#3}
+      \__flmx_find:nn {#1} {#2}
+      \use:c { \l__flmx_found_tl } {#4}
+    \group_end:
+  }
+% A command of two arguments.
+\cs_new_protected:Npn \__flmx_command:nnnnn #1#2#3#4#5
+  {
+    \group_begin:
+      \__flmx_set_keys:n {#3}
+      \__flmx_find:nn {#1} {#2}
+      \use:c { \l__flmx_found_tl } {#4} {#5}
+    \group_end:
+  }
+% The begin and end of an environment (LaTeX's environment is the group).
+\cs_new_protected:Npn \__flmx_env_begin:nnn #1#2#3
+  {
+    \__flmx_set_keys:n {#3}
+    \__flmx_find:nn {#1} {#2}
+    \cs_set_eq:cN { l__flmx_#1_env_tl } \l__flmx_found_tl
+    \use:c { \l__flmx_found_tl _begin }
+  }
+\cs_new_protected:Npn \__flmx_env_end:n #1
+  { \use:c { \use:c { l__flmx_#1_env_tl } _end } }
+
+% Registering code: #1 the element, #2 the name, #3 the code.
+\cs_new_protected:Npn \__flmx_register:nnn #1#2#3
+  { \cs_set_protected:cpn { __flmx_#1_reg_#2 } ##1 {#3} }
+\cs_new_protected:Npn \__flmx_register_env:nnnn #1#2#3#4
+  {
+    \cs_set_protected:cpn { __flmx_#1_reg_#2 } { }
+    \cs_set_protected:cpn { __flmx_#1_reg_#2_begin } {#3}
+    \cs_set_protected:cpn { __flmx_#1_reg_#2_end } {#4}
+  }
+\cs_new_protected:Npn \__flmx_default:nn #1#2
+  { \cs_set_protected:cpn { __flmx_#1_default } ##1 {#2} }
+\cs_new_protected:Npn \__flmx_default_ii:nn #1#2
+  { \cs_set_protected:cpn { __flmx_#1_default } ##1##2 {#2} }
+\cs_new_protected:Npn \__flmx_default_none:nn #1#2
+  { \cs_set_protected:cpn { __flmx_#1_default } {#2} }
+\cs_new_protected:Npn \__flmx_default_env:nnn #1#2#3
+  {
+    \cs_set_protected:cpn { __flmx_#1_default_begin } {#2}
+    \cs_set_protected:cpn { __flmx_#1_default_end } {#3}
+  }
+
+% The target of the element's anchor, where it carries one.
+\cs_new_protected:Npn \__flmx_anchor:
+  { \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } }
+
+% --- the registrations ---------------------------------------------------
+
+\NewDocumentCommand \flmxDefineBlock { m +m +m }
+  { \__flmx_register_env:nnnn { block } {#1} {#2} {#3} }
+\NewDocumentCommand \flmxDefineSpan { m +m }
+  { \__flmx_register:nnn { span } {#1} {#2} }
+\NewDocumentCommand \flmxDefineHeading { m +m }
+  { \__flmx_register:nnn { heading } {#1} {#2} }
+\NewDocumentCommand \flmxDefineRuninHeading { m +m }
+  { \__flmx_register:nnn { runinheading } {#1} {#2} }
+\NewDocumentCommand \flmxDefineLink { m +m }
+  { \__flmx_register:nnn { link } {#1} {#2} }
+\NewDocumentCommand \flmxDefineList { m +m +m }
+  { \__flmx_register_env:nnnn { list } {#1} {#2} {#3} }
+\NewDocumentCommand \flmxDefineItem { m +m }
+  { \cs_set_protected:cpn { __flmx_item_reg_#1 } {#2} }
+\NewDocumentCommand \flmxDefineVerbatim { m +m }
+  { \__flmx_register:nnn { verbatim } {#1} {#2} }
+\NewDocumentCommand \flmxDefineVerbatimBlock { m +m +m }
+  { \__flmx_register_env:nnnn { verbatimblock } {#1} {#2} {#3} }
+\NewDocumentCommand \flmxDefineXnote { m +m }
+  { \cs_set_protected:cpn { __flmx_xnote_reg_#1 } ##1##2 {#2} }
+\NewDocumentCommand \flmxDefineCellStyle { m +m }
+  {
+    \tl_clear_new:c { l__flmx_cellstyle_#1_tl }
+    \tl_set:cn { l__flmx_cellstyle_#1_tl } {#2}
+  }
+
+\NewDocumentCommand \flmxDefineBlockDefault { +m +m }
+  { \__flmx_default_env:nnn { block } {#1} {#2} }
+\NewDocumentCommand \flmxDefineSpanDefault { +m }
+  { \__flmx_default:nn { span } {#1} }
+\NewDocumentCommand \flmxDefineHeadingDefault { +m }
+  { \__flmx_default:nn { heading } {#1} }
+\NewDocumentCommand \flmxDefineRuninHeadingDefault { +m }
+  { \__flmx_default:nn { runinheading } {#1} }
+\NewDocumentCommand \flmxDefineLinkDefault { +m }
+  { \__flmx_default:nn { link } {#1} }
+\NewDocumentCommand \flmxDefineListDefault { +m +m }
+  { \__flmx_default_env:nnn { list } {#1} {#2} }
+\NewDocumentCommand \flmxDefineItemDefault { +m }
+  { \__flmx_default_none:nn { item } {#1} }
+\NewDocumentCommand \flmxDefineCellsDefault { +m +m }
+  { \__flmx_default_env:nnn { cells } {#1} {#2} }
+\NewDocumentCommand \flmxDefineLinesDefault { +m +m }
+  { \__flmx_default_env:nnn { lines } {#1} {#2} }
+\NewDocumentCommand \flmxDefineLineDefault { +m }
+  { \__flmx_default:nn { line } {#1} }
+\NewDocumentCommand \flmxDefineVerbatimDefault { +m }
+  { \__flmx_default:nn { verbatim } {#1} }
+\NewDocumentCommand \flmxDefineVerbatimBlockDefault { +m +m }
+  { \__flmx_default_env:nnn { verbatimblock } {#1} {#2} }
+\NewDocumentCommand \flmxDefineImageDefault { +m }
+  { \__flmx_default:nn { image } {#1} }
+\NewDocumentCommand \flmxDefineXnoteDefault { +m }
+  { \__flmx_default_ii:nn { xnote } {#1} }
+\NewDocumentCommand \flmxDefineDecoRuninDefault { +m }
+  { \__flmx_default:nn { decorunin } {#1} }
+\NewDocumentCommand \flmxDefineDecoFinalDefault { +m }
+  { \__flmx_default:nn { decofinal } {#1} }
+\NewDocumentCommand \flmxDefineDecoMarginDefault { +m }
+  { \__flmx_default:nn { decomargin } {#1} }
+\NewDocumentCommand \flmxDefineDroppedDefault { +m }
+  { \__flmx_default_ii:nn { dropped } {#1} }
+\NewDocumentCommand \flmxDefineUnsupportedDefault { +m }
+  { \__flmx_default_ii:nn { unsupported } {#1} }
+\NewDocumentCommand \flmxDefineUnknownDefault { +m }
+  { \__flmx_default_ii:nn { unknown } {#1} }
+
+% --- the target of an anchor --------------------------------------------
+
+\cs_new_protected:Npn \__flmx_target:n #1
+  {
+    \mode_if_math:TF
+      {
+        \legacy_if:nF { measuring@ }
+          {
+            \hypertarget { flmx:#1 } { }
+            \protected@write \@auxout { }
+              { \string \newlabel { flmx:#1 } { { } { \thepage } { } { flmx:#1 } { } } }
+          }
+      }
+      { \phantomsection \label { flmx:#1 } }
+  }
+\cs_generate_variant:Nn \__flmx_target:n { e }
+\NewDocumentCommand \flmxTarget { m } { \__flmx_target:e {#1} }
+
+% --- blocks, spans, decorations --------------------------------------------
+
+\NewDocumentEnvironment { flmxBlock } { O { } }
+  { \__flmx_env_begin:nnn { block } { role, kinds } {#1} }
+  { \__flmx_env_end:n { block } }
+\flmxDefineBlockDefault { \par \__flmx_anchor: } { \par }
+
+\NewDocumentCommand \flmxSpan { O { } +m }
+  { \__flmx_command:nnnn { span } { role, kinds, style } {#1} {#2} }
+\flmxDefineSpanDefault { \__flmx_anchor: #1 }
+\flmxDefineSpan { emph } { \__flmx_anchor: \emph {#1} }
+\flmxDefineSpan { bold } { \__flmx_anchor: \textbf {#1} }
+\flmxDefineSpan { italic } { \__flmx_anchor: \textit {#1} }
+\flmxDefineSpan { monospace } { \__flmx_anchor: \texttt {#1} }
+\flmxDefineSpan { underline } { \__flmx_anchor: \underline {#1} }
+\flmxDefineSpan { small-caps } { \__flmx_anchor: \textsc {#1} }
+\flmxDefineSpan { superscript } { \__flmx_anchor: \textsuperscript {#1} }
+\flmxDefineSpan { subscript } { \__flmx_anchor: \textsubscript {#1} }
+\flmxDefineSpan { unresolved-reference }
+  { \__flmx_anchor: \textcolor { flmxMarkColor } {#1} }
+
+\NewDocumentCommand \flmxDecoRunin { O { } +m }
+  { \__flmx_command:nnnn { decorunin } { } {#1} {#2} }
+\flmxDefineDecoRuninDefault
+  { \textbf { #1 \flmxKey { stop } } \hspace { \flmxRuninSep } }
+\NewDocumentCommand \flmxDecoFinal { O { } +m }
+  { \__flmx_command:nnnn { decofinal } { } {#1} {#2} }
+\flmxDefineDecoFinalDefault { \leavevmode \unskip \nobreak \hfill \mbox {#1} }
+\NewDocumentCommand \flmxDecoMargin { O { } +m }
+  { \__flmx_command:nnnn { decomargin } { } {#1} {#2} }
+\flmxDefineDecoMarginDefault { \marginpar { \footnotesize #1 } }
+
+\ExplSyntaxOff
+% flm.latex.def.flmx.cells.styles
+% flm.latex.def.flmx.cells.styles -- the cell styles the cells feature ships.
+%
+% The cells feature writes a cell's styles by name in the key styles of its
+% spec in the flmxCells environment (styles={green}). The structural styles
+% (align, head, rule, l, c, r, H, rH, lvert, rvert) are written as the keys
+% align, header and rules, and need no registration. The four custom styles
+% green, blue, yellow and red each give the cell a light background, a
+% color of its own:
+%   green   flmxCellsGreen    blue  flmxCellsBlue
+%   yellow  flmxCellsYellow   red   flmxCellsRed
+% A template changes a background with \colorlet{flmxCellsGreen}{...} (or
+% \definecolor), or a style's whole look with
+%   \flmxDefineCellStyle{<name>}{<tblr cell keys>}
+% (for instance \flmxDefineCellStyle{red}{fg=red}).
+
+\definecolor{flmxCellsGreen}{HTML}{D8F0D8}
+\definecolor{flmxCellsBlue}{HTML}{D8E4F8}
+\definecolor{flmxCellsYellow}{HTML}{F8F0C8}
+\definecolor{flmxCellsRed}{HTML}{F8D8D8}
+
+\flmxDefineCellStyle{green}{bg=flmxCellsGreen}
+\flmxDefineCellStyle{blue}{bg=flmxCellsBlue}
+\flmxDefineCellStyle{yellow}{bg=flmxCellsYellow}
+\flmxDefineCellStyle{red}{bg=flmxCellsRed}
+% flm.latex.def.flmx.cells
+% flm.latex.def.flmx.cells -- tables of cells.
+%
+% A table of cells is written
+%   \begin{flmxCells}[rows, cols, cells]
+%   <the rows>
+%   \end{flmxCells}
+% where every row of the grid holds every grid position as a column, the
+% positions separated by &, each row ended by \\. A cell's content stands
+% braced at the cell's top-left position, {<content>}, with \par between the
+% cell's blocks where it holds several (a cell is set as a box of
+% paragraphs, below); an empty position and a position that a spanning cell
+% covers hold nothing. The keys:
+%   rows, cols  the number of rows and columns of the grid;
+%   cells       one braced key-value list per cell, in the table's order,
+%               with the keys
+%     row, col            the cell's top-left position, counted from 1;
+%     row-span, col-span  where the cell spans more than one row or column;
+%     align               left, center or right, where the cell sets one;
+%     header              column or row, where the cell heads its column or
+%                         its row;
+%     rules               the edges at which a rule is drawn, among above,
+%                         below, left and right;
+%     styles              the names of the cell's styles.
+%
+% The default look sets the table with the tblr environment of the
+% tabularray package, its booktabs library, and its varwidth library, which
+% measures each cell as a box of paragraphs (measure=vbox) so that a cell
+% may hold a list or a displayed formula: \toprule above the rows and
+% \bottomrule below them; for each cell, its span (r=, c=) and its keys:
+% halign=l, c or r from align, font=\bfseries for a header, then the keys
+% registered for each of its styles, in order; a rule (hline or vline,
+% 0.4pt) along each edge its rules name, and below a cell that heads its
+% column. Columns are left-aligned. The table
+% is set at its natural width; where that is wider than \flmxCellsMaxWidth,
+% it is set again at that width, its columns X[-1] (shared in proportion to
+% their natural widths, their text wrapped). The table stands centered
+% between paragraphs; inside a cell of another table or a box (a float, a
+% minipage) it is set as it is, at the start of a line.
+%
+% Changing the look:
+%   \flmxDefineCellStyle{<name>}{<tblr cell keys>}
+%       registers the tabularray cell keys a cell with the style <name> gets
+%       (for instance bg=yellow!30, or fg=blue); a later registration
+%       replaces an earlier one; a style with no registration changes
+%       nothing (the command is the core chunk's, beside the other
+%       registrations).
+%   \flmxCellsMaxWidth  the widest a table is set, 0.96\linewidth; change
+%       it with \RenewExpandableDocumentCommand\flmxCellsMaxWidth{}{...}.
+%   \flmxDefineCellsDefault{<begin code>}{<end code>}
+%       replaces the default: the rows, as written, stand between the begin
+%       code and the end code, so that, for instance,
+%       \flmxDefineCellsDefault{\begin{tblr}{...}}{\end{tblr}} sets them
+%       with one's own tblr options; the keys are in scope (\flmxKey{cols}).
+
+\UseTblrLibrary{booktabs}
+\UseTblrLibrary{varwidth}
+
+\ExplSyntaxOn
+
+\NewExpandableDocumentCommand \flmxCellsMaxWidth { } { 0.96 \linewidth }
+
+% The environment collects its rows and writes them between the begin code
+% and the end code found for it, as tokens, so that code that collects a
+% body itself (tblr) finds its \end.
+\NewDocumentEnvironment { flmxCells } { O { } +b }
+  { \__flmx_cells:nn {#1} {#2} }
+  { }
+\cs_new_protected:Npn \__flmx_cells:nn #1#2
+  {
+    \__flmx_set_keys:n {#1}
+    \__flmx_find:nn { cells } { }
+    \use:e
+      {
+        \exp_not:v { \l__flmx_found_tl _begin }
+        \exp_not:n {#2}
+        \exp_not:v { \l__flmx_found_tl _end }
+      }
+  }
+
+% --- the default ---------------------------------------------------------
+
+\tl_new:N \l__flmx_cells_options_tl
+\clist_new:N \l__flmx_cells_specs_clist
+\prop_new:N \l__flmx_cell_prop
+\tl_new:N \l__flmx_cell_value_tl
+\tl_new:N \l__flmx_cell_span_tl
+\tl_new:N \l__flmx_cell_keys_tl
+\seq_new:N \l__flmx_cell_words_seq
+\int_new:N \l__flmx_cell_row_int
+\int_new:N \l__flmx_cell_col_int
+\int_new:N \l__flmx_cell_rows_int
+\int_new:N \l__flmx_cell_cols_int
+\box_new:N \l__flmx_cells_box
+\int_new:N \l__flmx_cells_depth_int
+\cs_generate_variant:Nn \tl_put_right:Nn { Nv }
+\cs_generate_variant:Nn \clist_set:Nn { Nv }
+
+% The default's end code marks where its begin code's argument ends.
+\cs_new_protected:Npn \__flmx_cells_end: { }
+\cs_new_protected:Npn \__flmx_cells_table:w #1 \__flmx_cells_end:
+  {
+    \__flmx_cells_options:
+    \bool_lazy_or:nnTF
+      { \mode_if_inner_p: }
+      { \int_compare_p:nNn { \l__flmx_cells_depth_int } > { 0 } }
+      {
+        \mode_if_vertical:T { \noindent }
+        \__flmx_cells_fit:n {#1}
+      }
+      { \__flmx_cells_display:n {#1} }
+  }
+\flmxDefineCellsDefault { \__flmx_cells_table:w } { \__flmx_cells_end: }
+
+\cs_new_protected:Npn \__flmx_cells_display:n #1
+  {
+    \par
+    \begin { center }
+      \__flmx_cells_fit:n {#1}
+    \end { center }
+  }
+
+% Sets the rows #1 at their natural width, and again with X columns at
+% \flmxCellsMaxWidth where they are wider. The depth counts the tables of
+% cells being set, so that a table in a cell is set as it is.
+\cs_new_protected:Npn \__flmx_cells_fit:n #1
+  {
+    \int_incr:N \l__flmx_cells_depth_int
+    \hbox_set:Nn \l__flmx_cells_box
+      {
+        \__flmx_cells_tblr:en
+          {
+            colspec = { * { \flmxKey { cols } } { l } } ,
+            \exp_not:V \l__flmx_cells_options_tl
+          }
+          {#1}
+      }
+    \dim_compare:nNnTF { \box_wd:N \l__flmx_cells_box } > { \flmxCellsMaxWidth }
+      {
+        \__flmx_cells_tblr:en
+          {
+            width = \flmxCellsMaxWidth ,
+            colspec = { * { \flmxKey { cols } } { X[-1,l] } } ,
+            \exp_not:V \l__flmx_cells_options_tl
+          }
+          {#1}
+      }
+      { \mode_leave_vertical: \box_use_drop:N \l__flmx_cells_box }
+  }
+% The tblr environment written out, so that it finds its \end{tblr}.
+\cs_new_protected:Npn \__flmx_cells_tblr:nn #1#2
+  { \begin { tblr } {#1} \toprule #2 \bottomrule \end { tblr } }
+\cs_generate_variant:Nn \__flmx_cells_tblr:nn { en }
+
+% The tblr options of the table from its key cells.
+\cs_new_protected:Npn \__flmx_cells_options:
+  {
+    \tl_set:Nn \l__flmx_cells_options_tl { hspan = minimal , measure = vbox }
+    \flmxIfKey { cells }
+      {
+        \clist_set:Nv \l__flmx_cells_specs_clist { l__flmx_key_cells_tl }
+        \clist_map_function:NN \l__flmx_cells_specs_clist \__flmx_cells_spec:n
+      }
+      { }
+  }
+
+% One cell's spec #1: its cell{}{} entry and its rules.
+\cs_new_protected:Npn \__flmx_cells_spec:n #1
+  {
+    \prop_clear:N \l__flmx_cell_prop
+    \keyval_parse:nnn { \use_none:n } { \prop_put:Nnn \l__flmx_cell_prop } {#1}
+    \int_set:Nn \l__flmx_cell_row_int { \__flmx_cell_number:nn { row } { 1 } }
+    \int_set:Nn \l__flmx_cell_col_int { \__flmx_cell_number:nn { col } { 1 } }
+    \int_set:Nn \l__flmx_cell_rows_int { \__flmx_cell_number:nn { row-span } { 1 } }
+    \int_set:Nn \l__flmx_cell_cols_int { \__flmx_cell_number:nn { col-span } { 1 } }
+    % the span
+    \tl_clear:N \l__flmx_cell_span_tl
+    \int_compare:nNnT { \l__flmx_cell_rows_int } > { 1 }
+      { \tl_put_right:Ne \l__flmx_cell_span_tl { r = \int_use:N \l__flmx_cell_rows_int } }
+    \int_compare:nNnT { \l__flmx_cell_cols_int } > { 1 }
+      {
+        \tl_if_empty:NF \l__flmx_cell_span_tl { \tl_put_right:Nn \l__flmx_cell_span_tl { , } }
+        \tl_put_right:Ne \l__flmx_cell_span_tl { c = \int_use:N \l__flmx_cell_cols_int }
+      }
+    % the keys
+    \tl_clear:N \l__flmx_cell_keys_tl
+    \prop_get:NnNT \l__flmx_cell_prop { align } \l__flmx_cell_value_tl
+      {
+        \str_case:VnT \l__flmx_cell_value_tl
+          {
+            { left } { \tl_put_right:Nn \l__flmx_cell_keys_tl { halign = l , } }
+            { center } { \tl_put_right:Nn \l__flmx_cell_keys_tl { halign = c , } }
+            { right } { \tl_put_right:Nn \l__flmx_cell_keys_tl { halign = r , } }
+          }
+          { }
+      }
+    \prop_if_in:NnT \l__flmx_cell_prop { header }
+      { \tl_put_right:Nn \l__flmx_cell_keys_tl { font = \bfseries , } }
+    \prop_get:NnNT \l__flmx_cell_prop { styles } \l__flmx_cell_value_tl
+      {
+        \seq_set_split:NnV \l__flmx_cell_words_seq { ~ } \l__flmx_cell_value_tl
+        \seq_map_inline:Nn \l__flmx_cell_words_seq
+          {
+            \tl_if_exist:cT { l__flmx_cellstyle_##1_tl }
+              {
+                \tl_put_right:Nv \l__flmx_cell_keys_tl { l__flmx_cellstyle_##1_tl }
+                \tl_put_right:Nn \l__flmx_cell_keys_tl { , }
+              }
+          }
+      }
+    \bool_lazy_and:nnF
+      { \tl_if_empty_p:N \l__flmx_cell_span_tl }
+      { \tl_if_empty_p:N \l__flmx_cell_keys_tl }
+      {
+        \tl_put_right:Ne \l__flmx_cells_options_tl
+          {
+            , cell { \int_use:N \l__flmx_cell_row_int } { \int_use:N \l__flmx_cell_col_int }
+              = { \exp_not:V \l__flmx_cell_span_tl } { \exp_not:V \l__flmx_cell_keys_tl }
+          }
+      }
+    % the rules
+    \prop_get:NnNT \l__flmx_cell_prop { header } \l__flmx_cell_value_tl
+      { \str_if_eq:VnT \l__flmx_cell_value_tl { column } { \__flmx_cell_rule:n { below } } }
+    \prop_get:NnNT \l__flmx_cell_prop { rules } \l__flmx_cell_value_tl
+      {
+        \seq_set_split:NnV \l__flmx_cell_words_seq { ~ } \l__flmx_cell_value_tl
+        \seq_map_function:NN \l__flmx_cell_words_seq \__flmx_cell_rule:n
+      }
+  }
+\cs_generate_variant:Nn \seq_set_split:Nnn { NnV }
+\cs_generate_variant:Nn \str_case:nnT { V }
+
+% The value of the number key #1 of the cell, or #2.
+\cs_new:Npn \__flmx_cell_number:nn #1#2
+  { \prop_if_in:NnTF \l__flmx_cell_prop {#1} { \prop_item:Nn \l__flmx_cell_prop {#1} } {#2} }
+
+% The rule along the edge #1 of the cell.
+\cs_new_protected:Npn \__flmx_cell_rule:n #1
+  {
+    \str_case:nn {#1}
+      {
+        { above }
+          { \__flmx_cell_hline:n { \l__flmx_cell_row_int } }
+        { below }
+          { \__flmx_cell_hline:n { \l__flmx_cell_row_int + \l__flmx_cell_rows_int } }
+        { left }
+          { \__flmx_cell_vline:n { \l__flmx_cell_col_int } }
+        { right }
+          { \__flmx_cell_vline:n { \l__flmx_cell_col_int + \l__flmx_cell_cols_int } }
+      }
+  }
+\cs_new_protected:Npn \__flmx_cell_hline:n #1
+  {
+    \tl_put_right:Ne \l__flmx_cells_options_tl
+      {
+        , hline { \int_eval:n {#1} }
+          = { \__flmx_cell_range:nn { \l__flmx_cell_col_int } { \l__flmx_cell_cols_int } }
+            { 0.4pt , solid }
+      }
+  }
+\cs_new_protected:Npn \__flmx_cell_vline:n #1
+  {
+    \tl_put_right:Ne \l__flmx_cells_options_tl
+      {
+        , vline { \int_eval:n {#1} }
+          = { \__flmx_cell_range:nn { \l__flmx_cell_row_int } { \l__flmx_cell_rows_int } }
+            { 0.4pt , solid }
+      }
+  }
+% The range of #2 positions from #1: "3" or "3-4".
+\cs_new:Npn \__flmx_cell_range:nn #1#2
+  {
+    \int_use:N #1
+    \int_compare:nNnT {#2} > { 1 } { - \int_eval:n { #1 + #2 - 1 } }
+  }
+
+\ExplSyntaxOff
+\endinput

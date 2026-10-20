@@ -1,0 +1,8 @@
+---
+title: Two errors and a warning
+---
+A \nosuch{x} and a reference to \ref{sec:missing}.
+
+\begin{nosuchenv}
+B
+\end{nosuchenv}

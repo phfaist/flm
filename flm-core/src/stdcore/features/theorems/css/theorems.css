@@ -1,0 +1,42 @@
+/* flm.theorems.style */
+/* Theorems: the heading of a theorem-like block, with its name set apart
+   from the rest of the heading.  This stylesheet holds no other rule: the
+   space around the block,
+   the gap after the heading, and the gap before a closing mark (the square
+   at the end of a proof) are set by flm.html.style.core. */
+@layer flm {
+  :root {
+    /* The weight of the parts of a theorem's heading other than its name:
+       the title, the text that joins it to the name, and the punctuation
+       after it. */
+    --flm-theorems-heading-weight: normal;
+    /* The weight of a theorem's name: the word of its theorem kind and its
+       number. */
+    --flm-theorems-name-weight: bold;
+    /* How the name of a theorem kind of the proof-like class (a proof, for
+       example) is set. */
+    --flm-theorems-prooflike-name-weight: normal;
+    --flm-theorems-prooflike-name-style: italic;
+  }
+
+  /* The heading: the run-in decoration at the start of the block's first
+     paragraph, which flm.html.style.core sets in bold as a whole; these rules
+     set only the name in bold.  Only the first child of the first paragraph
+     is the heading: a run-in decoration elsewhere in the block, such as a
+     run-in section heading, keeps its own look. */
+  .flm-theorems-theorem > .flm-pres-par:first-child > .flm-pres-deco-runin:first-child {
+    font-weight: var(--flm-theorems-heading-weight);
+  }
+  .flm-theorems-theorem > .flm-pres-par > .flm-pres-deco-runin > .flm-theorems-name {
+    font-weight: var(--flm-theorems-name-weight);
+  }
+
+  /* The name of a theorem kind of the proof-like class, which the block
+     carries as its kind token `prooflike`.  Each selector steps down from the
+     block one level at a time, so that a theorem inside a proof keeps its
+     own look. */
+  .flm-theorems-theorem[data-flm-kind~="prooflike"] > .flm-pres-par > .flm-pres-deco-runin > .flm-theorems-name {
+    font-weight: var(--flm-theorems-prooflike-name-weight);
+    font-style: var(--flm-theorems-prooflike-name-style);
+  }
+}

@@ -1,0 +1,6 @@
+extension:
+  description: Syntax highlighting of language-labelled code with Syntect
+  engine: wasm
+  wasm:
+    module: syntax_highlight.wasm
+    limits: { memory_mib: 256, fuel: 20000000000 }

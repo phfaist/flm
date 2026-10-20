@@ -1,0 +1,18 @@
+/* flm.defterm.style */
+/* Defined terms: the term being defined, where its own term definition
+   uses it, set apart from the text around it.  This is the only rule: the
+   lead-in of a term definition is a run-in decoration, which
+   flm.html.style.core sets. */
+@layer flm {
+  :root {
+    /* How the term being defined is set where its own term definition uses
+       it. */
+    --flm-defterm-term-style: italic;
+  }
+
+  /* A term link written inside the definition of its own term: the backend
+     writes no link there, only the term, set apart by this rule. */
+  .flm-pres-span.flm-defterm-term {
+    font-style: var(--flm-defterm-term-style);
+  }
+}

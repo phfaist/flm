@@ -1,0 +1,21 @@
+===== check =====
+Error flm.blocks.block-in-inline: ‘flm.defterm’ is a block-level construct and must not appear inside inline content — at `\begin{defterm}{title term}Defined in a title.\end{defterm}`
+Warning flm.refs.unresolved: the reference points at the label `defterm:nothing`, which is not defined — at `\term{nothing}`
+Warning flm.refs.unresolved: the reference points at the label `defterm:\emph{no} such term`, which is not defined — at `\term{\emph{no} such term}`
+Warning flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+===== text =====
+Error flm.blocks.block-in-inline: ‘flm.defterm’ is a block-level construct and must not appear inside inline content — at `\begin{defterm}{title term}Defined in a title.\end{defterm}`
+Error flm.refs.unresolved: the reference points at the label `defterm:nothing`, which is not defined — at `\term{nothing}`
+Error flm.refs.unresolved: the reference points at the label `defterm:\emph{no} such term`, which is not defined — at `\term{\emph{no} such term}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}` — in `a copy of this content, shown here` at `\ref{sec:shown}`
+===== html =====
+Error flm.blocks.block-in-inline: ‘flm.defterm’ is a block-level construct and must not appear inside inline content — at `\begin{defterm}{title term}Defined in a title.\end{defterm}`
+Error flm.refs.unresolved: the reference points at the label `defterm:nothing`, which is not defined — at `\term{nothing}`
+Error flm.refs.unresolved: the reference points at the label `defterm:\emph{no} such term`, which is not defined — at `\term{\emph{no} such term}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}` — in `a copy of this content, shown here` at `\ref{sec:shown}`
+===== latex-recomposed =====
+Error flm.refs.unresolved: the reference points at the label `defterm:nothing`, which is not defined — at `\term{nothing}`
+Error flm.refs.unresolved: the reference points at the label `defterm:\emph{no} such term`, which is not defined — at `\term{\emph{no} such term}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`

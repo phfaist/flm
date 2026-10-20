@@ -1,0 +1,15 @@
+A fine paper on \(x^2\)
+
+Ann, Bob
+
+30 September 2026
+
+Introduction
+============
+
+Hello worldᵃ, with \(a+b\).
+
+Footnotes
+=========
+
+ᵃ A note.

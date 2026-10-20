@@ -1,0 +1,13 @@
+> Here is a paragraph inside a
+> blockquote; it has to wrap two columns
+> earlier than usual because of the
+> quote marker.
+>
+> ```
+> def f(x):
+>
+>     return x + 1
+> ```
+>
+> And a closing paragraph after the code
+> block.

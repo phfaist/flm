@@ -1,0 +1,5 @@
+extension:
+  description: Numbered, referenceable exercises with hints
+  engine: js
+  js:
+    main: main.js

@@ -1,0 +1,334 @@
+/* flm.preview.style */
+/* The live preview's stylesheet: the rules for what the page script lays over the page
+   while `flm watch` runs (the toolbar at the bottom right corner of the window, and the
+   marks on the elements that a problem lies in) and for the server's waiting page. Every
+   color, font, size and spacing is a custom property declared on `:root`, so a page
+   changes it by setting the property. The duration of the flash is one too, and the
+   script does not repeat it: the script removes the flash when the animation ends. */
+
+:root {
+  --flm-preview-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --flm-preview-font-size: 13px;
+  --flm-preview-line-height: 1.4;
+  --flm-preview-strong: 600;
+  --flm-preview-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --flm-preview-text: #1f2328;
+  --flm-preview-muted: #59636e;
+  --flm-preview-background: #ffffff;
+  --flm-preview-border: #d1d9e0;
+  --flm-preview-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  --flm-preview-radius: 6px;
+  --flm-preview-border-width: 1px;
+  --flm-preview-bar-padding: 4px;
+  --flm-preview-button-padding: 2px 8px;
+  --flm-preview-panel-padding: 8px 10px;
+  --flm-preview-problem-padding: 2px 6px;
+  --flm-preview-problem-border-width: 3px;
+  --flm-preview-gap: 6px;
+  --flm-preview-offset: 12px;
+  --flm-preview-width: 34em;
+  --flm-preview-panel-height: 45vh;
+  --flm-preview-settings-width: 46em;
+  --flm-preview-settings-height: 75vh;
+  --flm-preview-input-padding: 1px 4px;
+  --flm-preview-z: 2147483000;
+  --flm-preview-error: #cf222e;
+  --flm-preview-warning: #9a6700;
+  --flm-preview-note: #0969da;
+  --flm-preview-fine: #1a7f37;
+  --flm-preview-building: #8250df;
+  --flm-preview-mark-width: 2px;
+  --flm-preview-mark-offset: 1px;
+  --flm-preview-flash: rgba(255, 213, 79, 0.75);
+  --flm-preview-flash-duration: 1.2s;
+  --flm-preview-waiting-width: 40em;
+  --flm-preview-waiting-margin: 4em auto;
+  --flm-preview-waiting-padding: 0 1em;
+  --flm-preview-waiting-font-size: 16px;
+  --flm-preview-waiting-line-height: 1.5;
+}
+
+.flm-preview-toolbar {
+  position: fixed;
+  right: var(--flm-preview-offset);
+  bottom: var(--flm-preview-offset);
+  z-index: var(--flm-preview-z);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--flm-preview-gap);
+  max-width: calc(100vw - 2 * var(--flm-preview-offset));
+  font: var(--flm-preview-font-size)/var(--flm-preview-line-height) var(--flm-preview-font);
+  color: var(--flm-preview-text);
+  text-align: left;
+}
+
+.flm-preview-toolbar button,
+.flm-preview-toolbar select {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+  cursor: pointer;
+}
+
+.flm-preview-bar,
+.flm-preview-panel {
+  background: var(--flm-preview-background);
+  border: var(--flm-preview-border-width) solid var(--flm-preview-border);
+  border-radius: var(--flm-preview-radius);
+  box-shadow: var(--flm-preview-shadow);
+}
+
+.flm-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--flm-preview-gap);
+  padding: var(--flm-preview-bar-padding);
+}
+
+.flm-preview-tools {
+  display: flex;
+  gap: var(--flm-preview-gap);
+}
+
+.flm-preview-state,
+.flm-preview-tool,
+.flm-preview-fold,
+.flm-preview-editor {
+  border: var(--flm-preview-border-width) solid transparent;
+  border-radius: var(--flm-preview-radius);
+  background: transparent;
+  padding: var(--flm-preview-button-padding);
+}
+
+.flm-preview-tool:hover,
+.flm-preview-fold:hover,
+.flm-preview-state:hover,
+.flm-preview-editor:hover {
+  border-color: var(--flm-preview-border);
+}
+
+.flm-preview-editor[hidden] {
+  display: none;
+}
+
+.flm-preview-tool[aria-expanded="true"] {
+  border-color: var(--flm-preview-border);
+  background: var(--flm-preview-border);
+}
+
+.flm-preview-state {
+  font-weight: var(--flm-preview-strong);
+  color: var(--flm-preview-fine);
+}
+
+.flm-preview-state[data-flm-preview-severity="error"] { color: var(--flm-preview-error); }
+.flm-preview-state[data-flm-preview-severity="warning"] { color: var(--flm-preview-warning); }
+.flm-preview-state[data-flm-preview-severity="note"] { color: var(--flm-preview-note); }
+.flm-preview-state[data-flm-preview-building] { color: var(--flm-preview-building); }
+
+.flm-preview-toolbar[data-flm-preview-folded] .flm-preview-tools,
+.flm-preview-toolbar[data-flm-preview-folded] .flm-preview-editor,
+.flm-preview-toolbar[data-flm-preview-folded] .flm-preview-fold {
+  display: none;
+}
+
+.flm-preview-panel {
+  width: var(--flm-preview-width);
+  max-width: 100%;
+  max-height: var(--flm-preview-panel-height);
+  overflow: auto;
+  padding: var(--flm-preview-panel-padding);
+  box-sizing: border-box;
+}
+
+.flm-preview-panel[hidden] {
+  display: none;
+}
+
+.flm-preview-panel p,
+.flm-preview-panel dl {
+  margin: 0 0 var(--flm-preview-gap);
+}
+
+.flm-preview-problems {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.flm-preview-problem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--flm-preview-gap);
+  border-left: var(--flm-preview-problem-border-width) solid var(--flm-preview-error);
+  margin: 0 0 var(--flm-preview-gap);
+}
+
+.flm-preview-problem[data-flm-preview-severity="warning"] { border-left-color: var(--flm-preview-warning); }
+.flm-preview-problem[data-flm-preview-severity="note"] { border-left-color: var(--flm-preview-note); }
+
+.flm-preview-problem-show {
+  flex: 1;
+  display: block;
+  border: 0;
+  background: transparent;
+  padding: var(--flm-preview-problem-padding);
+  text-align: left;
+}
+
+.flm-preview-problem-open {
+  flex: none;
+  border: var(--flm-preview-border-width) solid var(--flm-preview-border);
+  border-radius: var(--flm-preview-radius);
+  background: transparent;
+  padding: var(--flm-preview-button-padding);
+}
+
+.flm-preview-notice {
+  margin: 0;
+  max-width: var(--flm-preview-width);
+  padding: var(--flm-preview-panel-padding);
+  background: var(--flm-preview-background);
+  border: var(--flm-preview-border-width) solid var(--flm-preview-border);
+  border-radius: var(--flm-preview-radius);
+  box-shadow: var(--flm-preview-shadow);
+  box-sizing: border-box;
+}
+
+.flm-preview-notice[hidden] {
+  display: none;
+}
+
+.flm-preview-severity {
+  font-weight: var(--flm-preview-strong);
+  margin-right: var(--flm-preview-gap);
+}
+
+.flm-preview-place {
+  color: var(--flm-preview-muted);
+  font-family: var(--flm-preview-mono);
+}
+
+.flm-preview-text {
+  display: block;
+  white-space: pre-wrap;
+}
+
+.flm-preview-panel[data-flm-preview-tool="settings"] {
+  width: var(--flm-preview-settings-width);
+  max-height: var(--flm-preview-settings-height);
+}
+
+.flm-preview-settings-head {
+  position: sticky;
+  top: calc(-1 * var(--flm-preview-gap));
+  z-index: 1;
+  background: var(--flm-preview-background);
+  border-bottom: var(--flm-preview-border-width) solid var(--flm-preview-border);
+  margin: 0 0 var(--flm-preview-gap);
+  padding: var(--flm-preview-gap) 0;
+}
+
+.flm-preview-settings-save {
+  border: var(--flm-preview-border-width) solid var(--flm-preview-border);
+  border-radius: var(--flm-preview-radius);
+  background: transparent;
+  padding: var(--flm-preview-button-padding);
+}
+
+.flm-preview-settings-status {
+  display: inline;
+  margin-left: var(--flm-preview-gap);
+  white-space: pre-wrap;
+}
+
+.flm-preview-settings-status[hidden] {
+  display: none;
+}
+
+.flm-preview-setting {
+  border-bottom: var(--flm-preview-border-width) solid var(--flm-preview-border);
+  padding: var(--flm-preview-gap) 0;
+}
+
+.flm-preview-setting-heading {
+  cursor: pointer;
+}
+
+.flm-preview-setting-name {
+  font-family: var(--flm-preview-mono);
+  font-weight: var(--flm-preview-strong);
+}
+
+.flm-preview-setting-description {
+  color: var(--flm-preview-muted);
+  white-space: pre-line;
+}
+
+/* The form's own heading and description repeat the section's. */
+.flm-preview-setting-form > [data-schemapath="root"] > .je-object__title,
+.flm-preview-setting-form > [data-schemapath="root"] > p {
+  display: none;
+}
+
+.flm-preview-setting-form input,
+.flm-preview-setting-form select,
+.flm-preview-setting-form textarea,
+.flm-preview-setting-form button {
+  font: inherit;
+  color: inherit;
+  padding: var(--flm-preview-input-padding);
+}
+
+.flm-preview-setting-form label,
+.flm-preview-setting-form h3,
+.flm-preview-setting-form h4 {
+  font-size: inherit;
+  font-weight: var(--flm-preview-strong);
+  margin: var(--flm-preview-gap) 0 0;
+}
+
+.flm-preview-setting-form p,
+.flm-preview-setting-form .je-desc {
+  color: var(--flm-preview-muted);
+  white-space: pre-line;
+}
+
+.flm-preview-outputs dt {
+  color: var(--flm-preview-muted);
+}
+
+.flm-preview-outputs dd {
+  margin: 0 0 var(--flm-preview-gap);
+}
+
+.flm-preview-outputs code {
+  font-family: var(--flm-preview-mono);
+  user-select: all;
+}
+
+[data-flm-preview-problem] {
+  outline: var(--flm-preview-mark-width) dashed var(--flm-preview-error);
+  outline-offset: var(--flm-preview-mark-offset);
+}
+
+[data-flm-preview-problem="warning"] { outline-color: var(--flm-preview-warning); }
+[data-flm-preview-problem="note"] { outline-color: var(--flm-preview-note); }
+
+[data-flm-preview-flash] {
+  animation: flm-preview-flash var(--flm-preview-flash-duration) ease-out;
+}
+
+@keyframes flm-preview-flash {
+  from { background-color: var(--flm-preview-flash); }
+  to { background-color: transparent; }
+}
+
+.flm-preview-waiting {
+  max-width: var(--flm-preview-waiting-width);
+  margin: var(--flm-preview-waiting-margin);
+  padding: var(--flm-preview-waiting-padding);
+  font: var(--flm-preview-waiting-font-size)/var(--flm-preview-waiting-line-height) var(--flm-preview-font);
+  color: var(--flm-preview-text);
+}

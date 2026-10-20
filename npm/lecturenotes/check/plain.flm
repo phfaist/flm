@@ -1,0 +1,12 @@
+---
+title: A short document
+flm:
+  use: [lecturenotes]
+---
+\section{First}
+
+A paragraph with neither a footnote nor a reference.
+
+\section{Second}
+
+Another paragraph.

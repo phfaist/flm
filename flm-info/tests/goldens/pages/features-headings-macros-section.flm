@@ -1,0 +1,33 @@
+---
+title: "Macro \\textbackslash{}section"
+flm:
+  use: [flmdoc]
+  math: false
+---
+\begin{docitem}{macro}{\section}
+
+\docsignature{\section*[options]{title}\label{target}}
+
+\docsummary{`\section*[…]{title}\label{…}`: A heading of level 1.}
+
+\begin{docparams}
+\docparam{*}{star}{}{A star: not numbered (`numbered=false`).}
+\docparam{[options]}{options}{}{Key-values: `numbered=true|false`, `toc=true|false`.}
+\docparam{{title}}{title}{}{The heading's title.}
+\end{docparams}
+
+\begin{docparams}[Fields written after it]
+\docparam{\label{target}}{label}{}{Attaches a label to the construct, which a reference can point at; may be repeated. It may be written more than once.}
+\docparam{{target}}{target}{flm.refs.defined-label}{The label, written `type:label` (`sec:intro`). (an argument of the field \verbcode{\label})}
+\end{docparams}
+
+\docfield{Declared by}{the feature \docref{features/headings}{\verbcode{headings}}}
+
+\docfield{Available in}{\verbcode{text} mode}
+
+\docfield{Element}{\docref{namespaces/element/flm.heading}{\verbcode{flm.heading}}: `section`: A heading of level 1.}
+
+\docfield{Aspects}{\verbcode{flm_core::model::aspects::BlockRoleAspect}, \verbcode{flm_core::model::aspects::Sectioning}, \verbcode{flm_core::model::aspects::Referenceable}}
+
+\end{docitem}
+

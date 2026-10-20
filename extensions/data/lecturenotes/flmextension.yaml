@@ -1,0 +1,14 @@
+# The lecture-notes page: the compose template `lecturenotes` for the output `html` (the
+# other outputs keep their own default), with the table of contents for its sidebar. The
+# page's stylesheet and script are the bundle in the compose template's folder
+# (`templates/html/lecturenotes/dist/`, built by `npm/lecturenotes` of the repository),
+# which the two shipped files include as it is.
+extension:
+  description: The lecture-notes page, a book-length document as one page with a sidebar
+flm:
+  features:
+    compose: {template: {html: lecturenotes}}
+    pieces: {include: [flm.toc]}
+    html:
+      definitions:
+        flm.html.style.page: provided-by-host

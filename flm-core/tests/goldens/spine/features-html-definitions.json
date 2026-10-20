@@ -1,0 +1,80 @@
+{
+  "flm.html.definitions": [
+    {
+      "id": "flm.headings.style",
+      "kind": "style",
+      "owner": "headings",
+      "provided_by_host": false,
+      "parts": []
+    },
+    {
+      "id": "flm.html.style.core",
+      "kind": "style",
+      "owner": "html",
+      "provided_by_host": false,
+      "parts": [
+        {
+          "url": "css/core.css"
+        }
+      ]
+    },
+    {
+      "id": "flm.html.style.headings",
+      "kind": "style",
+      "owner": "html",
+      "provided_by_host": false,
+      "parts": [
+        {
+          "url": "css/headings.css"
+        }
+      ]
+    },
+    {
+      "id": "flm.html.style.verbatim",
+      "kind": "style",
+      "owner": "html",
+      "provided_by_host": false,
+      "parts": [
+        {
+          "url": "css/verbatim.css"
+        }
+      ]
+    },
+    {
+      "id": "flm.html.style.math-passthrough",
+      "kind": "style",
+      "owner": "html",
+      "provided_by_host": false,
+      "parts": [
+        {
+          "url": "css/math-passthrough.css"
+        }
+      ]
+    },
+    {
+      "id": "flm.html.style.page",
+      "kind": "style",
+      "owner": "html",
+      "provided_by_host": false,
+      "parts": [
+        {
+          "url": "css/page.css"
+        }
+      ]
+    },
+    {
+      "id": "flm.html.mathjax",
+      "kind": "script",
+      "owner": "html",
+      "provided_by_host": false,
+      "parts": [
+        {
+          "inline": "/* flm.html.mathjax */\n/* The configuration of the formula renderer (MathJax), the script that\n   typesets in the browser the formulas that the HTML backend writes into the\n   page.  The renderer's program, which the next part of the script\n   definition flm.html.mathjax loads, reads this configuration when it\n   starts, so the page writes this part first.  The configuration holds what\n   the backend's own output needs and nothing that restricts what an author\n   may write inside a formula, because FLM does not inspect the content of a\n   formula.  A host that renders mathematics written by authors it does not\n   trust replaces this part with a configuration of its own; the\n   documentation of the Rust module flm_core::stdcore::backends::html::mathjax\n   gives that configuration.  After the configuration object come a listener\n   that follows a link inside a formula when it is clicked, and the code that\n   keeps the formulas typeset while a script of the page updates parts of the\n   page in place. */\nwindow.MathJax = {\n  loader: {load: ['[tex]/texhtml']},\n  tex: {\n    packages: {'[+]': ['texhtml']},\n    allowTexHTML: true,\n    inlineMath: [['\\\\(', '\\\\)']],\n    displayMath: [['\\\\[', '\\\\]']],\n    processEnvironments: true,\n    processRefs: false,\n    tags: 'none'\n  },\n  chtml: {mtextInheritFont: true},\n  startup: {elements: ['.flm-pres-math--passthrough']}\n};\n/* A reference written in text inside a formula is a link that the HTML\n   backend writes into the HTML that the formula carries.  The renderer\n   removes the address from every link in its output, keeping it in\n   `data-mjx-href`, and follows only the links that it made itself, so a\n   click on such a link would otherwise do nothing.  This listener follows\n   the link, and acts only on a plain primary click (no modifier key held) on\n   one of the backend's links inside a typeset formula. */\ndocument.addEventListener('click', function (event) {\n  if (event.defaultPrevented || event.button !== 0 ||\n      event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) { return; }\n  var from = event.target;\n  var link = from && from.closest &&\n    from.closest('mjx-container mjx-html a.flm-pres-link[data-mjx-href]');\n  if (!link) { return; }\n  event.preventDefault();\n  window.location.href = link.getAttribute('data-mjx-href');\n});\n/* A page updated in place.  A script that updates an output region of the\n   page (a named part of the page, such as its content) without loading the\n   page again follows two conventions: it dispatches the event\n   `flm:region-updated` on the region's element once the region's content is\n   new, and it leaves unchanged every element that carries the attribute\n   `data-flm-original-html` when the new HTML inside that element equals the\n   attribute's value.  This code writes that attribute on each formula,\n   holding the HTML inside the formula's element, just before the renderer\n   typesets the formula; and on the event, it typesets the formulas of the\n   region that carry no such attribute: the new formulas, and those whose\n   source changed.  Before the renderer has started, there is nothing to do,\n   because the renderer typesets every formula of the page when it starts. */\n(function () {\n  var ORIGINAL = 'data-flm-original-html';\n  var formulas = window.MathJax.startup.elements.join(', ');\n  function untypeset(root) {\n    return Array.prototype.filter.call(root.querySelectorAll(formulas), function (element) {\n      return !element.hasAttribute(ORIGINAL);\n    });\n  }\n  function record(elements) {\n    elements.forEach(function (element) {\n      element.setAttribute(ORIGINAL, element.innerHTML);\n    });\n    return elements;\n  }\n  window.MathJax.startup.pageReady = function () {\n    record(untypeset(document));\n    return window.MathJax.startup.defaultPageReady();\n  };\n  document.addEventListener('flm:region-updated', function (event) {\n    var renderer = window.MathJax;\n    if (!renderer.startup || !renderer.startup.promise) { return; }\n    renderer.startup.promise = renderer.startup.promise.then(function () {\n      var fresh = record(untypeset(event.target));\n      if (fresh.length > 0) { return renderer.typesetPromise(fresh); }\n    });\n  });\n})();\n"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"
+        }
+      ]
+    }
+  ]
+}

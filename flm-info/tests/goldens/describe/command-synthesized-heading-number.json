@@ -1,0 +1,18 @@
+{
+  "feature": "headings",
+  "names": [],
+  "modes": [],
+  "docs": "A heading's number, where the kind's heading title template writes `#{number}`. No document can write it: the heading's lowering rule inserts it.",
+  "summary": "A heading's number, where the kind's heading title template writes `#{number}`. No document can write it: the heading's lowering rule inserts it.",
+  "arguments": [],
+  "element": {
+    "name": "flm.heading.number",
+    "docs": "The number of a numbered heading, where the kind's heading title template writes `#{number}`. No document can write it.",
+    "summary": "The number of a numbered heading, where the kind's heading title template writes `#{number}`. No document can write it.",
+    "aspects": [
+      "flm_core::model::aspects::BlockRoleAspect"
+    ],
+    "number": 58
+  },
+  "synthesized": true
+}

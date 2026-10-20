@@ -1,0 +1,58 @@
+/* flm.html.style.headings */
+/* The look of a heading, with a size for each of the six levels.  A run-in
+   heading (a heading set at the start of its paragraph) is styled in
+   flm.html.style.core instead, because the backend writes it as a run-in
+   decoration, an element that any document can hold. */
+@layer flm {
+  :root {
+    /* The size of a heading at each of the six levels. */
+    --flm-heading-size-1: 1.8em;
+    --flm-heading-size-2: 1.5em;
+    --flm-heading-size-3: 1.25em;
+    --flm-heading-size-4: 1.1em;
+    --flm-heading-size-5: 1em;
+    --flm-heading-size-6: 1em;
+    /* How a heading is set, and the space above and below it. */
+    --flm-heading-weight: bold;
+    --flm-heading-line-height: 1.2;
+    --flm-heading-space-above: 1.5em;
+    --flm-heading-space-below: 0.5em;
+  }
+
+  /* Every heading, at any level: its weight, its line height, and the space
+     above and below it. */
+  .flm-pres-block--heading {
+    margin: var(--flm-heading-space-above) 0 var(--flm-heading-space-below);
+    font-weight: var(--flm-heading-weight);
+    line-height: var(--flm-heading-line-height);
+  }
+  /* A heading that is the first child of its container takes no space above
+     it. */
+  .flm-pres-block--heading:first-child {
+    margin-top: 0;
+  }
+
+  /* The level is read from the attribute data-flm-level, not from the tag: a
+     heading deeper than level six keeps its true level in the attribute and
+     gets the rules above, with no size of its own. */
+  .flm-pres-block--heading[data-flm-level="1"] {
+    font-size: var(--flm-heading-size-1);
+  }
+  .flm-pres-block--heading[data-flm-level="2"] {
+    font-size: var(--flm-heading-size-2);
+  }
+  .flm-pres-block--heading[data-flm-level="3"] {
+    font-size: var(--flm-heading-size-3);
+  }
+  .flm-pres-block--heading[data-flm-level="4"] {
+    font-size: var(--flm-heading-size-4);
+  }
+  .flm-pres-block--heading[data-flm-level="5"] {
+    font-size: var(--flm-heading-size-5);
+    font-style: italic;
+  }
+  .flm-pres-block--heading[data-flm-level="6"] {
+    font-size: var(--flm-heading-size-6);
+    font-style: italic;
+  }
+}

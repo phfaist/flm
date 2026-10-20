@@ -1,0 +1,37 @@
+[
+  {
+    "chars": "a "
+  },
+  {
+    "elem": "flm.pres.math-passthrough",
+    "body": [
+      {
+        "chars": "x "
+      },
+      {
+        "elem": "flm.math-passthrough.opaque",
+        "name": "alpha"
+      },
+      {
+        "chars": "y"
+      }
+    ],
+    "payload": {
+      "display": "inline"
+    }
+  },
+  {
+    "chars": " b "
+  },
+  {
+    "elem": "flm.pres.math-passthrough",
+    "body": [
+      {
+        "chars": " z "
+      }
+    ],
+    "payload": {
+      "display": "display"
+    }
+  }
+]

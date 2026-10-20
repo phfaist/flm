@@ -1,0 +1,6 @@
+output: text
+engine: minijinja
+main: clash.txt
+accepts: all
+artifacts:
+  shared: {file: ../../../other.css}

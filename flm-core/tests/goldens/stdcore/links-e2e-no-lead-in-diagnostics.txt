@@ -1,0 +1,5 @@
+===== check =====
+===== text =====
+===== html =====
+===== latex-recomposed =====
+Error flm.userdefs.kept-template-declares-point: the template of `\kdt` declares a labeled place that other parts of the document can refer to (`\begin{defterm}`), which is allowed only when the definition is expanded in the document itself, before the output is produced; give the definition the expansion policy `always` (`expand: always`), or remove the label from its template — at `\begin{defterm}{#1}\nA term defined through a user definition`

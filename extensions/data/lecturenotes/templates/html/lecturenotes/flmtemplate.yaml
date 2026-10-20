@@ -1,0 +1,19 @@
+output: html
+engine: minijinja
+main: lecturenotes.html
+accepts: all
+# The engine's usual delimiters, written out: the bundle's build checks that the bundle
+# holds none of them (`DELIMITERS` in the repository's `npm/lecturenotes/build.mjs`).
+delimiters:
+  block: ["{%", "%}"]
+  variable: ["{{", "}}"]
+  comment: ["{#", "#}"]
+config:
+  chapter_level: 1
+  font_family: 'Georgia, "Iowan Old Style", Charter, "Bitstream Charter", "Palatino Linotype", Palatino, "Book Antiqua", "Times New Roman", serif'
+  stylesheets: []
+  links: []
+artifacts:
+  style: {file: style.css, template: true}
+  script: {file: script.js, template: true}
+  fragment: {file: fragment.html, template: true}

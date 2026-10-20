@@ -1,0 +1,206 @@
+---
+title: "Settings of feature html"
+flm:
+  use: [flmdoc]
+  math: false
+---
+the page's title and language tag; whether the elements written for a node carry their position in the source; the stop written after a run-in heading's title; what the host delivers in place of the declared content of a stylesheet or script; the stylesheets and scripts the host requires for the page in addition to those its content requires; the tag each heading kind is written with; and the heading level written as `<h1>`. Set per render request.
+
+\docfield{Declared by}{the feature \docref{features/html}{\verbcode{html}}}
+
+\begin{docitem}{setting}{title}
+
+\docsummary{The page's title when the document states none: the words written into
+`<title>` (the output region `title`) when
+the render places no title piece
+(`flm.meta.title`) or the title
+piece holds no words. The default is `DEFAULT_TITLE`.}
+
+\docfield{Type}{\verbcode{string}}
+
+\docfield{Default}{\verbcode{FLM document}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+
+\begin{docitem}{setting}{lang}
+
+\docsummary{The page's language as a language tag (`en`, `de-CH`), written as the
+`lang` attribute of `<html>` (the output region
+`lang`). `None`, the default, writes no
+attribute, because a page that claims a language it is not written in is
+worse for a reader using a screen reader than one that claims none.}
+
+\docfield{Type}{\verbcode{string or null}}
+
+\docfield{Default}{\verbcode{null}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+
+\begin{docitem}{setting}{source_spans}
+
+\docsummary{Whether the emitter writes the attribute `data-flm-source-span`, which
+records where in the source a node was written, on the element it
+writes for each node.}
+
+The attribute is written on every element written for a node, inline
+or block-level, once per node, when the node's position can be traced
+back to a source with a name. Its value is a JSON array of the source's
+name, the first byte of the range and the byte just past its end
+(`["book/ch1.flm",0,8]`), so a script reads it back with `JSON.parse`.
+It is written between single quotation marks, which HTML allows, so the
+raw page shows the JSON as JSON. Off by default: the attribute serves
+tools that map a place in the page back to the document, and it adds
+bytes to every page.
+
+\docfield{Type}{\verbcode{boolean}}
+
+\docfield{Default}{\verbcode{false}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+
+\begin{docitem}{setting}{run_in_stop}
+
+\docsummary{The stop written after the title of a run-in heading, so that
+`\paragraph{Note} Some content.` reads as `Note. Some content.` A
+run-in heading is a heading set at the start of the paragraph it
+introduces, on the paragraph's first line
+(`headings`). The default is
+`DEFAULT_RUN_IN_STOP`,
+a period; the empty text writes none.}
+
+The stop is written as escaped text inside the run-in decoration's
+`<span>`, after the title, so a reader copies it with the rest of the
+page and a host that replaces the stylesheet keeps it. It is written
+only when the title holds text and does not already end in sentence
+punctuation
+(`ends_in_sentence_punctuation`).
+That test looks only at the characters the title ends with, so a title
+that ends in a formula, or in a box an author's own command draws, gets
+the stop after it. A host that needs headings written another way
+registers a lowering rule or a stage of its own (the extension
+guide).
+
+\docfield{Type}{\verbcode{string}}
+
+\docfield{Default}{\verbcode{.}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+
+\begin{docitem}{setting}{definitions}
+
+\docsummary{The deliveries the host gives in place of the declared content of
+style and script definitions, by definition identifier
+(`DefinitionOverride`). Empty by default: every definition is then
+delivered as its declaration says.}
+
+An identifier that no feature declares is ignored and reported as the
+Warning `flm.html.unknown-definition`.
+
+\docfield{Type}{\verbcode{map to DefinitionOverride}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+
+\begin{docitem}{setting}{required_definitions}
+
+\docsummary{The style and script definitions the host requires for the page as a
+whole, by identifier, in addition to those the document's content
+requires. Empty by default: a page then carries exactly what its content
+needs.}
+
+A host that adds something of its own to every page it serves (for
+example a script that keeps an open page in step with the document, and
+its stylesheet) registers it as a definition of one of its features and
+lists its identifier here, rather than editing the page after it was
+written. A definition listed here appears once in the definitions
+table, like any other, whether or not
+the content requires it too, and reaches the page the same way;
+`definitions` still decides its delivery. An
+identifier that no feature declares is reported as the Error
+`flm.html.unknown-requirement`, as a
+requirement of the content would be.
+
+\docfield{Type}{\verbcode{list of string}}
+
+\docfield{Default}{\verbcode{[]}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+
+\begin{docitem}{setting}{heading_tags}
+
+\docsummary{The tag a block heading of each heading kind is written with, keyed by
+the heading kind's name (`section`), the tag written without angle
+brackets (`h2`). Empty by default. A heading kind the map does not
+list is written `<h1>` to `<h6>` by its level
+(`root_heading_level`).}
+
+The title above every list of xnotes (notes set apart from the running
+text, such as footnotes; see
+`xnotes`) is a heading of the
+heading kind `xnotes`
+(`TITLE_HEADING`),
+for every xnote kind: mapping `xnotes` to `h3` writes every such title
+`<h3>`.
+
+The tag is not part of the HTML contract: the
+attributes a block heading carries (`data-flm-heading`,
+`data-flm-level`, `data-flm-toc`) are the same regardless of its tag. A
+heading of a run-in kind is written as a `<span>` carrying the same
+attributes inside its run-in decoration, never with this tag. A tag
+that is not a writable HTML tag name
+(`is_valid_tag_name`) is reported as
+`flm.html.invalid-name`, and the heading is
+written with the tag of its level.
+
+\docfield{Type}{\verbcode{map to string}}
+
+\docfield{Default}{\verbcode{{}}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+
+\begin{docitem}{setting}{root_heading_level}
+
+\docsummary{The heading level the page writes as its first-level heading, `<h1>`.}
+
+A heading's level is a number counted from zero, the smaller the outer
+(`HeadingPayload::level`);
+a heading at this level is `<h1>`, one level deeper `<h2>`, and so on
+to `<h6>`, which every deeper level shares. The default is
+`DEFAULT_ROOT_HEADING_LEVEL`,
+1, the level of a section: a section is `<h1>`. A root of 0 writes a
+kind declared at level 0, a chapter, `<h1>` and a section `<h2>`; a
+root of 2 writes the content of one section with its subsections as
+the first-level headings.
+
+A heading whose level is less than the root is reported as
+`flm.pres.heading-above-root`
+and written `<h1>`, or with its tag where
+`heading_tags` maps its kind: the mapping decides
+the tag and nothing else. The attribute `data-flm-level` holds a
+heading's own level regardless of the root. The option concerns the
+page's tags only: the numbering, the run-in headings and the
+identifiers read a heading's own level, as every other output does. The
+text output has the same option
+(`TextRenderOptions::root_heading_level`).
+
+\docfield{Type}{\verbcode{integer}}
+
+\docfield{Default}{\verbcode{1}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+

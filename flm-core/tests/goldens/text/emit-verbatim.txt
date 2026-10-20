@@ -1,0 +1,5 @@
+* code:
+
+  fn main() {
+      a  very   long line that would wrap
+  }

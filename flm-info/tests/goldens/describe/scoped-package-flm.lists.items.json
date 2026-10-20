@@ -1,0 +1,113 @@
+{
+  "name": "flm.lists.items",
+  "owner": "lists",
+  "docs": "The command recognized inside a list environment's body: `\\item`, which begins an item.",
+  "summary": "The command recognized inside a list environment's body: `\\item`, which begins an item.",
+  "commands": {
+    "macros": [
+      {
+        "feature": "lists",
+        "names": [
+          "item"
+        ],
+        "kind": "macro",
+        "modes": [
+          "text"
+        ],
+        "docs": "`\\item[tag]\\label{item:…}`: begins an item; the optional tag is its label.",
+        "summary": "`\\item[tag]\\label{item:…}`: begins an item; the optional tag is its label.",
+        "arguments": [
+          {
+            "form": "an optional `[key=value,…]` group",
+            "written": "[options]",
+            "name": "options",
+            "layout": "inline",
+            "docs": "The item's tag, `tag={…}`, or the tag whole where no `=` is written.",
+            "summary": "The item's tag, `tag={…}`, or the tag whole where no `=` is written."
+          },
+          {
+            "form": "the fields `\\label` written after the command",
+            "written": "\\label{target}",
+            "name": "fields",
+            "layout": "inline",
+            "docs": "`\\label{…}` fields written after the construct, each attaching a label to it.",
+            "summary": "`\\label{…}` fields written after the construct, each attaching a label to it.",
+            "fields": [
+              {
+                "name": "label",
+                "repeatable": true,
+                "docs": "Attaches a label to the construct, which a reference can point at; may be repeated.",
+                "summary": "Attaches a label to the construct, which a reference can point at; may be repeated.",
+                "arguments": [
+                  {
+                    "form": "a `{…}` group read as plain characters",
+                    "written": "{target}",
+                    "name": "target",
+                    "layout": "inline",
+                    "docs": "The label, written `type:label` (`sec:intro`).",
+                    "summary": "The label, written `type:label` (`sec:intro`).",
+                    "role": "flm.refs.defined-label"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "element": {
+          "name": "flm.lists.item",
+          "docs": "`\\item`: begins an item of the list in whose body it is written.",
+          "summary": "`\\item`: begins an item of the list in whose body it is written.",
+          "aspects": [
+            "flm_core::model::aspects::BlockRoleAspect",
+            "flm_core::model::aspects::Referenceable"
+          ],
+          "number": 134
+        },
+        "within": "flm.lists.items",
+        "available_in": [
+          {
+            "feature": "lists",
+            "kind": "environment",
+            "command": "description",
+            "part": "body"
+          },
+          {
+            "feature": "lists",
+            "kind": "environment",
+            "command": "enumerate",
+            "part": "body"
+          },
+          {
+            "feature": "lists",
+            "kind": "environment",
+            "command": "itemize",
+            "part": "body"
+          }
+        ]
+      }
+    ],
+    "environments": [],
+    "specials": [],
+    "synthesized": []
+  },
+  "available_in": [
+    {
+      "feature": "lists",
+      "kind": "environment",
+      "command": "description",
+      "part": "body"
+    },
+    {
+      "feature": "lists",
+      "kind": "environment",
+      "command": "enumerate",
+      "part": "body"
+    },
+    {
+      "feature": "lists",
+      "kind": "environment",
+      "command": "itemize",
+      "part": "body"
+    }
+  ]
+}

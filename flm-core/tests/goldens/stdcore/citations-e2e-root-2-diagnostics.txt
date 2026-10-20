@@ -1,0 +1,13 @@
+===== check =====
+Error flm.citations.no-entry: the cited key `unknown` must have a bibliography entry; no source of bibliography entries knows it — at `\cite{unknown}`
+===== text =====
+Error flm.citations.no-entry: the cited key `unknown` must have a bibliography entry; no source of bibliography entries knows it — at `\cite{unknown}`
+Warning flm.graphics.unknown-size: the size of the image `figures/codes.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/codes.png}`
+Error flm.pres.heading-above-root: a heading's level must be at least the root heading level 2 (the render option `root_heading_level`); this heading's level is 1 — at `«flm.heading.lower.default»`
+===== html =====
+Error flm.citations.no-entry: the cited key `unknown` must have a bibliography entry; no source of bibliography entries knows it — at `\cite{unknown}`
+Warning flm.graphics.unknown-size: the size of the image `figures/codes.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/codes.png}`
+Error flm.pres.heading-above-root: a heading's level must be at least the root heading level 2 (the render option `root_heading_level`); this heading's level is 1 — at `«flm.heading.lower.default»`
+===== latex-recomposed =====
+Error flm.citations.no-entry: the cited key `unknown` must have a bibliography entry; no source of bibliography entries knows it — at `\cite{unknown}`
+Warning flm.graphics.unknown-size: the size of the image `figures/codes.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/codes.png}`

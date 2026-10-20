@@ -1,0 +1,49 @@
+===== check =====
+===== text =====
+Warning flm.graphics.unknown-size: the size of the image `figures/note.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/note.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/note-figure.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/note-figure.png}`
+Warning flm.graphics.resized: an image file should be prepared at the size it is shown at, rather than resized with `width=` — at `\includegraphics[alt=A plot, width=5cm]{figures/plot.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/a.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/a.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/b.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/b.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/c.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/c.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/d.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/d.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/t.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/t.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/s.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/s.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/item.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/item.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/item-figure.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/item-figure.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/quote.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/quote.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/quote-figure.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/quote-figure.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/blockquote.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/blockquote.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/blockquote-figure.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/blockquote-figure.png}`
+===== html =====
+Warning flm.graphics.unknown-size: the size of the image `figures/note.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/note.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/note-figure.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/note-figure.png}`
+Warning flm.graphics.resized: an image file should be prepared at the size it is shown at, rather than resized with `width=` — at `\includegraphics[alt=A plot, width=5cm]{figures/plot.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/a.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/a.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/b.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/b.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/c.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/c.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/d.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/d.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/t.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/t.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/s.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/s.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/item.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/item.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/item-figure.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/item-figure.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/quote.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/quote.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/quote-figure.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/quote-figure.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/blockquote.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/blockquote.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/blockquote-figure.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/blockquote-figure.png}`
+===== latex-recomposed =====
+Warning flm.graphics.resized: an image file should be prepared at the size it is shown at, rather than resized with `width=` — at `\includegraphics[alt=A plot, width=5cm]{figures/plot.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/a.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/a.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/b.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/b.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/c.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/c.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/d.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/d.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/t.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/t.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/s.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/s.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/item.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/item.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/item-figure.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/item-figure.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/note.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/note.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/note-figure.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/note-figure.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/quote.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/quote.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/quote-figure.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/quote-figure.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/blockquote.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/blockquote.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/blockquote-figure.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/blockquote-figure.png}`

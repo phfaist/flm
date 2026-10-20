@@ -1,0 +1,648 @@
+% ===== latex-rendered:document =====
+% flm: latex-rendered; style file flmx.779703c5.sty
+\documentclass{article}
+\usepackage{flmx.779703c5}
+\begin{document}
+\flmxSpan[role=flm.annotations.highlight, kinds={phf annotator-0}]{\flmxDecoMargin{\flmxSpan[role=flm.annotations.initials, kinds={phf annotator-0}]{PhF}}passage}
+and \flmxSpan[role=flm.annotations.highlight, kinds={phf annotator-0}]{\flmxDecoMargin{\flmxSpan[role=flm.annotations.initials, kinds={phf annotator-0}]{PhF}}passage}and
+\flmxSpan[role=flm.annotations.highlight, kinds={abc annotator-1}]{x} and \flmxSpan[role=flm.annotations.comment, kinds={phf annotator-0}]{\flmxDecoMargin{\flmxSpan[role=flm.annotations.initials, kinds={phf annotator-0}]{PhF}}note}
+and \flmxSpan[role=flm.annotations.highlight, kinds={phf annotator-0}]{\flmxDecoMargin{\flmxSpan[role=flm.annotations.initials, kinds={phf annotator-0}]{PhF}}x}[y].
+
+Some text \flmxSpan[role=flm.annotations.comment, kinds={phf annotator-0 mark-continues}]{\flmxDecoMargin{\flmxSpan[role=flm.annotations.initials, kinds={phf annotator-0}]{PhF}}A
+comment.}
+
+\flmxSpan[role=flm.annotations.comment, kinds={phf annotator-0 mark-continued}]{With multiple paragraphs.}
+More text.
+
+Some text \flmxSpan[role=flm.annotations.highlight, kinds={phf annotator-0 mark-continues}]{\flmxDecoMargin{\flmxSpan[role=flm.annotations.initials, kinds={phf annotator-0}]{PhF}}A
+highlight.}
+
+\flmxSpan[role=flm.annotations.highlight, kinds={phf annotator-0 mark-continued}]{With multiple paragraphs.}
+More text.
+
+\flmxSpan[role=flm.annotations.highlight, kinds={phf annotator-0 mark-continues}]{\flmxDecoMargin{\flmxSpan[role=flm.annotations.initials, kinds={phf annotator-0}]{PhF}}see
+}
+
+\begin{flmxBlock}[role=flm.annotations.highlight, kinds={phf annotator-0 mark-continues mark-continued}]
+\begin{flmxList}[kinds={unnumbered itemize labeled}, depth=1]
+\flmxItem[label={•}, anchor=item--1otnn]
+a
+\end{flmxList}
+\end{flmxBlock}
+
+\flmxSpan[role=flm.annotations.highlight, kinds={phf annotator-0 mark-continued}]{ here }
+\end{document}
+% ===== latex-rendered:style flmx.779703c5.sty =====
+\NeedsTeXFormat{LaTeX2e}[2022/06/01]
+\ProvidesPackage{flmx.779703c5}
+% the definitions of a document written by FLM's latex-rendered backend
+% the engine: LuaLaTeX
+\RequirePackage{iftex}
+\RequireLuaTeX
+% the packages
+% flm.latex.pkg.fontspec
+\RequirePackage{fontspec}
+% flm.latex.pkg.amsmath
+\RequirePackage{amsmath}
+% flm.latex.pkg.xcolor
+\RequirePackage{xcolor}
+% hyperref, loaded at the end of the preamble
+\AddToHook{begindocument/before}{\RequirePackage[colorlinks=true, linkcolor=flmxLinkColor, urlcolor=flmxUrlColor, citecolor=flmxCiteColor]{hyperref}}
+% flm.latex.def.flmx.core
+% flm.latex.def.flmx.core -- the core of the latex-rendered contract.
+%
+% The rendered LaTeX writes one command or environment per presentation
+% element, all named \flmx...; this chunk defines the machinery every one of
+% them uses, the paragraph-level elements (flmxBlock, \flmxSpan), the three
+% decorations, the target of an anchor, two lengths and the colors.
+%
+% Keys. Every element takes an optional key-value argument first, holding
+% the facts FLM knows about it ([role=..., kinds={a b}, anchor=...]). While
+% an element is written, its keys are in scope:
+%   \flmxKey{<key>}               expands to the key's value, empty where the
+%                                 element does not carry the key;
+%   \flmxIfKey{<key>}{<yes>}{<no>} tests whether the element carries the key.
+% Each element sees its own keys only: a block inside a block sees its own,
+% and the outer block's are back after it.
+%
+% Registering a look. A template changes how an element looks by registering
+% code under a role, a kind token, a style name, a heading kind or level, or a
+% link kind; a later registration wins:
+%   \flmxDefineBlock{<role or kind token>}{<begin code>}{<end code>}
+%   \flmxDefineSpan{<role, kind token or style name>}{<code over #1>}
+%   \flmxDefineHeading{<kind name or level>}{<code over #1>}
+%   \flmxDefineRuninHeading{<kind name or level>}{<code over #1>}
+%   \flmxDefineLink{<kind>}{<code over #1>}
+%   \flmxDefineList{<kind token>}{<begin code>}{<end code>}
+%   \flmxDefineItem{<kind token>}{<code run at the item>}
+%   \flmxDefineVerbatim{<kind>}{<code over #1>}
+%   \flmxDefineVerbatimBlock{<kind>}{<begin code>}{<end code>}
+%   \flmxDefineXnote{<kind>}{<code over #1 (the mark) and #2 (the content)>}
+%   \flmxDefineCellStyle{<style name>}{<tblr cell keys>}
+% An element is written with the first registration found, in this order:
+%   flmxBlock: its role, then each kind token in order;
+%   \flmxSpan: its role, then each kind token, then its style;
+%   \flmxHeading, \flmxRuninHeading: its kind, then its level;
+%   \flmxLink, \flmxVerbatim, flmxVerbatimBlock, \flmxXnote: its kind;
+%   flmxList, \flmxItem: each kind token of the list in order;
+%   a cell of flmxCells: the keys registered for each of its styles, in
+%   order, added to the cell's own;
+% and with the element's default where none is registered. Each element's
+% default is replaced with
+%   \flmxDefine<Element>Default{<code>}
+% (\flmxDefineBlockDefault{<begin>}{<end>}, \flmxDefineSpanDefault{<code
+% over #1>}, and so on for Heading, RuninHeading, Link, List, Item, Cells,
+% Lines, Line, Verbatim, VerbatimBlock, Image, Xnote, the three decorations
+% DecoRunin, DecoFinal, DecoMargin, and the three marks Dropped,
+% Unsupported and Unknown, whose code is over #1 and #2).
+%
+% The elements this chunk defines:
+%   \begin{flmxBlock}[role, kinds, anchor, doc-role] ... \end{flmxBlock}
+%       a block of paragraphs; default: a paragraph break before and after,
+%       the target of its anchor first.
+%   \flmxSpan[style, role, kinds, anchor, doc-role]{<content>}
+%       inline content; defaults by style: emph \emph, bold \textbf, italic
+%       \textit, monospace \texttt, underline \underline, small-caps \textsc,
+%       superscript \textsuperscript, subscript \textsubscript,
+%       unresolved-reference in flmxMarkColor; no style: the content.
+%   \flmxDecoRunin[stop]{<content>}  the title set at the start of a
+%       paragraph: the content and the stop in bold, then \flmxRuninSep.
+%   \flmxDecoFinal{<content>}  set flush right at the end of the last line;
+%       where it stands alone (after a list, for instance), it starts a
+%       paragraph of its own.
+%   \flmxDecoMargin{<content>}  a margin note, in \footnotesize.
+%   \flmxTarget{<anchor>}
+%       makes the current place a target named <anchor>: in text,
+%       \phantomsection and \label{flmx:<anchor>}; in mathematics, a
+%       hyperlink target and the label written by hand. Redefine it to change
+%       the scheme; the prefix flmx: of the label is fixed, so that
+%       \pageref{flmx:<anchor>} and \hyperref[flmx:<anchor>]{...} find it.
+%
+% Lengths and colors (redefine with \setlength and \colorlet):
+%   \flmxTabWidth   one tab of an indentation, 2em;
+%   \flmxRuninSep   the space after a run-in title, 0.8em;
+%   flmxLinkColor, flmxUrlColor, flmxCiteColor  the link colors hyperref is
+%                   given; flmxMarkColor  the color of what FLM could not
+%                   write (the marks and an unresolved reference).
+%
+% Paragraphs are LaTeX paragraphs; this chunk changes no paragraph setting.
+
+\newlength\flmxTabWidth
+\setlength\flmxTabWidth{2em}
+\newlength\flmxRuninSep
+\setlength\flmxRuninSep{0.8em}
+\colorlet{flmxLinkColor}{blue!60!black}
+\colorlet{flmxUrlColor}{blue!60!black}
+\colorlet{flmxCiteColor}{green!40!black}
+\colorlet{flmxMarkColor}{red}
+
+\ExplSyntaxOn
+
+% --- the keys of the element being written ---------------------------------
+
+\seq_new:N \l__flmx_keys_seq
+\tl_new:N \l__flmx_kinds_tl
+\tl_new:N \l__flmx_found_tl
+\bool_new:N \l__flmx_found_bool
+
+\cs_new_protected:Npn \__flmx_set_keys:n #1
+  {
+    \seq_map_inline:Nn \l__flmx_keys_seq
+      { \cs_set_eq:cN { l__flmx_key_##1_tl } \tex_undefined:D }
+    \seq_clear:N \l__flmx_keys_seq
+    \keyval_parse:nnn { \__flmx_key_flag:n } { \__flmx_key_value:nn } {#1}
+  }
+\cs_new_protected:Npn \__flmx_key_flag:n #1
+  { \__flmx_key_value:nn {#1} { true } }
+\cs_new_protected:Npn \__flmx_key_value:nn #1#2
+  {
+    \cs_set_nopar:cpn { l__flmx_key_#1_tl } {#2}
+    \seq_put_right:Nn \l__flmx_keys_seq {#1}
+  }
+
+\NewExpandableDocumentCommand \flmxKey { m }
+  { \cs_if_exist_use:c { l__flmx_key_#1_tl } }
+\NewExpandableDocumentCommand \flmxIfKey { m m m }
+  { \cs_if_exist:cTF { l__flmx_key_#1_tl } {#2} {#3} }
+
+% --- finding the registered code ------------------------------------------
+
+% #1 the element, #2 the keys to try in order (`kinds' tries each token).
+% Leaves the name of the code to run in \l__flmx_found_tl.
+\cs_new_protected:Npn \__flmx_find:nn #1#2
+  {
+    \bool_set_false:N \l__flmx_found_bool
+    \tl_set:Nn \l__flmx_found_tl { __flmx_#1_default }
+    \clist_map_inline:nn {#2}
+      {
+        \str_if_eq:nnTF {##1} { kinds }
+          {
+            \cs_if_exist:cT { l__flmx_key_kinds_tl }
+              {
+                \tl_set_eq:Nc \l__flmx_kinds_tl { l__flmx_key_kinds_tl }
+                \tl_replace_all:Nnn \l__flmx_kinds_tl { ~ } { , }
+                \clist_map_inline:Nn \l__flmx_kinds_tl
+                  { \__flmx_try:nn {#1} {####1} }
+              }
+          }
+          {
+            \cs_if_exist:cT { l__flmx_key_##1_tl }
+              { \__flmx_try:nv {#1} { l__flmx_key_##1_tl } }
+          }
+      }
+  }
+\cs_new_protected:Npn \__flmx_try:nn #1#2
+  {
+    \bool_if:NF \l__flmx_found_bool
+      {
+        \cs_if_exist:cT { __flmx_#1_reg_#2 }
+          {
+            \tl_set:Nn \l__flmx_found_tl { __flmx_#1_reg_#2 }
+            \bool_set_true:N \l__flmx_found_bool
+          }
+      }
+  }
+\cs_generate_variant:Nn \__flmx_try:nn { nv }
+
+% --- writing an element ------------------------------------------------------
+
+% A command of one content argument: #1 element, #2 keys to try, #3 the
+% key-value list, #4 the content.
+\cs_new_protected:Npn \__flmx_command:nnnn #1#2#3#4
+  {
+    \group_begin:
+      \__flmx_set_keys:n {#3}
+      \__flmx_find:nn {#1} {#2}
+      \use:c { \l__flmx_found_tl } {#4}
+    \group_end:
+  }
+% A command of two arguments.
+\cs_new_protected:Npn \__flmx_command:nnnnn #1#2#3#4#5
+  {
+    \group_begin:
+      \__flmx_set_keys:n {#3}
+      \__flmx_find:nn {#1} {#2}
+      \use:c { \l__flmx_found_tl } {#4} {#5}
+    \group_end:
+  }
+% The begin and end of an environment (LaTeX's environment is the group).
+\cs_new_protected:Npn \__flmx_env_begin:nnn #1#2#3
+  {
+    \__flmx_set_keys:n {#3}
+    \__flmx_find:nn {#1} {#2}
+    \cs_set_eq:cN { l__flmx_#1_env_tl } \l__flmx_found_tl
+    \use:c { \l__flmx_found_tl _begin }
+  }
+\cs_new_protected:Npn \__flmx_env_end:n #1
+  { \use:c { \use:c { l__flmx_#1_env_tl } _end } }
+
+% Registering code: #1 the element, #2 the name, #3 the code.
+\cs_new_protected:Npn \__flmx_register:nnn #1#2#3
+  { \cs_set_protected:cpn { __flmx_#1_reg_#2 } ##1 {#3} }
+\cs_new_protected:Npn \__flmx_register_env:nnnn #1#2#3#4
+  {
+    \cs_set_protected:cpn { __flmx_#1_reg_#2 } { }
+    \cs_set_protected:cpn { __flmx_#1_reg_#2_begin } {#3}
+    \cs_set_protected:cpn { __flmx_#1_reg_#2_end } {#4}
+  }
+\cs_new_protected:Npn \__flmx_default:nn #1#2
+  { \cs_set_protected:cpn { __flmx_#1_default } ##1 {#2} }
+\cs_new_protected:Npn \__flmx_default_ii:nn #1#2
+  { \cs_set_protected:cpn { __flmx_#1_default } ##1##2 {#2} }
+\cs_new_protected:Npn \__flmx_default_none:nn #1#2
+  { \cs_set_protected:cpn { __flmx_#1_default } {#2} }
+\cs_new_protected:Npn \__flmx_default_env:nnn #1#2#3
+  {
+    \cs_set_protected:cpn { __flmx_#1_default_begin } {#2}
+    \cs_set_protected:cpn { __flmx_#1_default_end } {#3}
+  }
+
+% The target of the element's anchor, where it carries one.
+\cs_new_protected:Npn \__flmx_anchor:
+  { \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } }
+
+% --- the registrations ---------------------------------------------------
+
+\NewDocumentCommand \flmxDefineBlock { m +m +m }
+  { \__flmx_register_env:nnnn { block } {#1} {#2} {#3} }
+\NewDocumentCommand \flmxDefineSpan { m +m }
+  { \__flmx_register:nnn { span } {#1} {#2} }
+\NewDocumentCommand \flmxDefineHeading { m +m }
+  { \__flmx_register:nnn { heading } {#1} {#2} }
+\NewDocumentCommand \flmxDefineRuninHeading { m +m }
+  { \__flmx_register:nnn { runinheading } {#1} {#2} }
+\NewDocumentCommand \flmxDefineLink { m +m }
+  { \__flmx_register:nnn { link } {#1} {#2} }
+\NewDocumentCommand \flmxDefineList { m +m +m }
+  { \__flmx_register_env:nnnn { list } {#1} {#2} {#3} }
+\NewDocumentCommand \flmxDefineItem { m +m }
+  { \cs_set_protected:cpn { __flmx_item_reg_#1 } {#2} }
+\NewDocumentCommand \flmxDefineVerbatim { m +m }
+  { \__flmx_register:nnn { verbatim } {#1} {#2} }
+\NewDocumentCommand \flmxDefineVerbatimBlock { m +m +m }
+  { \__flmx_register_env:nnnn { verbatimblock } {#1} {#2} {#3} }
+\NewDocumentCommand \flmxDefineXnote { m +m }
+  { \cs_set_protected:cpn { __flmx_xnote_reg_#1 } ##1##2 {#2} }
+\NewDocumentCommand \flmxDefineCellStyle { m +m }
+  {
+    \tl_clear_new:c { l__flmx_cellstyle_#1_tl }
+    \tl_set:cn { l__flmx_cellstyle_#1_tl } {#2}
+  }
+
+\NewDocumentCommand \flmxDefineBlockDefault { +m +m }
+  { \__flmx_default_env:nnn { block } {#1} {#2} }
+\NewDocumentCommand \flmxDefineSpanDefault { +m }
+  { \__flmx_default:nn { span } {#1} }
+\NewDocumentCommand \flmxDefineHeadingDefault { +m }
+  { \__flmx_default:nn { heading } {#1} }
+\NewDocumentCommand \flmxDefineRuninHeadingDefault { +m }
+  { \__flmx_default:nn { runinheading } {#1} }
+\NewDocumentCommand \flmxDefineLinkDefault { +m }
+  { \__flmx_default:nn { link } {#1} }
+\NewDocumentCommand \flmxDefineListDefault { +m +m }
+  { \__flmx_default_env:nnn { list } {#1} {#2} }
+\NewDocumentCommand \flmxDefineItemDefault { +m }
+  { \__flmx_default_none:nn { item } {#1} }
+\NewDocumentCommand \flmxDefineCellsDefault { +m +m }
+  { \__flmx_default_env:nnn { cells } {#1} {#2} }
+\NewDocumentCommand \flmxDefineLinesDefault { +m +m }
+  { \__flmx_default_env:nnn { lines } {#1} {#2} }
+\NewDocumentCommand \flmxDefineLineDefault { +m }
+  { \__flmx_default:nn { line } {#1} }
+\NewDocumentCommand \flmxDefineVerbatimDefault { +m }
+  { \__flmx_default:nn { verbatim } {#1} }
+\NewDocumentCommand \flmxDefineVerbatimBlockDefault { +m +m }
+  { \__flmx_default_env:nnn { verbatimblock } {#1} {#2} }
+\NewDocumentCommand \flmxDefineImageDefault { +m }
+  { \__flmx_default:nn { image } {#1} }
+\NewDocumentCommand \flmxDefineXnoteDefault { +m }
+  { \__flmx_default_ii:nn { xnote } {#1} }
+\NewDocumentCommand \flmxDefineDecoRuninDefault { +m }
+  { \__flmx_default:nn { decorunin } {#1} }
+\NewDocumentCommand \flmxDefineDecoFinalDefault { +m }
+  { \__flmx_default:nn { decofinal } {#1} }
+\NewDocumentCommand \flmxDefineDecoMarginDefault { +m }
+  { \__flmx_default:nn { decomargin } {#1} }
+\NewDocumentCommand \flmxDefineDroppedDefault { +m }
+  { \__flmx_default_ii:nn { dropped } {#1} }
+\NewDocumentCommand \flmxDefineUnsupportedDefault { +m }
+  { \__flmx_default_ii:nn { unsupported } {#1} }
+\NewDocumentCommand \flmxDefineUnknownDefault { +m }
+  { \__flmx_default_ii:nn { unknown } {#1} }
+
+% --- the target of an anchor --------------------------------------------
+
+\cs_new_protected:Npn \__flmx_target:n #1
+  {
+    \mode_if_math:TF
+      {
+        \legacy_if:nF { measuring@ }
+          {
+            \hypertarget { flmx:#1 } { }
+            \protected@write \@auxout { }
+              { \string \newlabel { flmx:#1 } { { } { \thepage } { } { flmx:#1 } { } } }
+          }
+      }
+      { \phantomsection \label { flmx:#1 } }
+  }
+\cs_generate_variant:Nn \__flmx_target:n { e }
+\NewDocumentCommand \flmxTarget { m } { \__flmx_target:e {#1} }
+
+% --- blocks, spans, decorations --------------------------------------------
+
+\NewDocumentEnvironment { flmxBlock } { O { } }
+  { \__flmx_env_begin:nnn { block } { role, kinds } {#1} }
+  { \__flmx_env_end:n { block } }
+\flmxDefineBlockDefault { \par \__flmx_anchor: } { \par }
+
+\NewDocumentCommand \flmxSpan { O { } +m }
+  { \__flmx_command:nnnn { span } { role, kinds, style } {#1} {#2} }
+\flmxDefineSpanDefault { \__flmx_anchor: #1 }
+\flmxDefineSpan { emph } { \__flmx_anchor: \emph {#1} }
+\flmxDefineSpan { bold } { \__flmx_anchor: \textbf {#1} }
+\flmxDefineSpan { italic } { \__flmx_anchor: \textit {#1} }
+\flmxDefineSpan { monospace } { \__flmx_anchor: \texttt {#1} }
+\flmxDefineSpan { underline } { \__flmx_anchor: \underline {#1} }
+\flmxDefineSpan { small-caps } { \__flmx_anchor: \textsc {#1} }
+\flmxDefineSpan { superscript } { \__flmx_anchor: \textsuperscript {#1} }
+\flmxDefineSpan { subscript } { \__flmx_anchor: \textsubscript {#1} }
+\flmxDefineSpan { unresolved-reference }
+  { \__flmx_anchor: \textcolor { flmxMarkColor } {#1} }
+
+\NewDocumentCommand \flmxDecoRunin { O { } +m }
+  { \__flmx_command:nnnn { decorunin } { } {#1} {#2} }
+\flmxDefineDecoRuninDefault
+  { \textbf { #1 \flmxKey { stop } } \hspace { \flmxRuninSep } }
+\NewDocumentCommand \flmxDecoFinal { O { } +m }
+  { \__flmx_command:nnnn { decofinal } { } {#1} {#2} }
+\flmxDefineDecoFinalDefault { \leavevmode \unskip \nobreak \hfill \mbox {#1} }
+\NewDocumentCommand \flmxDecoMargin { O { } +m }
+  { \__flmx_command:nnnn { decomargin } { } {#1} {#2} }
+\flmxDefineDecoMarginDefault { \marginpar { \footnotesize #1 } }
+
+\ExplSyntaxOff
+% flm.latex.def.flmx.annotations
+% flm.latex.def.flmx.annotations -- a reviewer's highlights and comments.
+%
+% The annotations feature writes a highlight as a span of role
+% flm.annotations.highlight and a comment as a span of role
+% flm.annotations.comment, whose kind tokens are the annotator's command
+% name and annotator-<n>, <n> the annotator's number counted from 0; the
+% annotator's initials stand at the start, in a span of role
+% flm.annotations.initials (with the same kind tokens) inside a margin
+% decoration:
+%   \flmxSpan[role=flm.annotations.highlight, kinds={phf annotator-0}]{%
+%     \flmxDecoMargin{\flmxSpan[role=flm.annotations.initials,
+%     kinds={phf annotator-0}]{PhF}}a passage}
+% An annotation cut around a block (a list inside a highlighted passage) is
+% a block of the same role. A cut part also carries the kind token
+% mark-continues when a part follows it, and mark-continued when one
+% precedes it.
+%
+% Defaults: the color of annotator <n> is flmxAnnotatorColor<n> for <n> from
+% 0 to 7 (the eight colors the phfcc package presets, in its order), and
+% flmxAnnotatorColorFallback (red) for any other number. A highlight is in
+% its annotator's color; a comment is in the color, in \sffamily and between
+% brackets, the opening one left out on a part marked mark-continued and the
+% closing one on a part marked mark-continues (a block's bracket stands on a
+% line of its own); the initials are in the color and in \sffamily, in the
+% margin decoration's default (\marginpar, in \footnotesize). A template
+% changes the colors with \colorlet{flmxAnnotatorColor0}{...} and the look
+% with
+%   \flmxDefineSpan{flm.annotations.highlight}{<code over #1>}
+%   \flmxDefineSpan{flm.annotations.comment}{<code over #1>}
+%   \flmxDefineSpan{flm.annotations.initials}{<code over #1>}
+%   \flmxDefineBlock{flm.annotations.highlight}{<begin code>}{<end code>}
+%   \flmxDefineBlock{flm.annotations.comment}{<begin code>}{<end code>}
+% in which \flmxAnnotatorColor expands to the name of the color of the
+% annotator the element's kind tokens give.
+
+\definecolor{flmxAnnotatorColor0}{RGB}{0,148,240}
+\definecolor{flmxAnnotatorColor1}{RGB}{242,108,13}
+\definecolor{flmxAnnotatorColor2}{RGB}{65,149,42}
+\definecolor{flmxAnnotatorColor3}{RGB}{128,55,134}
+\definecolor{flmxAnnotatorColor4}{RGB}{0,129,129}
+\definecolor{flmxAnnotatorColor5}{RGB}{148,7,24}
+\definecolor{flmxAnnotatorColor6}{RGB}{160,120,0}
+\definecolor{flmxAnnotatorColor7}{RGB}{35,195,155}
+\colorlet{flmxAnnotatorColorFallback}{red}
+
+\ExplSyntaxOn
+
+\tl_new:N \l__flmx_annotations_kinds_tl
+\tl_new:N \l__flmx_annotations_number_tl
+
+% The name of the color of the annotator the kind tokens give.
+\NewExpandableDocumentCommand \flmxAnnotatorColor { }
+  { \__flmx_annotations_color:e { \__flmx_annotations_number: } }
+\cs_new:Npn \__flmx_annotations_color:n #1
+  {
+    \bool_lazy_and:nnTF
+      { ! \tl_if_blank_p:n {#1} }
+      { \int_compare_p:nNn {#1} < { 8 } }
+      { flmxAnnotatorColor #1 }
+      { flmxAnnotatorColorFallback }
+  }
+\cs_generate_variant:Nn \__flmx_annotations_color:n { e }
+% The annotator's number: what follows annotator- in the first kind token
+% that begins with it, or nothing.
+\cs_new:Npn \__flmx_annotations_number:
+  {
+    \exp_last_unbraced:Ne \__flmx_annotations_number:w
+      { \flmxKey { kinds } \c_space_tl annotator- \c_space_tl }
+    \q_stop
+  }
+\cs_new:Npn \__flmx_annotations_number:w #1 annotator- #2 \q_stop
+  { \tl_if_blank:nF {#2} { \__flmx_annotations_digits:w #2 ~ \q_stop } }
+\cs_new:Npn \__flmx_annotations_digits:w #1 ~ #2 \q_stop {#1}
+
+% Whether the element carries the kind token #1.
+\prg_new_protected_conditional:Npnn \__flmx_annotations_if_kind:n #1 { T, F, TF }
+  {
+    \tl_set:Ne \l__flmx_annotations_kinds_tl { \flmxKey { kinds } }
+    \tl_replace_all:Nnn \l__flmx_annotations_kinds_tl { ~ } { , }
+    \clist_if_in:NnTF \l__flmx_annotations_kinds_tl {#1}
+      { \prg_return_true: }
+      { \prg_return_false: }
+  }
+
+\cs_new_protected:Npn \__flmx_annotations_anchor:
+  { \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } }
+
+\flmxDefineSpan { flm.annotations.highlight }
+  { \__flmx_annotations_anchor: \textcolor { \flmxAnnotatorColor } {#1} }
+\flmxDefineSpan { flm.annotations.comment }
+  {
+    \__flmx_annotations_anchor:
+    \textcolor { \flmxAnnotatorColor }
+      {
+        \sffamily
+        \__flmx_annotations_if_kind:nF { mark-continued } { [ }
+        #1
+        \__flmx_annotations_if_kind:nF { mark-continues } { ] }
+      }
+  }
+\flmxDefineSpan { flm.annotations.initials }
+  { \__flmx_annotations_anchor: \textcolor { \flmxAnnotatorColor } { \sffamily #1 } }
+
+\flmxDefineBlock { flm.annotations.highlight }
+  { \par \__flmx_annotations_anchor: \color { \flmxAnnotatorColor } }
+  { \par }
+\flmxDefineBlock { flm.annotations.comment }
+  {
+    \par \__flmx_annotations_anchor: \color { \flmxAnnotatorColor } \sffamily
+    \__flmx_annotations_if_kind:nF { mark-continued } { \noindent [ \par }
+  }
+  {
+    \par
+    \__flmx_annotations_if_kind:nF { mark-continues } { \noindent ] \par }
+  }
+
+\ExplSyntaxOff
+% flm.latex.def.flmx.lists
+% flm.latex.def.flmx.lists -- lists.
+%
+% FLM computes every label itself (a number, a bullet, a term): the label
+% stands in the item's keys, and no LaTeX counter is stepped. The elements:
+%   \begin{flmxList}[kinds, anchor, depth]
+%   \flmxItem[label, anchor]
+%   <the item's content: paragraphs, verbatim blocks, nested lists>
+%   \flmxItem[...]
+%   ...
+%   \end{flmxList}
+% \flmxItem takes no content argument: the item's content follows it, up to
+% the next \flmxItem or the \end, as with LaTeX's \item. Their keys:
+%   kinds    (list) the list's kind tokens: at most one of numbered,
+%            unnumbered, terms first, then others, such as the name of the
+%            environment the list comes from (enumerate, itemize,
+%            description) and labeled (every item carries its own label);
+%   anchor   (list, item) where the list or the item is a reference target;
+%   depth    (list) the list's depth among lists, 1 for an outermost list;
+%   label    (item) the item's label (its number, its bullet, its term),
+%            where it has one.
+%
+% The default look, over LaTeX's \list and \item, by the list's structural
+% kind tokens (the only ones it knows):
+%   numbered, labeled  \item[<label>], the label flush right in the label
+%            box; an item of a labeled list without a label shows none;
+%   unnumbered  \item[<label>] where the item has a label, else \item with a
+%            bullet by depth: \textbullet, \textendash,
+%            \textasteriskcentered, then \textperiodcentered;
+%   terms    the label in bold, run into the item (\labelwidth zero), the
+%            item's lines hanging at the list's indentation.
+% A list without a structural token is written as unnumbered. The list's
+% target stands before the list, an item's at the start of its content.
+%
+% Registering a look. A list and its items are written with the code
+% registered under the first of the list's kind tokens that has one, else
+% with the default. Both registrations go by the list's kind tokens (an
+% item has none of its own):
+%   \flmxDefineList{<kind token>}{<begin code>}{<end code>}
+%   \flmxDefineItem{<kind token>}{<code run at the item>}
+% for instance \flmxDefineList{enumerate}{\begin{enumerate}}{\end{enumerate}}
+% and \flmxDefineItem{enumerate}{\item[\flmxKey{label}]}. An item's code
+% sees the item's keys (\flmxKey{label}); the list's kind tokens and depth
+% are \flmxListKinds and \flmxListDepth. The defaults are replaced with
+% \flmxDefineListDefault{<begin>}{<end>} and \flmxDefineItemDefault{<code>}.
+
+\ExplSyntaxOn
+
+\tl_new:N \l__flmx_list_kinds_tl
+\tl_new:N \l__flmx_list_depth_tl
+\tl_new:N \l__flmx_list_shape_tl
+\bool_new:N \l__flmx_list_labeled_bool
+\cs_generate_variant:Nn \str_case:nnF { V }
+
+\NewExpandableDocumentCommand \flmxListKinds { } { \tl_use:N \l__flmx_list_kinds_tl }
+\NewExpandableDocumentCommand \flmxListDepth { } { \tl_use:N \l__flmx_list_depth_tl }
+
+% Saves the list's kind tokens and depth, and its shape: the structural
+% token the default goes by (unnumbered where there is none), and whether
+% it is labeled.
+\cs_new_protected:Npn \__flmx_list_save:
+  {
+    \tl_set:Ne \l__flmx_list_kinds_tl { \flmxKey { kinds } }
+    \tl_set:Ne \l__flmx_list_depth_tl { \flmxKey { depth } }
+    \tl_set:Nn \l__flmx_list_shape_tl { unnumbered }
+    \bool_set_false:N \l__flmx_list_labeled_bool
+    \tl_set_eq:NN \l__flmx_kinds_tl \l__flmx_list_kinds_tl
+    \tl_replace_all:Nnn \l__flmx_kinds_tl { ~ } { , }
+    \clist_map_inline:Nn \l__flmx_kinds_tl
+      {
+        \str_case:nn {##1}
+          {
+            { numbered } { \tl_set:Nn \l__flmx_list_shape_tl { numbered } }
+            { terms } { \tl_set:Nn \l__flmx_list_shape_tl { terms } }
+            { labeled } { \bool_set_true:N \l__flmx_list_labeled_bool }
+          }
+      }
+  }
+
+\NewDocumentEnvironment { flmxList } { O { } }
+  {
+    \__flmx_set_keys:n {#1}
+    \__flmx_list_save:
+    \__flmx_env_begin:nnn { list } { kinds } {#1}
+  }
+  { \__flmx_env_end:n { list } }
+
+% The bullet of an unnumbered list at the depth #1.
+\cs_new:Npn \__flmx_list_bullet:n #1
+  {
+    \int_case:nnF {#1}
+      {
+        { 1 } { \textbullet }
+        { 2 } { \textendash }
+        { 3 } { \textasteriskcentered }
+      }
+      { \textperiodcentered }
+  }
+\cs_new_protected:Npn \__flmx_list_term:n #1
+  { \hspace \labelsep \normalfont \bfseries #1 }
+
+\flmxDefineListDefault
+  {
+    \__flmx_anchor:
+    \str_case:VnF \l__flmx_list_shape_tl
+      {
+        { terms }
+          {
+            \list { }
+              {
+                \setlength \labelwidth { 0pt }
+                \setlength \itemindent { -\leftmargin }
+                \cs_set_eq:NN \makelabel \__flmx_list_term:n
+              }
+          }
+        { numbered } { \list { } { } }
+      }
+      { \list { \__flmx_list_bullet:n { \l__flmx_list_depth_tl } } { } }
+  }
+  { \endlist }
+
+% The item: its keys, then the code registered under the list's first kind
+% token that has one, else the default.
+\cs_new_protected:Npn \__flmx_item_find:
+  {
+    \bool_set_false:N \l__flmx_found_bool
+    \tl_set:Nn \l__flmx_found_tl { __flmx_item_default }
+    \tl_set_eq:NN \l__flmx_kinds_tl \l__flmx_list_kinds_tl
+    \tl_replace_all:Nnn \l__flmx_kinds_tl { ~ } { , }
+    \clist_map_inline:Nn \l__flmx_kinds_tl { \__flmx_try:nn { item } {##1} }
+  }
+\NewDocumentCommand \flmxItem { O { } }
+  {
+    \__flmx_set_keys:n {#1}
+    \__flmx_item_find:
+    \use:c { \l__flmx_found_tl }
+  }
+\flmxDefineItemDefault
+  {
+    \flmxIfKey { label }
+      { \item [ \flmxKey { label } ] }
+      { \bool_if:NTF \l__flmx_list_labeled_bool { \item [ ] } { \item } }
+    \__flmx_anchor:
+  }
+
+\ExplSyntaxOff
+\endinput

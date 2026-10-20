@@ -1,0 +1,33 @@
+macro \section
+
+\section*[short]{title}
+
+Starts a section of the document, with a title written as inline text.
+
+A second paragraph of the body: the section’s number appears in \ref.
+
+Arguments
+
+* star: The section is not numbered.
+
+[short] short: The title shown in the table of contents.
+
+{title} title (flm.headings.title): The title.
+
+<label>
+
+{body}
+
+The first paragraph of a longer text.
+
+Its second paragraph, with code.
+
+Fields
+
+\label{…} label (flm.refs.defined-label): The label a reference points at.
+
+Declared by: the feature headings <flm info features/headings>
+
+Element: flm.headings.heading
+
+Available in: text

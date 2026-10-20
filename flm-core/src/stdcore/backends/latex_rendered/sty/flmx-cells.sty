@@ -1,0 +1,276 @@
+% flm.latex.def.flmx.cells -- tables of cells.
+%
+% A table of cells is written
+%   \begin{flmxCells}[rows, cols, cells]
+%   <the rows>
+%   \end{flmxCells}
+% where every row of the grid holds every grid position as a column, the
+% positions separated by &, each row ended by \\. A cell's content stands
+% braced at the cell's top-left position, {<content>}, with \par between the
+% cell's blocks where it holds several (a cell is set as a box of
+% paragraphs, below); an empty position and a position that a spanning cell
+% covers hold nothing. The keys:
+%   rows, cols  the number of rows and columns of the grid;
+%   cells       one braced key-value list per cell, in the table's order,
+%               with the keys
+%     row, col            the cell's top-left position, counted from 1;
+%     row-span, col-span  where the cell spans more than one row or column;
+%     align               left, center or right, where the cell sets one;
+%     header              column or row, where the cell heads its column or
+%                         its row;
+%     rules               the edges at which a rule is drawn, among above,
+%                         below, left and right;
+%     styles              the names of the cell's styles.
+%
+% The default look sets the table with the tblr environment of the
+% tabularray package, its booktabs library, and its varwidth library, which
+% measures each cell as a box of paragraphs (measure=vbox) so that a cell
+% may hold a list or a displayed formula: \toprule above the rows and
+% \bottomrule below them; for each cell, its span (r=, c=) and its keys:
+% halign=l, c or r from align, font=\bfseries for a header, then the keys
+% registered for each of its styles, in order; a rule (hline or vline,
+% 0.4pt) along each edge its rules name, and below a cell that heads its
+% column. Columns are left-aligned. The table
+% is set at its natural width; where that is wider than \flmxCellsMaxWidth,
+% it is set again at that width, its columns X[-1] (shared in proportion to
+% their natural widths, their text wrapped). The table stands centered
+% between paragraphs; inside a cell of another table or a box (a float, a
+% minipage) it is set as it is, at the start of a line.
+%
+% Changing the look:
+%   \flmxDefineCellStyle{<name>}{<tblr cell keys>}
+%       registers the tabularray cell keys a cell with the style <name> gets
+%       (for instance bg=yellow!30, or fg=blue); a later registration
+%       replaces an earlier one; a style with no registration changes
+%       nothing (the command is the core chunk's, beside the other
+%       registrations).
+%   \flmxCellsMaxWidth  the widest a table is set, 0.96\linewidth; change
+%       it with \RenewExpandableDocumentCommand\flmxCellsMaxWidth{}{...}.
+%   \flmxDefineCellsDefault{<begin code>}{<end code>}
+%       replaces the default: the rows, as written, stand between the begin
+%       code and the end code, so that, for instance,
+%       \flmxDefineCellsDefault{\begin{tblr}{...}}{\end{tblr}} sets them
+%       with one's own tblr options; the keys are in scope (\flmxKey{cols}).
+
+\UseTblrLibrary{booktabs}
+\UseTblrLibrary{varwidth}
+
+\ExplSyntaxOn
+
+\NewExpandableDocumentCommand \flmxCellsMaxWidth { } { 0.96 \linewidth }
+
+% The environment collects its rows and writes them between the begin code
+% and the end code found for it, as tokens, so that code that collects a
+% body itself (tblr) finds its \end.
+\NewDocumentEnvironment { flmxCells } { O { } +b }
+  { \__flmx_cells:nn {#1} {#2} }
+  { }
+\cs_new_protected:Npn \__flmx_cells:nn #1#2
+  {
+    \__flmx_set_keys:n {#1}
+    \__flmx_find:nn { cells } { }
+    \use:e
+      {
+        \exp_not:v { \l__flmx_found_tl _begin }
+        \exp_not:n {#2}
+        \exp_not:v { \l__flmx_found_tl _end }
+      }
+  }
+
+% --- the default ---------------------------------------------------------
+
+\tl_new:N \l__flmx_cells_options_tl
+\clist_new:N \l__flmx_cells_specs_clist
+\prop_new:N \l__flmx_cell_prop
+\tl_new:N \l__flmx_cell_value_tl
+\tl_new:N \l__flmx_cell_span_tl
+\tl_new:N \l__flmx_cell_keys_tl
+\seq_new:N \l__flmx_cell_words_seq
+\int_new:N \l__flmx_cell_row_int
+\int_new:N \l__flmx_cell_col_int
+\int_new:N \l__flmx_cell_rows_int
+\int_new:N \l__flmx_cell_cols_int
+\box_new:N \l__flmx_cells_box
+\int_new:N \l__flmx_cells_depth_int
+\cs_generate_variant:Nn \tl_put_right:Nn { Nv }
+\cs_generate_variant:Nn \clist_set:Nn { Nv }
+
+% The default's end code marks where its begin code's argument ends.
+\cs_new_protected:Npn \__flmx_cells_end: { }
+\cs_new_protected:Npn \__flmx_cells_table:w #1 \__flmx_cells_end:
+  {
+    \__flmx_cells_options:
+    \bool_lazy_or:nnTF
+      { \mode_if_inner_p: }
+      { \int_compare_p:nNn { \l__flmx_cells_depth_int } > { 0 } }
+      {
+        \mode_if_vertical:T { \noindent }
+        \__flmx_cells_fit:n {#1}
+      }
+      { \__flmx_cells_display:n {#1} }
+  }
+\flmxDefineCellsDefault { \__flmx_cells_table:w } { \__flmx_cells_end: }
+
+\cs_new_protected:Npn \__flmx_cells_display:n #1
+  {
+    \par
+    \begin { center }
+      \__flmx_cells_fit:n {#1}
+    \end { center }
+  }
+
+% Sets the rows #1 at their natural width, and again with X columns at
+% \flmxCellsMaxWidth where they are wider. The depth counts the tables of
+% cells being set, so that a table in a cell is set as it is.
+\cs_new_protected:Npn \__flmx_cells_fit:n #1
+  {
+    \int_incr:N \l__flmx_cells_depth_int
+    \hbox_set:Nn \l__flmx_cells_box
+      {
+        \__flmx_cells_tblr:en
+          {
+            colspec = { * { \flmxKey { cols } } { l } } ,
+            \exp_not:V \l__flmx_cells_options_tl
+          }
+          {#1}
+      }
+    \dim_compare:nNnTF { \box_wd:N \l__flmx_cells_box } > { \flmxCellsMaxWidth }
+      {
+        \__flmx_cells_tblr:en
+          {
+            width = \flmxCellsMaxWidth ,
+            colspec = { * { \flmxKey { cols } } { X[-1,l] } } ,
+            \exp_not:V \l__flmx_cells_options_tl
+          }
+          {#1}
+      }
+      { \mode_leave_vertical: \box_use_drop:N \l__flmx_cells_box }
+  }
+% The tblr environment written out, so that it finds its \end{tblr}.
+\cs_new_protected:Npn \__flmx_cells_tblr:nn #1#2
+  { \begin { tblr } {#1} \toprule #2 \bottomrule \end { tblr } }
+\cs_generate_variant:Nn \__flmx_cells_tblr:nn { en }
+
+% The tblr options of the table from its key cells.
+\cs_new_protected:Npn \__flmx_cells_options:
+  {
+    \tl_set:Nn \l__flmx_cells_options_tl { hspan = minimal , measure = vbox }
+    \flmxIfKey { cells }
+      {
+        \clist_set:Nv \l__flmx_cells_specs_clist { l__flmx_key_cells_tl }
+        \clist_map_function:NN \l__flmx_cells_specs_clist \__flmx_cells_spec:n
+      }
+      { }
+  }
+
+% One cell's spec #1: its cell{}{} entry and its rules.
+\cs_new_protected:Npn \__flmx_cells_spec:n #1
+  {
+    \prop_clear:N \l__flmx_cell_prop
+    \keyval_parse:nnn { \use_none:n } { \prop_put:Nnn \l__flmx_cell_prop } {#1}
+    \int_set:Nn \l__flmx_cell_row_int { \__flmx_cell_number:nn { row } { 1 } }
+    \int_set:Nn \l__flmx_cell_col_int { \__flmx_cell_number:nn { col } { 1 } }
+    \int_set:Nn \l__flmx_cell_rows_int { \__flmx_cell_number:nn { row-span } { 1 } }
+    \int_set:Nn \l__flmx_cell_cols_int { \__flmx_cell_number:nn { col-span } { 1 } }
+    % the span
+    \tl_clear:N \l__flmx_cell_span_tl
+    \int_compare:nNnT { \l__flmx_cell_rows_int } > { 1 }
+      { \tl_put_right:Ne \l__flmx_cell_span_tl { r = \int_use:N \l__flmx_cell_rows_int } }
+    \int_compare:nNnT { \l__flmx_cell_cols_int } > { 1 }
+      {
+        \tl_if_empty:NF \l__flmx_cell_span_tl { \tl_put_right:Nn \l__flmx_cell_span_tl { , } }
+        \tl_put_right:Ne \l__flmx_cell_span_tl { c = \int_use:N \l__flmx_cell_cols_int }
+      }
+    % the keys
+    \tl_clear:N \l__flmx_cell_keys_tl
+    \prop_get:NnNT \l__flmx_cell_prop { align } \l__flmx_cell_value_tl
+      {
+        \str_case:VnT \l__flmx_cell_value_tl
+          {
+            { left } { \tl_put_right:Nn \l__flmx_cell_keys_tl { halign = l , } }
+            { center } { \tl_put_right:Nn \l__flmx_cell_keys_tl { halign = c , } }
+            { right } { \tl_put_right:Nn \l__flmx_cell_keys_tl { halign = r , } }
+          }
+          { }
+      }
+    \prop_if_in:NnT \l__flmx_cell_prop { header }
+      { \tl_put_right:Nn \l__flmx_cell_keys_tl { font = \bfseries , } }
+    \prop_get:NnNT \l__flmx_cell_prop { styles } \l__flmx_cell_value_tl
+      {
+        \seq_set_split:NnV \l__flmx_cell_words_seq { ~ } \l__flmx_cell_value_tl
+        \seq_map_inline:Nn \l__flmx_cell_words_seq
+          {
+            \tl_if_exist:cT { l__flmx_cellstyle_##1_tl }
+              {
+                \tl_put_right:Nv \l__flmx_cell_keys_tl { l__flmx_cellstyle_##1_tl }
+                \tl_put_right:Nn \l__flmx_cell_keys_tl { , }
+              }
+          }
+      }
+    \bool_lazy_and:nnF
+      { \tl_if_empty_p:N \l__flmx_cell_span_tl }
+      { \tl_if_empty_p:N \l__flmx_cell_keys_tl }
+      {
+        \tl_put_right:Ne \l__flmx_cells_options_tl
+          {
+            , cell { \int_use:N \l__flmx_cell_row_int } { \int_use:N \l__flmx_cell_col_int }
+              = { \exp_not:V \l__flmx_cell_span_tl } { \exp_not:V \l__flmx_cell_keys_tl }
+          }
+      }
+    % the rules
+    \prop_get:NnNT \l__flmx_cell_prop { header } \l__flmx_cell_value_tl
+      { \str_if_eq:VnT \l__flmx_cell_value_tl { column } { \__flmx_cell_rule:n { below } } }
+    \prop_get:NnNT \l__flmx_cell_prop { rules } \l__flmx_cell_value_tl
+      {
+        \seq_set_split:NnV \l__flmx_cell_words_seq { ~ } \l__flmx_cell_value_tl
+        \seq_map_function:NN \l__flmx_cell_words_seq \__flmx_cell_rule:n
+      }
+  }
+\cs_generate_variant:Nn \seq_set_split:Nnn { NnV }
+\cs_generate_variant:Nn \str_case:nnT { V }
+
+% The value of the number key #1 of the cell, or #2.
+\cs_new:Npn \__flmx_cell_number:nn #1#2
+  { \prop_if_in:NnTF \l__flmx_cell_prop {#1} { \prop_item:Nn \l__flmx_cell_prop {#1} } {#2} }
+
+% The rule along the edge #1 of the cell.
+\cs_new_protected:Npn \__flmx_cell_rule:n #1
+  {
+    \str_case:nn {#1}
+      {
+        { above }
+          { \__flmx_cell_hline:n { \l__flmx_cell_row_int } }
+        { below }
+          { \__flmx_cell_hline:n { \l__flmx_cell_row_int + \l__flmx_cell_rows_int } }
+        { left }
+          { \__flmx_cell_vline:n { \l__flmx_cell_col_int } }
+        { right }
+          { \__flmx_cell_vline:n { \l__flmx_cell_col_int + \l__flmx_cell_cols_int } }
+      }
+  }
+\cs_new_protected:Npn \__flmx_cell_hline:n #1
+  {
+    \tl_put_right:Ne \l__flmx_cells_options_tl
+      {
+        , hline { \int_eval:n {#1} }
+          = { \__flmx_cell_range:nn { \l__flmx_cell_col_int } { \l__flmx_cell_cols_int } }
+            { 0.4pt , solid }
+      }
+  }
+\cs_new_protected:Npn \__flmx_cell_vline:n #1
+  {
+    \tl_put_right:Ne \l__flmx_cells_options_tl
+      {
+        , vline { \int_eval:n {#1} }
+          = { \__flmx_cell_range:nn { \l__flmx_cell_row_int } { \l__flmx_cell_rows_int } }
+            { 0.4pt , solid }
+      }
+  }
+% The range of #2 positions from #1: "3" or "3-4".
+\cs_new:Npn \__flmx_cell_range:nn #1#2
+  {
+    \int_use:N #1
+    \int_compare:nNnT {#2} > { 1 } { - \int_eval:n { #1 + #2 - 1 } }
+  }
+
+\ExplSyntaxOff

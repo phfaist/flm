@@ -1,0 +1,12 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.59eb1891.sty
+\flmUTDvec{v} and \(\flmUMDvec{}{w} + \flmUMDvec{\prime}{u}\).%%
+% ===== latex-recomposed:style flmrecomposed.59eb1891.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.59eb1891}
+% --- user definitions ---
+% \flmUTDvec (the document's \vec, in text): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUTDvec[1]{\textbf{#1}}
+% \flmUMDvec (the document's \vec, in mathematics): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUMDvec[2]{\mathbf{#2}#1}
+\endinput

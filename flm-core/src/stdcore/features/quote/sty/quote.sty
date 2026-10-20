@@ -1,0 +1,34 @@
+% flm.latex.def.flmx.quote -- quotations.
+%
+% The quote feature writes a quotation as a block of role flm.quote whose
+% kind token is the environment's name (quote, blockquote, address, or one
+% the host configures), holding one block per quotation section, of role
+% flm.quote.text (a passage), flm.quote.lines (lines, as flmxLines),
+% flm.quote.attributed (an attribution) or flm.quote.block (paragraphs and
+% blocks):
+%   \begin{flmxBlock}[role=flm.quote, kinds=quote]
+%   \begin{flmxBlock}[role=flm.quote.text]
+%   To be or not to be.
+%   \end{flmxBlock}
+%   \begin{flmxBlock}[role=flm.quote.attributed]
+%   Shakespeare
+%   \end{flmxBlock}
+%   \end{flmxBlock}
+%
+% Defaults: every quotation as LaTeX's quote environment sets one, indented
+% on both sides, whatever its kind token; an attribution flush right; the
+% other sections with the block's default, and the lines of a lines section
+% with the lines chunk's default. A template changes the look with
+%   \flmxDefineBlock{flm.quote}{<begin code>}{<end code>}
+% (every quotation: a registration under the role is found before one under
+% a kind token, so a look by environment dispatches on \flmxKey{kinds}
+% inside the role's code), and
+%   \flmxDefineBlock{flm.quote.attributed}{<begin code>}{<end code>}
+% (likewise flm.quote.text, flm.quote.lines and flm.quote.block).
+
+\flmxDefineBlock{flm.quote}%
+  {\quote\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}}%
+  {\endquote}
+\flmxDefineBlock{flm.quote.attributed}%
+  {\par\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}\raggedleft}%
+  {\par}

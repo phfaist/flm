@@ -1,0 +1,45 @@
+# flm-rs — the Rust implementation of FLM, built on the techy parser toolkit.
+
+[workspace]
+resolver = "3"
+members = ["flm-core", "flm-main", "flm-cli", "flm-info", "flm-phfpack", "flm-ext", "extensions", "extensions/rust/flmdoc", "extensions/rust/profile-pdf-latex", "extensions/rust/syntax-highlight"]
+# The extensions written in Rust (`extensions/rust/NAME`) are listed one by one, not with a
+# glob: the folder also holds the script that builds their WebAssembly form.
+# prototypes/* are standalone packages (each carries its own [workspace] table),
+# deliberately outside this workspace: probe code pins nothing on the real crates.
+
+[workspace.package]
+version = "0.5.0"
+# Toolchain: edition 2024, and a minimum supported Rust version of 1.86, which
+# matches techy's own floor (`dyn` trait upcasting) so that flm never claims
+# support below its dependency. Both are soft choices: revise them if a needed
+# language feature requires a later Rust.
+edition = "2024"
+rust-version = "1.86"
+authors = ["Philippe Faist"]
+# The Rust ecosystem's usual dual license; the two texts are at the repository
+# root as LICENSE-APACHE and LICENSE-MIT. Every crate inherits this field.
+license = "MIT OR Apache-2.0"
+
+# Lint posture: missing_docs is a warning while the public API is still
+# settling; promote it to "deny" at the first release. Documentation link rot
+# fails the docs build from the start.
+[workspace.lints.rust]
+missing_docs = "warn"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "warn"
+bare_urls = "warn"
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+# The WebAssembly form of an extension written in Rust, built by
+# `extensions/rust/build-wasm.sh`: the release profile, optimized for size, a panic
+# aborting the module (a trap, whose message the guest client keeps for the host).
+[profile.wasm-extension]
+inherits = "release"
+panic = "abort"
+opt-level = "s"

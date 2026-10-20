@@ -1,0 +1,26 @@
+---
+title: "Macro \\textbackslash{}url"
+flm:
+  use: [flmdoc]
+  math: false
+---
+\begin{docitem}{macro}{\url}
+
+\docsignature{\url{address}}
+
+\docsummary{`\url{address}`: the address, linked and shown as its display.}
+
+\begin{docparams}
+\docparam{{address}}{address}{flm.href.address}{The address, raw text up to the matching `}`: `%`, `#`, `\`, `~` and nested braces are characters of the address.}
+\end{docparams}
+
+\docfield{Declared by}{the feature \docref{features/href}{\verbcode{href}}}
+
+\docfield{Available in}{\verbcode{text} mode}
+
+\docfield{Element}{\docref{namespaces/element/flm.href.link}{\verbcode{flm.href.link}}: `\url`: a hyperlink to an address outside the document.}
+
+\docfield{Aspects}{\verbcode{flm_core::model::aspects::BlockRoleAspect}, \verbcode{flm_core::model::aspects::ApartFromText}}
+
+\end{docitem}
+

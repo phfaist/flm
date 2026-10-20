@@ -1,0 +1,3 @@
+Let \(x = \text{one half} + y\) hold.
+
+  \begin{align}a &= b\end{align}

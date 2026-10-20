@@ -1,0 +1,23 @@
+[
+  {
+    "feature": "literals",
+    "names": [],
+    "kind": "specials",
+    "trigger": "~",
+    "modes": [
+      "text"
+    ],
+    "docs": "`~`: the character ` `.",
+    "summary": "`~`: the character ` `.",
+    "arguments": [],
+    "element": {
+      "name": "flm.literal",
+      "docs": "The character ` `, written `~`.",
+      "summary": "The character ` `, written `~`.",
+      "aspects": [
+        "flm_core::model::aspects::BlockRoleAspect"
+      ],
+      "number": 23
+    }
+  }
+]

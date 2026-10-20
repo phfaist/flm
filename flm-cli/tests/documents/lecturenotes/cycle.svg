@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="160" viewBox="0 0 420 160" font-family="serif" font-size="14">
+<rect x="0" y="0" width="420" height="160" fill="#fff"/>
+<g stroke="#2B7A6F" stroke-width="2" fill="#FAF0EE">
+<rect x="20" y="60" width="80" height="40" rx="6"/><rect x="170" y="60" width="80" height="40" rx="6"/><rect x="320" y="60" width="80" height="40" rx="6"/>
+</g>
+<g fill="#27191a" text-anchor="middle"><text x="60" y="85">encode</text><text x="210" y="85">noise</text><text x="360" y="85">recover</text></g>
+<g stroke="#8C7068" stroke-width="1.5" fill="none" marker-end="url(#a)"><path d="M100 80 H170"/><path d="M250 80 H320"/></g>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#8C7068"/></marker></defs>
+<text x="210" y="140" text-anchor="middle" fill="#8C7068" font-size="12">the error-correction cycle</text>
+</svg>

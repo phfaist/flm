@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+{% if "lang" in regions %}
+<html lang="{{ regions.lang }}">
+{% else %}
+<html>
+{% endif %}
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ regions.title }}</title>
+{% if regions.styles %}
+{{ regions.styles }}
+{% endif %}
+    <style>
+      @layer flm {
+        body > header {
+            padding-bottom: 1em; border-bottom: 1px solid currentColor; margin-bottom: 2em;
+            max-width: calc(var(--flm-page-measure) + var(--flm-margin-note-width) + var(--flm-margin-note-gap));
+            margin: auto;
+            margin-top: 2em;
+        }
+      }
+    </style>
+  </head>
+  <body>
+{% for name, piece in pieces|items if piece.place == "before-content" and name != "flm.toc" %}
+{% if loop.first %}
+    <header>
+{% endif %}
+{{ piece.text }}
+{% if loop.last %}
+    </header>
+{% endif %}
+{% endfor %}
+{% if "flm.toc" in pieces %}
+{{ pieces["flm.toc"].text }}
+{% endif %}
+    <main class="flm-content" id="flm-content">
+{{ regions.content }}
+{% for name, piece in pieces|items if piece.place == "after-content" %}
+{{ piece.text }}
+{% endfor %}
+    </main>
+{% if regions.scripts %}
+{{ regions.scripts }}
+{% endif %}
+  </body>
+</html>

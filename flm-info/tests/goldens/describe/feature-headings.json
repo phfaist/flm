@@ -1,0 +1,247 @@
+{
+  "name": "headings",
+  "title": "Headings",
+  "docs": "Headings: one value of the element `flm.heading` per heading kind, written with the kind's heading commands (`\\section` to `\\subparagraph` by default); each heading carries a level, a reference point and its `\\label` fields.",
+  "summary": "Headings: one value of the element `flm.heading` per heading kind, written with the kind's heading commands (`\\section` to `\\subparagraph` by default); each heading carries a level, a reference point and its `\\label` fields.",
+  "package": "stdcore",
+  "elements": [
+    {
+      "name": "flm.heading",
+      "values": [
+        {
+          "number": 48,
+          "docs": "`section`: A heading of level 1.",
+          "summary": "`section`: A heading of level 1.",
+          "commands": [
+            {
+              "kind": "macro",
+              "name": "section",
+              "feature": "headings"
+            }
+          ]
+        },
+        {
+          "number": 50,
+          "docs": "`subsection`: A heading of level 2.",
+          "summary": "`subsection`: A heading of level 2.",
+          "commands": [
+            {
+              "kind": "macro",
+              "name": "subsection",
+              "feature": "headings"
+            }
+          ]
+        },
+        {
+          "number": 52,
+          "docs": "`subsubsection`: A heading of level 3.",
+          "summary": "`subsubsection`: A heading of level 3.",
+          "commands": [
+            {
+              "kind": "macro",
+              "name": "subsubsection",
+              "feature": "headings"
+            }
+          ]
+        },
+        {
+          "number": 54,
+          "docs": "`paragraph`: A heading of level 4.",
+          "summary": "`paragraph`: A heading of level 4.",
+          "commands": [
+            {
+              "kind": "macro",
+              "name": "paragraph",
+              "feature": "headings"
+            }
+          ]
+        },
+        {
+          "number": 56,
+          "docs": "`subparagraph`: A heading of level 5.",
+          "summary": "`subparagraph`: A heading of level 5.",
+          "commands": [
+            {
+              "kind": "macro",
+              "name": "subparagraph",
+              "feature": "headings"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "flm.field",
+      "values": [
+        {
+          "number": 49,
+          "docs": "The field `\\label`, which the construct it is written after reads as data.",
+          "summary": "The field `\\label`, which the construct it is written after reads as data.",
+          "commands": [
+            {
+              "kind": "macro",
+              "name": "label",
+              "feature": "headings",
+              "field_of": {
+                "kind": "macro",
+                "name": "section"
+              }
+            }
+          ]
+        },
+        {
+          "number": 51,
+          "docs": "The field `\\label`, which the construct it is written after reads as data.",
+          "summary": "The field `\\label`, which the construct it is written after reads as data.",
+          "commands": [
+            {
+              "kind": "macro",
+              "name": "label",
+              "feature": "headings",
+              "field_of": {
+                "kind": "macro",
+                "name": "subsection"
+              }
+            }
+          ]
+        },
+        {
+          "number": 53,
+          "docs": "The field `\\label`, which the construct it is written after reads as data.",
+          "summary": "The field `\\label`, which the construct it is written after reads as data.",
+          "commands": [
+            {
+              "kind": "macro",
+              "name": "label",
+              "feature": "headings",
+              "field_of": {
+                "kind": "macro",
+                "name": "subsubsection"
+              }
+            }
+          ]
+        },
+        {
+          "number": 55,
+          "docs": "The field `\\label`, which the construct it is written after reads as data.",
+          "summary": "The field `\\label`, which the construct it is written after reads as data.",
+          "commands": [
+            {
+              "kind": "macro",
+              "name": "label",
+              "feature": "headings",
+              "field_of": {
+                "kind": "macro",
+                "name": "paragraph"
+              }
+            }
+          ]
+        },
+        {
+          "number": 57,
+          "docs": "The field `\\label`, which the construct it is written after reads as data.",
+          "summary": "The field `\\label`, which the construct it is written after reads as data.",
+          "commands": [
+            {
+              "kind": "macro",
+              "name": "label",
+              "feature": "headings",
+              "field_of": {
+                "kind": "macro",
+                "name": "subparagraph"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "flm.heading.number",
+      "values": [
+        {
+          "number": 58,
+          "docs": "The number of a numbered heading, where the kind's heading title template writes `#{number}`. No document can write it.",
+          "summary": "The number of a numbered heading, where the kind's heading title template writes `#{number}`. No document can write it.",
+          "commands": []
+        }
+      ]
+    }
+  ],
+  "declares": [
+    {
+      "namespace": "lowering-rule",
+      "entries": [
+        {
+          "name": "flm.heading.number.lower.default",
+          "owner": "headings",
+          "summary": "a heading's number lowers to `flm.pres.span` of role `flm.heading.number` around the number"
+        },
+        {
+          "name": "flm.heading.lower.default",
+          "owner": "headings",
+          "summary": "a heading lowers to `flm.pres.block-heading` carrying its kind's name and level, whether it is listed in a table of contents, and its anchor, or, for a run-in kind, to a `flm.pres.deco.runin` decoration holding a `flm.pres.runin-heading` with the same payload; a numbered heading's content begins with its number"
+        },
+        {
+          "name": "flm.heading.lower.latex-recomposed",
+          "owner": "headings",
+          "summary": "a heading lowers to the LaTeX hook `\\flmHeading[toc=…]` (with `alt={…}` where the heading has an alternative title), a newline, the LaTeX sectioning command its heading kind maps to, starred when not numbered, and a group holding the labels it read from its `\\label` fields"
+        },
+        {
+          "name": "flm.heading.number.lower.latex-recomposed",
+          "owner": "headings",
+          "summary": "a heading's number lowers to its content; the heading itself is written back as its sectioning command, so the number never reaches this backend"
+        }
+      ]
+    },
+    {
+      "namespace": "option-type",
+      "entries": [
+        {
+          "name": "HeadingsConfig",
+          "owner": "headings",
+          "summary": "The heading kinds and the heading commands that write them: each kind's level, counter, counter style, the counter it is numbered within, number format, heading title template, table-of-contents and run-in settings and reference point; each command's heading kind and default options; and which kinds are numbered. Fixed when the registry is built: it cannot vary per document or per render."
+        },
+        {
+          "name": "HeadingsLatexOptions",
+          "owner": "headings",
+          "summary": "The LaTeX sectioning command each heading kind is written as in the recomposed LaTeX, keyed by the kind's name; a kind not listed is written as the command of its own name. Set per render request."
+        }
+      ]
+    },
+    {
+      "namespace": "style",
+      "entries": [
+        {
+          "name": "flm.headings.style",
+          "owner": "headings",
+          "summary": "headings: no stylesheet of their own"
+        }
+      ]
+    },
+    {
+      "namespace": "settings-key",
+      "entries": [
+        {
+          "name": "headings.headings",
+          "owner": "headings",
+          "summary": "The heading kinds, in the order they were given."
+        },
+        {
+          "name": "headings.commands",
+          "owner": "headings",
+          "summary": "The heading commands, in the order they were given."
+        },
+        {
+          "name": "headings.numbering",
+          "owner": "headings",
+          "summary": "Which kinds are numbered: `HeadingNumbering::NothingNumbered` by\ndefault."
+        },
+        {
+          "name": "headings.latex_commands",
+          "owner": "headings",
+          "summary": "The LaTeX sectioning command, without the backslash, that each heading\nkind is written as, keyed by the kind's name. A kind the map does not list\nis written as the command of its own name. Empty by default."
+        }
+      ]
+    }
+  ]
+}

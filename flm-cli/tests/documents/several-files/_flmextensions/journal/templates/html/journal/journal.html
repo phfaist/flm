@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>{{ regions.title }}</title>
+{% if regions.styles %}
+{{ regions.styles }}
+{% endif %}
+  </head>
+  <body>
+    <article class="journal">
+{% for name, piece in pieces|items if piece.place == "before-content" %}
+{{ piece.text }}
+{% endfor %}
+{{ regions.content }}
+{% for name, piece in pieces|items if piece.place == "after-content" %}
+{{ piece.text }}
+{% endfor %}
+    </article>
+{% if regions.scripts %}
+{{ regions.scripts }}
+{% endif %}
+  </body>
+</html>

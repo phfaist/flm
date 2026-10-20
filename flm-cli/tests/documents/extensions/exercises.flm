@@ -1,0 +1,14 @@
+---
+title: Exercises
+flm:
+  use: [exercises]
+---
+\begin{exercise}[A title]\label{ex:first}
+Solve it. \hint{Think of the first case.}
+\end{exercise}
+
+\begin{exercise}\label{ex:second}
+Solve this one too.
+\end{exercise}
+
+See \ref{ex:first} and \ref[noprefix]{ex:second}.

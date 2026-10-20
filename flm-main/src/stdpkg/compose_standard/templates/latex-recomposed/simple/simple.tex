@@ -1,0 +1,12 @@
+\documentclass{article}
+((* if "style-package" in regions *))
+\usepackage{((( regions["style-package"] )))}
+((* endif *))
+\begin{document}
+((* if "flm.meta.title" in pieces *))
+\title{((( pieces["flm.meta.title"].text )))}
+\author{((* if "flm.meta.author" in pieces *))((( pieces["flm.meta.author"].text )))((* endif *))}
+\date{((* if "flm.meta.date" in pieces *))((( pieces["flm.meta.date"].text )))((* endif *))}
+\maketitle
+((* endif *))
+((( regions.content )))\end{document}

@@ -1,0 +1,279 @@
+The FLM environment
+
+The packages, features, settings and workflows of the environment, and the names
+its registry holds.
+
+The profile in view is html: a document built with it runs the workflow
+html <flm info workflows/html>, which produces the outputs html.
+
+The mathematics of a document is processed by the package
+bundled:js/math-mathjax#_ <flm info packages/bundled:js/math-mathjax#_>, through
+its feature math-mathjax <flm info features/math-mathjax>.
+
+Packages
+========
+
+• stdcore <flm info packages/stdcore> (compiled into the program)
+
+• stdmain <flm info packages/stdmain> (compiled into the program)
+
+• std <flm info packages/std> (compiled into the program)
+
+• bundled:js/math-mathjax#_ <flm info packages/bundled:js/math-mathjax#_> (from
+  the extension bundled:js/math-mathjax, bundled into the program)
+
+Features
+========
+
+• textstyles <flm info features/textstyles>: The inline formatting commands
+  \emph, \textbf, \textit and \texttt: four values of the element type
+  flm.textstyle, each lowered to a flm.pres.span node that carries its style.
+
+• literals <flm info features/literals>: The commands that stand for one
+  character of text (\%, \#, \&, \$, \ , \{, \}, \textbackslash) and the special
+  character sequence ~ for a non-breaking space: nine values of the element type
+  flm.literal. Also \@, a hint about whether a period ends a sentence.
+
+• blocks <flm info features/blocks>: Lays out every document tree in paragraphs
+  and blocks, from the block role of each element and the layout it declares for
+  its arguments and body, and resolves the text once: the flm.blocks.structure
+  rewrite stage provides flm.blocks.structured; the flm.blocks.raw marker stage
+  keeps the trees as parsed; the flm.blocks.check-contract stage checks the tree
+  contract.
+
+• index <flm info features/index>: The element index flm.element-index: for
+  every tree, the nodes of the tree and the element each carries, in document
+  order, so that a stage finds the nodes whose element carries an aspect without
+  walking the tree.
+
+• refpoints <flm info features/refpoints>: The table flm.refpoints: every
+  reference point of the run (a place that can be referred to, numbered or given
+  an anchor), as its element declared it, in document order; the refs and
+  numbering features read it.
+
+• numbering <flm info features/numbering>: Counters, counter styles and the
+  numbers of reference points: the five service slots into which features
+  declare counters, counter styles, within-joiners, number writers and parent
+  sets, the per-document numbering options, the stage that numbers, in document
+  order, every reference point that has a number source, and the table
+  flm.counters it writes.
+
+• math <flm info features/math>: Mathematics: the display-math environments and
+  their equation lines, the text commands of math mode, \ensuremath, \eqref,
+  equation numbering, and the capabilities flm.math.content and
+  flm.math.rendered. A feature that processes mathematics (math-passthrough)
+  checks and lowers the formulas.
+
+• refs <flm info features/refs>: Labels and references: the \ref and \hyperref
+  commands, the labels written after constructs, the link identifier of every
+  reference point, the resolution of every reference, and the check of duplicate
+  labels and label types.
+
+• headings <flm info features/headings>: Headings: one value of the element
+  flm.heading per heading kind, written with the kind’s heading commands
+  (\section to \subparagraph by default); each heading carries a level, a
+  reference point and its \label fields.
+
+• verbatim <flm info features/verbatim>: Content shown exactly as written: the
+  macros \verbtext, \verbcode and \verba and the environments verbatimtext and
+  verbatimcode, each lowered to a flm.pres.verbatim node that carries its
+  verbatim kind and its language.
+
+• lists <flm info features/lists>: The list environments as element values of
+  flm.lists.list, \item inside their bodies, the label shown beside each item,
+  and one reference point per item.
+
+• xnotes <flm info features/xnotes>: Footnotes and the other kinds of xnote
+  (notes set apart from the running text): the configured kinds and their
+  commands, the two reference points of every xnote, the service slot
+  flm.xnotes.kinds of the kinds, and the table flm.xnotes of every xnote of a
+  document by kind.
+
+• href <flm info features/href>: Links to an address outside the document:
+  \href{address}{text}, \url{address} and \email{address}, lowering to
+  flm.pres.link with the kind token url.
+
+• defterm <flm info features/defterm>: Defined terms: the defterm environment,
+  which defines a term and carries one reference point, and \term, a link to a
+  term’s definition, which the references feature resolves.
+
+• theorems <flm info features/theorems>: Theorem-like environments (theorem,
+  lemma, proof, …), one per configured kind, all of the element
+  flm.theorems.theorem: each with an optional title, numbered and labeled where
+  its kind’s class is numbered, a heading at the start of its first paragraph,
+  an optional closing mark, and, on a proof, a back-reference to the statement
+  it proves.
+
+• quote <flm info features/quote>: Quotations: the quote environments (quote,
+  blockquote, address and any a host configures), their quotation-section
+  commands \text, \lines, \attributed and \block, and the commands \\ and
+  \indent of a lines section.
+
+• annotations <flm info features/annotations>: A reviewer’s marks: one command
+  per configured annotator, written \phf{…} or \phf … \endphf for a highlighted
+  passage and \phf[…] for a remark, with phf the annotator’s command.
+
+• graphics <flm info features/graphics>: Images, written
+  \includegraphics[options]{path} inside the body of a float type that makes the
+  command available (the figure and table types do) or, under global, wherever
+  text can be written: inline content, except as a direct child of a float’s
+  body, where an image is a block. The file that a host’s graphics resolver
+  finds and what its inspector reports about it are recorded; each output
+  publishes the image by reference, as a copy beside the output or written into
+  a data: address, converted where a conversion rule says so. On the plain-text,
+  HTML and rendered LaTeX outputs the image lowers to flm.pres.image with the
+  published address, on the recomposed LaTeX to the LaTeX hook
+  \flmIncludeGraphics.
+
+• floats <flm info features/floats>: Floats such as figures and tables: one
+  environment per float type, each an element value of flm.floats.float, holding
+  content with an optional caption, labels and a number given by the type’s
+  numbering policy.
+
+• cells <flm info features/cells>: The cells environment, inside a table float
+  or, under global, wherever blocks can be written: a grid filled with \cell and
+  \celldata, cells spanning rows or columns with \merge, names for rows and
+  columns with \rownames and \colnames, and style tokens referring to the cell
+  styles of the service slot flm.cells.styles.
+
+• citations <flm info features/citations>: Citing works by key:
+  \cite[note]{keys}, adjacent calls read as one citation chunk, and
+  \R\cite{keys}, a citation written as a noun of its sentence. The host’s
+  citation providers give each cited citation key its citation entry and say
+  which citation keys refer to the same work; the works are numbered in order of
+  first citation, each citation chunk is shown as a citation mark linking to its
+  works, and the works are listed after the content, or their citation entries
+  are shown in the citation marks.
+
+• input <flm info features/input>: \input{file}: the content of another file,
+  parsed where the command is written and put in place of the command by the
+  rewrite flm.input.splice, which publishes flm.input.spliced.
+
+• userdefs <flm info features/userdefs>: Macros, environments and special
+  character sequences defined by substitution. Each definition is an element
+  carrying the Expand aspect. The rewrite stages flm.userdefs.expand-always and
+  flm.userdefs.expand expand the use sites of the always and of the per-plan
+  definitions; the flm.userdefs.keep marker stage keeps the latter in the tree
+  instead. Every definition’s expand-in-tree rule gives its element a rule on
+  every backend; a per-plan definition’s emit-call and instantiate-at-lowering
+  rules lower a use site kept in the tree. The templates are compiled when the
+  registry is built, which also records whether each definition can be written
+  as one LaTeX definition.
+
+• lowering <flm info features/lowering>: the presentation vocabulary, the field
+  element and the structural elements’ default lowering rules
+
+• meta <flm info features/meta>: The document’s metadata (its title, its
+  authors, its date and any other key) as an option set per document, and the
+  three pieces that show the title, the authors and the date before the content.
+
+• toc <flm info features/toc>: The document’s table of contents: the table
+  flm.toc.entries of the listed headings, and the piece flm.toc (off by default)
+  that shows them as nested lists before the content.
+
+• pieces <flm info features/pieces>: the service slot into which features
+  declare the document-level values a backend places before or after the
+  content, and the render option that chooses which of them a render request
+  places
+
+• text <flm info features/text>: plain-text output over the layout engine: the
+  text output and workflow
+
+• latex <flm info features/latex>: registers what every LaTeX backend shares:
+  the LaTeX construct elements, the placeholder rule, the service slots through
+  which a backend resolves LaTeX package requests and definition pieces, and the
+  standard package definitions and definition pieces
+
+• latex-recomposed <flm info features/latex-recomposed>: the document recomposed
+  into LaTeX from the raw tree: the latex-recomposed output and workflow, a body
+  and a style file
+
+• latex-rendered <flm info features/latex-rendered>: the document as fully
+  resolved LaTeX for LuaLaTeX, written through one command or environment per
+  presentation element: the latex-rendered output and workflow, a document and a
+  style file
+
+• html <flm info features/html>: HTML output for a browser: the construct
+  element flm.pres.html.tag, the html backend, the html output and the html
+  workflow
+
+• check <flm info features/check>: The collection flm.validated, which every
+  check joins, and the check workflow, which demands it: the document is
+  validated and no output is written.
+
+• compose <flm info features/compose>: the template engines, the compose
+  templates, and for each output a stage that assembles the output from its
+  content and its other parts through the chosen compose template
+
+• compose-standard <flm info features/compose-standard>: the template engine
+  minijinja and the program’s own compose templates
+
+• write <flm info features/write>: the stage that hands the files of every
+  output the plan demands to the destination the program gives: the disk, memory
+  or the standard output
+
+• preview <flm info features/preview>: the script that keeps a page in step with
+  its document while flm watch runs, and the stylesheet of what the script adds
+  to the page
+
+• graphics-files <flm info features/graphics-files>: the host’s services for
+  image files: finding the file of an image in the folders of a search path and
+  reading it; reading the image’s size from its content; converting a raster
+  image into a PNG image in the program itself; and converting between any two
+  formats by running ImageMagick’s program magick
+
+• citations-standard <flm info features/citations-standard>: the host’s provider
+  of citation entries: it makes a cited work’s entry from the work’s record,
+  which it fetches from the arXiv or doi.org (keeping it in a cache file) or
+  reads from the author’s bibliography files; a citation key with the prefix
+  manual: holds the entry itself
+
+• math-mathjax <flm info features/math-mathjax>: The commands and environments
+  of MathJax’s TeX packages inside mathematics, and the formulas typeset by
+  MathJax: as MathML written into the page (mathml), or as TeX that MathJax
+  typesets in the reader’s browser (load-in-browser). Requires the math feature.
+
+Workflows
+=========
+
+Each workflow says what a build produces, and is also the profile of the same
+name: building a document with a profile runs the workflow of that name.
+
+• bibtex <flm info workflows/bibtex> (outputs: bibtex): write the records of the
+  cited works as a BibTeX file, running every check
+
+• check <flm info workflows/check>: validate the document: run every check the
+  features add, and write no output
+
+• csl-json <flm info workflows/csl-json> (outputs: csl-json): write the records
+  of the cited works as a CSL-JSON file, running every check
+
+• html <flm info workflows/html> (outputs: html): render the document as an HTML
+  page, running every check
+
+• latex-recomposed <flm info workflows/latex-recomposed> (outputs:
+  latex-recomposed): recompose the document into LaTeX, running every check and
+  leaving every resolution to LaTeX
+
+• latex-rendered <flm info workflows/latex-rendered> (outputs: latex-rendered):
+  render the document as LaTeX for LuaLaTeX, running every check and leaving
+  only the typesetting to LaTeX
+
+• text <flm info workflows/text> (outputs: text): render the document as plain
+  text, running every check
+
+Going further
+=============
+
+The documentation has these sections, each listing its pages:
+Packages <flm info packages/>, Features <flm info features/>,
+Settings <flm info settings/>, Workflows <flm info workflows/>,
+Namespaces <flm info namespaces/> and The program <flm info program/>. A
+command’s page is found under the feature that declares it, by its kind: the
+macro \section of the feature headings has the page
+features/headings/macros/section.
+
+A name that is not the path of a page is looked up across the pages:
+flm info \section shows the pages of the commands written \section, and
+flm info flm.refs.resolve the page of the entity of that name. The option --json
+gives the pages as JSON.

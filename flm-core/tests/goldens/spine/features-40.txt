@@ -1,0 +1,59 @@
+Introduction
+============
+
+This document exercises every standard
+feature of build step 1: headings,
+paragraphs, the base formatting
+commands, math, user definitions and
+references. It is version 1.0.
+
+Formatting
+----------
+
+Some emphasized, bold, italic and
+monospace text — with a dash, an
+ellipsis… and “quotes” resolved by
+typography.
+
+### Math
+
+Inline math \(x_1 + \alpha\) and display
+math
+  \[ \int_0^1 f(x)\,dx = 1 \]
+then two environments:
+
+  \begin{equation}
+    E = mc^2\tag*{(1)}
+  \end{equation}
+
+  \begin{align*}
+    a &= b \\
+    c &= d
+  \end{align*}
+
+### Verbatim
+
+Inline a{b}\c text, the code f(x) = 1
+and the identifier struct, then
+raw {text} in the same paragraph, and a
+code block:
+
+def f(x):
+    return {x} + 1
+
+#### Definitions
+
+Hello, World! from a user macro, and
+[Note: a user environment] in the same
+paragraph.
+
+##### References
+
+See Introduction, Formatting and
+sec:missing.
+
+Unnumbered
+==========
+
+A starred heading takes no number and
+stays in the contents.

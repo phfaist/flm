@@ -1,0 +1,15 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.7400340b.sty
+\(\flmUDnorm{\flmUDcalN(\rho)} \le \frac{\flmUDcalN}{2}\)%%
+% ===== latex-recomposed:style flmrecomposed.7400340b.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.7400340b}
+% --- packages ---
+% flm.latex.pkg.amsmath
+\RequirePackage{amsmath}
+% --- user definitions ---
+% \flmUDnorm (the document's \norm): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDnorm[1]{\lVert #1 \rVert}
+% \flmUDcalN (the document's \calN): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDcalN{\mathcal{N}}
+\endinput

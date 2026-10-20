@@ -1,0 +1,19 @@
+---
+flm:
+  math: false
+  use: [flmdoc]
+---
+A single backtick: `x`. Two backticks around a single one: ``a`b``. Three around two:
+```a``b```.
+
+One space at each end is removed: `` `a` `` holds a backtick at each end, and ` x `
+holds x alone. A space at one end only is kept: ` x`. A span of spaces only is kept:
+`  `.
+
+A backslash and a percent sign are raw characters: `\emph{x} % y`, and so are braces:
+`{` and `}`.
+
+A span may be wrapped: `over
+two lines`, and ``
+x
+`` has a line ending at each end.

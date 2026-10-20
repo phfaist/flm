@@ -1,0 +1,72 @@
+% flm.latex.def.flmx.lines -- lines.
+%
+% A sequence of lines, each set as a paragraph of its own (a poem's lines,
+% an address). The elements:
+%   \begin{flmxLines} ... \end{flmxLines}
+%       the group of lines; default: \parindent and \parskip zero, the lines
+%       ragged right.
+%   \flmxLine[indent-left, indent-right, align]{<content>}
+%       one line. Its keys, always written:
+%   indent-left   the line's indentation from the left, a LaTeX length
+%                 (2\flmxTabWidth, 1.5em, 10bp, 3mm, ...);
+%   indent-right  its indentation from the right, a LaTeX length;
+%   align         left, center or right.
+%       default: a paragraph whose width is the line width less the two
+%       indentations (\leftskip and \rightskip), the content flush left,
+%       centered or flush right in that width; a line too long for it wraps,
+%       its following lines indented as its first.
+%
+% \flmxTabWidth (the core chunk's length, 2em) is the width of one tab of an
+% indentation. A template changes the look with
+%   \flmxDefineLinesDefault{<begin code>}{<end code>}
+%   \flmxDefineLineDefault{<code over #1, the content>}
+% where the line's code sees its keys (\flmxKey{indent-left}, ...).
+
+\ExplSyntaxOn
+
+\NewDocumentEnvironment { flmxLines } { O { } }
+  { \__flmx_env_begin:nnn { lines } { } {#1} }
+  { \__flmx_env_end:n { lines } }
+\flmxDefineLinesDefault
+  {
+    \par
+    \setlength \parindent { 0pt }
+    \setlength \parskip { 0pt }
+    \raggedright
+  }
+  { \par }
+
+\NewDocumentCommand \flmxLine { O { } +m }
+  { \__flmx_command:nnnn { line } { } {#1} {#2} }
+
+% The skips of a line: the indentations of its keys, and the stretch that
+% sets it flush left, centered or flush right.
+\cs_new_protected:Npn \__flmx_line_skips:
+  {
+    \str_case:enF { \flmxKey { align } }
+      {
+        { center }
+          {
+            \skip_set:Nn \leftskip { \dim_eval:n { \flmxKey { indent-left } } plus 1fil }
+            \skip_set:Nn \rightskip { \dim_eval:n { \flmxKey { indent-right } } plus 1fil }
+          }
+        { right }
+          {
+            \skip_set:Nn \leftskip { \dim_eval:n { \flmxKey { indent-left } } plus 1fil }
+            \skip_set:Nn \rightskip { \dim_eval:n { \flmxKey { indent-right } } }
+          }
+      }
+      {
+        \skip_set:Nn \leftskip { \dim_eval:n { \flmxKey { indent-left } } }
+        \skip_set:Nn \rightskip { \dim_eval:n { \flmxKey { indent-right } } plus 1fil }
+      }
+    \skip_set:Nn \parfillskip { 0pt }
+  }
+\flmxDefineLineDefault
+  {
+    \par
+    \__flmx_line_skips:
+    \noindent #1 \par
+  }
+
+\ExplSyntaxOff

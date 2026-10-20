@@ -1,0 +1,20 @@
+[package]
+name = "syntax-highlight"
+description = "Syntax highlighting for FLM using Syntect"
+version.workspace = true
+edition.workspace = true
+# Rust 1.88, the floor of `flm-ext`, which the crate is written against.
+rust-version = "1.88"
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# The guest client alone: the program that compiles the crate in turns on `flm-ext`'s
+# feature `native`, and a build of the WebAssembly form leaves it off.
+flm-ext = { path = "../../../flm-ext", default-features = false, features = ["guest"] }
+serde_json = "1"
+syntect = { version = "5.3", default-features = false, features = ["default-syntaxes", "default-themes", "regex-fancy"] }

@@ -1,0 +1,24 @@
+% flm.latex.def.flmx.cells.styles -- the cell styles the cells feature ships.
+%
+% The cells feature writes a cell's styles by name in the key styles of its
+% spec in the flmxCells environment (styles={green}). The structural styles
+% (align, head, rule, l, c, r, H, rH, lvert, rvert) are written as the keys
+% align, header and rules, and need no registration. The four custom styles
+% green, blue, yellow and red each give the cell a light background, a
+% color of its own:
+%   green   flmxCellsGreen    blue  flmxCellsBlue
+%   yellow  flmxCellsYellow   red   flmxCellsRed
+% A template changes a background with \colorlet{flmxCellsGreen}{...} (or
+% \definecolor), or a style's whole look with
+%   \flmxDefineCellStyle{<name>}{<tblr cell keys>}
+% (for instance \flmxDefineCellStyle{red}{fg=red}).
+
+\definecolor{flmxCellsGreen}{HTML}{D8F0D8}
+\definecolor{flmxCellsBlue}{HTML}{D8E4F8}
+\definecolor{flmxCellsYellow}{HTML}{F8F0C8}
+\definecolor{flmxCellsRed}{HTML}{F8D8D8}
+
+\flmxDefineCellStyle{green}{bg=flmxCellsGreen}
+\flmxDefineCellStyle{blue}{bg=flmxCellsBlue}
+\flmxDefineCellStyle{yellow}{bg=flmxCellsYellow}
+\flmxDefineCellStyle{red}{bg=flmxCellsRed}

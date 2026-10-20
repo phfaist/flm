@@ -1,0 +1,6 @@
+extension:
+  description: A journal's layout, an extension written as a folder that ships its templates.
+flm:
+  features:
+    compose:
+      template: journal

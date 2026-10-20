@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FLM document</title>
+    <style data-flm-def="flm.xnotes.style">/* flm.xnotes.style */
+/* Xnotes (notes set apart from the running text, such as footnotes and
+   endnotes): the line above a list of xnotes, and the brackets around an
+   xnote shown in place.  A page that wants another presentation of xnotes
+   adds a stylesheet or a script of its own. */
+@layer flm {
+  :root {
+    /* The line above a list of xnotes, the list's text size, and the space
+       above it. */
+    --flm-xnotes-list-rule: 1px solid #999;
+    --flm-xnotes-list-size: 0.9em;
+    --flm-xnotes-list-space: 2em;
+    /* The text before and after an xnote shown in place. */
+    --flm-xnotes-inplace-open: "[";
+    --flm-xnotes-inplace-close: "]";
+  }
+
+  /* A list of xnotes: the block with the role doc-endnotes that carries the
+     kind token `xnotes`.  An xnote shown in place as a block carries the
+     kind token too; the role tells the two apart. */
+  .flm-pres-block[data-flm-kind~="xnotes"][role="doc-endnotes"] {
+    margin-top: var(--flm-xnotes-list-space);
+    border-top: var(--flm-xnotes-list-rule);
+    font-size: var(--flm-xnotes-list-size);
+  }
+
+  /* An xnote shown in place: the brackets around the span, or around the
+     paragraphs of the block, before its xnote mark and after its
+     content. */
+  .flm-pres-span.flm-xnotes-xnote-inplace::before,
+  .flm-pres-block.flm-xnotes-xnote-inplace > :first-child::before {
+    content: var(--flm-xnotes-inplace-open);
+  }
+  .flm-pres-span.flm-xnotes-xnote-inplace::after,
+  .flm-pres-block.flm-xnotes-xnote-inplace > :last-child::after {
+    content: var(--flm-xnotes-inplace-close);
+  }
+}
+</style>
+    <style data-flm-def="flm.theorems.style">/* flm.theorems.style */
+/* Theorems: the heading of a theorem-like block, with its name set apart
+   from the rest of the heading.  This stylesheet holds no other rule: the
+   space around the block,
+   the gap after the heading, and the gap before a closing mark (the square
+   at the end of a proof) are set by flm.html.style.core. */
+@layer flm {
+  :root {
+    /* The weight of the parts of a theorem's heading other than its name:
+       the title, the text that joins it to the name, and the punctuation
+       after it. */
+    --flm-theorems-heading-weight: normal;
+    /* The weight of a theorem's name: the word of its theorem kind and its
+       number. */
+    --flm-theorems-name-weight: bold;
+    /* How the name of a theorem kind of the proof-like class (a proof, for
+       example) is set. */
+    --flm-theorems-prooflike-name-weight: normal;
+    --flm-theorems-prooflike-name-style: italic;
+  }
+
+  /* The heading: the run-in decoration at the start of the block's first
+     paragraph, which flm.html.style.core sets in bold as a whole; these rules
+     set only the name in bold.  Only the first child of the first paragraph
+     is the heading: a run-in decoration elsewhere in the block, such as a
+     run-in section heading, keeps its own look. */
+  .flm-theorems-theorem > .flm-pres-par:first-child > .flm-pres-deco-runin:first-child {
+    font-weight: var(--flm-theorems-heading-weight);
+  }
+  .flm-theorems-theorem > .flm-pres-par > .flm-pres-deco-runin > .flm-theorems-name {
+    font-weight: var(--flm-theorems-name-weight);
+  }
+
+  /* The name of a theorem kind of the proof-like class, which the block
+     carries as its kind token `prooflike`.  Each selector steps down from the
+     block one level at a time, so that a theorem inside a proof keeps its
+     own look. */
+  .flm-theorems-theorem[data-flm-kind~="prooflike"] > .flm-pres-par > .flm-pres-deco-runin > .flm-theorems-name {
+    font-weight: var(--flm-theorems-prooflike-name-weight);
+    font-style: var(--flm-theorems-prooflike-name-style);
+  }
+}
+</style>
+    <style data-flm-def="flm.html.style.core">/* flm.html.style.core */
+/* The look of the elements that any document can hold: paragraphs and
+   blocks, the display styles of a span, links, images, and the three
+   decorations (a run-in heading, a mark at the end of a block, a note beside
+   the text).  Apart from the :root rule that declares the custom
+   properties, every selector begins with a class of the HTML contract, the
+   set of classes and attributes that this backend promises to write (the
+   table CONVENTIONS of the Rust module flm_core::stdcore::backends::html).
+   The values a page can adjust are the custom properties declared on :root
+   below.  All rules are in the cascade layer flm, so any rule of the page
+   outside that layer overrides them.
+
+   A reference whose target was not found is styled in this stylesheet and
+   not in flm.html.style.errors, because it is a span: the conventions table
+   lists this stylesheet for a span.  Each stylesheet holds the rules of the
+   elements for which the conventions table lists it, so a page that holds
+   an element receives every rule for that element with the stylesheet that
+   the element requires. */
+@layer flm {
+  :root {
+    /* The space above and below a paragraph or a block. */
+    --flm-block-spacing: 1em;
+    /* The width of one tab, the unit of indentation: a line indented by
+       \indent is indented by one tab.  The backend writes every length given
+       in tabs as a multiple of this property (calc(<n> * var(--flm-tab))),
+       so changing it here changes every such length on the page. */
+    --flm-tab: 2em;
+    /* A link's color, and its color under the pointer. */
+    --flm-link-color: #3232c8;
+    --flm-link-hover-color: #22228a;
+    /* Whether a link is underlined when the pointer is elsewhere. */
+    --flm-link-decoration: none;
+    /* The gap between a run-in heading (a heading set at the start of its
+       paragraph, such as a theorem's heading) and the text that follows it.
+       The punctuation that ends the heading is not part of this gap: the
+       backend writes it as text inside the heading. */
+    --flm-runin-gap: 0.5em;
+    /* The gap before an end-of-block mark (the square at the end of a proof). */
+    --flm-final-gap: 0.5em;
+    /* A note set beside the text, in a column to the right of it: the
+       column's width, the gap between the text and the column, and the
+       note's size, weight, style and color.  The three lengths are in rem
+       (relative to the page's font size) and the weight and style are set,
+       not inherited, so that a note looks the same, and the column has the
+       same width, wherever the note is marked, in a heading as in a
+       footnote.  --flm-margin-note-inset is how far the block that contains
+       a note is set in from the right edge of the text; a stylesheet that
+       sets a block in on the right sets this property on that block, so that
+       a note inside the block still reaches the column. */
+    --flm-margin-note-width: 8rem;
+    --flm-margin-note-gap: 1rem;
+    --flm-margin-note-inset: 0rem;
+    --flm-margin-note-size: 0.85rem;
+    --flm-margin-note-weight: normal;
+    --flm-margin-note-style: normal;
+    --flm-margin-note-color: #555;
+    /* The space on each side of a note that stays at its mark. */
+    --flm-margin-note-space: 0.25em;
+    /* The switch that places notes in the column: a note stays at its mark
+       while this property has its initial value, as here, and is placed in
+       the column where the property is set to an empty value
+       (--flm-margin-note-column: ;).  The element that leaves room for the
+       column to the right of the text sets it, under a condition of its own
+       (see the rule of the note below). */
+    --flm-margin-note-column: initial;
+    /* How a reference whose target was not found is marked.  These
+       properties are separate from those of flm.html.style.errors because
+       each stylesheet declares every property it uses, and a page can hold
+       this stylesheet without that one; a host that changes how errors look
+       sets both groups. */
+    --flm-unresolved-color: #a00000;
+    --flm-unresolved-background: #fdeaea;
+    --flm-unresolved-radius: 0.2em;
+    --flm-unresolved-padding: 0 0.2em;
+  }
+
+  /* Paragraphs and blocks are separated by one space; the first and the last
+     do not push against the edge of what holds them. */
+  .flm-pres-par,
+  .flm-pres-block {
+    margin: var(--flm-block-spacing) 0;
+  }
+  .flm-pres-par:first-child,
+  .flm-pres-block:first-child {
+    margin-top: 0;
+  }
+  .flm-pres-par:last-child,
+  .flm-pres-block:last-child {
+    margin-bottom: 0;
+  }
+
+  /* A span's look comes from its display style (data-flm-style), never from
+     its tag: the HTML contract does not promise which tag is written for a
+     display style, so that the backend can change it. */
+  .flm-pres-span[data-flm-style="emph"],
+  .flm-pres-span[data-flm-style="italic"] {
+    font-style: italic;
+  }
+  .flm-pres-span[data-flm-style="bold"] {
+    font-weight: bold;
+  }
+  .flm-pres-span[data-flm-style="monospace"] {
+    font-family: monospace;
+  }
+  .flm-pres-span[data-flm-style="underline"] {
+    text-decoration: underline;
+  }
+  .flm-pres-span[data-flm-style="small-caps"] {
+    font-variant: small-caps;
+  }
+  .flm-pres-span[data-flm-style="superscript"] {
+    font-size: 0.8em;
+    vertical-align: super;
+  }
+  .flm-pres-span[data-flm-style="subscript"] {
+    font-size: 0.8em;
+    vertical-align: sub;
+  }
+
+  /* A link: colored rather than underlined by default, and underlined while
+     the pointer is over it. */
+  .flm-pres-link {
+    color: var(--flm-link-color);
+    text-decoration: var(--flm-link-decoration);
+  }
+  .flm-pres-link:hover {
+    color: var(--flm-link-hover-color);
+    text-decoration: underline;
+  }
+
+  /* A picture is shown at the width and height that its element carries
+     (--flm-element-width, --flm-element-height, written by the backend in
+     the element's style attribute), at its natural size in a direction for
+     which it carries none, and never wider than the text that contains it.
+     Where the element carries both lengths, it also carries their ratio
+     (--flm-element-aspect-ratio), and the box keeps that ratio: its width is
+     set and its height follows from the ratio, so a picture narrowed to the
+     width of the text keeps its proportions.  Where it carries no ratio, the
+     height that is set is kept, and the picture is fitted inside its box
+     without being distorted.  --flm-image-height and --flm-image-fit are
+     working values of this rule alone: where the element carries a ratio,
+     each holds the ratio twice, which is neither a valid height nor a valid
+     fit, so height and object-fit then take their initial values, auto and
+     fill. */
+  .flm-pres-image {
+    --flm-image-height: var(--flm-element-aspect-ratio, var(--flm-element-height, auto))
+      var(--flm-element-aspect-ratio,);
+    --flm-image-fit: var(--flm-element-aspect-ratio, contain) var(--flm-element-aspect-ratio,);
+    max-width: 100%;
+    width: var(--flm-element-width, auto);
+    height: var(--flm-image-height);
+    aspect-ratio: var(--flm-element-aspect-ratio, auto);
+    object-fit: var(--flm-image-fit);
+  }
+  /* A picture written as a block (a float's content, for example) is
+     displayed as a block and spaced as every block is; a picture inside a
+     line of text flows with the text. */
+  .flm-pres-block.flm-pres-image {
+    display: block;
+  }
+
+  /* A run-in decoration leads the paragraph it introduces: it stays in the
+     flow of the text, and the gap between it and that text is set here. */
+  .flm-pres-deco-runin {
+    display: inline;
+    font-weight: bold;
+    margin-right: var(--flm-runin-gap);
+  }
+
+  /* A mark at the end of a block, such as the square that ends a proof. */
+  .flm-pres-deco-final {
+    margin-left: var(--flm-final-gap);
+  }
+
+  /* A note beside the text.  The backend writes it as a span at the place of
+     its mark, in the flow of the text, and it stays there, in a smaller
+     size, while the switch --flm-margin-note-column is off.  Where the switch
+     is on, the note is floated right and pulled out of the text by a
+     negative right margin as wide as the column, the gap, and the inset of
+     the block that contains it: the note is then in the column, level with
+     the line of its mark, and the text keeps its whole width.  Notes marked
+     on the same line are stacked in the column, one below the other
+     (clear: right), each starting at the column's left edge regardless of
+     the alignment of the line it is marked in.  The column is room that the
+     element holding the text leaves to its right: flm.html.style.page leaves
+     it on the page's content element and turns the switch on there when the
+     window is wide enough, and a host that places the HTML output in a page
+     of its own does the same on its own element, under its own condition.
+     A note inside a block that contains its floats, such as a
+     list entry laid out as a grid, still lengthens that block when the note
+     runs below the block's last line, and is not stacked with the notes of
+     the text before that block, which it may overlap.
+
+     The switch works through the way a custom property is substituted,
+     because the value of float cannot be computed from a number, so no
+     calculation can choose between floating and not.  Each declaration
+     below that begins with var(--flm-margin-note-column) holds the value
+     that a note takes in the column: with the switch set to an empty value,
+     the declaration reads as that value; with the switch at its initial
+     value, the declaration is invalid, so the property takes its initial
+     value (no float, no clearance, its own width, no margin).  The padding
+     reads the switch the other way round, with the space as the fallback:
+     the space around the note at its mark while the switch is off, and no
+     padding in the column. */
+  .flm-pres-deco-margin {
+    color: var(--flm-margin-note-color);
+    font-size: var(--flm-margin-note-size);
+    font-weight: var(--flm-margin-note-weight);
+    font-style: var(--flm-margin-note-style);
+    text-align: start;
+    padding: 0 var(--flm-margin-note-column, var(--flm-margin-note-space));
+    float: var(--flm-margin-note-column) right;
+    clear: var(--flm-margin-note-column) right;
+    width: var(--flm-margin-note-column) var(--flm-margin-note-width);
+    margin-right: var(--flm-margin-note-column) calc(-1 * (var(--flm-margin-note-width) + var(--flm-margin-note-gap) + var(--flm-margin-note-inset)));
+  }
+  /* Inside text written in a formula, a note stays at its mark regardless of
+     the switch: the formula renderer measures that text as one box before
+     this stylesheet would float the note out of it, so a floated note would
+     overlap the formula's text instead of moving out of it. */
+  .flm-pres-math--text {
+    --flm-margin-note-column: initial;
+  }
+
+  /* A reference whose target was not found: its text is shown, marked as an
+     error.  It is a display style of a span, so its rule is in this
+     stylesheet with the other display styles, and it reaches every page
+     that holds a span. */
+  .flm-pres-span[data-flm-style="unresolved-reference"] {
+    color: var(--flm-unresolved-color);
+    background: var(--flm-unresolved-background);
+    border-radius: var(--flm-unresolved-radius);
+    padding: var(--flm-unresolved-padding);
+  }
+}
+</style>
+    <style data-flm-def="flm.html.style.headings">/* flm.html.style.headings */
+/* The look of a heading, with a size for each of the six levels.  A run-in
+   heading (a heading set at the start of its paragraph) is styled in
+   flm.html.style.core instead, because the backend writes it as a run-in
+   decoration, an element that any document can hold. */
+@layer flm {
+  :root {
+    /* The size of a heading at each of the six levels. */
+    --flm-heading-size-1: 1.8em;
+    --flm-heading-size-2: 1.5em;
+    --flm-heading-size-3: 1.25em;
+    --flm-heading-size-4: 1.1em;
+    --flm-heading-size-5: 1em;
+    --flm-heading-size-6: 1em;
+    /* How a heading is set, and the space above and below it. */
+    --flm-heading-weight: bold;
+    --flm-heading-line-height: 1.2;
+    --flm-heading-space-above: 1.5em;
+    --flm-heading-space-below: 0.5em;
+  }
+
+  /* Every heading, at any level: its weight, its line height, and the space
+     above and below it. */
+  .flm-pres-block--heading {
+    margin: var(--flm-heading-space-above) 0 var(--flm-heading-space-below);
+    font-weight: var(--flm-heading-weight);
+    line-height: var(--flm-heading-line-height);
+  }
+  /* A heading that is the first child of its container takes no space above
+     it. */
+  .flm-pres-block--heading:first-child {
+    margin-top: 0;
+  }
+
+  /* The level is read from the attribute data-flm-level, not from the tag: a
+     heading deeper than level six keeps its true level in the attribute and
+     gets the rules above, with no size of its own. */
+  .flm-pres-block--heading[data-flm-level="1"] {
+    font-size: var(--flm-heading-size-1);
+  }
+  .flm-pres-block--heading[data-flm-level="2"] {
+    font-size: var(--flm-heading-size-2);
+  }
+  .flm-pres-block--heading[data-flm-level="3"] {
+    font-size: var(--flm-heading-size-3);
+  }
+  .flm-pres-block--heading[data-flm-level="4"] {
+    font-size: var(--flm-heading-size-4);
+  }
+  .flm-pres-block--heading[data-flm-level="5"] {
+    font-size: var(--flm-heading-size-5);
+    font-style: italic;
+  }
+  .flm-pres-block--heading[data-flm-level="6"] {
+    font-size: var(--flm-heading-size-6);
+    font-style: italic;
+  }
+}
+</style>
+    <style data-flm-def="flm.html.style.lists">/* flm.html.style.lists */
+/* The look of lists, with their entries and labels, and of a run of lines,
+   with each line's alignment and indentation. */
+@layer flm {
+  :root {
+    --flm-list-spacing: 1em;
+    --flm-list-indent: 2em;
+    --flm-list-entry-spacing: 0.25em;
+    /* The gap after a label the document wrote itself. */
+    --flm-list-label-gap: 0.5em;
+    /* The widest a list's column of labels grows. */
+    --flm-list-label-max: 12em;
+    --flm-lines-spacing: 1em;
+  }
+
+  /* A list is spaced apart from the text around it, and its entries are
+     indented. */
+  .flm-pres-list {
+    margin: var(--flm-list-spacing) 0;
+    padding-left: var(--flm-list-indent);
+  }
+  /* The children of a list are selected by their tag because HTML allows no
+     others there and the emitter therefore writes no class on them. */
+  .flm-pres-list > li {
+    margin-bottom: var(--flm-list-entry-spacing);
+  }
+  /* An entry's first block has no space above it, so that it is level with
+     the entry's label, and its last block has no space below it, so that the
+     entries of a list are close together. */
+  .flm-pres-list > li > :first-child,
+  .flm-pres-list > li > .flm-pres-list-label + *,
+  .flm-pres-list > dd > :first-child {
+    margin-top: 0;
+  }
+  .flm-pres-list > li > :last-child,
+  .flm-pres-list > dd > :last-child {
+    margin-bottom: 0;
+  }
+
+  /* A list of terms (the kind token terms) sets each term in bold; where its
+     terms are not labels, each term is placed above its description, which
+     is indented. */
+  .flm-pres-list[data-flm-kind~="terms"] {
+    padding-left: 0;
+  }
+  .flm-pres-list[data-flm-kind~="terms"] > dt {
+    font-weight: bold;
+  }
+  .flm-pres-list[data-flm-kind~="terms"] > dd {
+    margin-left: var(--flm-list-indent);
+  }
+
+  /* A list in which every entry carries its own label (a number in a shape
+     that a browser cannot draw, a bullet, or a tag) carries the kind token
+     `labeled` and is laid out as a grid of two columns.  The first column
+     holds the labels and is as wide as the widest label of the list, up to
+     `--flm-list-label-max`; a longer label wraps inside it.  The second
+     column holds the content of the entries.  The label gap separates the
+     two columns, and the space between entries separates the rows.  The
+     marker that a browser draws is switched off.  Each entry is a subgrid of
+     the list's grid, so that the labels of all entries share one column; a
+     browser without subgrid support lays out each entry as a grid of its
+     own, so the labels no longer line up from one entry to the next, but
+     nothing is clipped.  A list nested in an entry is a grid of its own,
+     with its own column of labels. */
+  .flm-pres-list[data-flm-kind~="labeled"] {
+    display: grid;
+    padding-left: var(--flm-list-indent);
+    grid-template-columns: fit-content(var(--flm-list-label-max)) 1fr;
+    column-gap: var(--flm-list-label-gap);
+    row-gap: var(--flm-list-entry-spacing);
+  }
+  /* The first declaration of the columns is the fallback for a browser that
+     does not know `subgrid` and drops the second. */
+  .flm-pres-list[data-flm-kind~="labeled"] > li {
+    list-style: none;
+    margin-bottom: 0;
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: fit-content(var(--flm-list-label-max)) 1fr;
+    grid-template-columns: subgrid;
+    column-gap: var(--flm-list-label-gap);
+    align-items: start;
+  }
+  /* The label is placed in the first column, right-aligned, level with the
+     top of its entry's first line; every block of the entry is placed in the
+     second column, one below the other, so an entry without a label leaves
+     its first cell empty.  A note beside the text that is marked inside an
+     entry is written as a span at the place of its mark, inside the block
+     that holds the mark, so it takes no cell of the grid and does not change
+     the entry's layout. */
+  .flm-pres-list[data-flm-kind~="labeled"] > li > .flm-pres-list-label {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: end;
+    text-align: right;
+    margin-right: 0;
+  }
+  .flm-pres-list[data-flm-kind~="labeled"] > li > :not(.flm-pres-list-label) {
+    grid-column: 2;
+  }
+  /* The margins of two cells do not collapse into one another as those of
+     two blocks in running text do, so the space between two blocks of an
+     entry is the first block's bottom margin alone. */
+  .flm-pres-list[data-flm-kind~="labeled"] > li > * + * {
+    margin-top: 0;
+  }
+
+  /* A list of terms whose terms are labels is itself the grid: each term is
+     placed in the first column, left-aligned, and its description beside
+     it. */
+  .flm-pres-list[data-flm-kind~="labeled"] > dt {
+    grid-column: 1;
+    margin-right: 0;
+  }
+  .flm-pres-list[data-flm-kind~="labeled"] > dd {
+    grid-column: 2;
+    margin-left: 0;
+  }
+
+  /* A label the document wrote itself: the gap after it. */
+  .flm-pres-list-label {
+    margin-right: var(--flm-list-label-gap);
+  }
+
+  /* A run of lines: each line is a block of its own and keeps its alignment
+     (data-flm-align).  The backend writes a line's indentation from the
+     left and from the right as two custom properties in the line's style
+     attribute, --flm-element-indent-left and --flm-element-indent-right,
+     each a CSS length (a length in tabs is a multiple of --flm-tab, which
+     flm.html.style.core declares); it leaves out each property whose
+     indentation is zero.  These rules apply them as padding, zero by default. */
+  .flm-pres-lines {
+    margin: var(--flm-lines-spacing) 0;
+  }
+  .flm-pres-line {
+    padding-left: var(--flm-element-indent-left, 0);
+    padding-right: var(--flm-element-indent-right, 0);
+  }
+  .flm-pres-line[data-flm-align="left"] {
+    text-align: left;
+  }
+  .flm-pres-line[data-flm-align="center"] {
+    text-align: center;
+  }
+  .flm-pres-line[data-flm-align="right"] {
+    text-align: right;
+  }
+}
+</style>
+    <style data-flm-def="flm.html.style.page">/* flm.html.style.page */
+/* The page's own typography and the width of its content.  This is the
+   only stylesheet of the HTML backend with a rule whose selector does not
+   begin with a class of the HTML contract (the classes and attributes that
+   the backend promises to write), apart from the :root rule that declares
+   the custom properties: it styles the page's body, which a document does
+   not have.  No element requires it: the backend adds it to the style and
+   script definitions of every page that it renders (the definitions table
+   flm.html.definitions).  A host that places the HTML output in a page of
+   its own leaves this stylesheet out through the HTML backend's render
+   option definitions (DefinitionOverride::ProvidedByHost, or an empty list
+   of parts). */
+@layer flm {
+  :root {
+    /* The page's text: its font family, its size, its line height, and its
+       two colors. */
+    --flm-page-family: "Source Serif 4", "Times New Roman", Times, serif;
+    --flm-page-size: 100%;
+    --flm-page-line-height: 1.5;
+    --flm-page-color: #1a1a1a;
+    --flm-page-background: #ffffff;
+    /* How wide the content runs, and the space around it. */
+    --flm-page-measure: 42rem;
+    --flm-page-padding: 1.5rem;
+    /* The width of the column for the notes set beside the text, and the gap
+       before it: the same two values as in flm.html.style.core, declared here
+       as well because each stylesheet declares every property it uses.  A
+       host that changes them sets them once, outside the cascade layer flm,
+       and both stylesheets read the new values. */
+    --flm-margin-note-width: 8rem;
+    --flm-margin-note-gap: 1rem;
+  }
+
+  /* The page itself.  Apart from the :root rules that declare custom
+     properties, this is the only rule of the backend's stylesheets that does
+     not begin with a class of the HTML contract.  It styles the body of the
+     page, which is why a host that places the HTML output in a page of its
+     own leaves this stylesheet out (see the top of this stylesheet). */
+  body {
+    margin: 0;
+    background: var(--flm-page-background);
+    color: var(--flm-page-color);
+    font-family: var(--flm-page-family);
+    font-size: var(--flm-page-size);
+    line-height: var(--flm-page-line-height);
+  }
+
+  /* The element that holds the document's content.  When the window is wide
+     enough for a column of notes to the right of the text (see
+     flm.html.style.core, --flm-margin-note-width and --flm-margin-note-gap),
+     this element leaves room for that column: its maximum width and its
+     right padding both grow by the column and the gap, so the text keeps
+     the width it has without the column; and it turns on the switch
+     --flm-margin-note-column of flm.html.style.core, so that the notes
+     inside it are placed in the column.  52rem is the content's width with
+     the column (42rem + 8rem + 1rem) plus a little room; it is written as a
+     number because a media condition cannot read a custom property, so a
+     page that widens the text or the column writes its own condition. */
+  .flm-content {
+    box-sizing: border-box;
+    max-width: var(--flm-page-measure);
+    margin: 0 auto;
+    padding: var(--flm-page-padding);
+  }
+  @media (min-width: 52rem) {
+    .flm-content {
+      --flm-margin-note-column: ;
+      max-width: calc(var(--flm-page-measure) + var(--flm-margin-note-width) + var(--flm-margin-note-gap));
+      padding-right: calc(var(--flm-page-padding) + var(--flm-margin-note-width) + var(--flm-margin-note-gap));
+    }
+  }
+}
+</style>
+  </head>
+  <body>
+    <main class="flm-content" id="flm-content">
+      <h1 class="flm-pres-block--heading" id="sec--Statements" data-flm-heading="section" data-flm-level="1" data-flm-toc="true"><span class="flm-pres-span flm-heading-number">1</span>. Statements</h1>
+<div class="flm-pres-block flm-theorems-theorem" id="theorem-1-1" data-flm-kind="theoremlike theorem">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Theorem&#xA0;1.1</span> (<span class="flm-pres-span flm-theorems-title">Main result</span>).</span>Every shipped kind is written in this document.</p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" data-flm-kind="prooflike proof">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Proof</span> (<span class="flm-pres-span flm-theorems-title"><a class="flm-pres-link" href="#theorem-1-1" data-flm-kind="ref">Theorem&#xA0;1.1</a></span>).</span>By <a class="flm-pres-link" href="#lemma-1-2" data-flm-kind="ref">Lemma&#xA0;1.2</a> and <a class="flm-pres-link" href="#lemma-1-3" data-flm-kind="ref">Lemma&#xA0;1.3</a>; together, <a class="flm-pres-link" href="#theorem-1-1" data-flm-kind="ref">Theorem&#xA0;1.1</a> and <a class="flm-pres-link" href="#lemma-1-2" data-flm-kind="ref">Lemma&#xA0;1.2</a>.<span class="flm-pres-deco-final">□</span></p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" id="lemma-1-2" data-flm-kind="theoremlike lemma">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Lemma&#xA0;1.2</span> (<span class="flm-pres-span flm-theorems-title">Key lemma</span>).</span>A lemma proved below, its proof naming it.</p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" data-flm-kind="prooflike proof">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Proof</span> (<span class="flm-pres-span flm-theorems-title"><a class="flm-pres-link" href="#lemma-1-2" data-flm-kind="ref">Lemma&#xA0;1.2</a></span>).</span>One star shows the statement proved.<span class="flm-pres-deco-final">□</span></p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" id="lemma-1-3" data-flm-kind="theoremlike lemma">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Lemma&#xA0;1.3</span>.</span>A lemma whose proof records the relation without showing it.</p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" data-flm-kind="prooflike proof">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Proof</span>.</span>Two stars record the relation only.<span class="flm-pres-deco-final">□</span></p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" id="proposition-1-4" data-flm-kind="theoremlike proposition">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Proposition&#xA0;1.4</span>.</span>A proposition whose proof is not coming.</p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" id="corollary-1-5" data-flm-kind="theoremlike corollary">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Corollary&#xA0;1.5</span>.</span></p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" data-flm-kind="prooflike proof">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Proof</span> (<span class="flm-pres-span flm-theorems-title"><a class="flm-pres-link" href="#corollary-1-5" data-flm-kind="ref">Corollary&#xA0;1.5</a></span>).</span>The corollary above has an empty body.<span class="flm-pres-deco-final">□</span></p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" id="conjecture-1-6" data-flm-kind="theoremlike conjecture">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Conjecture&#xA0;1.6</span>.</span>A conjecture expects no proof.</p>
+</div>
+<h1 class="flm-pres-block--heading" id="sec--Definitions_and_the_other_kinds" data-flm-heading="section" data-flm-level="1" data-flm-toc="true"><span class="flm-pres-span flm-heading-number">2</span>. Definitions and the other kinds</h1>
+<div class="flm-pres-block flm-theorems-theorem" id="definition-2-1" data-flm-kind="definitionlike definition">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Definition&#xA0;2.1</span> (<span class="flm-pres-span flm-theorems-title">Opening with a list</span>).</span></p>
+  <ul class="flm-pres-list" data-flm-kind="unnumbered itemize labeled">
+    <li id="item--1otnn"><span class="flm-pres-list-label">•</span>
+      <p class="flm-pres-par">a body opening with a list gives the heading a paragraph of its own;</p>
+    </li>
+    <li id="item--2otxj"><span class="flm-pres-list-label">•</span>
+      <p class="flm-pres-par">and the list follows it.</p>
+    </li>
+  </ul>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" id="remark-2-2" data-flm-kind="definitionlike remark">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Remark&#xA0;2.2</span>.</span>A remark.</p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" id="idea-2-3" data-flm-kind="definitionlike idea">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Idea&#xA0;2.3</span>.</span>An idea.</p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" id="question-2-4" data-flm-kind="definitionlike question">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Question&#xA0;2.4</span>.</span>A question?</p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" id="claim-2-5" data-flm-kind="definitionlike claim">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Claim&#xA0;2.5</span>.</span>A claim.</p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" id="observation-2-6" data-flm-kind="definitionlike observation">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Observation&#xA0;2.6</span>.</span>An observation.</p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" id="problem-2-7" data-flm-kind="definitionlike problem">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Problem&#xA0;2.7</span>.</span>A problem.</p>
+</div>
+<div class="flm-pres-block flm-theorems-theorem" id="exercise-2-8" data-flm-kind="definitionlike exercise">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Exercise&#xA0;2.8</span> (<span class="flm-pres-span flm-theorems-title">Host’s kind</span>).</span>An exercise, a kind the host configures.</p>
+</div>
+<p class="flm-pres-par">See <a class="flm-pres-link" href="#exercise-2-8" data-flm-kind="ref">Exercise&#xA0;2.8</a>, <a class="flm-pres-link" href="#definition-2-1" data-flm-kind="ref">Definition&#xA0;2.1</a> and <a class="flm-pres-link" href="#remark-2-2" data-flm-kind="ref">Remark&#xA0;2.2</a>.</p>
+<ul class="flm-pres-list" data-flm-kind="unnumbered itemize labeled">
+  <li id="item--3ouhf"><span class="flm-pres-list-label">•</span>
+    <div class="flm-pres-block flm-theorems-theorem" id="lemma-2-9" data-flm-kind="theoremlike lemma">
+      <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Lemma&#xA0;2.9</span>.</span>A lemma in a list item.</p>
+    </div>
+  </li>
+  <li id="item--4orqh"><span class="flm-pres-list-label">•</span>
+    <div class="flm-pres-block flm-theorems-theorem" data-flm-kind="prooflike proof">
+      <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Proof</span> (<span class="flm-pres-span flm-theorems-title"><a class="flm-pres-link" href="#lemma-2-9" data-flm-kind="ref">Lemma&#xA0;2.9</a></span>).</span>Its proof in the next item.<span class="flm-pres-deco-final">□</span></p>
+    </div>
+  </li>
+</ul>
+<p class="flm-pres-par">A note holds a remark.<sup class="flm-pres-span flm-xnotes-xnote-mark" id="fnref--1yuhk" data-flm-style="superscript"><a class="flm-pres-link" href="#fn-1" role="doc-noteref" aria-label="Footnote 1" data-flm-kind="xnote">1</a></sup> See <a class="flm-pres-link" href="#remark-2-10" data-flm-kind="ref">Remark&#xA0;2.10</a> and <a class="flm-pres-link" href="#lemma-2-9" data-flm-kind="ref">Lemma&#xA0;2.9</a>.</p>
+<div class="flm-pres-block flm-theorems-theorem" id="theorem-2-11" data-flm-kind="theoremlike theorem">
+  <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Theorem&#xA0;2.11</span> (<span class="flm-pres-span flm-theorems-title">Kept</span>).</span>A theorem inside a user definition’s template.</p>
+</div>
+      <div class="flm-pres-block flm-xnotes-footnote-list" role="doc-endnotes" data-flm-kind="xnotes footnote">
+  <h2 class="flm-pres-block--heading" data-flm-heading="xnotes" data-flm-level="2" data-flm-toc="false">Footnotes</h2>
+  <ol class="flm-pres-list" data-flm-kind="numbered xnotes footnote labeled">
+    <li id="fn-1"><span class="flm-pres-list-label"><sup class="flm-pres-span flm-xnotes-entry-mark" data-flm-style="superscript">1</sup></span>
+      <div class="flm-pres-block flm-theorems-theorem" id="remark-2-10" data-flm-kind="definitionlike remark">
+        <p class="flm-pres-par"><span class="flm-pres-deco-runin"><span class="flm-pres-span flm-theorems-name">Remark&#xA0;2.10</span>.</span>A remark in a footnote.</p>
+      </div>
+      <p class="flm-pres-par"> <a class="flm-pres-link" href="#fnref--1yuhk" role="doc-backlink" aria-label="Back to Footnote 1" data-flm-kind="xnote-back">↩</a></p>
+    </li>
+  </ol>
+</div>
+    </main>
+  </body>
+</html>

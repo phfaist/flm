@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FLM document</title>
+    <style data-flm-def="flm.cells.style">/* flm.cells.style */
+/* Tables of cells.  The table's outline, a line above it and a line below
+   it, is drawn on the table itself; a column header has a line under it; a
+   cell has a line at each edge that its data-flm-rules attribute lists,
+   regardless of the other cells; a cell's alignment is its data-flm-align
+   attribute, and a cell without one, a header cell included, is aligned to
+   the left; the four custom cell styles that the cells feature ships are
+   backgrounds.  A table that is a float's content is centered in the float.
+   Every adjustable value (each spacing, line and color, and the default
+   alignment) is a custom property declared on :root below, and apart from
+   that :root rule, every selector begins with a class of the HTML contract
+   (the classes and attributes that the HTML backend promises to write). */
+@layer flm {
+  :root {
+    /* The space above and below a table, and around the text of a cell. */
+    --flm-cells-spacing: 1em;
+    --flm-cells-padding: 0.3em 0.5em;
+    /* The alignment of a cell that states none. */
+    --flm-cells-align: left;
+    /* The lines above and below a table, under a column header, and at the
+       edges that a cell lists. */
+    --flm-cells-outline: 1pt solid;
+    --flm-cells-header-rule: 0.5pt solid;
+    --flm-cells-rule: 0.5pt solid;
+    /* The backgrounds of the custom cell styles green, blue, yellow and
+       red. */
+    --flm-cells-green: #d8f0d8;
+    --flm-cells-blue: #d8e4f8;
+    --flm-cells-yellow: #f8f0c8;
+    --flm-cells-red: #f8d8d8;
+  }
+
+  /* The table: spaced above and below, its outline drawn on it, the lines
+     of neighboring cells drawn once, and as wide as its cells where it is
+     placed in a grid, such as a list entry laid out as a grid. */
+  .flm-pres-cells {
+    margin: var(--flm-cells-spacing) 0;
+    justify-self: start;
+    border-collapse: collapse;
+    border-top: var(--flm-cells-outline);
+    border-bottom: var(--flm-cells-outline);
+    text-align: var(--flm-cells-align);
+  }
+
+  /* A table that is the first or the last child of its container (for
+     example a cell of another table) takes no space above or below it
+     there, as a paragraph in the same place takes none. */
+  .flm-pres-cells:first-child {
+    margin-top: 0;
+  }
+  .flm-pres-cells:last-child {
+    margin-bottom: 0;
+  }
+
+  /* A table that is a float's content: centered, with no space of its own
+     above or below, since the float has its own spacing. */
+  .flm-floats-float-content > .flm-pres-cells {
+    margin: 0 auto;
+  }
+
+  /* A cell. */
+  .flm-pres-cells td,
+  .flm-pres-cells th {
+    padding: var(--flm-cells-padding);
+  }
+
+  /* A column header: a line under it. */
+  .flm-pres-cells th[scope="col"] { border-bottom: var(--flm-cells-header-rule); }
+
+  /* A cell's own lines, set edge by edge. */
+  .flm-pres-cells [data-flm-rules~="above"] { border-top: var(--flm-cells-rule); }
+  .flm-pres-cells [data-flm-rules~="below"] { border-bottom: var(--flm-cells-rule); }
+  .flm-pres-cells [data-flm-rules~="left"] { border-left: var(--flm-cells-rule); }
+  .flm-pres-cells [data-flm-rules~="right"] { border-right: var(--flm-cells-rule); }
+
+  /* A cell's alignment. */
+  .flm-pres-cells [data-flm-align="left"] { text-align: left; }
+  .flm-pres-cells [data-flm-align="center"] { text-align: center; }
+  .flm-pres-cells [data-flm-align="right"] { text-align: right; }
+
+  /* The custom cell styles that the cells feature ships. */
+  .flm-pres-cells [data-flm-style-green] { background: var(--flm-cells-green); }
+  .flm-pres-cells [data-flm-style-blue] { background: var(--flm-cells-blue); }
+  .flm-pres-cells [data-flm-style-yellow] { background: var(--flm-cells-yellow); }
+  .flm-pres-cells [data-flm-style-red] { background: var(--flm-cells-red); }
+}
+</style>
+    <style data-flm-def="flm.html.style.core">/* flm.html.style.core */
+/* The look of the elements that any document can hold: paragraphs and
+   blocks, the display styles of a span, links, images, and the three
+   decorations (a run-in heading, a mark at the end of a block, a note beside
+   the text).  Apart from the :root rule that declares the custom
+   properties, every selector begins with a class of the HTML contract, the
+   set of classes and attributes that this backend promises to write (the
+   table CONVENTIONS of the Rust module flm_core::stdcore::backends::html).
+   The values a page can adjust are the custom properties declared on :root
+   below.  All rules are in the cascade layer flm, so any rule of the page
+   outside that layer overrides them.
+
+   A reference whose target was not found is styled in this stylesheet and
+   not in flm.html.style.errors, because it is a span: the conventions table
+   lists this stylesheet for a span.  Each stylesheet holds the rules of the
+   elements for which the conventions table lists it, so a page that holds
+   an element receives every rule for that element with the stylesheet that
+   the element requires. */
+@layer flm {
+  :root {
+    /* The space above and below a paragraph or a block. */
+    --flm-block-spacing: 1em;
+    /* The width of one tab, the unit of indentation: a line indented by
+       \indent is indented by one tab.  The backend writes every length given
+       in tabs as a multiple of this property (calc(<n> * var(--flm-tab))),
+       so changing it here changes every such length on the page. */
+    --flm-tab: 2em;
+    /* A link's color, and its color under the pointer. */
+    --flm-link-color: #3232c8;
+    --flm-link-hover-color: #22228a;
+    /* Whether a link is underlined when the pointer is elsewhere. */
+    --flm-link-decoration: none;
+    /* The gap between a run-in heading (a heading set at the start of its
+       paragraph, such as a theorem's heading) and the text that follows it.
+       The punctuation that ends the heading is not part of this gap: the
+       backend writes it as text inside the heading. */
+    --flm-runin-gap: 0.5em;
+    /* The gap before an end-of-block mark (the square at the end of a proof). */
+    --flm-final-gap: 0.5em;
+    /* A note set beside the text, in a column to the right of it: the
+       column's width, the gap between the text and the column, and the
+       note's size, weight, style and color.  The three lengths are in rem
+       (relative to the page's font size) and the weight and style are set,
+       not inherited, so that a note looks the same, and the column has the
+       same width, wherever the note is marked, in a heading as in a
+       footnote.  --flm-margin-note-inset is how far the block that contains
+       a note is set in from the right edge of the text; a stylesheet that
+       sets a block in on the right sets this property on that block, so that
+       a note inside the block still reaches the column. */
+    --flm-margin-note-width: 8rem;
+    --flm-margin-note-gap: 1rem;
+    --flm-margin-note-inset: 0rem;
+    --flm-margin-note-size: 0.85rem;
+    --flm-margin-note-weight: normal;
+    --flm-margin-note-style: normal;
+    --flm-margin-note-color: #555;
+    /* The space on each side of a note that stays at its mark. */
+    --flm-margin-note-space: 0.25em;
+    /* The switch that places notes in the column: a note stays at its mark
+       while this property has its initial value, as here, and is placed in
+       the column where the property is set to an empty value
+       (--flm-margin-note-column: ;).  The element that leaves room for the
+       column to the right of the text sets it, under a condition of its own
+       (see the rule of the note below). */
+    --flm-margin-note-column: initial;
+    /* How a reference whose target was not found is marked.  These
+       properties are separate from those of flm.html.style.errors because
+       each stylesheet declares every property it uses, and a page can hold
+       this stylesheet without that one; a host that changes how errors look
+       sets both groups. */
+    --flm-unresolved-color: #a00000;
+    --flm-unresolved-background: #fdeaea;
+    --flm-unresolved-radius: 0.2em;
+    --flm-unresolved-padding: 0 0.2em;
+  }
+
+  /* Paragraphs and blocks are separated by one space; the first and the last
+     do not push against the edge of what holds them. */
+  .flm-pres-par,
+  .flm-pres-block {
+    margin: var(--flm-block-spacing) 0;
+  }
+  .flm-pres-par:first-child,
+  .flm-pres-block:first-child {
+    margin-top: 0;
+  }
+  .flm-pres-par:last-child,
+  .flm-pres-block:last-child {
+    margin-bottom: 0;
+  }
+
+  /* A span's look comes from its display style (data-flm-style), never from
+     its tag: the HTML contract does not promise which tag is written for a
+     display style, so that the backend can change it. */
+  .flm-pres-span[data-flm-style="emph"],
+  .flm-pres-span[data-flm-style="italic"] {
+    font-style: italic;
+  }
+  .flm-pres-span[data-flm-style="bold"] {
+    font-weight: bold;
+  }
+  .flm-pres-span[data-flm-style="monospace"] {
+    font-family: monospace;
+  }
+  .flm-pres-span[data-flm-style="underline"] {
+    text-decoration: underline;
+  }
+  .flm-pres-span[data-flm-style="small-caps"] {
+    font-variant: small-caps;
+  }
+  .flm-pres-span[data-flm-style="superscript"] {
+    font-size: 0.8em;
+    vertical-align: super;
+  }
+  .flm-pres-span[data-flm-style="subscript"] {
+    font-size: 0.8em;
+    vertical-align: sub;
+  }
+
+  /* A link: colored rather than underlined by default, and underlined while
+     the pointer is over it. */
+  .flm-pres-link {
+    color: var(--flm-link-color);
+    text-decoration: var(--flm-link-decoration);
+  }
+  .flm-pres-link:hover {
+    color: var(--flm-link-hover-color);
+    text-decoration: underline;
+  }
+
+  /* A picture is shown at the width and height that its element carries
+     (--flm-element-width, --flm-element-height, written by the backend in
+     the element's style attribute), at its natural size in a direction for
+     which it carries none, and never wider than the text that contains it.
+     Where the element carries both lengths, it also carries their ratio
+     (--flm-element-aspect-ratio), and the box keeps that ratio: its width is
+     set and its height follows from the ratio, so a picture narrowed to the
+     width of the text keeps its proportions.  Where it carries no ratio, the
+     height that is set is kept, and the picture is fitted inside its box
+     without being distorted.  --flm-image-height and --flm-image-fit are
+     working values of this rule alone: where the element carries a ratio,
+     each holds the ratio twice, which is neither a valid height nor a valid
+     fit, so height and object-fit then take their initial values, auto and
+     fill. */
+  .flm-pres-image {
+    --flm-image-height: var(--flm-element-aspect-ratio, var(--flm-element-height, auto))
+      var(--flm-element-aspect-ratio,);
+    --flm-image-fit: var(--flm-element-aspect-ratio, contain) var(--flm-element-aspect-ratio,);
+    max-width: 100%;
+    width: var(--flm-element-width, auto);
+    height: var(--flm-image-height);
+    aspect-ratio: var(--flm-element-aspect-ratio, auto);
+    object-fit: var(--flm-image-fit);
+  }
+  /* A picture written as a block (a float's content, for example) is
+     displayed as a block and spaced as every block is; a picture inside a
+     line of text flows with the text. */
+  .flm-pres-block.flm-pres-image {
+    display: block;
+  }
+
+  /* A run-in decoration leads the paragraph it introduces: it stays in the
+     flow of the text, and the gap between it and that text is set here. */
+  .flm-pres-deco-runin {
+    display: inline;
+    font-weight: bold;
+    margin-right: var(--flm-runin-gap);
+  }
+
+  /* A mark at the end of a block, such as the square that ends a proof. */
+  .flm-pres-deco-final {
+    margin-left: var(--flm-final-gap);
+  }
+
+  /* A note beside the text.  The backend writes it as a span at the place of
+     its mark, in the flow of the text, and it stays there, in a smaller
+     size, while the switch --flm-margin-note-column is off.  Where the switch
+     is on, the note is floated right and pulled out of the text by a
+     negative right margin as wide as the column, the gap, and the inset of
+     the block that contains it: the note is then in the column, level with
+     the line of its mark, and the text keeps its whole width.  Notes marked
+     on the same line are stacked in the column, one below the other
+     (clear: right), each starting at the column's left edge regardless of
+     the alignment of the line it is marked in.  The column is room that the
+     element holding the text leaves to its right: flm.html.style.page leaves
+     it on the page's content element and turns the switch on there when the
+     window is wide enough, and a host that places the HTML output in a page
+     of its own does the same on its own element, under its own condition.
+     A note inside a block that contains its floats, such as a
+     list entry laid out as a grid, still lengthens that block when the note
+     runs below the block's last line, and is not stacked with the notes of
+     the text before that block, which it may overlap.
+
+     The switch works through the way a custom property is substituted,
+     because the value of float cannot be computed from a number, so no
+     calculation can choose between floating and not.  Each declaration
+     below that begins with var(--flm-margin-note-column) holds the value
+     that a note takes in the column: with the switch set to an empty value,
+     the declaration reads as that value; with the switch at its initial
+     value, the declaration is invalid, so the property takes its initial
+     value (no float, no clearance, its own width, no margin).  The padding
+     reads the switch the other way round, with the space as the fallback:
+     the space around the note at its mark while the switch is off, and no
+     padding in the column. */
+  .flm-pres-deco-margin {
+    color: var(--flm-margin-note-color);
+    font-size: var(--flm-margin-note-size);
+    font-weight: var(--flm-margin-note-weight);
+    font-style: var(--flm-margin-note-style);
+    text-align: start;
+    padding: 0 var(--flm-margin-note-column, var(--flm-margin-note-space));
+    float: var(--flm-margin-note-column) right;
+    clear: var(--flm-margin-note-column) right;
+    width: var(--flm-margin-note-column) var(--flm-margin-note-width);
+    margin-right: var(--flm-margin-note-column) calc(-1 * (var(--flm-margin-note-width) + var(--flm-margin-note-gap) + var(--flm-margin-note-inset)));
+  }
+  /* Inside text written in a formula, a note stays at its mark regardless of
+     the switch: the formula renderer measures that text as one box before
+     this stylesheet would float the note out of it, so a floated note would
+     overlap the formula's text instead of moving out of it. */
+  .flm-pres-math--text {
+    --flm-margin-note-column: initial;
+  }
+
+  /* A reference whose target was not found: its text is shown, marked as an
+     error.  It is a display style of a span, so its rule is in this
+     stylesheet with the other display styles, and it reaches every page
+     that holds a span. */
+  .flm-pres-span[data-flm-style="unresolved-reference"] {
+    color: var(--flm-unresolved-color);
+    background: var(--flm-unresolved-background);
+    border-radius: var(--flm-unresolved-radius);
+    padding: var(--flm-unresolved-padding);
+  }
+}
+</style>
+    <style data-flm-def="flm.html.style.page">/* flm.html.style.page */
+/* The page's own typography and the width of its content.  This is the
+   only stylesheet of the HTML backend with a rule whose selector does not
+   begin with a class of the HTML contract (the classes and attributes that
+   the backend promises to write), apart from the :root rule that declares
+   the custom properties: it styles the page's body, which a document does
+   not have.  No element requires it: the backend adds it to the style and
+   script definitions of every page that it renders (the definitions table
+   flm.html.definitions).  A host that places the HTML output in a page of
+   its own leaves this stylesheet out through the HTML backend's render
+   option definitions (DefinitionOverride::ProvidedByHost, or an empty list
+   of parts). */
+@layer flm {
+  :root {
+    /* The page's text: its font family, its size, its line height, and its
+       two colors. */
+    --flm-page-family: "Source Serif 4", "Times New Roman", Times, serif;
+    --flm-page-size: 100%;
+    --flm-page-line-height: 1.5;
+    --flm-page-color: #1a1a1a;
+    --flm-page-background: #ffffff;
+    /* How wide the content runs, and the space around it. */
+    --flm-page-measure: 42rem;
+    --flm-page-padding: 1.5rem;
+    /* The width of the column for the notes set beside the text, and the gap
+       before it: the same two values as in flm.html.style.core, declared here
+       as well because each stylesheet declares every property it uses.  A
+       host that changes them sets them once, outside the cascade layer flm,
+       and both stylesheets read the new values. */
+    --flm-margin-note-width: 8rem;
+    --flm-margin-note-gap: 1rem;
+  }
+
+  /* The page itself.  Apart from the :root rules that declare custom
+     properties, this is the only rule of the backend's stylesheets that does
+     not begin with a class of the HTML contract.  It styles the body of the
+     page, which is why a host that places the HTML output in a page of its
+     own leaves this stylesheet out (see the top of this stylesheet). */
+  body {
+    margin: 0;
+    background: var(--flm-page-background);
+    color: var(--flm-page-color);
+    font-family: var(--flm-page-family);
+    font-size: var(--flm-page-size);
+    line-height: var(--flm-page-line-height);
+  }
+
+  /* The element that holds the document's content.  When the window is wide
+     enough for a column of notes to the right of the text (see
+     flm.html.style.core, --flm-margin-note-width and --flm-margin-note-gap),
+     this element leaves room for that column: its maximum width and its
+     right padding both grow by the column and the gap, so the text keeps
+     the width it has without the column; and it turns on the switch
+     --flm-margin-note-column of flm.html.style.core, so that the notes
+     inside it are placed in the column.  52rem is the content's width with
+     the column (42rem + 8rem + 1rem) plus a little room; it is written as a
+     number because a media condition cannot read a custom property, so a
+     page that widens the text or the column writes its own condition. */
+  .flm-content {
+    box-sizing: border-box;
+    max-width: var(--flm-page-measure);
+    margin: 0 auto;
+    padding: var(--flm-page-padding);
+  }
+  @media (min-width: 52rem) {
+    .flm-content {
+      --flm-margin-note-column: ;
+      max-width: calc(var(--flm-page-measure) + var(--flm-margin-note-width) + var(--flm-margin-note-gap));
+      padding-right: calc(var(--flm-page-padding) + var(--flm-margin-note-width) + var(--flm-margin-note-gap));
+    }
+  }
+}
+</style>
+    <style data-flm-def="host.cells.style">/* host.cells.style */
+.flm-pres-cells [data-flm-style-orange] { background: orange; }
+</style>
+  </head>
+  <body>
+    <main class="flm-content" id="flm-content">
+      <table class="flm-pres-cells">
+  <tr>
+    <td data-flm-style-orange="" data-flm-style-bold="">
+      <p class="flm-pres-par">A</p>
+    </td>
+    <td data-flm-style-warn="">
+      <p class="flm-pres-par">B</p>
+    </td>
+    <td data-flm-style-orange="">
+      <p class="flm-pres-par">C</p>
+    </td>
+  </tr>
+</table>
+    </main>
+  </body>
+</html>

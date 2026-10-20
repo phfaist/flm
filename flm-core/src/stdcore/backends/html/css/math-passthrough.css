@@ -1,0 +1,51 @@
+/* flm.html.style.math-passthrough */
+/* The box around a displayed formula, and the text written inside a
+   formula.  The formula itself is typeset by the formula renderer that the
+   page loads (the script definition flm.html.mathjax). */
+@layer flm {
+  :root {
+    /* The space above and below a displayed formula. */
+    --flm-math-display-space-above: 1em;
+    --flm-math-display-space-below: 1em;
+    /* The space kept above a point inside a formula when the browser follows
+       a link to that point.  The point is on the baseline of its line, so
+       without this space the browser would scroll that line to the top edge
+       of the window with its upper half out of view. */
+    --flm-math-anchor-space-above: 1.5em;
+  }
+
+  /* The backend writes an inline formula and a displayed formula as the same
+     element, told apart by `data-flm-display`, because a formula can be
+     inside a paragraph and an HTML paragraph cannot hold a block-level
+     element.  This rule makes a displayed formula a block: it is set on its
+     own lines and scrolls sideways when it is wider than the text, instead of
+     widening the page.  An inline formula is left as it is. */
+  .flm-pres-math--passthrough[data-flm-display="display"] {
+    display: block;
+    margin: var(--flm-math-display-space-above) 0 var(--flm-math-display-space-below);
+    overflow-x: auto;
+  }
+
+  /* Text written inside a formula is page text, not mathematics, so it is set
+     upright regardless of the slant of the formula around it. */
+  .flm-pres-math--text {
+    font-style: normal;
+  }
+  /* An empty element of this class is a point in the formula that a
+     reference can lead to, such as the start of an equation line.  It must
+     take no room at all, or it would push aside the line that it begins: no
+     padding, no border, no minimum size. */
+  .flm-pres-math--text:empty {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  /* A point inside a formula that a link can lead to (it carries an id) is on
+     the baseline of its line.  The browser keeps the space
+     --flm-math-anchor-space-above above it when it follows a link to it, so
+     that the whole line is in view. */
+  .flm-pres-math--text[id] {
+    scroll-margin-top: var(--flm-math-anchor-space-above);
+  }
+}

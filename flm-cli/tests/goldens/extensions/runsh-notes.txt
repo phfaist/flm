@@ -1,0 +1,3 @@
+note: sh answered the status 0, the output "an argument\n" and the files out.bin {"base64":"AQL/"}, out.txt {"text":"WRITTEN BY THE EXTENSION"}
+  at runsh.flm:5:1
+0 errors, 0 warnings

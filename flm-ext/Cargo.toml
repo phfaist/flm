@@ -1,0 +1,78 @@
+[package]
+name = "flm-ext"
+description = "FLM's extension interface: packages written outside Rust contribute to the registry through a mirrored sub-API of flm-core"
+version.workspace = true
+edition.workspace = true
+# Not the workspace's floor (1.86): the crate carries its language bindings as
+# cargo features, and a cargo feature cannot raise a crate's floor, so the crate
+# declares the highest floor among them. rquickjs 0.14 needs 1.87; the floor is
+# checked with the 1.88 toolchain, the lowest installed above it, and the host
+# crates flm-main and flm-cli are at 1.88 already. Raising it beyond 1.88 needs
+# a new toolchain in the battery (dev-docs/ext/e1/battery.sh).
+rust-version = "1.88"
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# The QuickJS binding (JavaScript extensions): the module `flm_ext::quickjs`.
+quickjs = ["dep:rquickjs"]
+# The WebAssembly binding (extensions compiled to WebAssembly): the module `flm_ext::wasm`.
+wasm = ["dep:wasmi", "dep:wasmi_core"]
+# The guest client, which an extension written in Rust is compiled against, as a WebAssembly module or
+# into a program: the module `flm_ext::guest`.
+guest = []
+# The engine `native`, which runs extensions written against the guest client and compiled into the
+# program, in the same process: the module `flm_ext::native`. On every target, `wasm32` included, it
+# makes the guest client answer requests in the same process and the macro `extension!` write no
+# export, so an extension's WebAssembly module is built in a cargo run where no crate turns it on.
+native = ["guest"]
+
+# The library alone among the workspace's crates, and not the parser toolkit,
+# which the crate reaches through the library's re-export `flm_core::techy`
+# (`tests/registry.rs` holds the rule, as flm-phfpack's does).
+[dependencies]
+# Without the library's default cargo features (its stages run in parallel; it
+# keeps the documentation texts of declarations): those choices belong to the
+# program that carries the extensions.
+flm-core = { path = "../flm-core", default-features = false }
+# The data types that cross the boundary derive serde; values cross as
+# serde_json::Value (no floating-point numbers are accepted, section 4.5).
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The `flm_version` check of a manifest.
+semver = "1"
+# The content of an artifact that is not UTF-8 text, written `{ base64 }` in its data form
+# (the standard alphabet with padding); already in the lockfile through flm-core.
+base64 = "0.22"
+# The JavaScript engine of the `quickjs` binding, with its module loader. Keep
+# `ENGINE_VERSION` in src/quickjs/mod.rs in step with this line.
+rquickjs = { version = "0.14", features = ["loader"], optional = true }
+# The WebAssembly engine of the `wasm` binding: an interpreter in pure Rust,
+# with fuel metering; its floor (1.86) is below the crate's. Without its
+# default feature `wat` (its other defaults kept): a module is read from its
+# binary form only. With `deterministic` (canonical NaNs), a module answers the
+# same on every machine. Keep `ENGINE_VERSION` in src/wasm/mod.rs in step with
+# this line.
+wasmi = { version = "2.0", default-features = false, features = ["stable", "std", "validate", "memory64", "auto-dispatch", "deterministic"], optional = true }
+# wasmi's own core crate, already in the lockfile through wasmi: the binding's
+# resource limiter names its error type, `LimiterError`, which wasmi 2.0 does
+# not re-export.
+wasmi_core = { version = "2.0", default-features = false, optional = true }
+
+# The generator of the extension API's dispatcher, prelude and declarations
+# (`tests/api_surface.rs`) reads the sources under `src/api/` with `syn` and
+# prints their types with `quote`; both are in the lockfile already, through
+# `serde_derive`.
+[dev-dependencies]
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+# The text format of WebAssembly, in which the tests of the `wasm` binding
+# write their small guest modules.
+wat = { version = "1", default-features = false }
+# The tests read the documentation texts that cross the boundary, so they build
+# the library with them (its feature `docs`).
+flm-core = { path = "../flm-core", default-features = false, features = ["docs"] }

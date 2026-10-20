@@ -1,0 +1,28 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.53f9d064.sty
+\flmIncludeGraphics[width=5cm]{figures/plot.png}
+
+\flmIncludeGraphics[width=10bp]{figures/plot.png}
+
+\flmIncludeGraphics{figures/plot.png}
+
+\flmIncludeGraphics[height=1in]{figures/plot.png}
+%%
+% ===== latex-recomposed:style flmrecomposed.53f9d064.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.53f9d064}
+% --- packages ---
+% flm.latex.pkg.adjustbox
+\RequirePackage[export]{adjustbox}
+% flm.latex.pkg.graphicx
+\RequirePackage{graphicx}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.graphics
+% An image, as FLM's \includegraphics writes it:
+% \flmIncludeGraphics[<keys>]{<path>}, <keys> being width=<length> and
+% height=<length> where the image is shown at a set size, <path> an ordinary
+% argument in which the characters # % \ are written \# \% \\.
+% The image never runs wider than the line (max width, a key adjustbox adds to
+% \includegraphics). Redefine the hook to show images another way.
+\ProvideDocumentCommand\flmIncludeGraphics{O{} m}{\includegraphics[max width=\linewidth,#1]{#2}}
+\endinput

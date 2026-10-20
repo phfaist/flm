@@ -1,0 +1,7 @@
+---
+flm:
+  math: false
+  use: [flmdoc]
+---
+See the feature \docref{features/headings}{\emph{headings}}, and the page \docref{program/paths}{of
+the program's paths}.

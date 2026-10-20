@@ -1,0 +1,104 @@
+{% set metadata_names = ["flm.meta.title", "flm.meta.author", "flm.meta.date"] %}
+<!DOCTYPE html>
+<html{% if "lang" in regions %} lang="{{ regions.lang }}"{% endif %} data-bp-theme="{{ config.theme }}" data-bp-code-theme="{{ config.code_theme }}" data-bp-figure-background="{{ config.figure_background }}" data-bp-text-size="{{ config.text_size }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>{{ regions.title }}</title>
+{% if "description" in meta and meta.description %}
+    <meta name="description" content="{{ meta.description }}">
+{% endif %}
+{{ regions.styles }}
+    <style>
+{{ include_raw("style.css") }}
+    </style>
+    <script type="application/json" id="bp-config">{{ config|tojson }}</script>
+    <script>
+{{ include_raw("script.js") }}
+    </script>
+  </head>
+  <body class="bp-page" id="bp-top">
+    <a class="bp-skip" href="#flm-content">{{ config.label_skip_content }}</a>
+{% include "partials/header.html" %}
+    <main>
+      <header class="bp-opening bp-width">
+{% if config.breadcrumbs %}
+        <nav class="bp-breadcrumbs" aria-label="{{ config.label_breadcrumbs }}">
+          <ol>
+{% for crumb in config.breadcrumbs %}
+            <li>{% with link=crumb %}{% include "partials/link.html" %}{% endwith %}</li>
+{% endfor %}
+          </ol>
+        </nav>
+{% endif %}
+{% if "flm.meta.title" in pieces and pieces["flm.meta.title"].text|trim %}
+        <div class="bp-title" role="heading" aria-level="1">
+{{ pieces["flm.meta.title"].text }}
+        </div>
+{% endif %}
+{% if "description" in meta and meta.description %}
+        <p class="bp-dek">{{ meta.description }}</p>
+{% endif %}
+        <div class="bp-byline">
+{% for name, piece in pieces|items if name in ["flm.meta.author", "flm.meta.date"] and piece.place == "before-content" and piece.text|trim %}
+{{ piece.text }}
+{% endfor %}
+{% if config.reading_time %}
+          <span class="bp-reading-time" hidden></span>
+{% endif %}
+        </div>
+{% for name, piece in pieces|items if name not in metadata_names and name != "flm.toc" and piece.place == "before-content" %}
+{{ piece.text }}
+{% endfor %}
+      </header>
+{% set lead_url = config.lead_image_url|trim %}
+{% set lead_lower = lead_url|lower %}
+{% if lead_url and (":" not in lead_url or lead_lower[:7] == "http://" or lead_lower[:8] == "https://" or lead_lower[:11] == "data:image/") %}
+      <figure class="bp-lead bp-width">
+        <img src="{{ lead_url }}" alt="{{ config.lead_image_alt }}" decoding="async">
+{% if config.lead_image_caption %}
+        <figcaption>{{ config.lead_image_caption }}</figcaption>
+{% endif %}
+      </figure>
+{% endif %}
+      <div class="bp-layout bp-width">
+        <aside class="bp-sidebar">
+          <details class="bp-contents" open>
+            <summary><span>{{ config.contents_title }}</span>{% with icon_name="chevron" %}{% include "partials/icon.html" %}{% endwith %}</summary>
+{% if "flm.toc" in pieces %}
+{{ pieces["flm.toc"].text }}
+{% endif %}
+          </details>
+        </aside>
+        <div class="bp-article">
+          <article class="bp-content flm-content" id="flm-content" tabindex="-1">
+{{ regions.content }}
+          </article>
+          <div class="bp-backmatter">
+{% for name, piece in pieces|items if piece.place == "after-content" %}
+{{ piece.text }}
+{% endfor %}
+          </div>
+        </div>
+      </div>
+    </main>
+{% include "partials/footer.html" %}
+    <div class="bp-sr" role="status" id="bp-status"></div>
+{% if config.copy_code %}
+    <template id="bp-copy-button"><button class="bp-copy bp-icon" type="button" aria-label="{{ config.label_copy }}" title="{{ config.label_copy }}"><span class="bp-copy-idle">{% with icon_name="copy" %}{% include "partials/icon.html" %}{% endwith %}</span><span class="bp-copy-done" hidden>{% with icon_name="check" %}{% include "partials/icon.html" %}{% endwith %}</span></button></template>
+{% endif %}
+{% if config.heading_links %}
+    <template id="bp-heading-link"><a class="bp-heading-link" aria-label="{{ config.label_link_heading }}">#</a></template>
+{% endif %}
+{% if config.zoom_figures %}
+    <template id="bp-expand-button"><button class="bp-expand bp-icon" type="button" aria-label="{{ config.label_expand }}" title="{{ config.label_expand }}">{% with icon_name="expand" %}{% include "partials/icon.html" %}{% endwith %}</button></template>
+    <dialog class="bp-figure-dialog" aria-label="{{ config.label_figure }}">
+      <button class="bp-close bp-icon" type="button" aria-label="{{ config.label_close }}">{% with icon_name="close" %}{% include "partials/icon.html" %}{% endwith %}</button>
+      <div class="bp-dialog-image"></div>
+      <p class="bp-dialog-caption"></p>
+    </dialog>
+{% endif %}
+{{ regions.scripts }}
+  </body>
+</html>

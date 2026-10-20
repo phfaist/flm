@@ -1,0 +1,6 @@
+Theorem 1. A theorem no proof refers back to.
+
+Proof (*nolabel). A back-reference whose text is no label: its title is shown as
+written. □
+
+Proof (thm:missing). A back-reference naming nothing. □

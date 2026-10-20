@@ -1,0 +1,5 @@
+---
+flm:
+  use: [talk]
+---
+A document whose extension writes on the console.

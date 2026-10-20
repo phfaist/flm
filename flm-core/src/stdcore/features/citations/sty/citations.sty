@@ -1,0 +1,60 @@
+% flm.latex.def.flmx.citations -- citations and the list of cited works.
+%
+% The citations feature writes a citation as a span of role
+% flm.citations.space holding a no-break space, then the citation mark, a
+% span of role flm.citations.mark (kind tokens attached or standalone, then
+% in-place where the kind places the entries in the text) holding the
+% delimiters, the join texts and the numbers, each number a link of kind
+% cite to its work's entry; \R writes its word before the mark in a span of
+% role flm.citations.word:
+%   studied\flmxSpan[role=flm.citations.space]{ }\flmxSpan[role=flm.citations.mark,
+%     kinds={attached}]{[\flmxLink[kind=cite, href={\#citation-1},
+%     target=citation-1, doc-role=biblioref]{1}]}
+% Under the superscript form, the mark carries the style superscript.
+% The list of cited works is a block of role flm.citations.bibliography
+% (kind token citations) holding its title as an unnumbered heading and a
+% labeled list, each item's label a span of role flm.citations.entry.number:
+%   \begin{flmxBlock}[role=flm.citations.bibliography, kinds={citations},
+%     doc-role=bibliography]
+%   \flmxHeading[kind=citations, level=2, toc=false, plain={References}]{References}
+%   \begin{flmxList}[kinds={numbered citations labeled}, depth=1]
+%   \flmxItem[label={\flmxSpan[role=flm.citations.entry.number]{[1]}}, anchor=citation-1]
+%   D. Knuth, The Art of Computer Programming, 1984
+%   \end{flmxList}
+%   \end{flmxBlock}
+%
+% Defaults: the space, the word and the entry's number as they stand; the
+% list of cited works as a block of paragraphs, the target of its anchor
+% first (the heading and the list keep their own looks: each entry hangs
+% after its number in the label box); the link of kind cite as the links
+% chunk's default link, in the color flmxCiteColor (hyperref's linkcolor
+% set to it for the link). The
+% mark's span is left to the span's default, which sets it as it stands, or
+% raised under the style superscript: registering its role replaces that
+% look.
+%
+% A template changes the look with
+%   \flmxDefineSpan{flm.citations.space}{<code over #1>}
+%   \flmxDefineSpan{flm.citations.word}{<code over #1>}
+%   \flmxDefineSpan{flm.citations.mark}{<code over #1>}
+%   \flmxDefineSpan{flm.citations.entry.number}{<code over #1>}
+%   \flmxDefineBlock{flm.citations.bibliography}{<begin code>}{<end code>}
+%   \flmxDefineList{citations}{<begin code>}{<end code>} and
+%   \flmxDefineItem{citations}{<code run at the item>}  (the list itself)
+%   \flmxDefineLink{cite}{<code over #1>}
+
+\ExplSyntaxOn
+
+\flmxDefineSpan { flm.citations.space }
+  { \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } #1 }
+\flmxDefineSpan { flm.citations.word }
+  { \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } #1 }
+\flmxDefineSpan { flm.citations.entry.number }
+  { \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } #1 }
+\flmxDefineBlock { flm.citations.bibliography }
+  { \par \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } }
+  { \par }
+\flmxDefineLink { cite }
+  { \group_begin: \hypersetup { linkcolor = flmxCiteColor } \__flmx_link:n {#1} \group_end: }
+
+\ExplSyntaxOff

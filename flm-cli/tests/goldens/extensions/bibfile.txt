@@ -1,0 +1,13 @@
+Three works
+
+See [1] and [2]; the code of [3] (also [3]).
+
+References
+==========
+
+[1] D. E. Knuth, The TeXbook (1984)
+
+[2] L. Lamport, LaTeX: A Document Preparation System (1994)
+
+[3] P. W. Shor, Scheme for reducing decoherence in quantum computer memory
+    (1995)

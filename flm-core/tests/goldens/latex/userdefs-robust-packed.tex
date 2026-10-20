@@ -1,0 +1,313 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.8c2d12b1.sty
+\flmHeading[toc=true]
+\section{Big \flmUDbig{{A}{b}{c}{d}{e}{f}{G}{h}{i}{j}{k}{L}} and \flmUDmymacro{Hello}{Ada}{\BooleanFalse}}{\flmLabels{\label{ref1}}}
+
+\flmUDbig{{one}{b}{c}{d}{e}{f}{seven}{h}{i}{j}{k}{twelve}}, \flmUDmymacro{Hi}{Bo}{\BooleanTrue} and
+\flmUDmymacro{Hello}{Cy}{\BooleanFalse}. See \flmRef{ref1}.
+%%
+% ===== latex-recomposed:style flmrecomposed.8c2d12b1.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.8c2d12b1}
+% --- packages ---
+% flm.latex.pkg.zref-clever
+\RequirePackage{zref-clever}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.refs
+% \flmRef[<options>]{<label>}: a reference that gives the name of its target
+% ("Section 2"), set by \zcref of the zref-clever package.
+%
+% The options are the ones the document wrote, in FLM's own vocabulary. This
+% definition translates each of them by its key -- a value written after the
+% key is ignored, as in FLM -- and drops every key it has no translation for:
+%
+%   noprefix    -> noname                 the number or title alone, with no
+%                                         name before it ("2", not
+%                                         "Section 2")
+%   S           -> S                      the first name capitalized and
+%                                         unabbreviated, for a reference that
+%                                         opens a sentence
+%   capital     -> cap=true,abbrev=false  the names capitalized ("Lemma 1")
+%   lowercase   -> cap=false,abbrev=false the names in lowercase ("lemma 1")
+%   abbreviated -> abbrev=true            the abbreviated names ("Lem. 1")
+%                                         where the reference type declares
+%                                         them, the full names otherwise
+%   anything else -> dropped              the default wording; a variant of
+%                                         your own naming has no counterpart
+%                                         in zref-clever, which would stop on
+%                                         a key it does not know
+%
+% Redefine \flmRef to set references differently -- another package, another
+% wording, your own variants, no link. Your definition sees the options as the
+% document wrote them, in FLM's vocabulary, and maps them as it likes.
+%
+% The translation uses expl3, LaTeX's programming layer, which is part of the
+% format and needs no package; its names read only between \ExplSyntaxOn and
+% \ExplSyntaxOff. \keyval_parse:NNn reads the option list as LaTeX reads any
+% key-value list: it hands a key written alone to the first macro below and a
+% key with its value to the second, which drops the value. \str_case:nnF looks
+% the key up in the table and appends what \zcref is to be given, or nothing.
+% The macros with @ in their names are internals, not a customization point:
+% redefine \flmRef, not its parts.
+\ExplSyntaxOn
+\def\flm@ref@add#1{\tl_put_right:Nn \flm@ref@options {#1,}}
+\def\flm@ref@key#1{\str_case:nnF {#1}
+  {{noprefix}{\flm@ref@add{noname}}
+   {S}{\flm@ref@add{S}}
+   {capital}{\flm@ref@add{cap=true,abbrev=false}}
+   {lowercase}{\flm@ref@add{cap=false,abbrev=false}}
+   {abbreviated}{\flm@ref@add{abbrev=true}}}
+  {}}
+\def\flm@ref@pair#1#2{\flm@ref@key{#1}}
+\def\flm@ref@zcref#1#2{\zcref[#1]{#2}}
+\ProvideDocumentCommand\flmRef{O{} m}{%
+  \def\flm@ref@options{}%
+  \keyval_parse:NNn \flm@ref@key \flm@ref@pair {#1}%
+  \exp_args:No \flm@ref@zcref {\flm@ref@options} {#2}}
+\ExplSyntaxOff
+% flm.latex.def.label-display-text
+% \flmLabelsWithDisplayText{<text>}{<labels>}: makes <labels> refer to this
+% place, with <text> as what a reference to them prints. It is the only
+% command for that: a heading the class did not number uses it, and so does
+% anything else that has a name but no number.
+%
+% It places no anchor of its own. Under hyperref a sectioning command, starred
+% or not, already places one at the title; a \label after it points there.
+% \refstepcounter would place a second anchor here, below the title, and a
+% link would lead below the heading. So the counter is stepped with
+% the plain \stepcounter and the two things this needs are set here:
+% \@currentlabel, which is what a \label records, and \@currentcounter,
+% which is what zref-clever reads to give the label its reference type. The
+% group keeps every change local.
+%
+% <text> is expanded to make \@currentlabel, and \label does not survive that
+% expansion; so a \label inside <text> (for example a footnote's) is dropped
+% from the label's text only. At its own place in the document it still makes
+% its own label.
+%
+% A caller with no sectioning command before it -- for example a defined term
+% in running text -- writes \phantomsection at its own place, so that a link
+% has an anchor of its own to lead to.
+%
+% Redefine \flmLabelsWithDisplayText to change how such labels are made.
+\ifcsname c@flm@internal@refcnt\endcsname\else\newcounter{flm@internal@refcnt}\fi
+\ProvideDocumentCommand\flmLabelsWithDisplayText{m m}{%
+  \begingroup
+    \stepcounter{flm@internal@refcnt}%
+    {\let\label\@gobble\protected@xdef\flm@lwdt@text{#1}}%
+    \let\@currentlabel\flm@lwdt@text
+    \def\@currentcounter{flm@internal@refcnt}%
+    #2%
+  \endgroup}
+% flm.latex.def.zref-clever-type
+% The zref-clever reference type of the counter \flmLabelsWithDisplayText
+% steps, with every name prefix empty, so that a reference to such a label
+% prints its text alone ("Introduction", not "Section Introduction").
+% Every other label keeps the name its own type gives it. Redefine these
+% settings, or the type of the counter, to put something before the text.
+\zcsetup{countertype={flm@internal@refcnt=flm--internal--ref}}
+\zcRefTypeSetup{flm--internal--ref}{Name-sg = , name-sg = , Name-pl = , name-pl = ,}
+% flm.latex.def.labels
+% \flmLabels{<\label commands>}: the labels of one place in the document.
+% In text it runs them as written. On a line of a display-math
+% environment, where amsmath keeps the last label of a line and loses the
+% ones before it, it runs the first and records every further one as an alias:
+% a line per alias is written to the .aux file after the last page and read on
+% the next run, making the alias refer to what the first label refers to
+% (for \ref and for \zcref alike). Redefine \flmLabels to change what a
+% group of labels does; \def\flmLabels#1{#1} restores plain LaTeX behavior,
+% amsmath's "Multiple \label's" message included.
+\ProvideDocumentCommand\flmLabels{m}{%
+  \ifmmode\expandafter\flm@labels@math\else\expandafter\@firstofone\fi{#1}}
+% Reading the group: the first \label as written, the rest as aliases of it.
+\def\flm@labels@math#1{\def\flm@lbl@first{}\flm@lbl@scan#1\flm@lbl@stop}
+\def\flm@lbl@scan{\@ifnextchar\label\flm@lbl@take\flm@lbl@rest}
+\def\flm@lbl@take\label#1{%
+  \ifx\flm@lbl@first\@empty
+    \def\flm@lbl@first{#1}%
+    \label{#1}%
+  \else
+    \expandafter\flm@recordalias\expandafter{\flm@lbl@first}{#1}%
+  \fi
+  \flm@lbl@scan}
+\def\flm@lbl@rest#1\flm@lbl@stop{#1}
+% Collecting the aliases. A name is recorded once however often the line is
+% typeset (amsmath measures a line before setting it).
+\def\flm@aliaslist{}
+\def\flm@recordalias#1#2{%
+  \ifcsname flm@alias@#2\endcsname\else
+    \expandafter\gdef\csname flm@alias@#2\endcsname{}%
+    \g@addto@macro\flm@aliaslist{\flm@alias@entry{#2}{#1}}%
+  \fi}
+% Writing them, from the hook that runs after the last page has been shipped
+% out: every \newlabel of that page has reached the .aux file by then, so the
+% alias lines come after them. \AtEndDocument would run too early.
+\def\flm@alias@write#1#2{\immediate\write\@auxout{\string\flm@aliaslabel{#1}{#2}}}
+\AddToHook{enddocument/afterlastpage}{\let\flm@alias@entry\flm@alias@write\flm@aliaslist}
+% Reading them back: the alias refers to what the original refers to. The
+% assignments are global because the .aux file is read inside a group.
+\def\flm@aliaslabel#1#2{%
+  \ifcsname r@#2\endcsname
+    \global\expandafter\let\csname r@#1\expandafter\endcsname\csname r@#2\endcsname
+  \fi
+  \ifcsname Z@R@#2\endcsname
+    \global\expandafter\let\csname Z@R@#1\expandafter\endcsname\csname Z@R@#2\endcsname
+  \fi}
+% flm.latex.def.heading
+% \flmHeading[<keys>]<sectioning command><star>{<title>}{<labels>}: a heading
+% and the labels that refer to it, written on two lines for readability, as in
+%   \flmHeading[toc=true]
+%   \section*{Title}{\flmLabels{\label{ref1}}}
+% It runs the sectioning command as written, then makes the labels refer to
+% the heading: by its number when the class numbered it, by its title when it
+% did not (a starred heading, or a level below secnumdepth). It finds out
+% which without patching anything: a class numbers a heading through
+% \refstepcounter, which records the counter's name in \@currentcounter.
+%
+% The optional argument is a key-value list. It is written here, on the hook,
+% and never on the sectioning command: a starred sectioning command takes no
+% optional argument, and giving one to \section* is not an error, it is
+% silently wrong -- \section*[Short]{Long} takes one token as its heading,
+% so the opening bracket alone becomes the heading and Short, the closing
+% bracket and Long all run together into the following paragraph. Two keys
+% are defined:
+%
+%   toc=true|false     whether the heading is listed in the table of contents.
+%                      Absent, it is listed as LaTeX lists it. After a starred
+%                      sectioning command with toc=true, which LaTeX never
+%                      lists, \addcontentsline{toc}{<level>}{<entry>} adds it:
+%                      <level> is the command's own name (section for
+%                      \section), <entry> the alternative title if alt was
+%                      written, else the title; under hyperref the starred
+%                      command has already placed the anchor the line links
+%                      to. On an unstarred heading toc=false is not honored:
+%                      the heading stays listed and a warning says so.
+%
+%   alt={Short title}  an alternative title: what goes into the table of
+%                      contents, the running head and the PDF bookmark, while
+%                      the page keeps the full title. It is handed to the
+%                      sectioning command as its own optional argument, so it
+%                      does what \section[Short title]{Full title} does, and
+%                      nothing else: a reference to an unnumbered heading still
+%                      prints the full title. A starred heading does not hand
+%                      it to the sectioning command; where it is written
+%                      toc=true, alt is its line in the table of contents.
+%
+% What counts is whether the key was written, not what it holds. alt={} is an
+% empty alternative title and is handed over as \section[]{Full title}, which
+% is how LaTeX asks for an empty table-of-contents entry; no optional argument
+% at all, and an empty one ([]), hand nothing over and leave the sectioning
+% command exactly as it was. Writing alt with no value is LaTeX's own error,
+% as is a key that is not defined here, and a value of toc other than true or
+% false. The values and the record that alt was written are cleared at every
+% call, so one heading's keys never reach the next. The recomposed LaTeX writes
+% toc on every heading and alt where the heading was given an alternative
+% title; both keys are also there for a document written by hand and for a
+% user who redefines the hook.
+%
+% Redefine \flmHeading to change what a heading does. The block below uses
+% expl3, LaTeX's programming layer, which is part of the format and needs no
+% package; its names read only between \ExplSyntaxOn and \ExplSyntaxOff.
+% \keys_define:nn declares the keys and \keys_set:nn reads a list of them;
+% \bool_if:NTF asks whether the key was written. The three declarations are
+% guarded on their own names, as every declaration in this file is, so that two
+% of these style files can be loaded in one LaTeX run. The macros with @ in
+% their names are internals, not a customization point: redefine \flmHeading,
+% not its parts.
+\ExplSyntaxOn
+\ifcsname flm@heading@alt\endcsname\else\tl_new:N \flm@heading@alt\fi
+\ifcsname flm@heading@given\endcsname\else\bool_new:N \flm@heading@given\fi
+\ifcsname flm@heading@toc\endcsname\else\tl_new:N \flm@heading@toc\fi
+\keys_define:nn {flm/heading}
+  {alt .code:n = {\tl_set:Nn \flm@heading@alt {#1}
+                  \bool_set_true:N \flm@heading@given} ,
+   alt .value_required:n = true ,
+   toc .choices:nn = {true, false} {\tl_set_eq:NN \flm@heading@toc \l_keys_choice_tl} ,
+   toc .value_required:n = true}
+\def\flm@heading@withalt#1#2#3{#2[#1]{#3}}
+% The contents line of a starred heading: <level> then <entry>.
+\def\flm@heading@addtoc#1#2{\addcontentsline{toc}{#1}{#2}}
+% toc=false on an unstarred heading: the heading stays listed.
+\def\flm@heading@notoc#1{\PackageWarning{flm}{toc=false~on~the~unstarred~
+  \string#1~is~not~honored~by~the~default~\string\flmHeading;~the~heading~
+  stays~in~the~table~of~contents}}
+\ProvideDocumentCommand\flmHeading{O{} m s m m}{%
+  \tl_clear:N \flm@heading@alt
+  \bool_set_false:N \flm@heading@given
+  \tl_clear:N \flm@heading@toc
+  \keys_set:nn {flm/heading} {#1}%
+  \def\@currentcounter{}%
+  \IfBooleanTF{#3}
+    {#2*{#4}%
+     \str_if_eq:VnT \flm@heading@toc {true}
+       {\edef\flm@heading@level{\cs_to_str:N #2}%
+        \bool_if:NTF \flm@heading@given
+          {\exp_args:NVV \flm@heading@addtoc \flm@heading@level \flm@heading@alt}
+          {\exp_args:NV \flm@heading@addtoc \flm@heading@level {#4}}}}
+    {\str_if_eq:VnT \flm@heading@toc {false} {\flm@heading@notoc{#2}}%
+     \bool_if:NTF \flm@heading@given
+       {\exp_args:NV \flm@heading@withalt \flm@heading@alt #2{#4}}
+       {#2{#4}}}%
+  \ifx\@currentcounter\@empty
+    \flmLabelsWithDisplayText{#4}{#5}%
+  \else
+    #5%
+  \fi}
+\ExplSyntaxOff
+% flm.latex.def.ifblank
+% \flmIfBlankTF{<content>}{<then>}{<else>}: the branch a user definition's own
+% "is this blank?" test selects — <then> where <content> holds nothing at
+% all, <else> otherwise. Not a customization point: change your own
+% definition, not this. It is long, so that an argument holding a paragraph
+% break is tested rather than stopping the compilation, and expandable, so
+% that the test never stops the expansion of a definition that has to expand.
+%
+% This block uses expl3, LaTeX's programming layer, which
+% is part of the format and needs no package; its names read only between
+% \ExplSyntaxOn and \ExplSyntaxOff. \tl_if_empty:nTF is true exactly when its
+% argument holds no token at all, which is the condition FLM's own blank test
+% asks: a single space is content, and a comment is gone before the argument
+% exists.
+\ExplSyntaxOn
+\providecommand\flmIfBlankTF[3]{\tl_if_empty:nTF {#1} {#2} {#3}}
+\ExplSyntaxOff
+% flm.latex.def.userargs
+% \flmArg{<n>}{<arguments>}, \flmIfArgTF{<n>}{<arguments>}{<then>}{<else>} and
+% \flmIfArgBlankTF{<n>,...}{<arguments>}{<then>}{<else>}: reading one argument of
+% a user definition that takes more than nine of them. Such a definition is
+% called with all its arguments in one group, one pair of braces around each
+% ( \flmUDbig{{a}{b}{c}...} ), because a macro body has nine parameters; its
+% body reads part <n> of that group through these. \flmArg gives the argument's
+% content, \flmIfArgTF asks whether the argument holds \BooleanTrue, and
+% \flmIfArgBlankTF asks whether the listed arguments hold nothing at all between
+% them. Not a customization point: change your own definition, not this. Long,
+% so that an argument holding a paragraph break is read rather than stopping the
+% compilation, and expandable, so that reading an argument never stops the
+% expansion of a definition that has to expand.
+%
+% \tl_item:nn is the LaTeX kernel's own: it picks part <n>, counting from one,
+% and strips the braces around it. A test never reads a part directly --
+% \IfBooleanTF{\flmArg{2}{#1}} stops with "Invalid argument" and
+% \flmIfBlankTF{\flmArg{2}{#1}} answers the wrong branch without a word, since
+% both look at the accessor's own tokens -- so the two tests expand the accessor
+% first with \exp_args:Ne, which needs the \expanded primitive: every TeX engine
+% has carried it since 2019, so it is older than the LaTeX this file asks for.
+% What the part itself holds is left untouched: a space in an argument stays
+% content, and a command in one is not expanded early.
+%
+% \flmIfArgBlankTF asks its question through \flmIfBlankTF, the block above,
+% rather than spelling the test again: what "blank" means is written in one
+% place regardless of a definition's size. A definition taking more than nine
+% arguments therefore always brings that block into this file along with this
+% one, whether or not it asks a blank test.
+\ExplSyntaxOn
+\providecommand\flmArg[2]{\tl_item:nn {#2} {#1}}
+\providecommand\flmIfArgTF[4]{\exp_args:Ne \IfBooleanTF {\tl_item:nn {#2} {#1}} {#3} {#4}}
+\providecommand\flmIfArgBlankTF[4]{\exp_args:Ne \flmIfBlankTF {\clist_map_tokens:nn {#1} {\tl_item:nn {#2}}} {#3} {#4}}
+\ExplSyntaxOff
+% --- user definitions ---
+% \flmUDbig (the document's \big): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \RenewDocumentCommand after loading this file changes it
+\ProvideDocumentCommand\flmUDbig{+m}{[\flmArg{1}{#1}|\flmArg{7}{#1}|\flmArg{12}{#1}]}
+% \flmUDmymacro (the document's \mymacro): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \RenewDocumentCommand after loading this file changes it
+\ProvideDocumentCommand\flmUDmymacro{+m +m +m}{\IfBooleanTF{#3}{#1, \emph{#2}}{Hello there, \emph{#2}}}
+\endinput

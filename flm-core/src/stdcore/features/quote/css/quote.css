@@ -1,0 +1,95 @@
+/* flm.quote.style */
+/* Quotations: set apart from the text around them.  Every quotation
+   environment is indented on both sides and spaced above and below; a
+   quote, and any environment that a host configures, has a faint background
+   and its passage and its lines in italics; a blockquote is only indented,
+   and an address is indented with its lines slightly smaller.  A block
+   section (a quotation section written \block) has a thin line on its left,
+   and an attribution is on a line of its own at the far side, after a dash.
+   An environment is selected by its kind token
+   (.flm-quote[data-flm-kind~="address"]), and the selector of a rule for a
+   quotation section steps down from its quotation by one level only, so
+   that a quotation nested inside another keeps its own look; what a
+   quotation section passes on to the content inside it (a quote's italics)
+   still reaches a quotation nested there.  The quotation's selector also
+   carries the block class (.flm-pres-block), so that it outweighs the rule
+   of flm.html.style.core that spaces every block; the rule of
+   flm.html.style.core that removes that space from a first and a last block
+   still wins, because it is as specific and the page writes it after this
+   stylesheet (a page writes the stylesheets in the order in which the
+   features registered them, and the standard package registers the HTML
+   backend after the content features). */
+@layer flm {
+  :root {
+    /* How far a quotation is set in from the text on each side, and the
+       space above and below it.  The indentation is in rem, as the width of
+       the column of notes beside the text is, so that a note inside a
+       quotation still reaches that column (--flm-margin-note-inset, set
+       below). */
+    --flm-quote-indent: 2rem;
+    --flm-quote-spacing: 1em;
+    /* The background of a quote, the space inside it (above and below, and
+       on each side, the latter in rem for the reason above), and how its
+       passage and its lines are set. */
+    --flm-quote-background: rgb(120 140 150 / 0.15);
+    --flm-quote-padding-block: 1em;
+    --flm-quote-padding-inline: 1.5rem;
+    --flm-quote-passage-style: italic;
+    /* A block section: the line on its left and the space after the
+       line. */
+    --flm-quote-block-rule: 4pt solid rgb(120 140 150 / 0.3);
+    --flm-quote-block-padding: 1em;
+    /* The size of an address's lines. */
+    --flm-quote-address-size: 0.933em;
+    /* The alignment of an attribution on its line, its font style, the
+       space above it, and the text written before it (an em dash and a
+       no-break space). */
+    --flm-quote-attributed-align: right;
+    --flm-quote-attributed-style: normal;
+    --flm-quote-attributed-space: 0.5em;
+    --flm-quote-attributed-lead: "\2014\00A0";
+  }
+
+  /* Every quotation: indented on both sides, spaced above and below.  A
+     note beside the text that is marked inside the quotation is also pulled
+     out by the quotation's indentation on the right (--flm-margin-note-inset,
+     declared by flm.html.style.core), so that it reaches the column of
+     notes. */
+  .flm-pres-block.flm-quote {
+    margin: var(--flm-quote-spacing) var(--flm-quote-indent);
+    --flm-margin-note-inset: var(--flm-quote-indent);
+  }
+
+  /* A quote, and every environment but blockquote and address: on a
+     background, with space inside it, its passage and lines in italics. */
+  .flm-pres-block.flm-quote:not([data-flm-kind~="blockquote"]):not([data-flm-kind~="address"]) {
+    background: var(--flm-quote-background);
+    padding: var(--flm-quote-padding-block) var(--flm-quote-padding-inline);
+    --flm-margin-note-inset: calc(var(--flm-quote-indent) + var(--flm-quote-padding-inline));
+  }
+  .flm-quote:not([data-flm-kind~="blockquote"]):not([data-flm-kind~="address"]) > .flm-quote-text,
+  .flm-quote:not([data-flm-kind~="blockquote"]):not([data-flm-kind~="address"]) > .flm-quote-lines {
+    font-style: var(--flm-quote-passage-style);
+  }
+
+  /* A block section: a thin line on its left. */
+  .flm-quote > .flm-quote-block {
+    border-left: var(--flm-quote-block-rule);
+    padding-left: var(--flm-quote-block-padding);
+  }
+
+  /* An address: its lines slightly smaller. */
+  .flm-quote[data-flm-kind~="address"] > .flm-quote-lines {
+    font-size: var(--flm-quote-address-size);
+  }
+
+  /* An attribution (a quotation section written \attributed). */
+  .flm-quote > .flm-quote-attributed {
+    text-align: var(--flm-quote-attributed-align);
+    font-style: var(--flm-quote-attributed-style);
+    margin-top: var(--flm-quote-attributed-space);
+  }
+  .flm-quote > .flm-quote-attributed > .flm-pres-par:first-child::before {
+    content: var(--flm-quote-attributed-lead);
+  }
+}

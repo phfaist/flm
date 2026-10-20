@@ -1,0 +1,55 @@
+Results¹
+========
+
+A paragraph citing², then a chunk of several calls¹,³,²,⁴; ᵀʰᵐ ⁴, and a work no
+provider knows⁵. As shown in ref. 3, in Refs. 1,2 and in the works (see 1,3),
+the claim holds. See Results¹.¹
+
+Places
+------
+
+• An item citing².
+
+Theorem 1 (Main result³). A statement citing¹; ᴸᵉᵐᵐᵃ ².
+
+Proof (Theorem 1). A proof citing⁴. □
+
+A quotation citing².
+
+A line citing³
+a second line
+
+[image: figures/codes.png]
+
+Figure 1: A caption citing⁴
+
+Tables
+------
+
+Work   Where
+-----  ---------
+Knuth  ²
+Shor   ¹; Sᵉᶜ. ³
+
+Table 1: A table citing⁶
+
+Footnotes
+---------
+
+¹ A note citing⁶ and²; ᵖ. ².
+
+References
+----------
+
+1 P. Shor, a code of length \(9\), 1995
+
+2 D. Knuth, The Art of Computer Programming, 1984
+
+3 L. Lamport, A Document Preparation System, online <https://example.org/latex>,
+  1994
+
+4 D. Gottesman, Stabilizer codes, 1997
+
+5 [dropped: bibliography entry]
+
+6 D. Aharonov and M. Ben-Or, 1997

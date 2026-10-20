@@ -1,0 +1,3 @@
+A dash – an em dash — and “a quote – with a dash, and “one inside””.
+
+Inside mathematics \(a--b\) and verbatim c--d nothing changes.

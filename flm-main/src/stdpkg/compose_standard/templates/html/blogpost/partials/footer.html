@@ -1,0 +1,14 @@
+{% if config.footer_text or config.footer_links %}
+<footer class="bp-footer bp-width">
+{% if config.footer_text %}
+  <p>{{ config.footer_text }}</p>
+{% endif %}
+{% if config.footer_links %}
+  <nav aria-label="{{ config.label_footer }}">
+{% for link in config.footer_links %}
+{% include "partials/link.html" %}
+{% endfor %}
+  </nav>
+{% endif %}
+</footer>
+{% endif %}

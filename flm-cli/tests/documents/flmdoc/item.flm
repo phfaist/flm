@@ -1,0 +1,25 @@
+---
+flm:
+  math: false
+  use: [flmdoc]
+---
+\begin{docitem}[macro-section]{macro}{\section}
+\docsignature{\section*[short]{title}}
+\docsummary{Starts a section of the document, with a title written as \emph{inline} text.}
+A second paragraph of the body: the section's number appears in `\ref`.
+\begin{docparams}
+\docparam{*}{star}{}{The section is not numbered.}
+\docparam{[short]}{short}{}{The title shown in the table of contents.}
+\docparam{{title}}{title}{flm.headings.title}{The title.}
+\docparam{<label>}{}{}{}
+\docparam{{body}}{}{}{The first paragraph of a longer text.
+
+Its second paragraph, with `code`.}
+\end{docparams}
+\begin{docparams}[Fields]
+\docparam{\label{…}}{label}{flm.refs.defined-label}{The label a reference points at.}
+\end{docparams}
+\docfield{Declared by}{the feature \docref{features/headings}{headings}}
+\docfield{Element}{`flm.headings.heading`}
+\docfield{Available in}{text}
+\end{docitem}

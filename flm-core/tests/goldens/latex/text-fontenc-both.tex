@@ -1,0 +1,40 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.7a0d2a74.sty
+The Polish word język and the Russian word язык both mean language.
+%%
+% ===== latex-recomposed:style flmrecomposed.7a0d2a74.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.7a0d2a74}
+% --- packages ---
+% Some lines below differ by TeX engine. They are written inside tests of the
+% engine, which the package iftex defines: \iftutex is true under LuaLaTeX and
+% XeLaTeX, \ifluatex under LuaLaTeX, and \ifxetex under XeLaTeX. The last
+% branch of a test is for pdfLaTeX and any other engine.
+\RequirePackage{iftex}
+% flm.latex.pkg.newunicodechar
+\RequirePackage{newunicodechar}
+\iftutex
+% flm.latex.pkg.untechxt.fontenc-t2a
+\RequirePackage[T2A,TU]{fontenc}
+\else
+% flm.latex.pkg.untechxt.fontenc-t1, flm.latex.pkg.untechxt.fontenc-t2a
+\RequirePackage[T1,T2A]{fontenc}
+\fi
+% --- the default font encoding ---
+% fontenc makes the last encoding of its option list the default, but the
+% options above may be merged from several requests, so their order carries
+% no meaning. The line below therefore sets the default for each engine whose
+% own encoding the request loads: T1 under pdfLaTeX, TU under LuaLaTeX and
+% XeLaTeX. A letter of another encoding switches to that encoding by itself.
+\iftutex
+\renewcommand{\encodingdefault}{TU}
+\else
+\renewcommand{\encodingdefault}{T1}
+\fi
+% --- unicode characters written as UTF-8 ---
+\newunicodechar{ę}{\k{e}}
+\newunicodechar{з}{{\fontencoding{T2A}\selectfont\cyrz}}
+\newunicodechar{к}{{\fontencoding{T2A}\selectfont\cyrk}}
+\newunicodechar{ы}{{\fontencoding{T2A}\selectfont\cyrery}}
+\newunicodechar{я}{{\fontencoding{T2A}\selectfont\cyrya}}
+\endinput

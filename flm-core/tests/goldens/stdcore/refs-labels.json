@@ -1,0 +1,16 @@
+{
+  "flm.labels": {
+    "labels": {
+      "sec:intro": "flm.heading@1:1#0",
+      "sec:more": "flm.heading@3:1#0"
+    },
+    "duplicates": [
+      {
+        "label": "sec:intro",
+        "first": "flm.heading@1:1#0",
+        "second": "flm.heading@3:1#0"
+      }
+    ],
+    "refused": []
+  }
+}

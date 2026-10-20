@@ -1,0 +1,70 @@
+\documentclass{article}
+\usepackage{index-flmrecomposed.c2d2abbb}
+\begin{document}
+\title{On \emph{codes} and \(x^2\)}
+\author{Ann Author \and Bob Writer}
+\date{30 September 2026}
+\maketitle
+\flmHeading[toc=true]
+\section{Introduction}{\flmLabels{\label{ref1}}}
+
+A paragraph with \emph{emphasis}, \textbf{bold text}, a literal dash -- and a tie~here,
+a footnote\flmXNfootnote{A note with \(a+b\).}, a user macro \(\flmUDHs\) and \flmUDpair{a}{b}.
+Some \EscVerb[formatcom=\flmFmtVRB{verbtext}]{verbatim\ \\text} and a link \flmHref{https://example.com}{to a page},
+see \flmRef{ref1} and \eqref{ref2}, with \(x = y\) in dollars. %% a comment
+A remark \phf{marked}\phf[check this].
+
+\begin{equation}
+  a + b = c\flmLabels{\label{ref2}}
+\end{equation}
+
+\flmHeading[toc=true]
+\subsection{Definitions and results}{\flmLabels{}}
+
+\begin{defterm}{Entropy}\phantomsection\flmLabelsWithDisplayText{Entropy}{\flmLabels{\label{ref3}}}\ignorespaces
+A measure of uncertainty.
+\end{defterm}
+
+\begin{theorem}[Main]\flmLabels{\label{ref4}}
+Every code is a code.
+\end{theorem}
+\begin{proof}[*ref4]
+Obvious.
+\end{proof}
+
+\begin{itemize}
+\item\flmLabels{\label{ref5}} One
+\item Two
+\end{itemize}
+\begin{enumerate}
+\item First
+\end{enumerate}
+\begin{description}
+\item[Term] Its description.
+\end{description}
+
+\begin{quote}
+\flmQuoteText{To be or not to be.}
+\flmQuoteAttributed{Shakespeare}
+\end{quote}
+
+\begin{flmFloat}{figure}{NumCap}
+\flmIncludeGraphics[width=0.74988bp,height=0.74988bp]{../figures/plot.png}
+
+\caption{A plot}\flmLabels{\label{ref6}}\end{flmFloat}
+
+\begin{flmFloat}{table}{NumCap}
+\flmCellsTable{cc}{X[-1]X[-1]}{hspan=minimal}{\toprule
+A&B\\
+\bottomrule
+}
+
+\caption{A table of cells}\flmLabels{\label{ref7}}\end{flmFloat}
+
+\begin{flmVerbatimCode}[]
+let x = 1;
+\end{flmVerbatimCode}
+
+See \flmRef{ref7}, \flmRef{ref6}, \flmRef{ref4} and item~\flmRef{ref5}.
+%%
+\end{document}

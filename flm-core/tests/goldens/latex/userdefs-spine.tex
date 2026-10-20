@@ -1,0 +1,14 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.50e55c37.sty
+\flmUDhello{World} from a user macro, and \begin{flmUEnote}a user environment\end{flmUEnote}
+in the same paragraph. It is version 1.0.
+%%
+% ===== latex-recomposed:style flmrecomposed.50e55c37.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.50e55c37}
+% --- user definitions ---
+% \flmUDhello (the document's \hello): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDhello[1]{Hello, #1!}
+% flmUEnote (the document's note): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \RenewDocumentEnvironment after loading this file changes it
+\ProvideDocumentEnvironment{flmUEnote}{}{[Note: }{]}
+\endinput

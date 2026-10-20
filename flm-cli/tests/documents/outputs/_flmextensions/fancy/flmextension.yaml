@@ -1,0 +1,8 @@
+# The compose template `fancy` for the page, which ships a stylesheet applied as a
+# template (it reads the template's setting `color` and the logo's path) and a logo.
+extension:
+  description: A page shipping its stylesheet and its logo.
+flm:
+  features:
+    compose:
+      template: fancy

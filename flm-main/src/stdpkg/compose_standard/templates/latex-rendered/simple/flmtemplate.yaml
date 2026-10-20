@@ -1,0 +1,33 @@
+# A compact, phfnote-inspired memo for LuaLaTeX.
+output: latex-rendered
+engine: minijinja
+main: simple.tex
+accepts: all
+
+delimiters:
+  block: ["<<*", "*>>"]
+  variable: ["<<<", ">>>"]
+  comment: ["<<!--", "-->>"]
+
+# Override with, for example:
+# -O 'compose.template_config={latex-rendered: {simple: {accent: "7B493D"}}}'
+# Font names, geometry and class options are passed to LaTeX as written.
+config:
+  classoptions: "10pt,a4paper"
+  # Article's 10pt body has a 12pt baseline: 1.18 gives 14.16pt leading.
+  linespread: "1.18"
+  geometry: "hmargin=21mm,top=19mm,bottom=20mm,includeheadfoot,headheight=24pt,headsep=7mm,footskip=10mm,marginparwidth=15mm,marginparsep=3mm"
+  # Empty: load TeX's sourceserifpro package (oldstyle, proportional figures).
+  # Set a fontspec family name to override, e.g. "Source Serif Pro" for a
+  # separately installed version. The bundled font version depends on TeX Live.
+  mainfont: "" #"Source Serif 4"
+  # Same for the sans font, default goes through TeX's sourcesanspro package.
+  sansfont: "" #"Source Sans 3"
+  # Same for the mono font, default goes through TeX's sourcecodepro package.
+  monofont: "" #"Source Code Pro"
+  mathfont: "STIX Two Math"
+
+  # Six-digit HTML colors, without '#'. Use 222222 for a monochrome accent.
+  accent: "245C63"
+  ink: "252D30"
+  muted: "657477"

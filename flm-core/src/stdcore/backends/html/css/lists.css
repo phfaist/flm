@@ -1,0 +1,149 @@
+/* flm.html.style.lists */
+/* The look of lists, with their entries and labels, and of a run of lines,
+   with each line's alignment and indentation. */
+@layer flm {
+  :root {
+    --flm-list-spacing: 1em;
+    --flm-list-indent: 2em;
+    --flm-list-entry-spacing: 0.25em;
+    /* The gap after a label the document wrote itself. */
+    --flm-list-label-gap: 0.5em;
+    /* The widest a list's column of labels grows. */
+    --flm-list-label-max: 12em;
+    --flm-lines-spacing: 1em;
+  }
+
+  /* A list is spaced apart from the text around it, and its entries are
+     indented. */
+  .flm-pres-list {
+    margin: var(--flm-list-spacing) 0;
+    padding-left: var(--flm-list-indent);
+  }
+  /* The children of a list are selected by their tag because HTML allows no
+     others there and the emitter therefore writes no class on them. */
+  .flm-pres-list > li {
+    margin-bottom: var(--flm-list-entry-spacing);
+  }
+  /* An entry's first block has no space above it, so that it is level with
+     the entry's label, and its last block has no space below it, so that the
+     entries of a list are close together. */
+  .flm-pres-list > li > :first-child,
+  .flm-pres-list > li > .flm-pres-list-label + *,
+  .flm-pres-list > dd > :first-child {
+    margin-top: 0;
+  }
+  .flm-pres-list > li > :last-child,
+  .flm-pres-list > dd > :last-child {
+    margin-bottom: 0;
+  }
+
+  /* A list of terms (the kind token terms) sets each term in bold; where its
+     terms are not labels, each term is placed above its description, which
+     is indented. */
+  .flm-pres-list[data-flm-kind~="terms"] {
+    padding-left: 0;
+  }
+  .flm-pres-list[data-flm-kind~="terms"] > dt {
+    font-weight: bold;
+  }
+  .flm-pres-list[data-flm-kind~="terms"] > dd {
+    margin-left: var(--flm-list-indent);
+  }
+
+  /* A list in which every entry carries its own label (a number in a shape
+     that a browser cannot draw, a bullet, or a tag) carries the kind token
+     `labeled` and is laid out as a grid of two columns.  The first column
+     holds the labels and is as wide as the widest label of the list, up to
+     `--flm-list-label-max`; a longer label wraps inside it.  The second
+     column holds the content of the entries.  The label gap separates the
+     two columns, and the space between entries separates the rows.  The
+     marker that a browser draws is switched off.  Each entry is a subgrid of
+     the list's grid, so that the labels of all entries share one column; a
+     browser without subgrid support lays out each entry as a grid of its
+     own, so the labels no longer line up from one entry to the next, but
+     nothing is clipped.  A list nested in an entry is a grid of its own,
+     with its own column of labels. */
+  .flm-pres-list[data-flm-kind~="labeled"] {
+    display: grid;
+    padding-left: var(--flm-list-indent);
+    grid-template-columns: fit-content(var(--flm-list-label-max)) 1fr;
+    column-gap: var(--flm-list-label-gap);
+    row-gap: var(--flm-list-entry-spacing);
+  }
+  /* The first declaration of the columns is the fallback for a browser that
+     does not know `subgrid` and drops the second. */
+  .flm-pres-list[data-flm-kind~="labeled"] > li {
+    list-style: none;
+    margin-bottom: 0;
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: fit-content(var(--flm-list-label-max)) 1fr;
+    grid-template-columns: subgrid;
+    column-gap: var(--flm-list-label-gap);
+    align-items: start;
+  }
+  /* The label is placed in the first column, right-aligned, level with the
+     top of its entry's first line; every block of the entry is placed in the
+     second column, one below the other, so an entry without a label leaves
+     its first cell empty.  A note beside the text that is marked inside an
+     entry is written as a span at the place of its mark, inside the block
+     that holds the mark, so it takes no cell of the grid and does not change
+     the entry's layout. */
+  .flm-pres-list[data-flm-kind~="labeled"] > li > .flm-pres-list-label {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: end;
+    text-align: right;
+    margin-right: 0;
+  }
+  .flm-pres-list[data-flm-kind~="labeled"] > li > :not(.flm-pres-list-label) {
+    grid-column: 2;
+  }
+  /* The margins of two cells do not collapse into one another as those of
+     two blocks in running text do, so the space between two blocks of an
+     entry is the first block's bottom margin alone. */
+  .flm-pres-list[data-flm-kind~="labeled"] > li > * + * {
+    margin-top: 0;
+  }
+
+  /* A list of terms whose terms are labels is itself the grid: each term is
+     placed in the first column, left-aligned, and its description beside
+     it. */
+  .flm-pres-list[data-flm-kind~="labeled"] > dt {
+    grid-column: 1;
+    margin-right: 0;
+  }
+  .flm-pres-list[data-flm-kind~="labeled"] > dd {
+    grid-column: 2;
+    margin-left: 0;
+  }
+
+  /* A label the document wrote itself: the gap after it. */
+  .flm-pres-list-label {
+    margin-right: var(--flm-list-label-gap);
+  }
+
+  /* A run of lines: each line is a block of its own and keeps its alignment
+     (data-flm-align).  The backend writes a line's indentation from the
+     left and from the right as two custom properties in the line's style
+     attribute, --flm-element-indent-left and --flm-element-indent-right,
+     each a CSS length (a length in tabs is a multiple of --flm-tab, which
+     flm.html.style.core declares); it leaves out each property whose
+     indentation is zero.  These rules apply them as padding, zero by default. */
+  .flm-pres-lines {
+    margin: var(--flm-lines-spacing) 0;
+  }
+  .flm-pres-line {
+    padding-left: var(--flm-element-indent-left, 0);
+    padding-right: var(--flm-element-indent-right, 0);
+  }
+  .flm-pres-line[data-flm-align="left"] {
+    text-align: left;
+  }
+  .flm-pres-line[data-flm-align="center"] {
+    text-align: center;
+  }
+  .flm-pres-line[data-flm-align="right"] {
+    text-align: right;
+  }
+}

@@ -1,0 +1,11 @@
+output: html
+engine: minijinja
+main: fancy.html
+accepts: all
+config: {color: teal}
+artifacts:
+  style:
+    file: look.css
+    template: true
+  logo:
+    file: ../../../img/logo.png

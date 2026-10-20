@@ -1,0 +1,15 @@
+Bare content in a quote.
+
+A passage.
+
+a section inside a section
+b after the start of its line
+
+[PhF] x
+
+A title [PhF] cut here
+======================
+
+• [PhF] a passage its environment ends
+
+[PhF] a passage the input ends

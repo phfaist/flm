@@ -1,0 +1,10 @@
+===== check =====
+===== text =====
+Warning flm.xnotes.empty: this footnote is empty — at `\footnote{}`
+Error flm.xnotes.bad-label-argument: the optional argument of this footnote may hold only \label{…} commands, but it holds ‘\textbf{x}’ — at `\footnote[\textbf{x}\label{fn:bad}]{The refused label's note`
+===== html =====
+Warning flm.xnotes.empty: this footnote is empty — at `\footnote{}`
+Error flm.xnotes.bad-label-argument: the optional argument of this footnote may hold only \label{…} commands, but it holds ‘\textbf{x}’ — at `\footnote[\textbf{x}\label{fn:bad}]{The refused label's note`
+===== latex-recomposed =====
+Warning flm.xnotes.empty: this footnote is empty — at `\footnote{}`
+Error flm.xnotes.bad-label-argument: the optional argument of this footnote may hold only \label{…} commands, but it holds ‘\textbf{x}’ — at `\footnote[\textbf{x}\label{fn:bad}]{The refused label's note`

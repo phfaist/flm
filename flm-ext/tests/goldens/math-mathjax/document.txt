@@ -1,0 +1,8 @@
+Inline \(x^2\) and \(\textbf{bold} x\).
+
+\[\frac{a}{b}\]
+
+\begin{align} a &= b (1)\\ c &= \begin{cases} 1 & x > 0 \\ 0 & \text{otherwise}
+\end{cases} (T)\\ e &= f \end{align}
+
+See \(\text{see Eq. (1)}\).

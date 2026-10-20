@@ -1,0 +1,13 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.da4c1b01.sty
+Text: \flmUDqty{\textbf{none}}{5} and \flmUDqty{m}{5}.
+
+Math: \(\flmUDqty{\textbf  {none}}{5} + 1\).
+%%
+% ===== latex-recomposed:style flmrecomposed.da4c1b01.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.da4c1b01}
+% --- user definitions ---
+% \flmUDqty (the document's \qty): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDqty[2]{#2 (#1)}
+\endinput

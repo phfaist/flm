@@ -1,0 +1,52 @@
+===== check =====
+Error flm.blocks.parbreak-in-inline: a paragraph break (a blank line) must not appear inside inline content, such as a `{…}` group or an argument or body laid out inline — at `\n\n`
+Error flm.blocks.block-in-inline: ‘flm.cells.data’ is a block-level construct and must not appear inside inline content — at `\celldata{y & z}`
+===== text =====
+Error flm.blocks.parbreak-in-inline: a paragraph break (a blank line) must not appear inside inline content, such as a `{…}` group or an argument or body laid out inline — at `\n\n`
+Error flm.blocks.block-in-inline: ‘flm.cells.data’ is a block-level construct and must not appear inside inline content — at `\celldata{y & z}`
+Error flm.cells.content-outside-cell: a `cells` environment may hold only \cell, \celldata, \\, \rownames and \colnames — at `stray text`
+Error flm.cells.bad-placement: a cell's placement must be written COL or ROW;COL — at `\cell[a;b;c]{P}`
+Error flm.cells.bad-styles: the styles of a cell may hold only style names, each with an optional value in braces — at `\cell<\emph{x}>{S}`
+Error flm.cells.unknown-style: there is no cell style named ‘foo’ — at `foo r`
+Error flm.cells.bad-style-value: the cell style ‘align’ takes one of left, center, right, not ‘middle’ — at `align`
+Error flm.cells.bad-style-value: the cell style ‘green’ takes no value, not ‘{x}’ — at ` green`
+Error flm.cells.bad-names: the column name ‘a’ may be declared once only — at `\colnames{a,a,1x}`
+Error flm.cells.bad-names: ‘1x’ is not a column name: a name begins with a letter and holds only letters, digits and underscores — at `\colnames{a,a,1x}`
+Error flm.cells.overlap: two cells may not share a position: this cell overlaps the cell at row 1, column 1 — at `\cell[1]{Q}`
+Error flm.cells.too-large: a `cells` environment may have at most 1000000 positions, its rows times its columns, and this cell would make it 1000 rows by 1001 columns — at `\cell[\merge{1-1000};\merge{1-1001}]{Big}`
+Error flm.cells.empty: a `cells` environment must hold at least one cell — at `\begin{cells}\end{cells}`
+Error flm.cells.outside-table: \celldata must be written directly in the body of a cells environment — at `\celldata{y & z}`
+Error flm.cells.outside-table: & must be written directly in the data of \celldata, between two entries — at `&`
+Error flm.cells.outside-table: \\ in a table of cells must be written directly in its body or in the data of \celldata — at `\\`
+===== html =====
+Error flm.blocks.parbreak-in-inline: a paragraph break (a blank line) must not appear inside inline content, such as a `{…}` group or an argument or body laid out inline — at `\n\n`
+Error flm.blocks.block-in-inline: ‘flm.cells.data’ is a block-level construct and must not appear inside inline content — at `\celldata{y & z}`
+Error flm.cells.content-outside-cell: a `cells` environment may hold only \cell, \celldata, \\, \rownames and \colnames — at `stray text`
+Error flm.cells.bad-placement: a cell's placement must be written COL or ROW;COL — at `\cell[a;b;c]{P}`
+Error flm.cells.bad-styles: the styles of a cell may hold only style names, each with an optional value in braces — at `\cell<\emph{x}>{S}`
+Error flm.cells.unknown-style: there is no cell style named ‘foo’ — at `foo r`
+Error flm.cells.bad-style-value: the cell style ‘align’ takes one of left, center, right, not ‘middle’ — at `align`
+Error flm.cells.bad-style-value: the cell style ‘green’ takes no value, not ‘{x}’ — at ` green`
+Error flm.cells.bad-names: the column name ‘a’ may be declared once only — at `\colnames{a,a,1x}`
+Error flm.cells.bad-names: ‘1x’ is not a column name: a name begins with a letter and holds only letters, digits and underscores — at `\colnames{a,a,1x}`
+Error flm.cells.overlap: two cells may not share a position: this cell overlaps the cell at row 1, column 1 — at `\cell[1]{Q}`
+Error flm.cells.too-large: a `cells` environment may have at most 1000000 positions, its rows times its columns, and this cell would make it 1000 rows by 1001 columns — at `\cell[\merge{1-1000};\merge{1-1001}]{Big}`
+Error flm.cells.empty: a `cells` environment must hold at least one cell — at `\begin{cells}\end{cells}`
+Error flm.cells.outside-table: \celldata must be written directly in the body of a cells environment — at `\celldata{y & z}`
+Error flm.cells.outside-table: & must be written directly in the data of \celldata, between two entries — at `&`
+Error flm.cells.outside-table: \\ in a table of cells must be written directly in its body or in the data of \celldata — at `\\`
+===== latex-recomposed =====
+Error flm.cells.content-outside-cell: a `cells` environment may hold only \cell, \celldata, \\, \rownames and \colnames — at `stray text`
+Error flm.cells.bad-placement: a cell's placement must be written COL or ROW;COL — at `\cell[a;b;c]{P}`
+Error flm.cells.bad-styles: the styles of a cell may hold only style names, each with an optional value in braces — at `\cell<\emph{x}>{S}`
+Error flm.cells.unknown-style: there is no cell style named ‘foo’ — at `foo r`
+Error flm.cells.bad-style-value: the cell style ‘align’ takes one of left, center, right, not ‘middle’ — at `align`
+Error flm.cells.bad-style-value: the cell style ‘green’ takes no value, not ‘{x}’ — at ` green`
+Error flm.cells.bad-names: the column name ‘a’ may be declared once only — at `\colnames{a,a,1x}`
+Error flm.cells.bad-names: ‘1x’ is not a column name: a name begins with a letter and holds only letters, digits and underscores — at `\colnames{a,a,1x}`
+Error flm.cells.overlap: two cells may not share a position: this cell overlaps the cell at row 1, column 1 — at `\cell[1]{Q}`
+Error flm.cells.too-large: a `cells` environment may have at most 1000000 positions, its rows times its columns, and this cell would make it 1000 rows by 1001 columns — at `\cell[\merge{1-1000};\merge{1-1001}]{Big}`
+Error flm.cells.empty: a `cells` environment must hold at least one cell — at `\begin{cells}\end{cells}`
+Error flm.cells.outside-table: \celldata must be written directly in the body of a cells environment — at `\celldata{y & z}`
+Error flm.cells.outside-table: & must be written directly in the data of \celldata, between two entries — at `&`
+Error flm.cells.outside-table: \\ in a table of cells must be written directly in its body or in the data of \celldata — at `\\`

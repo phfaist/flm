@@ -1,0 +1,5 @@
+extension:
+  description: Bibliography entries from a JSON file beside the document
+  engine: js
+  js:
+    main: main.js

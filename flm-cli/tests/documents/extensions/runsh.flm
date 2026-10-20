@@ -1,0 +1,5 @@
+---
+flm:
+  use: [runsh]
+---
+A document whose extension runs a program.

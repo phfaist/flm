@@ -1,0 +1,17 @@
+---
+title: Counting words
+flm:
+  use: [wordcount, counting]
+  features:
+    wordcount:
+      shout_suffix: "!"
+      min_length: 4
+      report_counts: true
+---
+\flmname{} counts words. \sayhi{World}
+
+\shout{listen} to this \todo{check the numbers}.
+
+\section{Two}
+
+Second paragraph, \shout{quietly}.

@@ -1,0 +1,11 @@
+# The workflow `pair` (the outputs `html` and `text`) and, for each output, two compose
+# templates that ship a file as the artifact `shared`: under `pair`, the page's and the
+# text's ship the same file, `shared.css`; under `clash`, the text's ships `other.css`,
+# whose content differs.
+extension:
+  description: Two outputs shipping one file.
+flm:
+  workflows:
+    pair:
+      extends: html
+      outputs: [html, text]

@@ -1,0 +1,5 @@
+# The house text: the content between two lines.
+output: text
+engine: minijinja
+main: house.txt
+accepts: all

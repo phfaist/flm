@@ -1,0 +1,50 @@
+# A program that carries two extensions compiled in, the crates `one` and `two` of the folders
+# beside this file, through the engine `native` (`flm-ext` with the feature `native`), and that
+# is built for `wasm32-unknown-unknown`: the check that the feature `native`, not the target,
+# makes the guest client answer requests in the same process and the macro `extension!` write
+# no export. The gated test `flm-ext/tests/native_wasm32.rs` builds the three crates in one
+# cargo run:
+#
+#     cargo build --manifest-path flm-ext/tests/native/program/Cargo.toml \
+#         --target wasm32-unknown-unknown --release --locked --workspace
+#
+# and checks that the program links, that its module imports neither `flm.call` nor
+# `flm.take`, and that its two exports run (the extensions load; a registry of their packages
+# builds, each feature's `register` sending its request); and that the module of `one`, built
+# in that run (where the program turns on `native`), lacks the guest's exports, so that the
+# engine `wasm` refuses it. `build.rs` links the program's module with flm-core's worker stack
+# size.
+#
+# A standalone crate (its own workspace, outside the repository's, whose members are the three
+# crates), with the release profile of `flm-ext/tests/native/stub/`. The lockfile `Cargo.lock`
+# beside this file is committed, and the build is `--locked`: when the version or the
+# dependencies of `flm-core` or `flm-ext` change, regenerate it with
+#
+#     cargo generate-lockfile --manifest-path flm-ext/tests/native/program/Cargo.toml --offline
+[package]
+name = "program"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+flm-core = { path = "../../../../flm-core", default-features = false }
+flm-ext = { path = "../../..", default-features = false, features = ["native"] }
+one = { path = "one" }
+two = { path = "two" }
+serde_json = "1"
+
+# The profile of the stub: optimized for size, the whole program optimized at link time, one
+# code unit; a panic aborts.
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+codegen-units = 1
+
+[workspace]

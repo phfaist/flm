@@ -1,0 +1,122 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.ff71eddd.sty
+Spellings from every font the table reaches: 𝟙 𝕒 𝟘 𝒶, the Cyrillic letters Ѣ Ӿ Ҍ Ѳ ѯ ҂, the symbols ⊫ ⌕, and the phonetic ƞ.
+%%
+% ===== latex-recomposed:style flmrecomposed.ff71eddd.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.ff71eddd}
+% --- packages ---
+% Some lines below differ by TeX engine. They are written inside tests of the
+% engine, which the package iftex defines: \iftutex is true under LuaLaTeX and
+% XeLaTeX, \ifluatex under LuaLaTeX, and \ifxetex under XeLaTeX. The last
+% branch of a test is for pdfLaTeX and any other engine.
+\RequirePackage{iftex}
+% flm.latex.pkg.newunicodechar
+\RequirePackage{newunicodechar}
+% flm.latex.pkg.untechxt.bbm
+\RequirePackage{bbm}
+% flm.latex.pkg.untechxt.dsfont
+\RequirePackage{dsfont}
+\iftutex
+% flm.latex.pkg.untechxt.fontenc-ot2, flm.latex.pkg.untechxt.fontenc-t2b, flm.latex.pkg.untechxt.fontenc-t2c, flm.latex.pkg.untechxt.fontenc-t2d, flm.latex.pkg.untechxt.fontenc-x2
+\RequirePackage[OT2,TU,T2B,T2C,T2D,X2]{fontenc}
+\else
+% flm.latex.pkg.untechxt.fontenc-ot2, flm.latex.pkg.untechxt.fontenc-t2b, flm.latex.pkg.untechxt.fontenc-t2c, flm.latex.pkg.untechxt.fontenc-t2d, flm.latex.pkg.untechxt.fontenc-x2
+\RequirePackage[OT2,T1,T2B,T2C,T2D,X2]{fontenc}
+\fi
+% flm.latex.pkg.untechxt.tipx
+\RequirePackage{tipx}
+% --- the default font encoding ---
+% fontenc makes the last encoding of its option list the default, but the
+% options above may be merged from several requests, so their order carries
+% no meaning. The line below therefore sets the default for each engine whose
+% own encoding the request loads: T1 under pdfLaTeX, TU under LuaLaTeX and
+% XeLaTeX. A letter of another encoding switches to that encoding by itself.
+\iftutex
+\renewcommand{\encodingdefault}{TU}
+\else
+\renewcommand{\encodingdefault}{T1}
+\fi
+% --- unicode characters written as UTF-8 ---
+\newunicodechar{ƞ}{\textnrleg}
+\newunicodechar{Ѣ}{{\fontencoding{X2}\selectfont\CYRYAT}}
+\newunicodechar{ѯ}{{\fontencoding{T2D}\selectfont\cyrksi}}
+\newunicodechar{Ѳ}{{\fontencoding{OT2}\selectfont\CYRFITA}}
+\newunicodechar{҂}{{\fontencoding{T2D}\selectfont\UnxTCyrThousands}}
+\newunicodechar{Ҍ}{{\fontencoding{T2C}\selectfont\CYRSEMISFTSN}}
+\newunicodechar{Ӿ}{{\fontencoding{T2B}\selectfont\CYRHHCRS}}
+\newunicodechar{⊫}{\ensuremath{\UnxTVDash}}
+\newunicodechar{⌕}{\ensuremath{\UnxTrecorder}}
+\newunicodechar{𝒶}{\ensuremath{\UnxTScr{a}}}
+\newunicodechar{𝕒}{\ensuremath{\mathbbm{a}}}
+\newunicodechar{𝟘}{\ensuremath{\UnxTBbold{0}}}
+\newunicodechar{𝟙}{\ensuremath{\mathds{1}}}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.untechxt.bbold-alphabet
+% Declarations some characters of the document need. Declared only when nothing of that name exists, so that two style files in one LaTeX run do not clash.
+\ifcsname UnxTBbold\endcsname\else
+\DeclareMathAlphabet{\UnxTBbold}{U}{bbold}{m}{n}
+\fi
+% flm.latex.def.untechxt.script-alphabet
+% Declarations some characters of the document need. Declared only when nothing of that name exists, so that two style files in one LaTeX run do not clash.
+\ifcsname UnxTScr\endcsname\else
+\DeclareMathAlphabet{\UnxTScr}{U}{dutchcal}{m}{n}
+\fi
+% flm.latex.def.untechxt.cyrillic-thousands
+% Declarations some characters of the document need. Declared only when nothing of that name exists, so that two style files in one LaTeX run do not clash.
+\ifcsname UnxTCyrThousands\endcsname\else
+\DeclareTextSymbol{\UnxTCyrThousands}{T2D}{"9E}
+\fi
+% flm.latex.def.untechxt.stix-symbols
+% Declarations some characters of the document need. Declared only when nothing of that name exists, so that two style files in one LaTeX run do not clash.
+\ifcsname symUnxTstixsf\endcsname\else
+\DeclareFontEncoding{LS1}{}{}
+\DeclareFontSubstitution{LS1}{stix}{m}{n}
+\DeclareFontEncoding{LS2}{}{}
+\DeclareFontSubstitution{LS2}{stix}{m}{n}
+\DeclareSymbolFont{UnxTstixsf}{LS1}{stixsf}{m}{n}
+\DeclareSymbolFont{UnxTstixtt}{LS2}{stixtt}{m}{n}
+\DeclareSymbolFont{UnxTstixcal}{LS2}{stixcal}{m}{n}
+\DeclareSymbolFont{UnxTstixit}{LS1}{stix}{m}{it}
+\DeclareSymbolFont{UnxTstixrm}{LS1}{stix}{m}{n}
+\DeclareSymbolFont{UnxTstixscr}{LS1}{stixscr}{m}{n}
+\DeclareMathSymbol{\UnxTleftwavearrow}{\mathrel}{UnxTstixsf}{"A3}
+\DeclareMathSymbol{\UnxTrightwavearrow}{\mathrel}{UnxTstixsf}{"A4}
+\DeclareMathSymbol{\UnxTupdownarrows}{\mathrel}{UnxTstixsf}{"CC}
+\DeclareMathSymbol{\UnxTdownuparrows}{\mathrel}{UnxTstixsf}{"F3}
+\DeclareMathSymbol{\UnxTrightangle}{\mathord}{UnxTstixrm}{"D9}
+\DeclareMathSymbol{\UnxToiint}{\mathop}{UnxTstixcal}{"04}
+\DeclareMathSymbol{\UnxToiiint}{\mathop}{UnxTstixcal}{"05}
+\DeclareMathSymbol{\UnxTintclockwise}{\mathop}{UnxTstixcal}{"06}
+\DeclareMathSymbol{\UnxTkernelcontraction}{\mathrel}{UnxTstixrm}{"EC}
+\DeclareMathSymbol{\UnxTinvlazys}{\mathbin}{UnxTstixrm}{"EF}
+\DeclareMathSymbol{\UnxTsimneqq}{\mathrel}{UnxTstixrm}{"F7}
+\DeclareMathSymbol{\UnxTapproxident}{\mathrel}{UnxTstixrm}{"FC}
+\DeclareMathSymbol{\UnxTbackcong}{\mathrel}{UnxTstixrm}{"FD}
+\DeclareMathSymbol{\UnxTwedgeq}{\mathrel}{UnxTstixcal}{"8A}
+\DeclareMathSymbol{\UnxTstareq}{\mathrel}{UnxTstixcal}{"8C}
+\DeclareMathSymbol{\UnxTnlessgtr}{\mathrel}{UnxTstixit}{"C5}
+\DeclareMathSymbol{\UnxTngtrless}{\mathrel}{UnxTstixit}{"C6}
+\DeclareMathSymbol{\UnxTmodels}{\mathrel}{UnxTstixit}{"F4}
+\DeclareMathSymbol{\UnxTvDash}{\mathrel}{UnxTstixit}{"F5}
+\DeclareMathSymbol{\UnxTVDash}{\mathrel}{UnxTstixit}{"F8}
+\DeclareMathSymbol{\UnxTorigof}{\mathrel}{UnxTstixscr}{"01}
+\DeclareMathSymbol{\UnxTimageof}{\mathrel}{UnxTstixscr}{"02}
+\DeclareMathSymbol{\UnxThermitmatrix}{\mathord}{UnxTstixscr}{"04}
+\DeclareMathSymbol{\UnxTmeasuredrightangle}{\mathord}{UnxTstixscr}{"09}
+\DeclareMathSymbol{\UnxTlll}{\mathrel}{UnxTstixscr}{"1E}
+\DeclareMathSymbol{\UnxTggg}{\mathrel}{UnxTstixscr}{"1F}
+\DeclareMathSymbol{\UnxTprecnsim}{\mathrel}{UnxTstixscr}{"2E}
+\DeclareMathSymbol{\UnxTadots}{\mathrel}{UnxTstixscr}{"36}
+\DeclareMathSymbol{\UnxTvardoublebarwedge}{\mathbin}{UnxTstixscr}{"9A}
+\DeclareMathSymbol{\UnxTquarternote}{\mathord}{UnxTstixtt}{"2F}
+\DeclareMathSymbol{\UnxTfint}{\mathop}{UnxTstixcal}{"0D}
+\DeclareMathSymbol{\UnxTsqint}{\mathop}{UnxTstixcal}{"14}
+\fi
+% flm.latex.def.untechxt.wasy-recorder
+% Declarations some characters of the document need. Declared only when nothing of that name exists, so that two style files in one LaTeX run do not clash.
+\ifcsname symUnxTwasy\endcsname\else
+\DeclareSymbolFont{UnxTwasy}{U}{wasy}{m}{n}
+\DeclareMathSymbol{\UnxTrecorder}{\mathord}{UnxTwasy}{6}
+\fi
+\endinput

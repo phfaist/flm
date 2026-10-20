@@ -1,0 +1,1040 @@
+% ===== latex-rendered:document =====
+% flm: latex-rendered; style file flmx.b9436ae8.sty
+\documentclass{article}
+\usepackage{flmx.b9436ae8}
+\begin{document}
+\flmxHeading[kind=section, level=1, toc=true, anchor=sec-results, plain={Results}]{Results}
+\begin{flmxBlock}[role=flm.floats.float, kinds={figure numbered}, anchor=figure-1]
+\begin{flmxBlock}[role=flm.floats.float.content]
+\flmxImage[display=block]{plot.png}
+\end{flmxBlock}
+\begin{flmxBlock}[role=flm.floats.float.caption, kinds={figure numbered}]
+\flmxSpan[role=flm.floats.float.number]{Figure 1}: A plot\flmxSpan[style=superscript, role=flm.xnotes.xnote.mark, anchor=fnref--1yuhk]{\flmxLink[kind=xnote, href={\#fn-1}, target=fn-1, doc-role=noteref, label={Footnote 1}]{1}}
+of \flmxLink[kind=ref, href={\#sec-results}, target=sec-results]{Results}.
+\end{flmxBlock}
+\end{flmxBlock}
+
+See \flmxLink[kind=ref, href={\#figure-1}, target=figure-1]{Fig. 1}.
+
+\begin{flmxBlock}[role=flm.xnotes.footnote.list, kinds={xnotes footnote}, doc-role=endnotes]
+\flmxHeading[kind=xnotes, level=2, toc=false, plain={Footnotes}]{Footnotes}
+\begin{flmxList}[kinds={numbered xnotes footnote labeled}, depth=1]
+\flmxItem[label={\flmxSpan[style=superscript, role=flm.xnotes.entry.mark]{1}}, anchor=fn-1]
+Measured twice.
+\end{flmxList}
+\end{flmxBlock}
+
+\end{document}
+% ===== latex-rendered:style flmx.b9436ae8.sty =====
+\NeedsTeXFormat{LaTeX2e}[2022/06/01]
+\ProvidesPackage{flmx.b9436ae8}
+% the definitions of a document written by FLM's latex-rendered backend
+% the engine: LuaLaTeX
+\RequirePackage{iftex}
+\RequireLuaTeX
+% the packages
+% flm.latex.pkg.fontspec
+\RequirePackage{fontspec}
+% flm.latex.pkg.amsmath
+\RequirePackage{amsmath}
+% flm.latex.pkg.xcolor
+\RequirePackage{xcolor}
+% flm.latex.pkg.graphicx
+\RequirePackage{graphicx}
+% hyperref, loaded at the end of the preamble
+\AddToHook{begindocument/before}{\RequirePackage[colorlinks=true, linkcolor=flmxLinkColor, urlcolor=flmxUrlColor, citecolor=flmxCiteColor]{hyperref}}
+% flm.latex.def.flmx.core
+% flm.latex.def.flmx.core -- the core of the latex-rendered contract.
+%
+% The rendered LaTeX writes one command or environment per presentation
+% element, all named \flmx...; this chunk defines the machinery every one of
+% them uses, the paragraph-level elements (flmxBlock, \flmxSpan), the three
+% decorations, the target of an anchor, two lengths and the colors.
+%
+% Keys. Every element takes an optional key-value argument first, holding
+% the facts FLM knows about it ([role=..., kinds={a b}, anchor=...]). While
+% an element is written, its keys are in scope:
+%   \flmxKey{<key>}               expands to the key's value, empty where the
+%                                 element does not carry the key;
+%   \flmxIfKey{<key>}{<yes>}{<no>} tests whether the element carries the key.
+% Each element sees its own keys only: a block inside a block sees its own,
+% and the outer block's are back after it.
+%
+% Registering a look. A template changes how an element looks by registering
+% code under a role, a kind token, a style name, a heading kind or level, or a
+% link kind; a later registration wins:
+%   \flmxDefineBlock{<role or kind token>}{<begin code>}{<end code>}
+%   \flmxDefineSpan{<role, kind token or style name>}{<code over #1>}
+%   \flmxDefineHeading{<kind name or level>}{<code over #1>}
+%   \flmxDefineRuninHeading{<kind name or level>}{<code over #1>}
+%   \flmxDefineLink{<kind>}{<code over #1>}
+%   \flmxDefineList{<kind token>}{<begin code>}{<end code>}
+%   \flmxDefineItem{<kind token>}{<code run at the item>}
+%   \flmxDefineVerbatim{<kind>}{<code over #1>}
+%   \flmxDefineVerbatimBlock{<kind>}{<begin code>}{<end code>}
+%   \flmxDefineXnote{<kind>}{<code over #1 (the mark) and #2 (the content)>}
+%   \flmxDefineCellStyle{<style name>}{<tblr cell keys>}
+% An element is written with the first registration found, in this order:
+%   flmxBlock: its role, then each kind token in order;
+%   \flmxSpan: its role, then each kind token, then its style;
+%   \flmxHeading, \flmxRuninHeading: its kind, then its level;
+%   \flmxLink, \flmxVerbatim, flmxVerbatimBlock, \flmxXnote: its kind;
+%   flmxList, \flmxItem: each kind token of the list in order;
+%   a cell of flmxCells: the keys registered for each of its styles, in
+%   order, added to the cell's own;
+% and with the element's default where none is registered. Each element's
+% default is replaced with
+%   \flmxDefine<Element>Default{<code>}
+% (\flmxDefineBlockDefault{<begin>}{<end>}, \flmxDefineSpanDefault{<code
+% over #1>}, and so on for Heading, RuninHeading, Link, List, Item, Cells,
+% Lines, Line, Verbatim, VerbatimBlock, Image, Xnote, the three decorations
+% DecoRunin, DecoFinal, DecoMargin, and the three marks Dropped,
+% Unsupported and Unknown, whose code is over #1 and #2).
+%
+% The elements this chunk defines:
+%   \begin{flmxBlock}[role, kinds, anchor, doc-role] ... \end{flmxBlock}
+%       a block of paragraphs; default: a paragraph break before and after,
+%       the target of its anchor first.
+%   \flmxSpan[style, role, kinds, anchor, doc-role]{<content>}
+%       inline content; defaults by style: emph \emph, bold \textbf, italic
+%       \textit, monospace \texttt, underline \underline, small-caps \textsc,
+%       superscript \textsuperscript, subscript \textsubscript,
+%       unresolved-reference in flmxMarkColor; no style: the content.
+%   \flmxDecoRunin[stop]{<content>}  the title set at the start of a
+%       paragraph: the content and the stop in bold, then \flmxRuninSep.
+%   \flmxDecoFinal{<content>}  set flush right at the end of the last line;
+%       where it stands alone (after a list, for instance), it starts a
+%       paragraph of its own.
+%   \flmxDecoMargin{<content>}  a margin note, in \footnotesize.
+%   \flmxTarget{<anchor>}
+%       makes the current place a target named <anchor>: in text,
+%       \phantomsection and \label{flmx:<anchor>}; in mathematics, a
+%       hyperlink target and the label written by hand. Redefine it to change
+%       the scheme; the prefix flmx: of the label is fixed, so that
+%       \pageref{flmx:<anchor>} and \hyperref[flmx:<anchor>]{...} find it.
+%
+% Lengths and colors (redefine with \setlength and \colorlet):
+%   \flmxTabWidth   one tab of an indentation, 2em;
+%   \flmxRuninSep   the space after a run-in title, 0.8em;
+%   flmxLinkColor, flmxUrlColor, flmxCiteColor  the link colors hyperref is
+%                   given; flmxMarkColor  the color of what FLM could not
+%                   write (the marks and an unresolved reference).
+%
+% Paragraphs are LaTeX paragraphs; this chunk changes no paragraph setting.
+
+\newlength\flmxTabWidth
+\setlength\flmxTabWidth{2em}
+\newlength\flmxRuninSep
+\setlength\flmxRuninSep{0.8em}
+\colorlet{flmxLinkColor}{blue!60!black}
+\colorlet{flmxUrlColor}{blue!60!black}
+\colorlet{flmxCiteColor}{green!40!black}
+\colorlet{flmxMarkColor}{red}
+
+\ExplSyntaxOn
+
+% --- the keys of the element being written ---------------------------------
+
+\seq_new:N \l__flmx_keys_seq
+\tl_new:N \l__flmx_kinds_tl
+\tl_new:N \l__flmx_found_tl
+\bool_new:N \l__flmx_found_bool
+
+\cs_new_protected:Npn \__flmx_set_keys:n #1
+  {
+    \seq_map_inline:Nn \l__flmx_keys_seq
+      { \cs_set_eq:cN { l__flmx_key_##1_tl } \tex_undefined:D }
+    \seq_clear:N \l__flmx_keys_seq
+    \keyval_parse:nnn { \__flmx_key_flag:n } { \__flmx_key_value:nn } {#1}
+  }
+\cs_new_protected:Npn \__flmx_key_flag:n #1
+  { \__flmx_key_value:nn {#1} { true } }
+\cs_new_protected:Npn \__flmx_key_value:nn #1#2
+  {
+    \cs_set_nopar:cpn { l__flmx_key_#1_tl } {#2}
+    \seq_put_right:Nn \l__flmx_keys_seq {#1}
+  }
+
+\NewExpandableDocumentCommand \flmxKey { m }
+  { \cs_if_exist_use:c { l__flmx_key_#1_tl } }
+\NewExpandableDocumentCommand \flmxIfKey { m m m }
+  { \cs_if_exist:cTF { l__flmx_key_#1_tl } {#2} {#3} }
+
+% --- finding the registered code ------------------------------------------
+
+% #1 the element, #2 the keys to try in order (`kinds' tries each token).
+% Leaves the name of the code to run in \l__flmx_found_tl.
+\cs_new_protected:Npn \__flmx_find:nn #1#2
+  {
+    \bool_set_false:N \l__flmx_found_bool
+    \tl_set:Nn \l__flmx_found_tl { __flmx_#1_default }
+    \clist_map_inline:nn {#2}
+      {
+        \str_if_eq:nnTF {##1} { kinds }
+          {
+            \cs_if_exist:cT { l__flmx_key_kinds_tl }
+              {
+                \tl_set_eq:Nc \l__flmx_kinds_tl { l__flmx_key_kinds_tl }
+                \tl_replace_all:Nnn \l__flmx_kinds_tl { ~ } { , }
+                \clist_map_inline:Nn \l__flmx_kinds_tl
+                  { \__flmx_try:nn {#1} {####1} }
+              }
+          }
+          {
+            \cs_if_exist:cT { l__flmx_key_##1_tl }
+              { \__flmx_try:nv {#1} { l__flmx_key_##1_tl } }
+          }
+      }
+  }
+\cs_new_protected:Npn \__flmx_try:nn #1#2
+  {
+    \bool_if:NF \l__flmx_found_bool
+      {
+        \cs_if_exist:cT { __flmx_#1_reg_#2 }
+          {
+            \tl_set:Nn \l__flmx_found_tl { __flmx_#1_reg_#2 }
+            \bool_set_true:N \l__flmx_found_bool
+          }
+      }
+  }
+\cs_generate_variant:Nn \__flmx_try:nn { nv }
+
+% --- writing an element ------------------------------------------------------
+
+% A command of one content argument: #1 element, #2 keys to try, #3 the
+% key-value list, #4 the content.
+\cs_new_protected:Npn \__flmx_command:nnnn #1#2#3#4
+  {
+    \group_begin:
+      \__flmx_set_keys:n {#3}
+      \__flmx_find:nn {#1} {#2}
+      \use:c { \l__flmx_found_tl } {#4}
+    \group_end:
+  }
+% A command of two arguments.
+\cs_new_protected:Npn \__flmx_command:nnnnn #1#2#3#4#5
+  {
+    \group_begin:
+      \__flmx_set_keys:n {#3}
+      \__flmx_find:nn {#1} {#2}
+      \use:c { \l__flmx_found_tl } {#4} {#5}
+    \group_end:
+  }
+% The begin and end of an environment (LaTeX's environment is the group).
+\cs_new_protected:Npn \__flmx_env_begin:nnn #1#2#3
+  {
+    \__flmx_set_keys:n {#3}
+    \__flmx_find:nn {#1} {#2}
+    \cs_set_eq:cN { l__flmx_#1_env_tl } \l__flmx_found_tl
+    \use:c { \l__flmx_found_tl _begin }
+  }
+\cs_new_protected:Npn \__flmx_env_end:n #1
+  { \use:c { \use:c { l__flmx_#1_env_tl } _end } }
+
+% Registering code: #1 the element, #2 the name, #3 the code.
+\cs_new_protected:Npn \__flmx_register:nnn #1#2#3
+  { \cs_set_protected:cpn { __flmx_#1_reg_#2 } ##1 {#3} }
+\cs_new_protected:Npn \__flmx_register_env:nnnn #1#2#3#4
+  {
+    \cs_set_protected:cpn { __flmx_#1_reg_#2 } { }
+    \cs_set_protected:cpn { __flmx_#1_reg_#2_begin } {#3}
+    \cs_set_protected:cpn { __flmx_#1_reg_#2_end } {#4}
+  }
+\cs_new_protected:Npn \__flmx_default:nn #1#2
+  { \cs_set_protected:cpn { __flmx_#1_default } ##1 {#2} }
+\cs_new_protected:Npn \__flmx_default_ii:nn #1#2
+  { \cs_set_protected:cpn { __flmx_#1_default } ##1##2 {#2} }
+\cs_new_protected:Npn \__flmx_default_none:nn #1#2
+  { \cs_set_protected:cpn { __flmx_#1_default } {#2} }
+\cs_new_protected:Npn \__flmx_default_env:nnn #1#2#3
+  {
+    \cs_set_protected:cpn { __flmx_#1_default_begin } {#2}
+    \cs_set_protected:cpn { __flmx_#1_default_end } {#3}
+  }
+
+% The target of the element's anchor, where it carries one.
+\cs_new_protected:Npn \__flmx_anchor:
+  { \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } }
+
+% --- the registrations ---------------------------------------------------
+
+\NewDocumentCommand \flmxDefineBlock { m +m +m }
+  { \__flmx_register_env:nnnn { block } {#1} {#2} {#3} }
+\NewDocumentCommand \flmxDefineSpan { m +m }
+  { \__flmx_register:nnn { span } {#1} {#2} }
+\NewDocumentCommand \flmxDefineHeading { m +m }
+  { \__flmx_register:nnn { heading } {#1} {#2} }
+\NewDocumentCommand \flmxDefineRuninHeading { m +m }
+  { \__flmx_register:nnn { runinheading } {#1} {#2} }
+\NewDocumentCommand \flmxDefineLink { m +m }
+  { \__flmx_register:nnn { link } {#1} {#2} }
+\NewDocumentCommand \flmxDefineList { m +m +m }
+  { \__flmx_register_env:nnnn { list } {#1} {#2} {#3} }
+\NewDocumentCommand \flmxDefineItem { m +m }
+  { \cs_set_protected:cpn { __flmx_item_reg_#1 } {#2} }
+\NewDocumentCommand \flmxDefineVerbatim { m +m }
+  { \__flmx_register:nnn { verbatim } {#1} {#2} }
+\NewDocumentCommand \flmxDefineVerbatimBlock { m +m +m }
+  { \__flmx_register_env:nnnn { verbatimblock } {#1} {#2} {#3} }
+\NewDocumentCommand \flmxDefineXnote { m +m }
+  { \cs_set_protected:cpn { __flmx_xnote_reg_#1 } ##1##2 {#2} }
+\NewDocumentCommand \flmxDefineCellStyle { m +m }
+  {
+    \tl_clear_new:c { l__flmx_cellstyle_#1_tl }
+    \tl_set:cn { l__flmx_cellstyle_#1_tl } {#2}
+  }
+
+\NewDocumentCommand \flmxDefineBlockDefault { +m +m }
+  { \__flmx_default_env:nnn { block } {#1} {#2} }
+\NewDocumentCommand \flmxDefineSpanDefault { +m }
+  { \__flmx_default:nn { span } {#1} }
+\NewDocumentCommand \flmxDefineHeadingDefault { +m }
+  { \__flmx_default:nn { heading } {#1} }
+\NewDocumentCommand \flmxDefineRuninHeadingDefault { +m }
+  { \__flmx_default:nn { runinheading } {#1} }
+\NewDocumentCommand \flmxDefineLinkDefault { +m }
+  { \__flmx_default:nn { link } {#1} }
+\NewDocumentCommand \flmxDefineListDefault { +m +m }
+  { \__flmx_default_env:nnn { list } {#1} {#2} }
+\NewDocumentCommand \flmxDefineItemDefault { +m }
+  { \__flmx_default_none:nn { item } {#1} }
+\NewDocumentCommand \flmxDefineCellsDefault { +m +m }
+  { \__flmx_default_env:nnn { cells } {#1} {#2} }
+\NewDocumentCommand \flmxDefineLinesDefault { +m +m }
+  { \__flmx_default_env:nnn { lines } {#1} {#2} }
+\NewDocumentCommand \flmxDefineLineDefault { +m }
+  { \__flmx_default:nn { line } {#1} }
+\NewDocumentCommand \flmxDefineVerbatimDefault { +m }
+  { \__flmx_default:nn { verbatim } {#1} }
+\NewDocumentCommand \flmxDefineVerbatimBlockDefault { +m +m }
+  { \__flmx_default_env:nnn { verbatimblock } {#1} {#2} }
+\NewDocumentCommand \flmxDefineImageDefault { +m }
+  { \__flmx_default:nn { image } {#1} }
+\NewDocumentCommand \flmxDefineXnoteDefault { +m }
+  { \__flmx_default_ii:nn { xnote } {#1} }
+\NewDocumentCommand \flmxDefineDecoRuninDefault { +m }
+  { \__flmx_default:nn { decorunin } {#1} }
+\NewDocumentCommand \flmxDefineDecoFinalDefault { +m }
+  { \__flmx_default:nn { decofinal } {#1} }
+\NewDocumentCommand \flmxDefineDecoMarginDefault { +m }
+  { \__flmx_default:nn { decomargin } {#1} }
+\NewDocumentCommand \flmxDefineDroppedDefault { +m }
+  { \__flmx_default_ii:nn { dropped } {#1} }
+\NewDocumentCommand \flmxDefineUnsupportedDefault { +m }
+  { \__flmx_default_ii:nn { unsupported } {#1} }
+\NewDocumentCommand \flmxDefineUnknownDefault { +m }
+  { \__flmx_default_ii:nn { unknown } {#1} }
+
+% --- the target of an anchor --------------------------------------------
+
+\cs_new_protected:Npn \__flmx_target:n #1
+  {
+    \mode_if_math:TF
+      {
+        \legacy_if:nF { measuring@ }
+          {
+            \hypertarget { flmx:#1 } { }
+            \protected@write \@auxout { }
+              { \string \newlabel { flmx:#1 } { { } { \thepage } { } { flmx:#1 } { } } }
+          }
+      }
+      { \phantomsection \label { flmx:#1 } }
+  }
+\cs_generate_variant:Nn \__flmx_target:n { e }
+\NewDocumentCommand \flmxTarget { m } { \__flmx_target:e {#1} }
+
+% --- blocks, spans, decorations --------------------------------------------
+
+\NewDocumentEnvironment { flmxBlock } { O { } }
+  { \__flmx_env_begin:nnn { block } { role, kinds } {#1} }
+  { \__flmx_env_end:n { block } }
+\flmxDefineBlockDefault { \par \__flmx_anchor: } { \par }
+
+\NewDocumentCommand \flmxSpan { O { } +m }
+  { \__flmx_command:nnnn { span } { role, kinds, style } {#1} {#2} }
+\flmxDefineSpanDefault { \__flmx_anchor: #1 }
+\flmxDefineSpan { emph } { \__flmx_anchor: \emph {#1} }
+\flmxDefineSpan { bold } { \__flmx_anchor: \textbf {#1} }
+\flmxDefineSpan { italic } { \__flmx_anchor: \textit {#1} }
+\flmxDefineSpan { monospace } { \__flmx_anchor: \texttt {#1} }
+\flmxDefineSpan { underline } { \__flmx_anchor: \underline {#1} }
+\flmxDefineSpan { small-caps } { \__flmx_anchor: \textsc {#1} }
+\flmxDefineSpan { superscript } { \__flmx_anchor: \textsuperscript {#1} }
+\flmxDefineSpan { subscript } { \__flmx_anchor: \textsubscript {#1} }
+\flmxDefineSpan { unresolved-reference }
+  { \__flmx_anchor: \textcolor { flmxMarkColor } {#1} }
+
+\NewDocumentCommand \flmxDecoRunin { O { } +m }
+  { \__flmx_command:nnnn { decorunin } { } {#1} {#2} }
+\flmxDefineDecoRuninDefault
+  { \textbf { #1 \flmxKey { stop } } \hspace { \flmxRuninSep } }
+\NewDocumentCommand \flmxDecoFinal { O { } +m }
+  { \__flmx_command:nnnn { decofinal } { } {#1} {#2} }
+\flmxDefineDecoFinalDefault { \leavevmode \unskip \nobreak \hfill \mbox {#1} }
+\NewDocumentCommand \flmxDecoMargin { O { } +m }
+  { \__flmx_command:nnnn { decomargin } { } {#1} {#2} }
+\flmxDefineDecoMarginDefault { \marginpar { \footnotesize #1 } }
+
+\ExplSyntaxOff
+% flm.latex.def.flmx.headings.number
+% flm.latex.def.flmx.headings.number -- the number of a heading.
+%
+% The headings feature writes a numbered heading's number inside its title,
+% in a span of role flm.heading.number, the title template supplying the
+% separator after it:
+%   \flmxHeading[...]{\flmxSpan[role=flm.heading.number]{2.1}. Results}
+% The headings feature's rule requires the style identifier
+% flm.headings.style at every heading it stages, and this piece delivers it,
+% so that it is in every style file that holds a heading.
+%
+% Default: the number as it stands, the target of the span's anchor first.
+% A template changes it with
+%   \flmxDefineSpan{flm.heading.number}{<code over #1, the number>}
+
+\flmxDefineSpan{flm.heading.number}%
+  {\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}#1}
+% flm.latex.def.flmx.xnotes
+% flm.latex.def.flmx.xnotes -- notes: footnotes, endnotes and the other kinds.
+%
+% The xnotes feature writes a note by its kind's placement.
+%
+% A kind placed in a list (the default of the standard kind footnote): the
+% note's mark in the running text, a superscript span of role
+% flm.xnotes.xnote.mark holding a link of kind xnote to the note; the notes
+% are a block of role flm.xnotes.<kind>.list, kind tokens xnotes and the
+% kind's name, holding the kind's title as an unnumbered heading and a
+% labeled list, each item's label a superscript span of role
+% flm.xnotes.entry.mark:
+%   Text.\flmxSpan[style=superscript, role=flm.xnotes.xnote.mark,
+%     anchor=fnref-1]{\flmxLink[kind=xnote, href={\#fn-1}, target=fn-1,
+%     doc-role=noteref, label={Footnote 1}]{1}}
+%   ...
+%   \begin{flmxBlock}[role=flm.xnotes.footnote.list, kinds={xnotes footnote},
+%     doc-role=endnotes]
+%   \flmxHeading[kind=xnotes, level=2, toc=false, plain={Footnotes}]{Footnotes}
+%   \begin{flmxList}[kinds={numbered xnotes footnote labeled}, depth=1]
+%   \flmxItem[label={\flmxSpan[style=superscript,
+%     role=flm.xnotes.entry.mark]{1}}, anchor=fn-1]
+%   The note.
+%   \end{flmxList}
+%   \end{flmxBlock}
+%
+% A kind placed in place: the note where it is written,
+%   \flmxXnote[kind, anchor, doc-role]{<mark>}{<content>}
+% with the keys
+%   kind      the note's kind (footnote, or a kind the document configures);
+%   anchor    the note's own anchor, where it has one;
+%   doc-role  the document role, footnote;
+% <mark> FLM's mark, a superscript span of role flm.xnotes.xnote.mark
+% carrying the target of the mark's anchor, and <content> the note's
+% content, which may hold several paragraphs.
+%
+% Defaults:
+%   the block of role flm.xnotes.<kind>.list, registered under the kind
+%     token xnotes, so for every kind: a block of paragraphs, the target of
+%     its anchor first (the heading and the list keep their own looks);
+%   the link kinds xnote (mark to note) and xnote-back (note back to its
+%     mark) as the links chunk's default link;
+%   \flmxXnote of every kind: a footnote at the bottom of the page carrying
+%     FLM's mark, in the text and before the note (LaTeX's footnote counter
+%     is not used), the note's text starting with the target of its anchor.
+% The marks' spans are left to the span's default, the superscript of their
+% style: registering one of their roles replaces that look.
+%
+% A template changes the look with
+%   \flmxDefineBlock{xnotes}{<begin code>}{<end code>}  (every kind's list)
+%   \flmxDefineBlock{flm.xnotes.<kind>.list}{<begin code>}{<end code>}
+%   \flmxDefineSpan{flm.xnotes.xnote.mark}{<code over #1>}
+%   \flmxDefineSpan{flm.xnotes.entry.mark}{<code over #1>}
+%   \flmxDefineLink{xnote}{<code over #1>}, \flmxDefineLink{xnote-back}{...}
+%   \flmxDefineXnote{<kind>}{<code over #1 (the mark) and #2 (the content)>}
+% for instance \flmxDefineXnote{footnote}{#1\marginpar{\footnotesize #1 #2}}
+% for margin notes; \flmxDefineXnoteDefault{...} changes every kind without
+% a registration of its own.
+
+\ExplSyntaxOn
+
+\flmxDefineBlock { xnotes }
+  { \par \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } }
+  { \par }
+\flmxDefineLink { xnote } { \__flmx_link:n {#1} }
+\flmxDefineLink { xnote-back } { \__flmx_link:n {#1} }
+
+\NewDocumentCommand \flmxXnote { O { } +m +m }
+  { \__flmx_command:nnnnn { xnote } { kind } {#1} {#2} {#3} }
+
+% The mark #1 as LaTeX's footnote mark shows it: the span of the mark's role
+% set as it stands (\@makefnmark raises it), and, where #2 is false, without
+% placing the mark's target, so that the target stands once, in the text.
+\cs_new_protected:Npn \__flmx_xnote_mark:nn #1#2
+  {
+    \group_begin:
+      \bool_if:nF {#2} { \cs_set_eq:NN \flmxTarget \use_none:n }
+      \flmxDefineSpan { flm.xnotes.xnote.mark }
+        { \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } ##1 }
+      #1
+    \group_end:
+  }
+
+% The two forms \@thefnmark holds: the mark placing its target (in the text)
+% and the mark placing none (before the note, and where a \ref to the note's
+% anchor typesets the mark). LaTeX internal names, not expl3 ones: LaTeX
+% writes \@thefnmark to the .aux file as the label's text, which is read back
+% outside expl3 syntax.
+\cs_new_protected:Npn \flmx@xnotemark #1
+  { \__flmx_xnote_mark:nn {#1} { \c_true_bool } }
+\cs_new_protected:Npn \flmx@xnotemarknotarget #1
+  { \__flmx_xnote_mark:nn {#1} { \c_false_bool } }
+
+% Removes the paragraph breaks at the head of a note's content (a note of
+% several paragraphs begins with one), so that its first line follows the
+% mark.
+\cs_new_protected:Npn \__flmx_xnote_skip_pars:
+  { \peek_meaning_remove_ignore_spaces:NTF \par { \__flmx_xnote_skip_pars: } { } }
+
+% The default: LaTeX's \@footnotemark and \@footnotetext, the pair \footnote
+% calls, with the mark \@thefnmark set to FLM's mark.
+\flmxDefineXnoteDefault
+  {
+    \cs_gset:Npn \@thefnmark { \flmx@xnotemark {#1} }
+    \@footnotemark
+    \cs_gset:Npn \@thefnmark { \flmx@xnotemarknotarget {#1} }
+    \@footnotetext
+      {
+        \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { }
+        \__flmx_xnote_skip_pars: #2
+      }
+  }
+
+\ExplSyntaxOff
+% flm.latex.def.flmx.floats
+% flm.latex.def.flmx.floats -- figures, tables and the other float types.
+%
+% The floats feature writes a float as a block of role flm.floats.float
+% whose kind tokens are the float type's name (figure, table, or a type the
+% document configures) and numbered or unnumbered. It holds the content in
+% a block of role flm.floats.float.content and, where the float is numbered
+% or has a caption, the line under the content in a block of role
+% flm.floats.float.caption (same kind tokens), its number in a span of role
+% flm.floats.float.number:
+%   \begin{flmxBlock}[role=flm.floats.float, kinds={figure numbered}, anchor=figure-1]
+%   \begin{flmxBlock}[role=flm.floats.float.content]
+%   \flmxImage[...]{...}
+%   \end{flmxBlock}
+%   \begin{flmxBlock}[role=flm.floats.float.caption, kinds={figure numbered}]
+%   \flmxSpan[role=flm.floats.float.number]{Figure 1}: A photo
+%   \end{flmxBlock}
+%   \end{flmxBlock}
+%
+% Defaults, the float registered under its type's kind token:
+%   figure, table  LaTeX's figure or table environment, placed [htbp], its
+%                  content centered, the target of its anchor first;
+%   the content    as it stands;
+%   the caption    a paragraph in \small, \abovecaptionskip below the
+%                  content;
+%   the number     in \bfseries.
+% A float of a type the document configures has no registration: it is
+% written with the block's default, where it stands. LaTeX's own \caption
+% is not used: FLM writes the number and the caption itself, and LaTeX's
+% list of figures does not see them.
+%
+% A template changes the look with
+%   \flmxDefineBlock{<type>}{<begin code>}{<end code>}  (a float type)
+%   \flmxDefineBlock{flm.floats.float}{<begin code>}{<end code>}
+%       (every float, in place of the registrations by type)
+%   \flmxDefineBlock{flm.floats.float.content}{<begin code>}{<end code>}
+%   \flmxDefineBlock{flm.floats.float.caption}{<begin code>}{<end code>}
+%   \flmxDefineSpan{flm.floats.float.number}{<code over #1>}
+% for instance \flmxDefineBlock{video}{\begin{figure}[htbp]\centering}%
+% {\end{figure}} for a configured type video.
+
+\flmxDefineBlock{figure}%
+  {\begin{figure}[htbp]\centering
+   \flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}}%
+  {\end{figure}}
+\flmxDefineBlock{table}%
+  {\begin{table}[htbp]\centering
+   \flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}}%
+  {\end{table}}
+\flmxDefineBlock{flm.floats.float.content}%
+  {\par\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}}%
+  {\par}
+\flmxDefineBlock{flm.floats.float.caption}%
+  {\par\vspace{\abovecaptionskip}\small
+   \flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}}%
+  {\par}
+\flmxDefineSpan{flm.floats.float.number}%
+  {\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}\textbf{#1}}
+% flm.latex.def.flmx.headings
+% flm.latex.def.flmx.headings -- headings.
+%
+% FLM numbers the headings itself: the number stands in the title, in a span
+% of role flm.heading.number, and no LaTeX counter is stepped (\section and
+% secnumdepth play no part). The two elements:
+%   \flmxHeading[kind, level, toc, anchor, number, plain, alt]{<title>}
+%       a heading on a line of its own;
+%   \flmxRuninHeading[kind, level, toc, anchor, number, plain, alt, stop]{<title>}
+%       the title of a heading set at the start of its paragraph, inside
+%       \flmxDecoRunin, which writes the title, the stop and \flmxRuninSep.
+% Their keys:
+%   kind     the heading kind's name (section, subsection, ...);
+%   level    the level, counted from zero (section is 1);
+%   toc      true or false: whether the heading is listed in a table of
+%            contents;
+%   anchor   where the heading is a reference target;
+%   number   the heading's number as plain text, where the document numbered
+%            it (it also stands in the title);
+%   plain    the title's characters as plain text, the number included;
+%   alt      the alternative title, where the author wrote one;
+%   stop     (run-in) the punctuation after the title, where one is written.
+%
+% The default look. \flmxHeadingLevel{<level>}{<title>} typesets <title> as a
+% heading of <level>, through LaTeX's \@startsection in its starred form with
+% this table: level 0 the article's \section spacing, a page-break penalty
+% before it and \huge; levels 1 to 5 the article's \section, \subsection,
+% \subsubsection, \paragraph and \subparagraph (levels 4 and 5 run into the
+% paragraph after them); a level past 5 as level 5. Inside the heading,
+% before the title, it places the target of the anchor (\flmxTarget), a PDF
+% bookmark where toc=true (\pdfbookmark at the level key itself, so that
+% hyperref's bookmarksdepth counts FLM's levels as an article's: section 1,
+% subsection 2; its text the plain key, its name the anchor, or a counter of
+% this chunk where there is none), and, for levels 0 and 1, the running
+% head: \markboth (level 0) or \markright (level 1) with the alt key where
+% present, else plain. The target, the bookmark and the running head act
+% once, when the heading itself is typeset: a \nameref to the heading
+% typesets its title alone. The heading's keys must be in scope: call it
+% from a heading's registered code.
+%
+% Dispatch. A heading is written with the code registered under its kind,
+% then under its level, then with the default (\flmxHeadingLevel at the
+% heading's level). No kind is registered by this chunk: a template changes
+% the look of a kind by registering it (looked up first),
+%   \flmxDefineHeading{section}{<code over #1, the title>}
+% or the look of every heading of a level by registering the level,
+%   \flmxDefineHeading{2}{<code over #1, the title>}
+% \flmxRuninHeading's default sets the name a \nameref to the heading
+% prints to the plain key, places the target, the bookmark and the running
+% head, and writes the title; register a look with
+% \flmxDefineRuninHeading{<kind or level>}{...}.
+
+\ExplSyntaxOn
+
+\int_new:N \g__flmx_bookmark_int
+\tl_new:N \l__flmx_heading_name_tl
+\tl_new:N \l__flmx_heading_places_tl
+\tl_new:N \g__flmx_heading_places_tl
+\cs_generate_variant:Nn \tl_set:Nn { Ne }
+\cs_generate_variant:Nn \tl_put_right:Nn { Ne }
+
+% Sets \l__flmx_heading_places_tl to the code placing the target, the
+% bookmark and the running head of the heading whose keys are in scope, the
+% keys' values written into it: a run-in heading of \@startsection is set
+% at the start of the next paragraph, once the keys are out of scope.
+\cs_new_protected:Npn \__flmx_heading_places:
+  {
+    \tl_clear:N \l__flmx_heading_places_tl
+    \flmxIfKey { anchor }
+      {
+        \tl_put_right:Ne \l__flmx_heading_places_tl
+          { \exp_not:N \flmxTarget { \exp_not:v { l__flmx_key_anchor_tl } } }
+      }
+      { }
+    \str_if_eq:eeT { \flmxKey { toc } } { true }
+      {
+        \flmxIfKey { anchor }
+          { \tl_set:Ne \l__flmx_heading_name_tl { flmxbookmark:\flmxKey { anchor } } }
+          {
+            \int_gincr:N \g__flmx_bookmark_int
+            \tl_set:Ne \l__flmx_heading_name_tl
+              { flmxbookmark.\int_use:N \g__flmx_bookmark_int }
+          }
+        \tl_put_right:Ne \l__flmx_heading_places_tl
+          {
+            \exp_not:N \pdfbookmark [ \flmxKey { level } ]
+              { \flmxIfKey { plain } { \exp_not:v { l__flmx_key_plain_tl } } { } }
+              { \exp_not:V \l__flmx_heading_name_tl }
+          }
+      }
+    \int_case:nn { \flmxKey { level } }
+      {
+        { 0 }
+          {
+            \tl_put_right:Ne \l__flmx_heading_places_tl
+              { \exp_not:N \markboth { \__flmx_heading_mark: } { } }
+          }
+        { 1 }
+          {
+            \tl_put_right:Ne \l__flmx_heading_places_tl
+              { \exp_not:N \markright { \__flmx_heading_mark: } }
+          }
+      }
+  }
+% The running head's text, not expanded further: alt, else plain.
+\cs_new:Npn \__flmx_heading_mark:
+  {
+    \flmxIfKey { alt }
+      { \exp_not:v { l__flmx_key_alt_tl } }
+      { \flmxIfKey { plain } { \exp_not:v { l__flmx_key_plain_tl } } { } }
+  }
+
+% The look of the table's level #1 over the title #2.
+\cs_new_protected:Npn \__flmx_heading_level:nn #1#2
+  {
+    \__flmx_heading_places:
+    \tl_gset_eq:NN \g__flmx_heading_places_tl \l__flmx_heading_places_tl
+    \__flmx_heading_table:nn { \int_min:nn {#1} { 5 } } {#2}
+  }
+% Places the target, the bookmark and the running head of the heading being
+% typeset, then forgets them. It stands before the title inside the title
+% argument of \@startsection, which nameref stores as the heading's name: a
+% \nameref typesetting that name meets it again and places nothing. Its name
+% is a LaTeX internal one (with @), since it is written to the .aux file.
+\cs_new_protected:Npn \flmx@headingplace
+  {
+    \tl_use:N \g__flmx_heading_places_tl
+    \tl_gclear:N \g__flmx_heading_places_tl
+  }
+% #1 the level of the table, #2 the title.
+\cs_new_protected:Npn \__flmx_heading_table:nn #1#2
+  {
+    \int_case:nn {#1}
+      {
+        { 0 }
+          {
+            \par \addpenalty { -\@highpenalty }
+            \@startsection { flmxheading } { 0 } { \z@ }
+              { -3.5ex \@plus -1ex \@minus -.2ex } { 2.3ex \@plus .2ex }
+              { \normalfont \huge \bfseries } * { \flmx@headingplace #2 }
+          }
+        { 1 }
+          {
+            \@startsection { flmxheading } { 1 } { \z@ }
+              { -3.5ex \@plus -1ex \@minus -.2ex } { 2.3ex \@plus .2ex }
+              { \normalfont \Large \bfseries } * { \flmx@headingplace #2 }
+          }
+        { 2 }
+          {
+            \@startsection { flmxheading } { 2 } { \z@ }
+              { -3.25ex \@plus -1ex \@minus -.2ex } { 1.5ex \@plus .2ex }
+              { \normalfont \large \bfseries } * { \flmx@headingplace #2 }
+          }
+        { 3 }
+          {
+            \@startsection { flmxheading } { 3 } { \z@ }
+              { -3.25ex \@plus -1ex \@minus -.2ex } { 1.5ex \@plus .2ex }
+              { \normalfont \normalsize \bfseries } * { \flmx@headingplace #2 }
+          }
+        { 4 }
+          {
+            \@startsection { flmxheading } { 4 } { \z@ }
+              { 3.25ex \@plus 1ex \@minus .2ex } { -1em }
+              { \normalfont \normalsize \bfseries } * { \flmx@headingplace #2 }
+          }
+        { 5 }
+          {
+            \@startsection { flmxheading } { 5 } { \parindent }
+              { 3.25ex \@plus 1ex \@minus .2ex } { -1em }
+              { \normalfont \normalsize \bfseries } * { \flmx@headingplace #2 }
+          }
+      }
+  }
+
+\NewDocumentCommand \flmxHeadingLevel { m +m }
+  { \__flmx_heading_level:nn {#1} {#2} }
+
+\NewDocumentCommand \flmxHeading { O { } +m }
+  {
+    \group_begin:
+      \__flmx_set_keys:n {#1}
+      \__flmx_find:nn { heading } { kind, level }
+      \use:c { \l__flmx_found_tl } {#2}
+      % Keep the keys and formatting local, but carry LaTeX's continuation
+      % into the scope of the following paragraph. For a displayed heading,
+      % \@afterheading's \everypar clears the global \if@nobreak and applies
+      % \if@afterindent; losing it suppresses later headings' before-space.
+      % A run-in heading also needs its deferred title, \@svsechd. Preserve
+      % the name for a following \label in either case. These assignments
+      % are local to the containing scope, not global across environments.
+      % Do this at dispatch so registered \@startsection code works too.
+      \use:e
+        {
+          \group_end:
+          \exp_not:N \everypar { \exp_not:V \everypar }
+          \legacy_if:nTF { @afterindent }
+            { \exp_not:N \@afterindenttrue }
+            { \exp_not:N \@afterindentfalse }
+          \exp_not:N \cs_set:Npn \exp_not:N \@currentlabelname
+            { \exp_not:V \@currentlabelname }
+          \legacy_if:nT { @noskipsec }
+            {
+              \exp_not:N \cs_set:Npn \exp_not:N \@svsechd
+                { \exp_not:V \@svsechd }
+            }
+        }
+  }
+\flmxDefineHeadingDefault { \flmxHeadingLevel { \flmxKey { level } } {#1} }
+
+\NewDocumentCommand \flmxRuninHeading { O { } +m }
+  { \__flmx_command:nnnn { runinheading } { kind, level } {#1} {#2} }
+\flmxDefineRuninHeadingDefault
+  {
+    \flmxIfKey { plain }
+      { \tl_set:Nv \@currentlabelname { l__flmx_key_plain_tl } }
+      { }
+    \__flmx_heading_places: \tl_use:N \l__flmx_heading_places_tl #1
+  }
+
+\ExplSyntaxOff
+% flm.latex.def.flmx.links
+% flm.latex.def.flmx.links -- links.
+%
+%   \flmxLink[kind, href, target, doc-role, label, shows-target]{<content>}
+%       a link around <content>. Its keys:
+%         kind          what the link is: ref (a reference), term, cite,
+%                       xnote, xnote-back, toc, url, or a kind a feature adds;
+%         href          the address, always written (#<anchor> for a link
+%                       inside the document);
+%         target        for a link inside the document, the anchor the link
+%                       leads to, without the #: \hyperref[flmx:<target>]{...}
+%                       and \pageref{flmx:<target>} reach it;
+%         doc-role      the document role of the link, where it has one;
+%         label         a text naming the link for assistive technology;
+%         shows-target  true where the content shows the address itself.
+%
+% The default of every kind: a link with a target is
+% \hyperref[flmx:<target>]{<content>}, any other \href{<href>}{<content>};
+% where shows-target=true, the content is set in \flmxUrlFont. The kinds ref
+% and url are registered here with that code; the kinds the features write
+% are registered by their definition pieces (toc by the toc feature's, with
+% leaders and the page number; term by the defterm feature's; cite by the
+% citations feature's; xnote and xnote-back by the xnotes feature's), so that
+% a template changes one kind with
+%   \flmxDefineLink{<kind>}{<code over #1, the content>}
+% and every kind with \flmxDefineLinkDefault{...} and the registrations.
+% \flmxUrlFont is the font of a link that shows its address, \ttfamily;
+% change it with \RenewDocumentCommand\flmxUrlFont{}{...}.
+
+\ExplSyntaxOn
+\NewDocumentCommand \flmxUrlFont { } { \ttfamily }
+
+\cs_new_protected:Npn \__flmx_link:n #1
+  {
+    \flmxIfKey { target }
+      { \hyperref [ flmx:\flmxKey { target } ] { \__flmx_link_content:n {#1} } }
+      { \exp_args:Ne \href { \flmxKey { href } } { \__flmx_link_content:n {#1} } }
+  }
+\cs_new_protected:Npn \__flmx_link_content:n #1
+  {
+    \str_if_eq:eeTF { \flmxKey { shows-target } } { true }
+      { { \flmxUrlFont #1 } }
+      {#1}
+  }
+
+\NewDocumentCommand \flmxLink { O { } +m }
+  { \__flmx_command:nnnn { link } { kind } {#1} {#2} }
+\flmxDefineLinkDefault { \__flmx_link:n {#1} }
+\clist_map_inline:nn { ref, url }
+  { \flmxDefineLink {#1} { \__flmx_link:n {##1} } }
+\ExplSyntaxOff
+% flm.latex.def.flmx.lists
+% flm.latex.def.flmx.lists -- lists.
+%
+% FLM computes every label itself (a number, a bullet, a term): the label
+% stands in the item's keys, and no LaTeX counter is stepped. The elements:
+%   \begin{flmxList}[kinds, anchor, depth]
+%   \flmxItem[label, anchor]
+%   <the item's content: paragraphs, verbatim blocks, nested lists>
+%   \flmxItem[...]
+%   ...
+%   \end{flmxList}
+% \flmxItem takes no content argument: the item's content follows it, up to
+% the next \flmxItem or the \end, as with LaTeX's \item. Their keys:
+%   kinds    (list) the list's kind tokens: at most one of numbered,
+%            unnumbered, terms first, then others, such as the name of the
+%            environment the list comes from (enumerate, itemize,
+%            description) and labeled (every item carries its own label);
+%   anchor   (list, item) where the list or the item is a reference target;
+%   depth    (list) the list's depth among lists, 1 for an outermost list;
+%   label    (item) the item's label (its number, its bullet, its term),
+%            where it has one.
+%
+% The default look, over LaTeX's \list and \item, by the list's structural
+% kind tokens (the only ones it knows):
+%   numbered, labeled  \item[<label>], the label flush right in the label
+%            box; an item of a labeled list without a label shows none;
+%   unnumbered  \item[<label>] where the item has a label, else \item with a
+%            bullet by depth: \textbullet, \textendash,
+%            \textasteriskcentered, then \textperiodcentered;
+%   terms    the label in bold, run into the item (\labelwidth zero), the
+%            item's lines hanging at the list's indentation.
+% A list without a structural token is written as unnumbered. The list's
+% target stands before the list, an item's at the start of its content.
+%
+% Registering a look. A list and its items are written with the code
+% registered under the first of the list's kind tokens that has one, else
+% with the default. Both registrations go by the list's kind tokens (an
+% item has none of its own):
+%   \flmxDefineList{<kind token>}{<begin code>}{<end code>}
+%   \flmxDefineItem{<kind token>}{<code run at the item>}
+% for instance \flmxDefineList{enumerate}{\begin{enumerate}}{\end{enumerate}}
+% and \flmxDefineItem{enumerate}{\item[\flmxKey{label}]}. An item's code
+% sees the item's keys (\flmxKey{label}); the list's kind tokens and depth
+% are \flmxListKinds and \flmxListDepth. The defaults are replaced with
+% \flmxDefineListDefault{<begin>}{<end>} and \flmxDefineItemDefault{<code>}.
+
+\ExplSyntaxOn
+
+\tl_new:N \l__flmx_list_kinds_tl
+\tl_new:N \l__flmx_list_depth_tl
+\tl_new:N \l__flmx_list_shape_tl
+\bool_new:N \l__flmx_list_labeled_bool
+\cs_generate_variant:Nn \str_case:nnF { V }
+
+\NewExpandableDocumentCommand \flmxListKinds { } { \tl_use:N \l__flmx_list_kinds_tl }
+\NewExpandableDocumentCommand \flmxListDepth { } { \tl_use:N \l__flmx_list_depth_tl }
+
+% Saves the list's kind tokens and depth, and its shape: the structural
+% token the default goes by (unnumbered where there is none), and whether
+% it is labeled.
+\cs_new_protected:Npn \__flmx_list_save:
+  {
+    \tl_set:Ne \l__flmx_list_kinds_tl { \flmxKey { kinds } }
+    \tl_set:Ne \l__flmx_list_depth_tl { \flmxKey { depth } }
+    \tl_set:Nn \l__flmx_list_shape_tl { unnumbered }
+    \bool_set_false:N \l__flmx_list_labeled_bool
+    \tl_set_eq:NN \l__flmx_kinds_tl \l__flmx_list_kinds_tl
+    \tl_replace_all:Nnn \l__flmx_kinds_tl { ~ } { , }
+    \clist_map_inline:Nn \l__flmx_kinds_tl
+      {
+        \str_case:nn {##1}
+          {
+            { numbered } { \tl_set:Nn \l__flmx_list_shape_tl { numbered } }
+            { terms } { \tl_set:Nn \l__flmx_list_shape_tl { terms } }
+            { labeled } { \bool_set_true:N \l__flmx_list_labeled_bool }
+          }
+      }
+  }
+
+\NewDocumentEnvironment { flmxList } { O { } }
+  {
+    \__flmx_set_keys:n {#1}
+    \__flmx_list_save:
+    \__flmx_env_begin:nnn { list } { kinds } {#1}
+  }
+  { \__flmx_env_end:n { list } }
+
+% The bullet of an unnumbered list at the depth #1.
+\cs_new:Npn \__flmx_list_bullet:n #1
+  {
+    \int_case:nnF {#1}
+      {
+        { 1 } { \textbullet }
+        { 2 } { \textendash }
+        { 3 } { \textasteriskcentered }
+      }
+      { \textperiodcentered }
+  }
+\cs_new_protected:Npn \__flmx_list_term:n #1
+  { \hspace \labelsep \normalfont \bfseries #1 }
+
+\flmxDefineListDefault
+  {
+    \__flmx_anchor:
+    \str_case:VnF \l__flmx_list_shape_tl
+      {
+        { terms }
+          {
+            \list { }
+              {
+                \setlength \labelwidth { 0pt }
+                \setlength \itemindent { -\leftmargin }
+                \cs_set_eq:NN \makelabel \__flmx_list_term:n
+              }
+          }
+        { numbered } { \list { } { } }
+      }
+      { \list { \__flmx_list_bullet:n { \l__flmx_list_depth_tl } } { } }
+  }
+  { \endlist }
+
+% The item: its keys, then the code registered under the list's first kind
+% token that has one, else the default.
+\cs_new_protected:Npn \__flmx_item_find:
+  {
+    \bool_set_false:N \l__flmx_found_bool
+    \tl_set:Nn \l__flmx_found_tl { __flmx_item_default }
+    \tl_set_eq:NN \l__flmx_kinds_tl \l__flmx_list_kinds_tl
+    \tl_replace_all:Nnn \l__flmx_kinds_tl { ~ } { , }
+    \clist_map_inline:Nn \l__flmx_kinds_tl { \__flmx_try:nn { item } {##1} }
+  }
+\NewDocumentCommand \flmxItem { O { } }
+  {
+    \__flmx_set_keys:n {#1}
+    \__flmx_item_find:
+    \use:c { \l__flmx_found_tl }
+  }
+\flmxDefineItemDefault
+  {
+    \flmxIfKey { label }
+      { \item [ \flmxKey { label } ] }
+      { \bool_if:NTF \l__flmx_list_labeled_bool { \item [ ] } { \item } }
+    \__flmx_anchor:
+  }
+
+\ExplSyntaxOff
+% flm.latex.def.flmx.images
+% flm.latex.def.flmx.images -- images.
+%
+% The element:
+%   \flmxImage[width, height, alt, display, anchor]{<path>}
+%       an image: <path> is the file the program published for this output
+%       (beside the document, or as the author wrote it). Its keys:
+%   width, height  the size FLM computed, LaTeX lengths (4.5cm, 120bp,
+%                  ...), each where known;
+%   alt            the alternative text, where the author gave one;
+%   display        block (the image stands as a paragraph of its own) or
+%                  inline (in the line of text), always written;
+%   anchor         where the image is a reference target.
+%   default: \includegraphics[width=..., height=...]{<path>}, with the width
+%       and the height where given (at its natural size where neither is),
+%       inside \par\centering ... \par for display=block, in the line
+%       otherwise; the target of the anchor first; alt is not typeset.
+%
+% A template changes the look with
+%   \flmxDefineImageDefault{<code over #1, the path>}
+% whose code sees the keys (\flmxKey{width}, \flmxIfKey{alt}{...}{...}).
+
+\ExplSyntaxOn
+
+\NewDocumentCommand \flmxImage { O { } m }
+  { \__flmx_command:nnnn { image } { } {#1} {#2} }
+
+% The options of \includegraphics: the width and the height where given.
+\cs_new:Npn \__flmx_image_options:
+  {
+    \flmxIfKey { width } { width = \flmxKey { width } , } { }
+    \flmxIfKey { height } { height = \flmxKey { height } } { }
+  }
+% #1 the path.
+\cs_new_protected:Npn \__flmx_image:n #1
+  {
+    \use:e { \exp_not:N \includegraphics [ \__flmx_image_options: ] }
+      {#1}
+  }
+\flmxDefineImageDefault
+  {
+    \str_if_eq:eeTF { \flmxKey { display } } { block }
+      {
+        \par
+        \group_begin:
+          \centering
+          \__flmx_anchor:
+          \__flmx_image:n {#1}
+          \par
+        \group_end:
+      }
+      { \__flmx_anchor: \__flmx_image:n {#1} }
+  }
+
+\ExplSyntaxOff
+\endinput

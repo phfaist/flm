@@ -1,0 +1,39 @@
+A heading with a note[¹The heading’s note.]
+===========================================
+
+A paragraph holds a note.[²A note of one run.] The paragraph goes on.
+
+A labeled note.[³The labeled note.] See Footnote 3, 3 and A heading with a
+note¹.
+
+Two paragraphs.
+
+[⁴The first paragraph of the note.
+
+The second paragraph of the note.]
+
+And on.
+
+A note holding a list.
+
+[⁵Steps:
+
+• one
+
+• two
+
+]
+
+• An item with a note.[⁶The item’s note.]
+
+  \begin{equation}
+  x = y \text{where a note stands[7The formula’s note.]}
+  \tag*{(1)}\end{equation}
+
+A definition writes one: a definition’s text[⁸The definition’s note.]
+Nested.[⁹Outer[¹⁰inner] note.]
+
+An empty note.[¹¹] A refused label argument.[¹²The refused label’s note.] See
+Footnote 12.
+
+An aside stands here. [An aside.] And on; see An aside..

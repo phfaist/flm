@@ -1,0 +1,7 @@
+---
+title: A document that switches off a feature no package has
+flm:
+  features:
+    nosuchfeature: false
+---
+Hello.

@@ -1,0 +1,26 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.80c5f699.sty
+Café — naïve “quotes” ½ ≤ α and 𝟙, then ธ (unknown).
+
+Specials in text: a\_b, c\textasciicircum{}d, 50 \& more, item \#1; the literal spellings
+\% \# \& \$ \{ \} \textbackslash{} and~here, then a sentence.\@ Done.
+%%
+% ===== latex-recomposed:style flmrecomposed.80c5f699.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.80c5f699}
+% --- packages ---
+% flm.latex.pkg.newunicodechar
+\RequirePackage{newunicodechar}
+% flm.latex.pkg.untechxt.dsfont
+\RequirePackage{dsfont}
+% --- unicode characters written as UTF-8 ---
+\newunicodechar{½}{\textonehalf}
+\newunicodechar{é}{\'e}
+\newunicodechar{ï}{\"i}
+\newunicodechar{α}{\ensuremath{\alpha}}
+\newunicodechar{—}{\textemdash}
+\newunicodechar{“}{\textquotedblleft}
+\newunicodechar{”}{\textquotedblright}
+\newunicodechar{≤}{\ensuremath{\leq}}
+\newunicodechar{𝟙}{\ensuremath{\mathds{1}}}
+\endinput

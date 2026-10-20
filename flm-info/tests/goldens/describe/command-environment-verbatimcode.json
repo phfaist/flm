@@ -1,0 +1,39 @@
+[
+  {
+    "feature": "verbatim",
+    "names": [
+      "verbatimcode"
+    ],
+    "kind": "environment",
+    "modes": [
+      "text"
+    ],
+    "docs": "`\\begin{verbatimcode}…\\end{verbatimcode}`: verbatim content of kind `code`, a block of its own.",
+    "summary": "`\\begin{verbatimcode}…\\end{verbatimcode}`: verbatim content of kind `code`, a block of its own.",
+    "arguments": [
+      {
+        "form": "an optional `[…]` group",
+        "written": "[lang]",
+        "name": "lang",
+        "layout": "inline",
+        "docs": "The programming language the content is written in. A backend that highlights syntax may use it; the text backend does not print it.",
+        "summary": "The programming language the content is written in. A backend that highlights syntax may use it; the text backend does not print it.",
+        "holds_content": true
+      }
+    ],
+    "body": {
+      "layout": "from-role",
+      "raw": true,
+      "reader": "raw text up to `\\end{name}`"
+    },
+    "element": {
+      "name": "flm.verbatim.environment",
+      "docs": "`\\begin{verbatimcode}…\\end{verbatimcode}`: verbatim content of kind `code`.",
+      "summary": "`\\begin{verbatimcode}…\\end{verbatimcode}`: verbatim content of kind `code`.",
+      "aspects": [
+        "flm_core::model::aspects::BlockRoleAspect"
+      ],
+      "number": 63
+    }
+  }
+]

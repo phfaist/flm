@@ -1,0 +1,5 @@
+Name           City of residence      Height
+-------------  ---------------------  ------
+John Doe the   Berlin, the capital      1m80
+third          of Germany
+Al             Zurich                   1m72

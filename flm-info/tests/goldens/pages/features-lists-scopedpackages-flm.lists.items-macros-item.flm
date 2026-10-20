@@ -1,0 +1,31 @@
+---
+title: "Macro \\textbackslash{}item"
+flm:
+  use: [flmdoc]
+  math: false
+---
+\begin{docitem}{macro}{\item}
+
+\docsignature{\item[options]\label{target}}
+
+\docsummary{`\item[tag]\label{item:…}`: begins an item; the optional tag is its label.}
+
+\begin{docparams}
+\docparam{[options]}{options}{}{The item's tag, `tag={…}`, or the tag whole where no `=` is written.}
+\end{docparams}
+
+\begin{docparams}[Fields written after it]
+\docparam{\label{target}}{label}{}{Attaches a label to the construct, which a reference can point at; may be repeated. It may be written more than once.}
+\docparam{{target}}{target}{flm.refs.defined-label}{The label, written `type:label` (`sec:intro`). (an argument of the field \verbcode{\label})}
+\end{docparams}
+
+\docfield{Declared by}{the feature \docref{features/lists}{\verbcode{lists}}, in the scoped package \docref{features/lists/scopedpackages/flm.lists.items}{\verbcode{flm.lists.items}}}
+
+\docfield{Available in}{\verbcode{text} mode, inside the body of \docref{features/lists/environments/description}{\verbcode{\begin{description}}}, the body of \docref{features/lists/environments/enumerate}{\verbcode{\begin{enumerate}}}, the body of \docref{features/lists/environments/itemize}{\verbcode{\begin{itemize}}}}
+
+\docfield{Element}{\docref{namespaces/element/flm.lists.item}{\verbcode{flm.lists.item}}: `\item`: begins an item of the list in whose body it is written.}
+
+\docfield{Aspects}{\verbcode{flm_core::model::aspects::BlockRoleAspect}, \verbcode{flm_core::model::aspects::Referenceable}}
+
+\end{docitem}
+

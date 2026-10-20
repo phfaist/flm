@@ -1,0 +1,32 @@
+% flm.latex.def.flmx.marks -- the three marks of what FLM could not write.
+%
+% Each mark is visible by default, in flmxMarkColor (red, a color of the core
+% chunk) and in the typewriter font, so that a reader sees where the document
+% lost something:
+%   \flmxDropped{<condition>}{<detail>}      something was left out; the
+%       condition names the diagnostic reported for it; default
+%       [dropped: <detail>];
+%   \flmxUnsupported{<element>}{<message>}   an element this output cannot
+%       write; default [unsupported: <element>];
+%   \flmxUnknown[kind=<macro or environment>]{<name>}{<spelling>}  a macro
+%       or environment no feature knows; default [unknown: <spelling>].
+% The arguments are text. A template changes a mark with
+% \flmxDefineDroppedDefault{<code over #1 and #2>}, and likewise
+% \flmxDefineUnsupportedDefault and \flmxDefineUnknownDefault (whose code
+% reads the kind as \flmxKey{kind}); defining them to write nothing hides the
+% marks.
+
+\ExplSyntaxOn
+\NewDocumentCommand \flmxDropped { m m }
+  { \__flmx_command:nnnnn { dropped } { } { } {#1} {#2} }
+\flmxDefineDroppedDefault
+  { \textcolor { flmxMarkColor } { \ttfamily [dropped:~#2] } }
+\NewDocumentCommand \flmxUnsupported { m m }
+  { \__flmx_command:nnnnn { unsupported } { } { } {#1} {#2} }
+\flmxDefineUnsupportedDefault
+  { \textcolor { flmxMarkColor } { \ttfamily [unsupported:~#1] } }
+\NewDocumentCommand \flmxUnknown { O { } m m }
+  { \__flmx_command:nnnnn { unknown } { } {#1} {#2} {#3} }
+\flmxDefineUnknownDefault
+  { \textcolor { flmxMarkColor } { \ttfamily [unknown:~#2] } }
+\ExplSyntaxOff

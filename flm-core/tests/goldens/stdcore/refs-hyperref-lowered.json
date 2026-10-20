@@ -1,0 +1,68 @@
+[
+  {
+    "elem": "flm.pres.block-heading",
+    "body": [
+      {
+        "chars": "Intro"
+      }
+    ],
+    "payload": {
+      "name": "section",
+      "level": 1,
+      "in_toc": true,
+      "anchor": "sec-intro"
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "See "
+      },
+      {
+        "elem": "flm.pres.link",
+        "body": [
+          {
+            "chars": "the "
+          },
+          {
+            "elem": "flm.pres.span",
+            "body": [
+              {
+                "chars": "first"
+              }
+            ],
+            "payload": {
+              "style": "emph"
+            }
+          },
+          {
+            "chars": " part"
+          }
+        ],
+        "payload": {
+          "href": "#sec-intro",
+          "kind": "ref"
+        }
+      },
+      {
+        "chars": " and "
+      },
+      {
+        "elem": "flm.pres.span",
+        "body": [
+          {
+            "chars": "nothing"
+          }
+        ],
+        "payload": {
+          "style": "unresolved-reference"
+        }
+      },
+      {
+        "chars": "."
+      }
+    ],
+    "payload": {}
+  }
+]

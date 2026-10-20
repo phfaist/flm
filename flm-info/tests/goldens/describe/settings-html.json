@@ -1,0 +1,258 @@
+{
+  "feature": "html",
+  "description": "the page's title and language tag; whether the elements written for a node carry their position in the source; the stop written after a run-in heading's title; what the host delivers in place of the declared content of a stylesheet or script; the stylesheets and scripts the host requires for the page in addition to those its content requires; the tag each heading kind is written with; and the heading level written as `<h1>`. Set per render request.",
+  "keys": [
+    {
+      "name": "title",
+      "bind": "render",
+      "default": "FLM document",
+      "description": "The page's title when the document states none: the words written into\n`<title>` (the output region `title`) when\nthe render places no title piece\n(`flm.meta.title`) or the title\npiece holds no words. The default is `DEFAULT_TITLE`.",
+      "summary": "The page's title when the document states none: the words written into\n`<title>` (the output region `title`) when\nthe render places no title piece\n(`flm.meta.title`) or the title\npiece holds no words. The default is `DEFAULT_TITLE`.",
+      "schema": {
+        "type": "string",
+        "description": "The page's title when the document states none: the words written into\n`<title>` (the output region `title`) when\nthe render places no title piece\n(`flm.meta.title`) or the title\npiece holds no words. The default is `DEFAULT_TITLE`.",
+        "default": "FLM document",
+        "x-flm-bind": "render"
+      }
+    },
+    {
+      "name": "lang",
+      "bind": "render",
+      "default": null,
+      "description": "The page's language as a language tag (`en`, `de-CH`), written as the\n`lang` attribute of `<html>` (the output region\n`lang`). `None`, the default, writes no\nattribute, because a page that claims a language it is not written in is\nworse for a reader using a screen reader than one that claims none.",
+      "summary": "The page's language as a language tag (`en`, `de-CH`), written as the\n`lang` attribute of `<html>` (the output region\n`lang`). `None`, the default, writes no\nattribute, because a page that claims a language it is not written in is\nworse for a reader using a screen reader than one that claims none.",
+      "schema": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The page's language as a language tag (`en`, `de-CH`), written as the\n`lang` attribute of `<html>` (the output region\n`lang`). `None`, the default, writes no\nattribute, because a page that claims a language it is not written in is\nworse for a reader using a screen reader than one that claims none.",
+        "default": null,
+        "x-flm-bind": "render"
+      }
+    },
+    {
+      "name": "source_spans",
+      "bind": "render",
+      "default": false,
+      "description": "Whether the emitter writes the attribute `data-flm-source-span`, which\nrecords where in the source a node was written, on the element it\nwrites for each node.\n\nThe attribute is written on every element written for a node, inline\nor block-level, once per node, when the node's position can be traced\nback to a source with a name. Its value is a JSON array of the source's\nname, the first byte of the range and the byte just past its end\n(`[\"book/ch1.flm\",0,8]`), so a script reads it back with `JSON.parse`.\nIt is written between single quotation marks, which HTML allows, so the\nraw page shows the JSON as JSON. Off by default: the attribute serves\ntools that map a place in the page back to the document, and it adds\nbytes to every page.",
+      "summary": "Whether the emitter writes the attribute `data-flm-source-span`, which\nrecords where in the source a node was written, on the element it\nwrites for each node.",
+      "schema": {
+        "type": "boolean",
+        "description": "Whether the emitter writes the attribute `data-flm-source-span`, which\nrecords where in the source a node was written, on the element it\nwrites for each node.\n\nThe attribute is written on every element written for a node, inline\nor block-level, once per node, when the node's position can be traced\nback to a source with a name. Its value is a JSON array of the source's\nname, the first byte of the range and the byte just past its end\n(`[\"book/ch1.flm\",0,8]`), so a script reads it back with `JSON.parse`.\nIt is written between single quotation marks, which HTML allows, so the\nraw page shows the JSON as JSON. Off by default: the attribute serves\ntools that map a place in the page back to the document, and it adds\nbytes to every page.",
+        "default": false,
+        "x-flm-bind": "render"
+      }
+    },
+    {
+      "name": "run_in_stop",
+      "bind": "render",
+      "default": ".",
+      "description": "The stop written after the title of a run-in heading, so that\n`\\paragraph{Note} Some content.` reads as `Note. Some content.` A\nrun-in heading is a heading set at the start of the paragraph it\nintroduces, on the paragraph's first line\n(`headings`). The default is\n`DEFAULT_RUN_IN_STOP`,\na period; the empty text writes none.\n\nThe stop is written as escaped text inside the run-in decoration's\n`<span>`, after the title, so a reader copies it with the rest of the\npage and a host that replaces the stylesheet keeps it. It is written\nonly when the title holds text and does not already end in sentence\npunctuation\n(`ends_in_sentence_punctuation`).\nThat test looks only at the characters the title ends with, so a title\nthat ends in a formula, or in a box an author's own command draws, gets\nthe stop after it. A host that needs headings written another way\nregisters a lowering rule or a stage of its own (the extension\nguide).",
+      "summary": "The stop written after the title of a run-in heading, so that\n`\\paragraph{Note} Some content.` reads as `Note. Some content.` A\nrun-in heading is a heading set at the start of the paragraph it\nintroduces, on the paragraph's first line\n(`headings`). The default is\n`DEFAULT_RUN_IN_STOP`,\na period; the empty text writes none.",
+      "schema": {
+        "type": "string",
+        "description": "The stop written after the title of a run-in heading, so that\n`\\paragraph{Note} Some content.` reads as `Note. Some content.` A\nrun-in heading is a heading set at the start of the paragraph it\nintroduces, on the paragraph's first line\n(`headings`). The default is\n`DEFAULT_RUN_IN_STOP`,\na period; the empty text writes none.\n\nThe stop is written as escaped text inside the run-in decoration's\n`<span>`, after the title, so a reader copies it with the rest of the\npage and a host that replaces the stylesheet keeps it. It is written\nonly when the title holds text and does not already end in sentence\npunctuation\n(`ends_in_sentence_punctuation`).\nThat test looks only at the characters the title ends with, so a title\nthat ends in a formula, or in a box an author's own command draws, gets\nthe stop after it. A host that needs headings written another way\nregisters a lowering rule or a stage of its own (the extension\nguide).",
+        "default": ".",
+        "x-flm-bind": "render"
+      }
+    },
+    {
+      "name": "definitions",
+      "bind": "render",
+      "description": "The deliveries the host gives in place of the declared content of\nstyle and script definitions, by definition identifier\n(`DefinitionOverride`). Empty by default: every definition is then\ndelivered as its declaration says.\n\nAn identifier that no feature declares is ignored and reported as the\nWarning `flm.html.unknown-definition`.",
+      "summary": "The deliveries the host gives in place of the declared content of\nstyle and script definitions, by definition identifier\n(`DefinitionOverride`). Empty by default: every definition is then\ndelivered as its declaration says.",
+      "schema": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/$defs/DefinitionOverride"
+        },
+        "description": "The deliveries the host gives in place of the declared content of\nstyle and script definitions, by definition identifier\n(`DefinitionOverride`). Empty by default: every definition is then\ndelivered as its declaration says.\n\nAn identifier that no feature declares is ignored and reported as the\nWarning `flm.html.unknown-definition`.",
+        "x-flm-bind": "render"
+      }
+    },
+    {
+      "name": "required_definitions",
+      "bind": "render",
+      "default": [],
+      "description": "The style and script definitions the host requires for the page as a\nwhole, by identifier, in addition to those the document's content\nrequires. Empty by default: a page then carries exactly what its content\nneeds.\n\nA host that adds something of its own to every page it serves (for\nexample a script that keeps an open page in step with the document, and\nits stylesheet) registers it as a definition of one of its features and\nlists its identifier here, rather than editing the page after it was\nwritten. A definition listed here appears once in the definitions\ntable, like any other, whether or not\nthe content requires it too, and reaches the page the same way;\n`definitions` still decides its delivery. An\nidentifier that no feature declares is reported as the Error\n`flm.html.unknown-requirement`, as a\nrequirement of the content would be.",
+      "summary": "The style and script definitions the host requires for the page as a\nwhole, by identifier, in addition to those the document's content\nrequires. Empty by default: a page then carries exactly what its content\nneeds.",
+      "schema": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string"
+        },
+        "description": "The style and script definitions the host requires for the page as a\nwhole, by identifier, in addition to those the document's content\nrequires. Empty by default: a page then carries exactly what its content\nneeds.\n\nA host that adds something of its own to every page it serves (for\nexample a script that keeps an open page in step with the document, and\nits stylesheet) registers it as a definition of one of its features and\nlists its identifier here, rather than editing the page after it was\nwritten. A definition listed here appears once in the definitions\ntable, like any other, whether or not\nthe content requires it too, and reaches the page the same way;\n`definitions` still decides its delivery. An\nidentifier that no feature declares is reported as the Error\n`flm.html.unknown-requirement`, as a\nrequirement of the content would be.",
+        "default": [],
+        "x-flm-bind": "render"
+      }
+    },
+    {
+      "name": "heading_tags",
+      "bind": "render",
+      "default": {},
+      "description": "The tag a block heading of each heading kind is written with, keyed by\nthe heading kind's name (`section`), the tag written without angle\nbrackets (`h2`). Empty by default. A heading kind the map does not\nlist is written `<h1>` to `<h6>` by its level\n(`root_heading_level`).\n\nThe title above every list of xnotes (notes set apart from the running\ntext, such as footnotes; see\n`xnotes`) is a heading of the\nheading kind `xnotes`\n(`TITLE_HEADING`),\nfor every xnote kind: mapping `xnotes` to `h3` writes every such title\n`<h3>`.\n\nThe tag is not part of the HTML contract: the\nattributes a block heading carries (`data-flm-heading`,\n`data-flm-level`, `data-flm-toc`) are the same regardless of its tag. A\nheading of a run-in kind is written as a `<span>` carrying the same\nattributes inside its run-in decoration, never with this tag. A tag\nthat is not a writable HTML tag name\n(`is_valid_tag_name`) is reported as\n`flm.html.invalid-name`, and the heading is\nwritten with the tag of its level.",
+      "summary": "The tag a block heading of each heading kind is written with, keyed by\nthe heading kind's name (`section`), the tag written without angle\nbrackets (`h2`). Empty by default. A heading kind the map does not\nlist is written `<h1>` to `<h6>` by its level\n(`root_heading_level`).",
+      "schema": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "The tag a block heading of each heading kind is written with, keyed by\nthe heading kind's name (`section`), the tag written without angle\nbrackets (`h2`). Empty by default. A heading kind the map does not\nlist is written `<h1>` to `<h6>` by its level\n(`root_heading_level`).\n\nThe title above every list of xnotes (notes set apart from the running\ntext, such as footnotes; see\n`xnotes`) is a heading of the\nheading kind `xnotes`\n(`TITLE_HEADING`),\nfor every xnote kind: mapping `xnotes` to `h3` writes every such title\n`<h3>`.\n\nThe tag is not part of the HTML contract: the\nattributes a block heading carries (`data-flm-heading`,\n`data-flm-level`, `data-flm-toc`) are the same regardless of its tag. A\nheading of a run-in kind is written as a `<span>` carrying the same\nattributes inside its run-in decoration, never with this tag. A tag\nthat is not a writable HTML tag name\n(`is_valid_tag_name`) is reported as\n`flm.html.invalid-name`, and the heading is\nwritten with the tag of its level.",
+        "default": {},
+        "x-flm-bind": "render"
+      }
+    },
+    {
+      "name": "root_heading_level",
+      "bind": "render",
+      "default": 1,
+      "description": "The heading level the page writes as its first-level heading, `<h1>`.\n\nA heading's level is a number counted from zero, the smaller the outer\n(`HeadingPayload::level`);\na heading at this level is `<h1>`, one level deeper `<h2>`, and so on\nto `<h6>`, which every deeper level shares. The default is\n`DEFAULT_ROOT_HEADING_LEVEL`,\n1, the level of a section: a section is `<h1>`. A root of 0 writes a\nkind declared at level 0, a chapter, `<h1>` and a section `<h2>`; a\nroot of 2 writes the content of one section with its subsections as\nthe first-level headings.\n\nA heading whose level is less than the root is reported as\n`flm.pres.heading-above-root`\nand written `<h1>`, or with its tag where\n`heading_tags` maps its kind: the mapping decides\nthe tag and nothing else. The attribute `data-flm-level` holds a\nheading's own level regardless of the root. The option concerns the\npage's tags only: the numbering, the run-in headings and the\nidentifiers read a heading's own level, as every other output does. The\ntext output has the same option\n(`TextRenderOptions::root_heading_level`).",
+      "summary": "The heading level the page writes as its first-level heading, `<h1>`.",
+      "schema": {
+        "type": "integer",
+        "format": "uint8",
+        "minimum": 0,
+        "maximum": 255,
+        "description": "The heading level the page writes as its first-level heading, `<h1>`.\n\nA heading's level is a number counted from zero, the smaller the outer\n(`HeadingPayload::level`);\na heading at this level is `<h1>`, one level deeper `<h2>`, and so on\nto `<h6>`, which every deeper level shares. The default is\n`DEFAULT_ROOT_HEADING_LEVEL`,\n1, the level of a section: a section is `<h1>`. A root of 0 writes a\nkind declared at level 0, a chapter, `<h1>` and a section `<h2>`; a\nroot of 2 writes the content of one section with its subsections as\nthe first-level headings.\n\nA heading whose level is less than the root is reported as\n`flm.pres.heading-above-root`\nand written `<h1>`, or with its tag where\n`heading_tags` maps its kind: the mapping decides\nthe tag and nothing else. The attribute `data-flm-level` holds a\nheading's own level regardless of the root. The option concerns the\npage's tags only: the numbering, the run-in headings and the\nidentifiers read a heading's own level, as every other output does. The\ntext output has the same option\n(`TextRenderOptions::root_heading_level`).",
+        "default": 1,
+        "x-flm-bind": "render"
+      }
+    }
+  ],
+  "definitions": {
+    "HtmlRenderOptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The page's title when the document states none: the words written into\n`<title>` (the output region `title`) when\nthe render places no title piece\n(`flm.meta.title`) or the title\npiece holds no words. The default is `DEFAULT_TITLE`.",
+          "default": "FLM document"
+        },
+        "lang": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The page's language as a language tag (`en`, `de-CH`), written as the\n`lang` attribute of `<html>` (the output region\n`lang`). `None`, the default, writes no\nattribute, because a page that claims a language it is not written in is\nworse for a reader using a screen reader than one that claims none.",
+          "default": null
+        },
+        "source_spans": {
+          "type": "boolean",
+          "description": "Whether the emitter writes the attribute `data-flm-source-span`, which\nrecords where in the source a node was written, on the element it\nwrites for each node.\n\nThe attribute is written on every element written for a node, inline\nor block-level, once per node, when the node's position can be traced\nback to a source with a name. Its value is a JSON array of the source's\nname, the first byte of the range and the byte just past its end\n(`[\"book/ch1.flm\",0,8]`), so a script reads it back with `JSON.parse`.\nIt is written between single quotation marks, which HTML allows, so the\nraw page shows the JSON as JSON. Off by default: the attribute serves\ntools that map a place in the page back to the document, and it adds\nbytes to every page.",
+          "default": false
+        },
+        "run_in_stop": {
+          "type": "string",
+          "description": "The stop written after the title of a run-in heading, so that\n`\\paragraph{Note} Some content.` reads as `Note. Some content.` A\nrun-in heading is a heading set at the start of the paragraph it\nintroduces, on the paragraph's first line\n(`headings`). The default is\n`DEFAULT_RUN_IN_STOP`,\na period; the empty text writes none.\n\nThe stop is written as escaped text inside the run-in decoration's\n`<span>`, after the title, so a reader copies it with the rest of the\npage and a host that replaces the stylesheet keeps it. It is written\nonly when the title holds text and does not already end in sentence\npunctuation\n(`ends_in_sentence_punctuation`).\nThat test looks only at the characters the title ends with, so a title\nthat ends in a formula, or in a box an author's own command draws, gets\nthe stop after it. A host that needs headings written another way\nregisters a lowering rule or a stage of its own (the extension\nguide).",
+          "default": "."
+        },
+        "definitions": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/DefinitionOverride"
+          },
+          "description": "The deliveries the host gives in place of the declared content of\nstyle and script definitions, by definition identifier\n(`DefinitionOverride`). Empty by default: every definition is then\ndelivered as its declaration says.\n\nAn identifier that no feature declares is ignored and reported as the\nWarning `flm.html.unknown-definition`."
+        },
+        "required_definitions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          },
+          "description": "The style and script definitions the host requires for the page as a\nwhole, by identifier, in addition to those the document's content\nrequires. Empty by default: a page then carries exactly what its content\nneeds.\n\nA host that adds something of its own to every page it serves (for\nexample a script that keeps an open page in step with the document, and\nits stylesheet) registers it as a definition of one of its features and\nlists its identifier here, rather than editing the page after it was\nwritten. A definition listed here appears once in the definitions\ntable, like any other, whether or not\nthe content requires it too, and reaches the page the same way;\n`definitions` still decides its delivery. An\nidentifier that no feature declares is reported as the Error\n`flm.html.unknown-requirement`, as a\nrequirement of the content would be.",
+          "default": []
+        },
+        "heading_tags": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "The tag a block heading of each heading kind is written with, keyed by\nthe heading kind's name (`section`), the tag written without angle\nbrackets (`h2`). Empty by default. A heading kind the map does not\nlist is written `<h1>` to `<h6>` by its level\n(`root_heading_level`).\n\nThe title above every list of xnotes (notes set apart from the running\ntext, such as footnotes; see\n`xnotes`) is a heading of the\nheading kind `xnotes`\n(`TITLE_HEADING`),\nfor every xnote kind: mapping `xnotes` to `h3` writes every such title\n`<h3>`.\n\nThe tag is not part of the HTML contract: the\nattributes a block heading carries (`data-flm-heading`,\n`data-flm-level`, `data-flm-toc`) are the same regardless of its tag. A\nheading of a run-in kind is written as a `<span>` carrying the same\nattributes inside its run-in decoration, never with this tag. A tag\nthat is not a writable HTML tag name\n(`is_valid_tag_name`) is reported as\n`flm.html.invalid-name`, and the heading is\nwritten with the tag of its level.",
+          "default": {}
+        },
+        "root_heading_level": {
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0,
+          "maximum": 255,
+          "description": "The heading level the page writes as its first-level heading, `<h1>`.\n\nA heading's level is a number counted from zero, the smaller the outer\n(`HeadingPayload::level`);\na heading at this level is `<h1>`, one level deeper `<h2>`, and so on\nto `<h6>`, which every deeper level shares. The default is\n`DEFAULT_ROOT_HEADING_LEVEL`,\n1, the level of a section: a section is `<h1>`. A root of 0 writes a\nkind declared at level 0, a chapter, `<h1>` and a section `<h2>`; a\nroot of 2 writes the content of one section with its subsections as\nthe first-level headings.\n\nA heading whose level is less than the root is reported as\n`flm.pres.heading-above-root`\nand written `<h1>`, or with its tag where\n`heading_tags` maps its kind: the mapping decides\nthe tag and nothing else. The attribute `data-flm-level` holds a\nheading's own level regardless of the root. The option concerns the\npage's tags only: the numbering, the run-in headings and the\nidentifiers read a heading's own level, as every other output does. The\ntext output has the same option\n(`TextRenderOptions::root_heading_level`).",
+          "default": 1
+        }
+      },
+      "description": "The render options of the HTML backend: the page's title and language, the\nsource-position attribute, the stop after a run-in heading, how stylesheets\nand scripts are delivered, the stylesheets and scripts the host adds to the\npage, how headings are tagged, and the heading level written as `<h1>`.\n\nThe option type is declared with `Bind::Render`, so its values come from\nthe render request rather than from the document (see settings, options and\nconfiguration).\nThe values are set on the plan request\n(`PlanRequest::render_options`),\nso two runs asking for different titles use two plans. The emit stages\n(`flm.html.emit`, `flm.html.emit-pieces`), the resolve stage\n`flm.html.resolve-definitions` and the regions stage `flm.html.regions` read\nthem; the final stage reads only the regions."
+    },
+    "DefinitionOverride": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "provided-by-host",
+          "description": "The host's own page or bundle supplies the definition, and the page\nwrites nothing for it.\n\nAn empty list of parts also writes nothing, but only this variant tells\na reader of the definitions table that the host supplies the\ndefinition."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "parts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/DefContent"
+              }
+            }
+          },
+          "required": [
+            "parts"
+          ],
+          "additionalProperties": false,
+          "description": "The page writes these parts, in this order. Each part is text written\ninto the page, an address the page loads, or a file, which this library\ndoes not read and reports\n(`DefinitionNotInlinable`)."
+        }
+      ],
+      "description": "The delivery of a style or script definition: how the definition reaches\nthe page.\n\nA style or script definition (`StyleDef`,\n`ScriptDef`) is a stylesheet or a script\nthat a feature's output depends on, recorded in the registry under an\nidentifier; the backend that writes the output decides its *delivery*:\nwritten into the output, loaded from an address, or left to the host (see\nstyle and script\ndefinitions).\n\nThis type has two uses:\n\n- a host gives one per definition identifier in the render option\n  `HtmlRenderOptions::definitions`, in place of the definition's declared\n  content;\n- each row of the definitions table records the delivery the definition\n  ended up with\n  (`ResolvedDefinition::delivery`).\n\nAn entry of the option replaces the declared content and never changes\n*what* the document requires: the definition is still listed in the\ndefinitions table, so a host or a bundler reading that table learns that the\ndocument needs it.\n\nA delivery is an ordered list of parts, as a definition's declared content\nis, and an entry of the option replaces the whole list. The formula\nrenderer's definition, for example, holds a configuration and then the\naddress of the program: a host that wants its own address writes both\nparts, because a page without the configuration renders mathematics\nwrongly."
+    },
+    "DefContent": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "inline": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "inline"
+          ],
+          "additionalProperties": false,
+          "description": "The content, given directly."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file"
+          ],
+          "additionalProperties": false,
+          "description": "A file, written the way the host writes file paths. This library never\nopens it; the host does."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false,
+          "description": "An address the page loads, such as a stylesheet link or a script\nsource. This library never fetches it; it only writes it into the\npage."
+        }
+      ],
+      "description": "One part of the content of a style or script definition: the text itself,\na file that the host reads, an address that the page loads, or the text a\ndocument-scope table holds for the document being written.\n\nA definition's content is an ordered list of parts (`StyleDef::content`,\n`ScriptDef::content`), so that one identifier can cover one concern even\nwhen the concern needs several parts. For example, the HTML backend's\nformula renderer is one script definition whose first part is its\nconfiguration, given as text, and whose second part is the address its\nprogram is loaded from."
+    }
+  }
+}

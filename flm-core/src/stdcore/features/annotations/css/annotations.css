@@ -1,0 +1,144 @@
+/* flm.annotations.style */
+/* Annotations: a reviewer's highlights and comments, each in the color of
+   its annotator, and the annotator's initials beside the line where an
+   annotation starts.  Every annotation and its initials carry the kind
+   token annotator-<n>, where <n> is the annotator's number, which selects
+   the color.  An annotation that spans a paragraph break or a block is cut
+   into parts there (cut parts); a cut part also carries the kind token
+   mark-continues when another cut part follows it, and mark-continued when
+   one precedes it, so that a comment's brackets are written once. */
+@layer flm {
+  :root {
+    /* The palette: one color per annotator number.  There are eight, the
+       preset colors of the phfcc LaTeX package, in its order, so that an
+       annotator has the same color on the page as in the recomposed LaTeX.
+       An annotator with a higher number takes the fallback color, red, which
+       is the color phfcc gives an annotator once its presets run out
+       (xcolor's red). */
+    --flm-annotation-color-0: rgb(0 148 240);
+    --flm-annotation-color-1: rgb(242 108 13);
+    --flm-annotation-color-2: rgb(65 149 42);
+    --flm-annotation-color-3: rgb(128 55 134);
+    --flm-annotation-color-4: rgb(0 129 129);
+    --flm-annotation-color-5: rgb(148 7 24);
+    --flm-annotation-color-6: rgb(160 120 0);
+    --flm-annotation-color-7: rgb(35 195 155);
+    --flm-annotation-color-fallback: rgb(255 0 0);
+    /* How much of its color tints a highlight's background: 0% by default,
+       so a highlight shows only its text in the color; a higher percentage
+       adds the tint. */
+    --flm-annotation-highlight-tint: 0%;
+    /* The font family of a comment and of the initials, and a comment's
+       weight. */
+    --flm-annotation-family: sans-serif;
+    --flm-annotation-comment-weight: 600;
+    /* What is written before a comment, on its first cut part, and after
+       it, on its last. */
+    --flm-annotation-comment-open: "[";
+    --flm-annotation-comment-close: "]";
+    /* The initials: their size, relative to the note beside the text that
+       contains them, their line height, and the thin box around them, drawn
+       in the annotator's color. */
+    --flm-annotation-initials-size: 0.8em;
+    --flm-annotation-initials-line-height: 0.9;
+    --flm-annotation-initials-padding: 0.5pt;
+    --flm-annotation-initials-border: 0.4pt;
+    --flm-annotation-initials-radius: 2pt;
+  }
+
+  /* Each annotation and its initials read their color from one property,
+     --flm-annotation-color, set here on the element itself, so that an
+     annotation inside another keeps its own color: the fallback color,
+     unless the annotator's number has a color in the palette. */
+  .flm-annotations-highlight,
+  .flm-annotations-comment,
+  .flm-annotations-initials {
+    --flm-annotation-color: var(--flm-annotation-color-fallback);
+  }
+  .flm-annotations-highlight[data-flm-kind~="annotator-0"],
+  .flm-annotations-comment[data-flm-kind~="annotator-0"],
+  .flm-annotations-initials[data-flm-kind~="annotator-0"] {
+    --flm-annotation-color: var(--flm-annotation-color-0);
+  }
+  .flm-annotations-highlight[data-flm-kind~="annotator-1"],
+  .flm-annotations-comment[data-flm-kind~="annotator-1"],
+  .flm-annotations-initials[data-flm-kind~="annotator-1"] {
+    --flm-annotation-color: var(--flm-annotation-color-1);
+  }
+  .flm-annotations-highlight[data-flm-kind~="annotator-2"],
+  .flm-annotations-comment[data-flm-kind~="annotator-2"],
+  .flm-annotations-initials[data-flm-kind~="annotator-2"] {
+    --flm-annotation-color: var(--flm-annotation-color-2);
+  }
+  .flm-annotations-highlight[data-flm-kind~="annotator-3"],
+  .flm-annotations-comment[data-flm-kind~="annotator-3"],
+  .flm-annotations-initials[data-flm-kind~="annotator-3"] {
+    --flm-annotation-color: var(--flm-annotation-color-3);
+  }
+  .flm-annotations-highlight[data-flm-kind~="annotator-4"],
+  .flm-annotations-comment[data-flm-kind~="annotator-4"],
+  .flm-annotations-initials[data-flm-kind~="annotator-4"] {
+    --flm-annotation-color: var(--flm-annotation-color-4);
+  }
+  .flm-annotations-highlight[data-flm-kind~="annotator-5"],
+  .flm-annotations-comment[data-flm-kind~="annotator-5"],
+  .flm-annotations-initials[data-flm-kind~="annotator-5"] {
+    --flm-annotation-color: var(--flm-annotation-color-5);
+  }
+  .flm-annotations-highlight[data-flm-kind~="annotator-6"],
+  .flm-annotations-comment[data-flm-kind~="annotator-6"],
+  .flm-annotations-initials[data-flm-kind~="annotator-6"] {
+    --flm-annotation-color: var(--flm-annotation-color-6);
+  }
+
+  .flm-annotations-highlight[data-flm-kind~="annotator-7"],
+  .flm-annotations-comment[data-flm-kind~="annotator-7"],
+  .flm-annotations-initials[data-flm-kind~="annotator-7"] {
+    --flm-annotation-color: var(--flm-annotation-color-7);
+  }
+
+  /* A highlight: the passage's text in the annotator's color, as a span in
+     the text or as a block around a list or a formula; its background is
+     tinted only where --flm-annotation-highlight-tint is above 0%. */
+  .flm-annotations-highlight {
+    color: var(--flm-annotation-color);
+    background-color: color-mix(in srgb, var(--flm-annotation-color) var(--flm-annotation-highlight-tint), transparent);
+  }
+
+  /* A comment: the remark in the annotator's color and font family, in the
+     flow of the text, between an opening and a closing bracket.  The
+     opening bracket is written on the cut part that no other cut part
+     precedes, and the closing bracket on the cut part that no other cut
+     part follows, so a comment cut into parts is bracketed once.  A cut part
+     around a list or a formula is a block, and a bracket written on it is
+     on a line of its own, above the block or below it. */
+  .flm-annotations-comment {
+    color: var(--flm-annotation-color);
+    font-family: var(--flm-annotation-family);
+    font-weight: var(--flm-annotation-comment-weight);
+  }
+  .flm-annotations-comment:not([data-flm-kind~="mark-continued"])::before {
+    content: var(--flm-annotation-comment-open);
+  }
+  .flm-annotations-comment:not([data-flm-kind~="mark-continues"])::after {
+    content: var(--flm-annotation-comment-close);
+  }
+
+  /* The initials, in the annotator's color and font family, smaller than
+     the note that contains them, upright and of normal weight regardless of
+     the text around the annotation, in a thin box of the color.  They are
+     inside a margin decoration (a note beside the text), which
+     flm.html.style.core sets beside the text. */
+  .flm-annotations-initials {
+    display: inline-block;
+    color: var(--flm-annotation-color);
+    font-family: var(--flm-annotation-family);
+    font-size: var(--flm-annotation-initials-size);
+    font-weight: normal;
+    font-style: normal;
+    line-height: var(--flm-annotation-initials-line-height);
+    padding: var(--flm-annotation-initials-padding);
+    border: var(--flm-annotation-initials-border) solid var(--flm-annotation-color);
+    border-radius: var(--flm-annotation-initials-radius);
+  }
+}

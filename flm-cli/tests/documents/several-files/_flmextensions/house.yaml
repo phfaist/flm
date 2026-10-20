@@ -1,0 +1,10 @@
+extension:
+  description: The house style, an extension written as one file.
+flm:
+  features:
+    userdefs:
+      macros:
+        project:
+          content: 'the \emph{Example} project'
+    text:
+      width: 60

@@ -1,0 +1,88 @@
+---
+title: "Feature headings"
+flm:
+  use: [flmdoc]
+  math: false
+---
+\begin{docitem}{feature}{headings}
+
+\docsummary{Headings: one value of the element `flm.heading` per heading kind, written with the kind's heading commands (`\section` to `\subparagraph` by default); each heading carries a level, a reference point and its `\label` fields.}
+
+\docfield{Title}{Headings}
+
+\docfield{Package}{\docref{packages/stdcore}{\verbcode{stdcore}}}
+
+\end{docitem}
+
+\section*{Element types}
+
+Each node of a document's tree carries an element, which says what the node means. The feature registers these element types, each with the commands written for it:
+
+\docfield{Element type}{\docref{namespaces/element/flm.heading}{\verbcode{flm.heading}}}
+
+\begin{itemize}
+\item `section`: A heading of level 1. Written as \docref{features/headings/macros/section}{\verbcode{\section}}.
+\item `subsection`: A heading of level 2. Written as \docref{features/headings/macros/subsection}{\verbcode{\subsection}}.
+\item `subsubsection`: A heading of level 3. Written as \docref{features/headings/macros/subsubsection}{\verbcode{\subsubsection}}.
+\item `paragraph`: A heading of level 4. Written as \docref{features/headings/macros/paragraph}{\verbcode{\paragraph}}.
+\item `subparagraph`: A heading of level 5. Written as \docref{features/headings/macros/subparagraph}{\verbcode{\subparagraph}}.
+\end{itemize}
+
+\docfield{Element type}{\docref{namespaces/element/flm.field}{\verbcode{flm.field}}}
+
+\begin{itemize}
+\item The field `\label`, which the construct it is written after reads as data. Written as the field \verbcode{\label} after \docref{features/headings/macros/section}{\verbcode{\section}}.
+\item The field `\label`, which the construct it is written after reads as data. Written as the field \verbcode{\label} after \docref{features/headings/macros/subsection}{\verbcode{\subsection}}.
+\item The field `\label`, which the construct it is written after reads as data. Written as the field \verbcode{\label} after \docref{features/headings/macros/subsubsection}{\verbcode{\subsubsection}}.
+\item The field `\label`, which the construct it is written after reads as data. Written as the field \verbcode{\label} after \docref{features/headings/macros/paragraph}{\verbcode{\paragraph}}.
+\item The field `\label`, which the construct it is written after reads as data. Written as the field \verbcode{\label} after \docref{features/headings/macros/subparagraph}{\verbcode{\subparagraph}}.
+\end{itemize}
+
+\docfield{Element type}{\docref{namespaces/element/flm.heading.number}{\verbcode{flm.heading.number}}}
+
+\begin{itemize}
+\item The number of a numbered heading, where the kind's heading title template writes `#{number}`. No document can write it. No command is written for this value.
+\end{itemize}
+
+\section*{Lowering rules}
+
+\begin{itemize}
+\item \docref{namespaces/lowering-rule/flm.heading.number.lower.default}{\verbcode{flm.heading.number.lower.default}}: a heading's number lowers to `flm.pres.span` of role `flm.heading.number` around the number
+\item \docref{namespaces/lowering-rule/flm.heading.lower.default}{\verbcode{flm.heading.lower.default}}: a heading lowers to `flm.pres.block-heading` carrying its kind's name and level, whether it is listed in a table of contents, and its anchor, or, for a run-in kind, to a `flm.pres.deco.runin` decoration holding a `flm.pres.runin-heading` with the same payload; a numbered heading's content begins with its number
+\item \docref{namespaces/lowering-rule/flm.heading.lower.latex-recomposed}{\verbcode{flm.heading.lower.latex-recomposed}}: a heading lowers to the LaTeX hook `\flmHeading[toc=…]` (with `alt={…}` where the heading has an alternative title), a newline, the LaTeX sectioning command its heading kind maps to, starred when not numbered, and a group holding the labels it read from its `\label` fields
+\item \docref{namespaces/lowering-rule/flm.heading.number.lower.latex-recomposed}{\verbcode{flm.heading.number.lower.latex-recomposed}}: a heading's number lowers to its content; the heading itself is written back as its sectioning command, so the number never reaches this backend
+\end{itemize}
+
+\section*{Option types}
+
+\begin{itemize}
+\item \docref{namespaces/option-type/HeadingsConfig}{\verbcode{HeadingsConfig}}: The heading kinds and the heading commands that write them: each kind's level, counter, counter style, the counter it is numbered within, number format, heading title template, table-of-contents and run-in settings and reference point; each command's heading kind and default options; and which kinds are numbered. Fixed when the registry is built: it cannot vary per document or per render.
+\item \docref{namespaces/option-type/HeadingsLatexOptions}{\verbcode{HeadingsLatexOptions}}: The LaTeX sectioning command each heading kind is written as in the recomposed LaTeX, keyed by the kind's name; a kind not listed is written as the command of its own name. Set per render request.
+\end{itemize}
+
+\section*{Styles}
+
+\begin{itemize}
+\item \docref{namespaces/style/flm.headings.style}{\verbcode{flm.headings.style}}: headings: no stylesheet of their own
+\end{itemize}
+
+\section*{Settings}
+
+The feature's settings keys, described on the page \docref{settings/headings}{Settings of feature headings}:
+
+\begin{itemize}
+\item \docref{settings/headings}{\verbcode{headings}}: The heading kinds, in the order they were given.
+\item \docref{settings/headings}{\verbcode{commands}}: The heading commands, in the order they were given.
+\item \docref{settings/headings}{\verbcode{numbering}}: Which kinds are numbered: `HeadingNumbering::NothingNumbered` by
+default.
+\item \docref{settings/headings}{\verbcode{latex_commands}}: The LaTeX sectioning command, without the backslash, that each heading
+kind is written as, keyed by the kind's name. A kind the map does not list
+is written as the command of its own name. Empty by default.
+\end{itemize}
+
+\section*{Lists of commands}
+
+\begin{itemize}
+\item \docref{features/headings/macros}{Macros of feature headings}
+\end{itemize}
+

@@ -1,0 +1,44 @@
+[
+  {
+    "feature": "refs",
+    "names": [
+      "ref"
+    ],
+    "kind": "macro",
+    "modes": [
+      "text"
+    ],
+    "docs": "`\\ref[options]{type:label}`: a reference to the labeled place, showing its number, else its content, else the label.",
+    "summary": "`\\ref[options]{type:label}`: a reference to the labeled place, showing its number, else its content, else the label.",
+    "arguments": [
+      {
+        "form": "an optional `[key=value,…]` group",
+        "written": "[options]",
+        "name": "options",
+        "layout": "inline",
+        "docs": "Display options: the name of a wording variant of the word before a number, `S` for the capitalized wording, or `noprefix` to leave the word out.",
+        "summary": "Display options: the name of a wording variant of the word before a number, `S` for the capitalized wording, or `noprefix` to leave the word out."
+      },
+      {
+        "form": "a `{…}` group read as plain characters",
+        "written": "{target}",
+        "name": "target",
+        "layout": "inline",
+        "docs": "The target label, `type:label`, or several separated by commas.",
+        "summary": "The target label, `type:label`, or several separated by commas.",
+        "role": "flm.refs.target"
+      }
+    ],
+    "element": {
+      "name": "flm.ref",
+      "docs": "A reference to a labeled place, showing its number, else its content, else the label.",
+      "summary": "A reference to a labeled place, showing its number, else its content, else the label.",
+      "aspects": [
+        "flm_core::model::aspects::BlockRoleAspect",
+        "flm_core::model::aspects::ApartFromText",
+        "flm_core::model::aspects::Referencing"
+      ],
+      "number": 46
+    }
+  }
+]

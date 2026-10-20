@@ -1,0 +1,13 @@
+/target
+prototypes/*/target
+flm-ext/tests/wasm/*/target
+flm-ext/tests/wasm/*/*.wasm
+# The npm workspace's installation, and its members' build folders
+/npm/node_modules/
+/npm/*/target/
+# Agent worktrees (local working copies; never committed)
+/.claude/worktrees/
+
+*~
+.DS_Store
+CLAUDE.md

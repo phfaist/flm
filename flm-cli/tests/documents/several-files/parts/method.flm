@@ -1,0 +1,13 @@
+---
+title: The \emph{Method}
+flm:
+  input_as:
+    heading: section
+    label: sec:method
+---
+A section kept in a file of its own, back to \ref{sec:intro}.\footnote{A note of the
+included file.}
+
+\subsection{Details}
+
+\input{details.flm}

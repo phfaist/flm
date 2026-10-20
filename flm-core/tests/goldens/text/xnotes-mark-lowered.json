@@ -1,0 +1,32 @@
+[
+  {
+    "chars": "The claim holds in every case."
+  },
+  {
+    "elem": "flm.pres.span",
+    "body": [
+      {
+        "elem": "flm.pres.link",
+        "body": [
+          {
+            "chars": "1"
+          }
+        ],
+        "payload": {
+          "href": "#fn-1",
+          "kind": "xnote",
+          "doc_role": "noteref",
+          "label": "Footnote 1"
+        }
+      }
+    ],
+    "payload": {
+      "style": "superscript",
+      "role": "flm.xnotes.xnote.mark",
+      "anchor": "fnref--1yuhk"
+    }
+  },
+  {
+    "chars": " The next sentence goes on."
+  }
+]

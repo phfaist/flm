@@ -1,0 +1,13 @@
+# A workflow that demands a table: the HTML page, and the table of the words of each
+# tree of the extension `wordcount`. The plain workflows run the count already, through
+# the collection `flm.validated` that the count's capability joins; this workflow is the
+# example of a workflow demanding a table.
+extension:
+  description: The HTML page with the word count.
+flm:
+  use: [wordcount]
+  workflows:
+    counted:
+      extends: html
+      demands: [flm.validated, wordcount.words]
+      docs: The HTML page, with the word count of each tree.

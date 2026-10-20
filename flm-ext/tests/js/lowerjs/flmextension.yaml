@@ -1,0 +1,5 @@
+extension:
+  description: Boxes lowered by a scripted rule, the lowering façade's test fixture
+  engine: js
+  js:
+    main: main.js

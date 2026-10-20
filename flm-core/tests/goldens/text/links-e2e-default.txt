@@ -1,0 +1,45 @@
+Links in a title: the site <https://example.com/a> and example.com/b
+====================================================================
+
+A paragraph holds a hyperlink <https://example.com>, an address
+example.com/100%25/a_b~c?q=1&r=2#top and someone@example.com; entropy is defined
+below.
+
+Markov chain: A random process; a Markov chain forgets its past, as all Markov
+chains do, and may produce entropy.
+
+entropy: A measure of disorder, which a process may produce.
+
+-decay: A decay that emits an \(\alpha\) particle.
+
+See entropy, the entropy, Markov chains, \(\alpha\)-decay, Markov chain and
+entropy; a page on entropy <https://example.com/g>.
+
+A heading about disorder
+========================
+
+• An item holds a link <https://example.org> and entropy.
+
+• list term: A term defined in a list item, where list term is itself.
+
+A note holds links.¹ Another defines a term.² See note term and list term.
+
+  \begin{equation}
+  S = k \log W \text{where a link and entropy stand}
+  \tag*{(1)}\end{equation}
+
+Through definitions: see entropy; 10.1000/xyz-1 <https://doi.org/10.1000/xyz-1>;
+example.com/c/#sec-intro; DOI <https://doi.org/10.1000/a%20b#c>; this term.
+
+expanded term: A term defined through a user definition.
+
+kept term: A term defined through a user definition.
+
+See expanded term.
+
+Footnotes
+---------
+
+¹ The note holds example.net and entropy.
+
+² note term: A term defined in a footnote.

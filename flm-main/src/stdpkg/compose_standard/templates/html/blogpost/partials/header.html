@@ -1,0 +1,36 @@
+<header class="bp-masthead">
+  <div class="bp-masthead-inner">
+{% set brand_image = config.logo_url|trim %}
+{% set image_lower = brand_image|lower %}
+{% if ":" in brand_image and image_lower[:7] != "http://" and image_lower[:8] != "https://" and image_lower[:11] != "data:image/" %}
+{% set brand_image = "" %}
+{% endif %}
+{% set brand_link = config.brand_url|trim %}
+{% set link_lower = brand_link|lower %}
+{% if ":" in brand_link and link_lower[:7] != "http://" and link_lower[:8] != "https://" and link_lower[:7] != "mailto:" %}
+{% set brand_link = "" %}
+{% endif %}
+{% if config.brand_name or brand_image %}
+    <div class="bp-brand">
+{% if brand_link %}
+      <a href="{{ brand_link }}"{% if not config.brand_name %} aria-label="{{ config.logo_alt or config.brand_url }}"{% endif %}>
+{% endif %}
+{% if brand_image %}
+        <img src="{{ brand_image }}" alt="{{ config.logo_alt }}" decoding="async">
+{% endif %}
+{% if config.brand_name %}
+        <span>{{ config.brand_name }}</span>
+{% endif %}
+{% if brand_link %}
+      </a>
+{% endif %}
+    </div>
+{% endif %}
+{% if config.reader_controls %}
+{% include "partials/controls.html" %}
+{% endif %}
+  </div>
+{% if config.reading_progress %}
+  <div class="bp-progress" role="progressbar" aria-label="{{ config.label_progress }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span></span></div>
+{% endif %}
+</header>

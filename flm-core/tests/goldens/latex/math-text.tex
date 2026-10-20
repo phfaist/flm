@@ -1,0 +1,18 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.7fcd1d15.sty
+Inline \(x = \text{50\% of it}\), \(y = \textbf{\flmUDhello{world}}\) and \(z = \mbox{if \(w\)}\).
+
+\begin{align}
+  a &= b \text{ for every } c \\
+  d &= e.
+\end{align}%%
+% ===== latex-recomposed:style flmrecomposed.7fcd1d15.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.7fcd1d15}
+% --- packages ---
+% flm.latex.pkg.amsmath
+\RequirePackage{amsmath}
+% --- user definitions ---
+% \flmUDhello (the document's \hello): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDhello[1]{Hello, #1!}
+\endinput

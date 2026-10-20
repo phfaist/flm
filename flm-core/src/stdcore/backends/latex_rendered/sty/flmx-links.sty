@@ -1,0 +1,50 @@
+% flm.latex.def.flmx.links -- links.
+%
+%   \flmxLink[kind, href, target, doc-role, label, shows-target]{<content>}
+%       a link around <content>. Its keys:
+%         kind          what the link is: ref (a reference), term, cite,
+%                       xnote, xnote-back, toc, url, or a kind a feature adds;
+%         href          the address, always written (#<anchor> for a link
+%                       inside the document);
+%         target        for a link inside the document, the anchor the link
+%                       leads to, without the #: \hyperref[flmx:<target>]{...}
+%                       and \pageref{flmx:<target>} reach it;
+%         doc-role      the document role of the link, where it has one;
+%         label         a text naming the link for assistive technology;
+%         shows-target  true where the content shows the address itself.
+%
+% The default of every kind: a link with a target is
+% \hyperref[flmx:<target>]{<content>}, any other \href{<href>}{<content>};
+% where shows-target=true, the content is set in \flmxUrlFont. The kinds ref
+% and url are registered here with that code; the kinds the features write
+% are registered by their definition pieces (toc by the toc feature's, with
+% leaders and the page number; term by the defterm feature's; cite by the
+% citations feature's; xnote and xnote-back by the xnotes feature's), so that
+% a template changes one kind with
+%   \flmxDefineLink{<kind>}{<code over #1, the content>}
+% and every kind with \flmxDefineLinkDefault{...} and the registrations.
+% \flmxUrlFont is the font of a link that shows its address, \ttfamily;
+% change it with \RenewDocumentCommand\flmxUrlFont{}{...}.
+
+\ExplSyntaxOn
+\NewDocumentCommand \flmxUrlFont { } { \ttfamily }
+
+\cs_new_protected:Npn \__flmx_link:n #1
+  {
+    \flmxIfKey { target }
+      { \hyperref [ flmx:\flmxKey { target } ] { \__flmx_link_content:n {#1} } }
+      { \exp_args:Ne \href { \flmxKey { href } } { \__flmx_link_content:n {#1} } }
+  }
+\cs_new_protected:Npn \__flmx_link_content:n #1
+  {
+    \str_if_eq:eeTF { \flmxKey { shows-target } } { true }
+      { { \flmxUrlFont #1 } }
+      {#1}
+  }
+
+\NewDocumentCommand \flmxLink { O { } +m }
+  { \__flmx_command:nnnn { link } { kind } {#1} {#2} }
+\flmxDefineLinkDefault { \__flmx_link:n {#1} }
+\clist_map_inline:nn { ref, url }
+  { \flmxDefineLink {#1} { \__flmx_link:n {##1} } }
+\ExplSyntaxOff

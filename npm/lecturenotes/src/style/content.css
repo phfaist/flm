@@ -1,0 +1,163 @@
+/* flm-lecturenotes: the title block, the content and the notes after it.
+   Every selector of an element of the document begins with a class of FLM's
+   HTML contract.  No rule restates a margin that the FLM library sets: where
+   this page wants another space, it sets the library's property for it
+   (--flm-block-spacing, --flm-heading-space-above, ...), on :root or on the
+   element. */
+
+/* ── The title block, at the top of the main column ──────────────────────── */
+.ln-titleblock {
+  --flm-block-spacing: 0;
+  padding: var(--ln-title-padding);
+  margin-bottom: var(--ln-title-space-below);
+  border-bottom: var(--ln-rule);
+}
+.flm-meta-title {
+  font-size: var(--ln-title-size);
+  font-weight: var(--ln-title-weight);
+  line-height: var(--ln-title-line-height);
+}
+.flm-meta-author,
+.flm-meta-date {
+  padding-top: var(--ln-subtitle-gap);
+  font-size: var(--ln-subtitle-size);
+  color: var(--ln-muted);
+}
+
+/* ── The notes after the content (footnotes, references) ─────────────────── */
+.ln-backmatter {
+  --flm-heading-size-1: var(--ln-backmatter-heading-size);
+  margin-top: var(--ln-backmatter-space-above);
+  padding-top: var(--ln-backmatter-padding);
+  border-top: var(--ln-rule);
+  font-size: var(--ln-backmatter-size);
+}
+.ln-backmatter:not(:has(.flm-pres-block)) {
+  display: none;
+}
+
+/* ── The headings of the content, by level ───────────────────────────────── */
+.flm-content .flm-pres-block--heading {
+  position: relative;
+}
+.flm-content .flm-pres-block--heading .flm-heading-number {
+  color: var(--ln-muted);
+  font-weight: inherit;
+  margin-right: var(--ln-heading-number-gap);
+}
+/* A part (level 0): large uppercase text with a little letter spacing, on a
+   band. */
+.flm-content .flm-pres-block--heading[data-flm-level="0"] {
+  --flm-heading-weight: var(--ln-part-weight);
+  --flm-heading-space-above: var(--ln-part-space-above);
+  --flm-heading-space-below: var(--ln-part-space-below);
+  font-size: var(--ln-part-size);
+  text-transform: uppercase;
+  letter-spacing: var(--ln-part-spacing);
+  padding: var(--ln-part-padding);
+  border-left: var(--ln-band-rule);
+  background: var(--ln-accent-bg);
+}
+/* A chapter (level 1): a band. */
+.flm-content .flm-pres-block--heading[data-flm-level="1"] {
+  --flm-heading-weight: var(--ln-chapter-weight);
+  --flm-heading-line-height: var(--ln-chapter-line-height);
+  --flm-heading-space-above: var(--ln-chapter-space-above);
+  --flm-heading-space-below: var(--ln-chapter-space-below);
+  padding: var(--ln-chapter-padding);
+  border-left: var(--ln-band-rule);
+  background: var(--ln-accent-bg);
+}
+/* A section (level 2). */
+.flm-content .flm-pres-block--heading[data-flm-level="2"] {
+  --flm-heading-weight: var(--ln-section-weight);
+  --flm-heading-space-above: var(--ln-section-space-above);
+  --flm-heading-space-below: var(--ln-section-space-below);
+}
+/* A subsection (level 3). */
+.flm-content .flm-pres-block--heading[data-flm-level="3"] {
+  --flm-heading-weight: var(--ln-subsection-weight);
+  --flm-heading-space-above: var(--ln-subsection-space-above);
+  --flm-heading-space-below: var(--ln-subsection-space-below);
+  font-style: var(--ln-subsection-style);
+}
+/* The discreet anchor the script adds to each heading of the content: shown
+   while the pointer is over the heading, in the space to its left. */
+.ln-anchor {
+  position: absolute;
+  right: 100%;
+  padding-right: var(--ln-anchor-gap);
+  opacity: 0;
+  color: var(--ln-muted);
+  font-size: var(--ln-anchor-size);
+  font-weight: normal;
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: normal;
+  text-decoration: none;
+  transition: opacity var(--ln-fast);
+}
+.flm-pres-block--heading:hover > .ln-anchor,
+.ln-anchor:focus-visible {
+  opacity: 1;
+}
+.ln-anchor:hover {
+  color: var(--ln-accent);
+  text-decoration: none;
+}
+
+/* ── The text's elements ─────────────────────────────────────────────────── */
+/* A link to a defined term: in the text's color, dotted. */
+.flm-pres-link[data-flm-kind="term"] {
+  color: inherit;
+  text-decoration: var(--ln-term-decoration);
+}
+.flm-pres-link[data-flm-kind="term"]:hover {
+  color: var(--ln-accent);
+}
+.flm-defterm .flm-defterm-leadin {
+  font-weight: var(--ln-defterm-weight);
+}
+/* A theorem's statement in italic, its name upright; a proof in the muted
+   color behind a thin rule, in the text's color under the pointer. */
+.flm-theorems-theorem[data-flm-kind~="theoremlike"] {
+  font-style: var(--ln-theorem-style);
+}
+.flm-theorems-theorem[data-flm-kind~="theoremlike"] .flm-theorems-name {
+  font-style: normal;
+}
+.flm-theorems-theorem[data-flm-kind~="prooflike"] {
+  color: var(--ln-muted);
+  border-left: var(--ln-proof-rule);
+  padding-left: var(--ln-proof-padding);
+  transition: color var(--ln-proof-motion);
+}
+.flm-theorems-theorem[data-flm-kind~="prooflike"]:hover {
+  color: var(--ln-text);
+}
+/* A float: its caption muted and set left. */
+.flm-pres-block.flm-floats-float {
+  padding: var(--ln-float-padding);
+}
+.flm-floats-float-caption {
+  color: var(--ln-muted);
+  text-align: var(--ln-caption-align);
+}
+.flm-floats-float-caption .flm-floats-float-number {
+  color: var(--ln-text);
+  font-weight: var(--ln-caption-number-weight);
+}
+.flm-quote {
+  color: var(--ln-muted);
+  font-style: var(--ln-quote-style);
+}
+/* Footnote marks and citation marks are not underlined; the labels of the
+   lists of footnotes and references are muted. */
+.flm-xnotes-xnote-mark .flm-pres-link,
+.flm-citations-mark .flm-pres-link {
+  text-decoration: none;
+}
+.flm-pres-list[data-flm-kind~="citations"] .flm-pres-list-label,
+.flm-pres-list[data-flm-kind~="xnotes"] .flm-pres-list-label {
+  color: var(--ln-muted);
+}

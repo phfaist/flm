@@ -1,0 +1,20 @@
+Tables in floats
+================
+
+Picture                    What it shows
+-------------------------  ----------------------------
+[image: figures/cell.png]  A picture standing in a cell
+
+Table 1: A table holding a picture
+
+Outer   Inner
+------  -----
+A cell  n  m
+        -  -
+        1  2
+
+Table 2: A table nested in a cell
+
+x  y
+
+See Tab. 1 and Table 2.

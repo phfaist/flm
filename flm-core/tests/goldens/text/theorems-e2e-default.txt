@@ -1,0 +1,60 @@
+1. Statements
+=============
+
+Theorem 1 (Main result). Every shipped kind is written in this document.
+
+Proof (Theorem 1). By Lemma 2 and Lemma 3; together, Theorem 1 and Lemma 2. □
+
+Lemma 2 (Key lemma). A lemma proved below, its proof naming it.
+
+Proof (Lemma 2). One star shows the statement proved. □
+
+Lemma 3. A lemma whose proof records the relation without showing it.
+
+Proof. Two stars record the relation only. □
+
+Proposition 4. A proposition whose proof is not coming.
+
+Corollary 5.
+
+Proof (Corollary 5). The corollary above has an empty body. □
+
+Conjecture 6. A conjecture expects no proof.
+
+2. Definitions and the other kinds
+==================================
+
+Definition 7 (Opening with a list).
+
+• a body opening with a list gives the heading a paragraph of its own;
+
+• and the list follows it.
+
+Remark 8. A remark.
+
+Idea 9. An idea.
+
+Question 10. A question?
+
+Claim 11. A claim.
+
+Observation 12. An observation.
+
+Problem 13. A problem.
+
+Exercise 14 (Host’s kind). An exercise, a kind the host configures.
+
+See Exercise 14, Definition 7 and Remark 8.
+
+• Lemma 15. A lemma in a list item.
+
+• Proof (Lemma 15). Its proof in the next item. □
+
+A note holds a remark.¹ See Remark 16 and Lemma 15.
+
+Theorem 17 (Kept). A theorem inside a user definition’s template.
+
+Footnotes
+---------
+
+¹ Remark 16. A remark in a footnote.

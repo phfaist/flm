@@ -1,0 +1,19 @@
+---
+title: A document of several files
+author: [Ann Author]
+date: 30 September 2026
+flm:
+  use: [house, journal]
+---
+\section{Introduction}\label{sec:intro}
+
+This paragraph begins in the primary file, \input{parts/aside.flm} and ends in the primary
+file, as one paragraph. The method is in \ref{sec:method}.\footnote{A note of the primary
+file.}
+
+\input{parts/method.flm}
+
+\section{Conclusion}
+
+The primary file goes on after the section kept in a file of its own, and its notes are
+counted after that file's.\footnote{A note of the primary file after the included file.}

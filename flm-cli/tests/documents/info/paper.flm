@@ -1,0 +1,9 @@
+---
+title: A paper
+flm:
+  use: [margins]
+  features:
+    graphics-files:
+      search_path: [figures, .]
+---
+Hello.

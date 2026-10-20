@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html{% if "lang" in regions %} lang="{{ regions.lang }}"{% endif %} style="--nb-config-accent: {{ config.accent }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ regions.title }}</title>
+{{ regions.styles }}
+    <style>
+{{ include_raw("./style.css") }}
+    </style>
+{% for href in config.stylesheets %}
+    <link rel="stylesheet" href="{{ href }}">
+{% endfor %}
+  </head>
+  <body class="nb-page" data-nb-fold-code="{{ 'true' if config.fold_code else 'false' }}" data-nb-code-label="{{ config.code_label }}">
+    <a class="nb-skip" href="#flm-content">Skip to content</a>
+    <div class="nb-layout">
+      <aside class="nb-sidebar" aria-label="Document contents">
+{% if config.sidebar_image_url %}
+        <div class="nb-sidebar-image">
+{% if config.sidebar_image_link %}
+          <a href="{{ config.sidebar_image_link }}">
+{% endif %}
+            <img src="{{ config.sidebar_image_url }}" alt="{{ config.sidebar_image_alt or config.sidebar_image_link }}">
+{% if config.sidebar_image_link %}
+          </a>
+{% endif %}
+        </div>
+{% endif %}
+{% if "flm.toc" in pieces %}
+{{ pieces["flm.toc"].text }}
+{% endif %}
+      </aside>
+      <main class="nb-paper" id="flm-content" tabindex="-1">
+{% set metadata_names = ["flm.meta.title", "flm.meta.author", "flm.meta.date"] %}
+{% for name, piece in pieces|items if name in metadata_names and piece.place == "before-content" and piece.text|trim %}
+{% if loop.first %}
+        <header class="nb-metadata">
+{% endif %}
+{{ piece.text }}
+{% if loop.last %}
+        </header>
+{% endif %}
+{% endfor %}
+{% for name, piece in pieces|items if name not in metadata_names and name != "flm.toc" and piece.place == "before-content" %}
+{{ piece.text }}
+{% endfor %}
+        <div class="flm-content nb-content">
+{{ regions.content }}
+{% for name, piece in pieces|items if piece.place == "after-content" %}
+{{ piece.text }}
+{% endfor %}
+        </div>
+      </main>
+    </div>
+{{ regions.scripts }}
+    <script>
+{{ include_raw("./script.js") }}
+    </script>
+  </body>
+</html>

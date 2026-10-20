@@ -1,0 +1,15 @@
+# The extension `two` of the program of `flm-ext/tests/native/program/`: a crate written
+# against the guest client, with the feature `guest` alone, as every extension's crate is.
+[package]
+name = "two"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+flm-ext = { path = "../../../..", default-features = false, features = ["guest"] }
+serde_json = "1"

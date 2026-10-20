@@ -1,0 +1,23 @@
+/* flm-lecturenotes: printing.  The bar, the sidebar and the preview popup are
+   left out, the main column takes the page's width, nothing is sticky. */
+@media print {
+  .ln-topbar,
+  .ln-sidebar,
+  .ln-anchor,
+  .ln-preview.ln-preview-shown {
+    display: none;
+  }
+  .ln-app {
+    display: block;
+    min-height: 0;
+  }
+  .ln-main {
+    padding: 0;
+  }
+  .ln-column {
+    max-width: none;
+  }
+  html {
+    scroll-padding-top: 0;
+  }
+}

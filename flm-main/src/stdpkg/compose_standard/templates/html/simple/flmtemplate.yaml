@@ -1,0 +1,8 @@
+# A complete page: `<html>` with the page's language, the head with the title's words and
+# the stylesheets; then the pieces placed before the content (the title, the authors, the
+# date) in a header; the table of contents, where the render builds it, between the header
+# and the main content; the content and the pieces placed after it, and the scripts.
+output: html
+engine: minijinja
+main: simple.html
+accepts: all

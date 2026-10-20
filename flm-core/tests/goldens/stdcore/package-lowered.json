@@ -1,0 +1,116 @@
+[
+  {
+    "elem": "flm.pres.block-heading",
+    "body": [
+      {
+        "chars": "Introduction"
+      }
+    ],
+    "payload": {
+      "name": "section",
+      "level": 1,
+      "in_toc": true,
+      "anchor": "sec-intro"
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "This is "
+      },
+      {
+        "elem": "flm.pres.span",
+        "body": [
+          {
+            "chars": "emphasized"
+          }
+        ],
+        "payload": {
+          "style": "emph"
+        }
+      },
+      {
+        "chars": " text by FLM."
+      }
+    ],
+    "payload": {}
+  },
+  {
+    "elem": "flm.pres.math-passthrough",
+    "body": [
+      {
+        "elem": "flm.pres.math-text",
+        "body": [],
+        "payload": {
+          "anchor": "eq--1opqm"
+        }
+      },
+      {
+        "chars": "\n  E = mc^2"
+      },
+      {
+        "chars": "\\tag*{"
+      },
+      {
+        "elem": "flm.pres.math-text",
+        "body": [
+          {
+            "chars": "(1)"
+          }
+        ],
+        "payload": {
+          "at_tag": true
+        }
+      },
+      {
+        "chars": "}"
+      },
+      {
+        "chars": "\n"
+      }
+    ],
+    "payload": {
+      "display": "display",
+      "env": "equation"
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "See "
+      },
+      {
+        "elem": "flm.pres.link",
+        "body": [
+          {
+            "chars": "Introduction"
+          }
+        ],
+        "payload": {
+          "href": "#sec-intro",
+          "kind": "ref"
+        }
+      },
+      {
+        "chars": " and "
+      },
+      {
+        "elem": "flm.pres.span",
+        "body": [
+          {
+            "chars": "sec:missing"
+          }
+        ],
+        "payload": {
+          "style": "unresolved-reference"
+        }
+      },
+      {
+        "chars": "."
+      }
+    ],
+    "payload": {}
+  }
+]

@@ -1,0 +1,74 @@
+---
+title: "The FLM environment"
+flm:
+  use: [flmdoc]
+  math: false
+---
+The packages, features, settings and workflows of the environment, and the names its registry holds.
+
+The workflow in view is \docref{workflows/text}{\verbcode{text}}: its page shows the plan built from it.
+
+\section*{Packages}
+
+\begin{itemize}
+\item \docref{packages/stdcore}{\verbcode{stdcore}}
+\item \docref{packages/math-passthrough}{\verbcode{math-passthrough}}
+\end{itemize}
+
+\section*{Features}
+
+\begin{itemize}
+\item \docref{features/textstyles}{\verbcode{textstyles}}: The inline formatting commands `\emph`, `\textbf`, `\textit` and `\texttt`: four values of the element type `flm.textstyle`, each lowered to a `flm.pres.span` node that carries its style.
+\item \docref{features/literals}{\verbcode{literals}}: The commands that stand for one character of text (`\%`, `\#`, `\&`, `\$`, `\ `, `\{`, `\}`, `\textbackslash`) and the special character sequence `~` for a non-breaking space: nine values of the element type `flm.literal`. Also `\@`, a hint about whether a period ends a sentence.
+\item \docref{features/blocks}{\verbcode{blocks}}: Lays out every document tree in paragraphs and blocks, from the block role of each element and the layout it declares for its arguments and body, and resolves the text once: the `flm.blocks.structure` rewrite stage provides `flm.blocks.structured`; the `flm.blocks.raw` marker stage keeps the trees as parsed; the `flm.blocks.check-contract` stage checks the tree contract.
+\item \docref{features/index}{\verbcode{index}}: The element index `flm.element-index`: for every tree, the nodes of the tree and the element each carries, in document order, so that a stage finds the nodes whose element carries an aspect without walking the tree.
+\item \docref{features/refpoints}{\verbcode{refpoints}}: The table `flm.refpoints`: every reference point of the run (a place that can be referred to, numbered or given an anchor), as its element declared it, in document order; the `refs` and `numbering` features read it.
+\item \docref{features/numbering}{\verbcode{numbering}}: Counters, counter styles and the numbers of reference points: the five service slots into which features declare counters, counter styles, within-joiners, number writers and parent sets, the per-document numbering options, the stage that numbers, in document order, every reference point that has a number source, and the table `flm.counters` it writes.
+\item \docref{features/math}{\verbcode{math}}: Mathematics: the display-math environments and their equation lines, the text commands of math mode, `\ensuremath`, `\eqref`, equation numbering, and the capabilities `flm.math.content` and `flm.math.rendered`. A feature that processes mathematics (`math-passthrough`) checks and lowers the formulas.
+\item \docref{features/refs}{\verbcode{refs}}: Labels and references: the `\ref` and `\hyperref` commands, the labels written after constructs, the link identifier of every reference point, the resolution of every reference, and the check of duplicate labels and label types.
+\item \docref{features/headings}{\verbcode{headings}}: Headings: one value of the element `flm.heading` per heading kind, written with the kind's heading commands (`\section` to `\subparagraph` by default); each heading carries a level, a reference point and its `\label` fields.
+\item \docref{features/verbatim}{\verbcode{verbatim}}: Content shown exactly as written: the macros `\verbtext`, `\verbcode` and `\verba` and the environments `verbatimtext` and `verbatimcode`, each lowered to a `flm.pres.verbatim` node that carries its verbatim kind and its language.
+\item \docref{features/lists}{\verbcode{lists}}: The list environments as element values of `flm.lists.list`, `\item` inside their bodies, the label shown beside each item, and one reference point per item.
+\item \docref{features/xnotes}{\verbcode{xnotes}}: Footnotes and the other kinds of xnote (notes set apart from the running text): the configured kinds and their commands, the two reference points of every xnote, the service slot `flm.xnotes.kinds` of the kinds, and the table `flm.xnotes` of every xnote of a document by kind.
+\item \docref{features/href}{\verbcode{href}}: Links to an address outside the document: `\href{address}{text}`, `\url{address}` and `\email{address}`, lowering to `flm.pres.link` with the kind token `url`.
+\item \docref{features/defterm}{\verbcode{defterm}}: Defined terms: the `defterm` environment, which defines a term and carries one reference point, and `\term`, a link to a term's definition, which the references feature resolves.
+\item \docref{features/theorems}{\verbcode{theorems}}: Theorem-like environments (`theorem`, `lemma`, `proof`, …), one per configured kind, all of the element `flm.theorems.theorem`: each with an optional title, numbered and labeled where its kind's class is numbered, a heading at the start of its first paragraph, an optional closing mark, and, on a proof, a back-reference to the statement it proves.
+\item \docref{features/quote}{\verbcode{quote}}: Quotations: the quote environments (`quote`, `blockquote`, `address` and any a host configures), their quotation-section commands `\text`, `\lines`, `\attributed` and `\block`, and the commands `\\` and `\indent` of a lines section.
+\item \docref{features/annotations}{\verbcode{annotations}}: A reviewer's marks: one command per configured annotator, written `\phf{…}` or `\phf … \endphf` for a highlighted passage and `\phf[…]` for a remark, with `phf` the annotator's command.
+\item \docref{features/graphics}{\verbcode{graphics}}: Images, written `\includegraphics[options]{path}` inside the body of a float type that makes the command available (the `figure` and `table` types do) or, under `global`, wherever text can be written: inline content, except as a direct child of a float's body, where an image is a block. The file that a host's graphics resolver finds and what its inspector reports about it are recorded; each output publishes the image by reference, as a copy beside the output or written into a `data:` address, converted where a conversion rule says so. On the plain-text, HTML and rendered LaTeX outputs the image lowers to `flm.pres.image` with the published address, on the recomposed LaTeX to the LaTeX hook `\flmIncludeGraphics`.
+\item \docref{features/floats}{\verbcode{floats}}: Floats such as figures and tables: one environment per float type, each an element value of `flm.floats.float`, holding content with an optional caption, labels and a number given by the type's numbering policy.
+\item \docref{features/cells}{\verbcode{cells}}: The `cells` environment, inside a `table` float or, under `global`, wherever blocks can be written: a grid filled with `\cell` and `\celldata`, cells spanning rows or columns with `\merge`, names for rows and columns with `\rownames` and `\colnames`, and style tokens referring to the cell styles of the service slot `flm.cells.styles`.
+\item \docref{features/citations}{\verbcode{citations}}: Citing works by key: `\cite[note]{keys}`, adjacent calls read as one citation chunk, and `\R\cite{keys}`, a citation written as a noun of its sentence. The host's citation providers give each cited citation key its citation entry and say which citation keys refer to the same work; the works are numbered in order of first citation, each citation chunk is shown as a citation mark linking to its works, and the works are listed after the content, or their citation entries are shown in the citation marks.
+\item \docref{features/input}{\verbcode{input}}: `\input{file}`: the content of another file, parsed where the command is written and put in place of the command by the rewrite `flm.input.splice`, which publishes `flm.input.spliced`.
+\item \docref{features/userdefs}{\verbcode{userdefs}}: Macros, environments and special character sequences defined by substitution. Each definition is an element carrying the `Expand` aspect. The rewrite stages `flm.userdefs.expand-always` and `flm.userdefs.expand` expand the use sites of the `always` and of the `per-plan` definitions; the `flm.userdefs.keep` marker stage keeps the latter in the tree instead. Every definition's `expand-in-tree` rule gives its element a rule on every backend; a `per-plan` definition's `emit-call` and `instantiate-at-lowering` rules lower a use site kept in the tree. The templates are compiled when the registry is built, which also records whether each definition can be written as one LaTeX definition.
+\item \docref{features/lowering}{\verbcode{lowering}}: the presentation vocabulary, the field element and the structural elements' default lowering rules
+\item \docref{features/meta}{\verbcode{meta}}: The document's metadata (its title, its authors, its date and any other key) as an option set per document, and the three pieces that show the title, the authors and the date before the content.
+\item \docref{features/toc}{\verbcode{toc}}: The document's table of contents: the table `flm.toc.entries` of the listed headings, and the piece `flm.toc` (off by default) that shows them as nested lists before the content.
+\item \docref{features/pieces}{\verbcode{pieces}}: the service slot into which features declare the document-level values a backend places before or after the content, and the render option that chooses which of them a render request places
+\item \docref{features/text}{\verbcode{text}}: plain-text output over the layout engine: the `text` output and workflow
+\item \docref{features/latex}{\verbcode{latex}}: registers what every LaTeX backend shares: the LaTeX construct elements, the placeholder rule, the service slots through which a backend resolves LaTeX package requests and definition pieces, and the standard package definitions and definition pieces
+\item \docref{features/latex-recomposed}{\verbcode{latex-recomposed}}: the document recomposed into LaTeX from the raw tree: the `latex-recomposed` output and workflow, a body and a style file
+\item \docref{features/latex-rendered}{\verbcode{latex-rendered}}: the document as fully resolved LaTeX for LuaLaTeX, written through one command or environment per presentation element: the `latex-rendered` output and workflow, a document and a style file
+\item \docref{features/html}{\verbcode{html}}: HTML output for a browser: the construct element `flm.pres.html.tag`, the `html` backend, the `html` output and the `html` workflow
+\item \docref{features/check}{\verbcode{check}}: The collection `flm.validated`, which every check joins, and the `check` workflow, which demands it: the document is validated and no output is written.
+\item \docref{features/math-passthrough}{\verbcode{math-passthrough}}: Mathematics carried to the output as written: unknown macros and environments in math mode kept as source (`flm.math-passthrough.opaque`), the check `flm.math.content`, which accepts every formula, and the lowering rules of the formulas on every backend. Requires the `math` feature.
+\end{itemize}
+
+\section*{Workflows}
+
+Each workflow says what a build produces, and is also the profile of the same name: building a document with a profile runs the workflow of that name.
+
+\begin{itemize}
+\item \docref{workflows/check}{\verbcode{check}}: validate the document: run every check the features add, and write no output
+\item \docref{workflows/html}{\verbcode{html}} (outputs: \verbcode{html}): render the document as an HTML page, running every check
+\item \docref{workflows/latex-recomposed}{\verbcode{latex-recomposed}} (outputs: \verbcode{latex-recomposed}): recompose the document into LaTeX, running every check and leaving every resolution to LaTeX
+\item \docref{workflows/latex-rendered}{\verbcode{latex-rendered}} (outputs: \verbcode{latex-rendered}): render the document as LaTeX for LuaLaTeX, running every check and leaving only the typesetting to LaTeX
+\item \docref{workflows/text}{\verbcode{text}} (outputs: \verbcode{text}): render the document as plain text, running every check
+\end{itemize}
+
+\section*{Going further}
+
+The documentation has these sections, each listing its pages: \docref{packages/}{Packages}, \docref{features/}{Features}, \docref{settings/}{Settings}, \docref{workflows/}{Workflows} and \docref{namespaces/}{Namespaces}. A command's page is found under the feature that declares it, by its kind: the macro \verbcode{\section} of the feature \verbcode{headings} has the page \verbcode{features/headings/macros/section}.
+
+A name that is not the path of a page is looked up across the pages: \verbcode{flm info \section} shows the pages of the commands written \verbcode{\section}, and \verbcode{flm info flm.refs.resolve} the page of the entity of that name. The option \verbcode{--json} gives the pages as JSON.
+

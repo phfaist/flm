@@ -1,0 +1,7 @@
+# The text's width, an extension written as one file, which the house style uses.
+extension:
+  description: The margins.
+flm:
+  features:
+    text:
+      width: 50

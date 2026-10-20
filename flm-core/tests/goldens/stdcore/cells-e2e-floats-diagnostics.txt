@@ -1,0 +1,7 @@
+===== check =====
+===== text =====
+Warning flm.graphics.unknown-size: the size of the image `figures/cell.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/cell.png}`
+===== html =====
+Warning flm.graphics.unknown-size: the size of the image `figures/cell.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/cell.png}`
+===== latex-recomposed =====
+Warning flm.graphics.unknown-size: the size of the image `figures/cell.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/cell.png}`

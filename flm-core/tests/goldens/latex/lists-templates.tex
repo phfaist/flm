@@ -1,0 +1,42 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.a7cd0c12.sty
+\begin{enumerate}[label={(\alph*)}]\item a\item b\end{enumerate}
+
+\begin{enumerate}[label={(\roman*)}]\item a\item b\end{enumerate}
+
+\begin{enumerate}[label={\arabic*.}, ref={\arabic*}]\item a\end{enumerate}
+
+\begin{enumerate}[label={\Alph*)}]\item a\end{enumerate}
+
+\begin{enumerate}[label={\Roman*.}]\item a\end{enumerate}
+
+\begin{enumerate}[label={*}]\item a\end{enumerate}
+
+\begin{itemize}[label={--}]\item a\end{itemize}
+
+\begin{itemize}[label={-}]\item a\end{itemize}
+
+\begin{itemize}[label={*}]\item a\end{itemize}
+
+\begin{itemize}[label={+}]\item a\end{itemize}
+
+\begin{itemize}[label={}]\item a\end{itemize}
+
+\begin{itemize}[label={§ a, b]}]\item a\end{itemize}
+
+\begin{enumerate}[label={Step~\arabic*:}]\item a\end{enumerate}
+
+\begin{enumerate}[label={50\% \arabic*}]\item a\end{enumerate}
+
+\begin{enumerate}[label={{Q}\arabic*}]\item a\end{enumerate}%%
+% ===== latex-recomposed:style flmrecomposed.a7cd0c12.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.a7cd0c12}
+% --- packages ---
+% flm.latex.pkg.enumitem
+\RequirePackage{enumitem}
+% flm.latex.pkg.newunicodechar
+\RequirePackage{newunicodechar}
+% --- unicode characters written as UTF-8 ---
+\newunicodechar{§}{\textsection}
+\endinput

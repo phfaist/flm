@@ -1,0 +1,3 @@
+note: the tree `tree#0` holds 9 words of at least 4 characters
+  at wordcount.flm:11:1
+0 errors, 0 warnings

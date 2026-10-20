@@ -1,0 +1,14 @@
+---
+flm:
+  math: false
+  use: [flmdoc]
+---
+\begin{docitem}[macro-open-brace]{macro}|\{|
+\docsignature|\{|
+\docsummary{Writes an opening brace.}
+\begin{docparams}[Forms]
+\docparam+{+{}{}{A brace alone, written between plus signs.}
+\docparam{{text}}{text}{}{A form written between braces, which pair up.}
+\end{docparams}
+\docfield{See also}{\docref(macros/close-brace){the closing brace}}
+\end{docitem}

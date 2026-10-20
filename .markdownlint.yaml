@@ -1,0 +1,6 @@
+# Config for markdownlint
+
+# MD012/no-multiple-blanks : Multiple consecutive blank lines : https://github.com/DavidAnson/markdownlint/blob/v0.41.1/doc/md012.md
+MD012:
+  # Consecutive blank lines
+  maximum: 3

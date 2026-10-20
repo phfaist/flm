@@ -1,0 +1,1 @@
+p { color: {{ config.color }}; background: url({{ artifacts.logo }}) }

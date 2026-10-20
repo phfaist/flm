@@ -1,0 +1,28 @@
+[package]
+name = "flm-extensions"
+description = "The extensions shipped with FLM, compiled into the program: their files as data, and the extensions written in Rust"
+version.workspace = true
+edition.workspace = true
+# Rust 1.88, the floor of `flm-ext`, which the extensions written in Rust are compiled
+# against (cargo feature `native`); without the feature, the crate has no dependency.
+rust-version = "1.88"
+authors.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# The extensions written in Rust (the folder `rust/`), compiled in: the table
+# `NATIVE_EXTENSIONS`, which the program gives to the engine `native` of `flm-ext`.
+native = ["dep:flm-ext", "flm-ext/native", "dep:flmdoc", "dep:profile-pdf-latex", "dep:syntax-highlight"]
+
+[dependencies]
+# The engine `native`'s description of an extension compiled in (cargo feature `native`).
+flm-ext = { path = "../flm-ext", default-features = false, optional = true }
+# The extensions written in Rust, one line each (cargo feature `native`).
+flmdoc = { path = "rust/flmdoc", optional = true }
+profile-pdf-latex = { path = "rust/profile-pdf-latex", optional = true }
+syntax-highlight = { path = "rust/syntax-highlight", optional = true }

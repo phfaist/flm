@@ -1,0 +1,184 @@
+/* The notebook frame; FLM continues to style the document's semantic elements.
+   Outside @layer flm so these defaults also override the built-in page frame. */
+:root {
+  /* Fixed template typography: rem units use this 17px root size. */
+  font: normal 400 var(--flm-page-size)/var(--flm-page-line-height) var(--flm-page-family);
+  --nb-family: Charter, "Bitstream Charter", Georgia, serif;
+  /* One accent seeds the palette. Mix in sRGB for predictable tint ratios. */
+  --nb-accent: var(--nb-config-accent);
+  --nb-ink: color-mix(in srgb, var(--nb-accent) 8%, #2b2b2b);
+  --nb-muted: color-mix(in srgb, var(--nb-accent) 10%, #6b6b6b);
+  --nb-accent-hover: color-mix(in srgb, var(--nb-accent) 80%, black);
+  --nb-background: color-mix(in srgb, var(--nb-accent) 5%, white);
+  --nb-paper: #fff;
+  --nb-rule: color-mix(in srgb, var(--nb-accent) 15%, white);
+  --nb-code-background: color-mix(in srgb, var(--nb-accent) 2%, white);
+  --nb-quote-background: color-mix(in srgb, var(--nb-accent) 4%, white);
+  --nb-quote-rule: color-mix(in srgb, var(--nb-accent) 45%, white);
+  --nb-measure: 47.5rem;
+  --nb-paper-padding: 3rem;
+  --nb-sidebar-width: 11.875rem;
+  --nb-sidebar-gap: 3rem;
+  --nb-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --flm-page-family: var(--nb-family);
+  --flm-page-size: 17px;
+  --flm-page-line-height: 1.7;
+  --flm-page-color: var(--nb-ink);
+  --flm-page-background: var(--nb-background);
+
+  --flm-link-color: var(--nb-accent);
+  --flm-link-hover-color: var(--nb-accent-hover);
+  --flm-link-decoration: underline;
+  --flm-block-spacing: 1em;
+  --flm-heading-weight: 600;
+  --flm-heading-line-height: 1.4;
+  --flm-heading-size-1: 1.235em;
+  --flm-heading-size-2: 1.118em;
+  --flm-heading-size-3: 1em;
+  --flm-heading-size-4: 1em;
+  --flm-heading-size-5: 1em;
+  --flm-heading-size-6: 1em;
+  --flm-heading-space-above: 1.8em;
+  --flm-heading-space-below: .75em;
+  --flm-meta-title-size: 2.375rem;
+  --flm-meta-title-line-height: 1.2;
+  --flm-meta-line-size: .875rem;
+  --flm-meta-line-indent: 0;
+  --flm-meta-line-space: .4em;
+  --flm-verbatim-family: var(--nb-mono);
+  --flm-verbatim-size: .8125rem;
+  --flm-verbatim-background: var(--nb-code-background);
+  --flm-verbatim-radius: 3px;
+  --flm-verbatim-block-padding: 1rem 1.25rem;
+  --flm-verbatim-block-spacing: 1.4em;
+  --flm-floats-align: start;
+  --flm-floats-caption-size: .9375rem;
+  --flm-floats-caption-spacing: .75em;
+  --flm-cells-padding: .625rem .75rem;
+  --flm-cells-outline: 1px solid var(--nb-rule);
+  --flm-cells-header-rule: 1px solid var(--nb-rule);
+  --flm-cells-rule: 1px solid var(--nb-rule);
+  --flm-xnotes-list-rule: 1px solid var(--nb-rule);
+  --flm-xnotes-list-size: .9375rem;
+  --flm-quote-background: var(--nb-quote-background);
+  --flm-quote-block-rule: 3px solid var(--nb-quote-rule);
+  --flm-margin-note-color: var(--nb-muted);
+  --flm-toc-indent: 1em;
+}
+
+.nb-page {
+  margin: 0;
+  background: var(--flm-page-background);
+  color: var(--flm-page-color);
+  font: inherit;
+}
+.nb-page *, .nb-page *::before, .nb-page *::after { box-sizing: border-box; }
+.nb-page a { text-underline-offset: 3px; }
+.nb-page :is(a, summary):focus-visible { outline: 2px solid var(--nb-accent); outline-offset: 4px; }
+.nb-skip { position: fixed; inset-block-start: -6rem; inset-inline-start: 1rem; padding: .5rem; background: var(--nb-paper); z-index: 2; }
+.nb-skip:focus { inset-block-start: .5rem; }
+.nb-layout {
+  display: grid;
+  grid-template-columns: var(--nb-sidebar-width) minmax(0, 1fr);
+  gap: var(--nb-sidebar-gap);
+  max-width: calc(var(--nb-sidebar-width) + var(--nb-sidebar-gap) + var(--nb-measure) + 2 * var(--nb-paper-padding) + 4rem + 2px);
+  margin: 3rem auto 4rem;
+  padding-inline: 2rem;
+  align-items: start;
+}
+.nb-sidebar {
+  position: sticky;
+  top: 2rem;
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  padding-block: 2.75rem 1rem;
+  font-size: .875rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+/* A sidebar image is useful even when the document has no headings. */
+.nb-layout:not(:has(.nb-sidebar-image, .flm-toc a)) { grid-template-columns: minmax(0, 1fr); max-width: calc(var(--nb-measure) + 2 * var(--nb-paper-padding) + 4rem + 2px); }
+.nb-sidebar:not(:has(.nb-sidebar-image, .flm-toc a)) { display: none; }
+.nb-sidebar-image { margin-block-end: 1.5rem; }
+.nb-sidebar-image a { display: inline-block; max-width: 100%; }
+.nb-sidebar-image img { display: block; max-width: 100%; max-height: 8rem; width: auto; height: auto; object-fit: contain; }
+.nb-sidebar .flm-toc { margin: 0; }
+.nb-sidebar .flm-toc ul { list-style: none; margin: 0; padding: 0; }
+.nb-sidebar .flm-toc ul ul { padding-inline-start: var(--flm-toc-indent); }
+.nb-sidebar .flm-toc li { margin: 0; }
+.nb-sidebar .flm-toc a { display: block; padding-block: .4375rem; color: var(--nb-muted); text-decoration: none; }
+.nb-sidebar .flm-toc a:hover, .nb-sidebar .flm-toc a[aria-current] { color: var(--nb-accent); }
+.nb-sidebar .flm-toc a[aria-current] { font-weight: 600; }
+.nb-sidebar .flm-toc-entry-number { margin-inline-end: .35em; }
+.nb-paper {
+  min-width: 0;
+  background: var(--nb-paper);
+  border: 1px solid var(--nb-rule);
+  padding: 2.75rem var(--nb-paper-padding) 2.375rem;
+  box-shadow: 0 3px 18px color-mix(in srgb, var(--nb-ink) 2%, transparent);
+}
+/* Reset the built-in page frame, including its optional margin-note column.
+   Margin notes stay inline, where they cannot collide with the paper or TOC. */
+.nb-content.flm-content { max-width: none; margin: 0; padding: 0; --flm-margin-note-column: initial; }
+.nb-metadata { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .625rem; margin-block-end: 1.875rem; }
+.nb-metadata > #flm-region-flm\.meta\.title { flex-basis: 100%; }
+.nb-metadata :is(.flm-meta-author, .flm-meta-date) { margin-block: 0; }
+.nb-metadata:has(.flm-meta-author) .flm-meta-date > .flm-pres-par::before { content: "·"; margin-inline-end: .625rem; }
+.nb-metadata .flm-meta-title { font-weight: 600; letter-spacing: -.018em; margin: 0 0 1rem; overflow-wrap: anywhere; }
+.nb-metadata .flm-meta-title > .flm-pres-par { margin: 0; }
+.nb-metadata :is(.flm-meta-author, .flm-meta-date) { color: var(--nb-muted); margin-inline: 0; }
+.nb-paper [id] { scroll-margin-top: 2rem; }
+.nb-content { overflow-wrap: break-word; }
+/* Long display equations scroll within the paper on narrow screens. */
+.nb-content :is(.math-mathjax-formula, .flm-pres-math--passthrough)[data-flm-display="display"],
+.nb-content math[display="block"] { display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+.nb-content .flm-heading-number { font: inherit; color: inherit; }
+.nb-content .flm-pres-verbatim[data-flm-kind="code"][data-flm-display="block"] { border: 0; line-height: 1.7; overflow-wrap: normal; }
+.nb-content .flm-pres-verbatim code { font: inherit; }
+.nb-code { margin-block: var(--flm-verbatim-block-spacing); border: 1px solid var(--nb-rule); border-radius: 3px; background: var(--nb-code-background); }
+.nb-code > summary { padding: .5625rem .9375rem; color: var(--nb-muted); cursor: pointer; font-size: .8125rem; }
+.nb-code[open] > summary { border-bottom: 1px solid var(--nb-rule); }
+.nb-code > .flm-pres-verbatim[data-flm-display="block"] { margin: 0; border: 0; }
+.nb-content .flm-floats-float-caption { color: var(--nb-muted); text-align: start; }
+/* FLM writes float captions after their content, including table floats. */
+.nb-content caption { caption-side: bottom; text-align: start; padding-block-start: .625rem; color: var(--nb-muted); font-size: var(--flm-floats-caption-size); }
+.nb-content .flm-floats-float-content { overflow-x: auto; }
+.nb-content .flm-pres-cells { max-width: 100%; font-size: .875rem; font-variant-numeric: tabular-nums; }
+.nb-content .flm-pres-cells :is(td, th) { border-bottom: 1px solid var(--nb-rule); }
+.nb-content .flm-pres-cells th { font-weight: 600; }
+.nb-content [role="doc-endnotes"] { padding-block-start: 1.125rem; color: var(--nb-muted); }
+.nb-content [data-flm-heading="citations"], .nb-content [data-flm-heading="xnotes"] { font-size: 1em; }
+.nb-content .flm-citations-bibliography { font-size: .875rem; }
+
+@media (max-width: 62rem) {
+  :root { --nb-sidebar-width: 10rem; --nb-sidebar-gap: 1.875rem; --nb-paper-padding: 2rem; --flm-meta-title-size: 2.0625rem; }
+  .nb-layout { margin-block-start: 2.5rem; padding-inline: 1.5rem; }
+  .nb-sidebar { padding-block-start: 2rem; }
+  .nb-paper { padding-block-start: 2rem; }
+}
+@media (max-width: 45rem) {
+  :root { --nb-paper-padding: 1.375rem; --flm-meta-title-size: 2rem; --flm-cells-padding: .5625rem .375rem; }
+  .nb-layout, .nb-layout:not(:has(.nb-sidebar-image, .flm-toc a)) { display: block; margin-block: 1.625rem 2.8125rem; padding-inline: .875rem; }
+  .nb-sidebar { position: static; max-height: none; padding: 0 .625rem; margin-block-end: 1.5rem; font-size: .8125rem; }
+  .nb-sidebar .flm-toc > ul { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; }
+  .nb-sidebar .flm-toc a { padding-block: 0; }
+  .nb-sidebar .flm-toc ul ul { margin-block: .25rem; }
+  .nb-paper { padding-block: 1.75rem; }
+  .nb-content .flm-pres-verbatim { font-size: .75rem; }
+  .nb-content .flm-pres-cells { font-size: .8125rem; }
+}
+/* An image starts at the paper edge; a contents-only sidebar aligns with its text. */
+.nb-sidebar:has(.nb-sidebar-image) { padding-block-start: 0; }
+
+@media print {
+  .nb-page { background: #fff; color: #000; }
+  .nb-sidebar, .nb-skip, .nb-code > summary { display: none; }
+  .nb-layout, .nb-layout:not(:has(.nb-sidebar-image, .flm-toc a)) { display: block; margin: 0; padding: 0; max-width: none; }
+  .nb-paper { padding: 0; border: 0; box-shadow: none; }
+  .nb-code:not([open]) > .flm-pres-verbatim { content-visibility: visible; display: block; }
+  .nb-content .flm-pres-verbatim { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .nb-content .flm-floats-float { break-inside: avoid; }
+  .nb-content .flm-pres-block--heading { break-after: avoid; }
+  .nb-content a { color: inherit; }
+}

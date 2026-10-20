@@ -1,0 +1,10 @@
+\documentclass[twocolumn]{article}
+((* if "style-package" in regions *))
+\usepackage{((( regions["style-package"] )))}
+((* endif *))
+\begin{document}
+\title{((( pieces["flm.meta.title"].text )))}
+\author{((( pieces["flm.meta.author"].text )))}
+\date{((( pieces["flm.meta.date"].text )))}
+\maketitle
+((( regions.content )))\end{document}

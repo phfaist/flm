@@ -1,0 +1,16 @@
+{
+  "flm.refs.resolutions": {
+    "flm.ref@3:5#0": {
+      "resolved": {
+        "point": "flm.heading@1:1#0",
+        "href": "#sec-intro",
+        "display": {
+          "content": "Intro"
+        }
+      }
+    },
+    "flm.ref@3:25#0": {
+      "unresolved": "sec:nowhere"
+    }
+  }
+}

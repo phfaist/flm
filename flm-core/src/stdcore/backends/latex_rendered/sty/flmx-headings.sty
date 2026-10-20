@@ -1,0 +1,219 @@
+% flm.latex.def.flmx.headings -- headings.
+%
+% FLM numbers the headings itself: the number stands in the title, in a span
+% of role flm.heading.number, and no LaTeX counter is stepped (\section and
+% secnumdepth play no part). The two elements:
+%   \flmxHeading[kind, level, toc, anchor, number, plain, alt]{<title>}
+%       a heading on a line of its own;
+%   \flmxRuninHeading[kind, level, toc, anchor, number, plain, alt, stop]{<title>}
+%       the title of a heading set at the start of its paragraph, inside
+%       \flmxDecoRunin, which writes the title, the stop and \flmxRuninSep.
+% Their keys:
+%   kind     the heading kind's name (section, subsection, ...);
+%   level    the level, counted from zero (section is 1);
+%   toc      true or false: whether the heading is listed in a table of
+%            contents;
+%   anchor   where the heading is a reference target;
+%   number   the heading's number as plain text, where the document numbered
+%            it (it also stands in the title);
+%   plain    the title's characters as plain text, the number included;
+%   alt      the alternative title, where the author wrote one;
+%   stop     (run-in) the punctuation after the title, where one is written.
+%
+% The default look. \flmxHeadingLevel{<level>}{<title>} typesets <title> as a
+% heading of <level>, through LaTeX's \@startsection in its starred form with
+% this table: level 0 the article's \section spacing, a page-break penalty
+% before it and \huge; levels 1 to 5 the article's \section, \subsection,
+% \subsubsection, \paragraph and \subparagraph (levels 4 and 5 run into the
+% paragraph after them); a level past 5 as level 5. Inside the heading,
+% before the title, it places the target of the anchor (\flmxTarget), a PDF
+% bookmark where toc=true (\pdfbookmark at the level key itself, so that
+% hyperref's bookmarksdepth counts FLM's levels as an article's: section 1,
+% subsection 2; its text the plain key, its name the anchor, or a counter of
+% this chunk where there is none), and, for levels 0 and 1, the running
+% head: \markboth (level 0) or \markright (level 1) with the alt key where
+% present, else plain. The target, the bookmark and the running head act
+% once, when the heading itself is typeset: a \nameref to the heading
+% typesets its title alone. The heading's keys must be in scope: call it
+% from a heading's registered code.
+%
+% Dispatch. A heading is written with the code registered under its kind,
+% then under its level, then with the default (\flmxHeadingLevel at the
+% heading's level). No kind is registered by this chunk: a template changes
+% the look of a kind by registering it (looked up first),
+%   \flmxDefineHeading{section}{<code over #1, the title>}
+% or the look of every heading of a level by registering the level,
+%   \flmxDefineHeading{2}{<code over #1, the title>}
+% \flmxRuninHeading's default sets the name a \nameref to the heading
+% prints to the plain key, places the target, the bookmark and the running
+% head, and writes the title; register a look with
+% \flmxDefineRuninHeading{<kind or level>}{...}.
+
+\ExplSyntaxOn
+
+\int_new:N \g__flmx_bookmark_int
+\tl_new:N \l__flmx_heading_name_tl
+\tl_new:N \l__flmx_heading_places_tl
+\tl_new:N \g__flmx_heading_places_tl
+\cs_generate_variant:Nn \tl_set:Nn { Ne }
+\cs_generate_variant:Nn \tl_put_right:Nn { Ne }
+
+% Sets \l__flmx_heading_places_tl to the code placing the target, the
+% bookmark and the running head of the heading whose keys are in scope, the
+% keys' values written into it: a run-in heading of \@startsection is set
+% at the start of the next paragraph, once the keys are out of scope.
+\cs_new_protected:Npn \__flmx_heading_places:
+  {
+    \tl_clear:N \l__flmx_heading_places_tl
+    \flmxIfKey { anchor }
+      {
+        \tl_put_right:Ne \l__flmx_heading_places_tl
+          { \exp_not:N \flmxTarget { \exp_not:v { l__flmx_key_anchor_tl } } }
+      }
+      { }
+    \str_if_eq:eeT { \flmxKey { toc } } { true }
+      {
+        \flmxIfKey { anchor }
+          { \tl_set:Ne \l__flmx_heading_name_tl { flmxbookmark:\flmxKey { anchor } } }
+          {
+            \int_gincr:N \g__flmx_bookmark_int
+            \tl_set:Ne \l__flmx_heading_name_tl
+              { flmxbookmark.\int_use:N \g__flmx_bookmark_int }
+          }
+        \tl_put_right:Ne \l__flmx_heading_places_tl
+          {
+            \exp_not:N \pdfbookmark [ \flmxKey { level } ]
+              { \flmxIfKey { plain } { \exp_not:v { l__flmx_key_plain_tl } } { } }
+              { \exp_not:V \l__flmx_heading_name_tl }
+          }
+      }
+    \int_case:nn { \flmxKey { level } }
+      {
+        { 0 }
+          {
+            \tl_put_right:Ne \l__flmx_heading_places_tl
+              { \exp_not:N \markboth { \__flmx_heading_mark: } { } }
+          }
+        { 1 }
+          {
+            \tl_put_right:Ne \l__flmx_heading_places_tl
+              { \exp_not:N \markright { \__flmx_heading_mark: } }
+          }
+      }
+  }
+% The running head's text, not expanded further: alt, else plain.
+\cs_new:Npn \__flmx_heading_mark:
+  {
+    \flmxIfKey { alt }
+      { \exp_not:v { l__flmx_key_alt_tl } }
+      { \flmxIfKey { plain } { \exp_not:v { l__flmx_key_plain_tl } } { } }
+  }
+
+% The look of the table's level #1 over the title #2.
+\cs_new_protected:Npn \__flmx_heading_level:nn #1#2
+  {
+    \__flmx_heading_places:
+    \tl_gset_eq:NN \g__flmx_heading_places_tl \l__flmx_heading_places_tl
+    \__flmx_heading_table:nn { \int_min:nn {#1} { 5 } } {#2}
+  }
+% Places the target, the bookmark and the running head of the heading being
+% typeset, then forgets them. It stands before the title inside the title
+% argument of \@startsection, which nameref stores as the heading's name: a
+% \nameref typesetting that name meets it again and places nothing. Its name
+% is a LaTeX internal one (with @), since it is written to the .aux file.
+\cs_new_protected:Npn \flmx@headingplace
+  {
+    \tl_use:N \g__flmx_heading_places_tl
+    \tl_gclear:N \g__flmx_heading_places_tl
+  }
+% #1 the level of the table, #2 the title.
+\cs_new_protected:Npn \__flmx_heading_table:nn #1#2
+  {
+    \int_case:nn {#1}
+      {
+        { 0 }
+          {
+            \par \addpenalty { -\@highpenalty }
+            \@startsection { flmxheading } { 0 } { \z@ }
+              { -3.5ex \@plus -1ex \@minus -.2ex } { 2.3ex \@plus .2ex }
+              { \normalfont \huge \bfseries } * { \flmx@headingplace #2 }
+          }
+        { 1 }
+          {
+            \@startsection { flmxheading } { 1 } { \z@ }
+              { -3.5ex \@plus -1ex \@minus -.2ex } { 2.3ex \@plus .2ex }
+              { \normalfont \Large \bfseries } * { \flmx@headingplace #2 }
+          }
+        { 2 }
+          {
+            \@startsection { flmxheading } { 2 } { \z@ }
+              { -3.25ex \@plus -1ex \@minus -.2ex } { 1.5ex \@plus .2ex }
+              { \normalfont \large \bfseries } * { \flmx@headingplace #2 }
+          }
+        { 3 }
+          {
+            \@startsection { flmxheading } { 3 } { \z@ }
+              { -3.25ex \@plus -1ex \@minus -.2ex } { 1.5ex \@plus .2ex }
+              { \normalfont \normalsize \bfseries } * { \flmx@headingplace #2 }
+          }
+        { 4 }
+          {
+            \@startsection { flmxheading } { 4 } { \z@ }
+              { 3.25ex \@plus 1ex \@minus .2ex } { -1em }
+              { \normalfont \normalsize \bfseries } * { \flmx@headingplace #2 }
+          }
+        { 5 }
+          {
+            \@startsection { flmxheading } { 5 } { \parindent }
+              { 3.25ex \@plus 1ex \@minus .2ex } { -1em }
+              { \normalfont \normalsize \bfseries } * { \flmx@headingplace #2 }
+          }
+      }
+  }
+
+\NewDocumentCommand \flmxHeadingLevel { m +m }
+  { \__flmx_heading_level:nn {#1} {#2} }
+
+\NewDocumentCommand \flmxHeading { O { } +m }
+  {
+    \group_begin:
+      \__flmx_set_keys:n {#1}
+      \__flmx_find:nn { heading } { kind, level }
+      \use:c { \l__flmx_found_tl } {#2}
+      % Keep the keys and formatting local, but carry LaTeX's continuation
+      % into the scope of the following paragraph. For a displayed heading,
+      % \@afterheading's \everypar clears the global \if@nobreak and applies
+      % \if@afterindent; losing it suppresses later headings' before-space.
+      % A run-in heading also needs its deferred title, \@svsechd. Preserve
+      % the name for a following \label in either case. These assignments
+      % are local to the containing scope, not global across environments.
+      % Do this at dispatch so registered \@startsection code works too.
+      \use:e
+        {
+          \group_end:
+          \exp_not:N \everypar { \exp_not:V \everypar }
+          \legacy_if:nTF { @afterindent }
+            { \exp_not:N \@afterindenttrue }
+            { \exp_not:N \@afterindentfalse }
+          \exp_not:N \cs_set:Npn \exp_not:N \@currentlabelname
+            { \exp_not:V \@currentlabelname }
+          \legacy_if:nT { @noskipsec }
+            {
+              \exp_not:N \cs_set:Npn \exp_not:N \@svsechd
+                { \exp_not:V \@svsechd }
+            }
+        }
+  }
+\flmxDefineHeadingDefault { \flmxHeadingLevel { \flmxKey { level } } {#1} }
+
+\NewDocumentCommand \flmxRuninHeading { O { } +m }
+  { \__flmx_command:nnnn { runinheading } { kind, level } {#1} {#2} }
+\flmxDefineRuninHeadingDefault
+  {
+    \flmxIfKey { plain }
+      { \tl_set:Nv \@currentlabelname { l__flmx_key_plain_tl } }
+      { }
+    \__flmx_heading_places: \tl_use:N \l__flmx_heading_places_tl #1
+  }
+
+\ExplSyntaxOff

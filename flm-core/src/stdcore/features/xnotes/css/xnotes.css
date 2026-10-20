@@ -1,0 +1,38 @@
+/* flm.xnotes.style */
+/* Xnotes (notes set apart from the running text, such as footnotes and
+   endnotes): the line above a list of xnotes, and the brackets around an
+   xnote shown in place.  A page that wants another presentation of xnotes
+   adds a stylesheet or a script of its own. */
+@layer flm {
+  :root {
+    /* The line above a list of xnotes, the list's text size, and the space
+       above it. */
+    --flm-xnotes-list-rule: 1px solid #999;
+    --flm-xnotes-list-size: 0.9em;
+    --flm-xnotes-list-space: 2em;
+    /* The text before and after an xnote shown in place. */
+    --flm-xnotes-inplace-open: "[";
+    --flm-xnotes-inplace-close: "]";
+  }
+
+  /* A list of xnotes: the block with the role doc-endnotes that carries the
+     kind token `xnotes`.  An xnote shown in place as a block carries the
+     kind token too; the role tells the two apart. */
+  .flm-pres-block[data-flm-kind~="xnotes"][role="doc-endnotes"] {
+    margin-top: var(--flm-xnotes-list-space);
+    border-top: var(--flm-xnotes-list-rule);
+    font-size: var(--flm-xnotes-list-size);
+  }
+
+  /* An xnote shown in place: the brackets around the span, or around the
+     paragraphs of the block, before its xnote mark and after its
+     content. */
+  .flm-pres-span.flm-xnotes-xnote-inplace::before,
+  .flm-pres-block.flm-xnotes-xnote-inplace > :first-child::before {
+    content: var(--flm-xnotes-inplace-open);
+  }
+  .flm-pres-span.flm-xnotes-xnote-inplace::after,
+  .flm-pres-block.flm-xnotes-xnote-inplace > :last-child::after {
+    content: var(--flm-xnotes-inplace-close);
+  }
+}

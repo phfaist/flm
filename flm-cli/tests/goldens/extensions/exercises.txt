@@ -1,0 +1,11 @@
+Exercises
+
+Exercise 1 (A title)
+
+Solve it. Hint: Think of the first case.
+
+Exercise 2
+
+Solve this one too.
+
+See Exercise 1 and 2.

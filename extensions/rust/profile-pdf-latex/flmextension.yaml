@@ -1,0 +1,15 @@
+# The manifest of the extension `profile-pdf-latex` in its WebAssembly form: the module that
+# `extensions/rust/build-wasm.sh` builds, beside this file. The `flm` program also carries
+# the extension compiled in; it then reads this file with the engine `native` in place of
+# `wasm`, and without the module.
+#
+# The limits leave room for the files of a document with many images: the files of the
+# output `latex-rendered` and the PDF cross the module's boundary as text (base64 for an
+# image or the PDF), several copies at a time. The engine's own limits are 64 MiB of memory
+# and 1 000 000 000 units of fuel per handler call.
+extension:
+  description: PDF output, compiled by LaTeX (latexmk and LuaLaTeX) from the output latex-rendered
+  engine: wasm
+  wasm:
+    module: profile_pdf_latex.wasm
+    limits: { memory_mib: 512, fuel: 20000000000 }

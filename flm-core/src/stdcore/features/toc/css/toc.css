@@ -1,0 +1,24 @@
+/* flm.toc.style */
+/* The table of contents: nested lists without a list marker, each nested
+   list indented.  The space after an entry's number is written as text by the
+   entry's rule.  A page that wants another presentation adds a stylesheet of
+   its own. */
+@layer flm {
+  :root {
+    /* The indentation of each nested list. */
+    --flm-toc-indent: 1.5em;
+  }
+
+  /* Every list of the table of contents: no marker, and no indentation of
+     its own for the top-level list. */
+  .flm-toc .flm-pres-list[data-flm-kind~="toc"] {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* A nested list: one indentation step more than the list holding it. */
+  .flm-toc .flm-pres-list[data-flm-kind~="toc"] .flm-pres-list[data-flm-kind~="toc"] {
+    padding-inline-start: var(--flm-toc-indent);
+  }
+}

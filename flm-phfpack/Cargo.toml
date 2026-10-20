@@ -1,0 +1,28 @@
+[package]
+name = "flm-phfpack"
+description = "The FLM package phfpack: notation macros for quantum information, as an extension crate over flm-core's public interface"
+version.workspace = true
+edition.workspace = true
+# The library's floor, 1.86: an extension written at that floor shows what the
+# library offers there.
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+# The library alone among the workspace's crates, and not the parser toolkit,
+# which the crate reaches through the library's re-export `flm_core::techy`: a
+# crate outside the library sees its public interface and nothing else
+# (`tests/registry.rs` holds the rule).
+[dependencies]
+# Without the library's default cargo feature (its stages run in parallel): that
+# choice belongs to the program that carries the package.
+flm-core = { path = "../flm-core", default-features = false }
+# What declaring settings asks of any crate outside the library: the data type of
+# the settings is read with serde and described with schemars, and a key merged
+# entry by entry gives its default entries as a JSON value.
+serde = { version = "1", features = ["derive"] }
+schemars = { version = "1", default-features = false, features = ["derive", "std", "preserve_order"] }
+serde_json = "1"

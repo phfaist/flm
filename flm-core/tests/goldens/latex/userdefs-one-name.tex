@@ -1,0 +1,12 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.7084d003.sty
+\flmUDfoo{a} and \begin{flmUEfoo}b\end{flmUEfoo}.%%
+% ===== latex-recomposed:style flmrecomposed.7084d003.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.7084d003}
+% --- user definitions ---
+% \flmUDfoo (the document's \foo): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDfoo[1]{\emph{#1}}
+% flmUEfoo (the document's foo): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \RenewDocumentEnvironment after loading this file changes it
+\ProvideDocumentEnvironment{flmUEfoo}{}{[}{]}
+\endinput

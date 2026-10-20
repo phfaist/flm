@@ -1,0 +1,5 @@
+extension:
+  description: Counts words, collects to-do markers, shouts
+  engine: js
+  js:
+    main: main.js

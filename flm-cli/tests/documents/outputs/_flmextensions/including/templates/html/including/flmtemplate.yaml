@@ -1,0 +1,14 @@
+output: html
+engine: minijinja
+main: including.html
+accepts: all
+config:
+  color: teal
+  title: A <b>bold</b> title
+artifacts:
+  style:
+    file: style.css
+    template: true
+  script:
+    file: script.js
+    template: true

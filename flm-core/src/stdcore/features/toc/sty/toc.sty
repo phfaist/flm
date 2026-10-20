@@ -1,0 +1,84 @@
+% flm.latex.def.flmx.toc -- the table of contents.
+%
+% FLM builds the table of contents itself; nothing of LaTeX's own
+% table-of-contents machinery is used. It is a block of role flm.toc and kind
+% token toc holding nested lists of kind tokens unnumbered and toc, one item
+% per listed heading; an item holds a link of kind toc to the heading, whose
+% content is the heading's number in a span of role flm.toc.entry.number, a
+% space and the title, then the item's sub-list:
+%   \begin{flmxBlock}[role=flm.toc, kinds=toc]
+%   \begin{flmxList}[kinds={unnumbered toc}, depth=1]
+%   \flmxItem
+%   \flmxLink[kind=toc, href={\#sec-1}, target=sec-1, shows-target=true]{%
+%     \flmxSpan[role=flm.toc.entry.number]{1} Introduction}
+%   \begin{flmxList}[kinds={unnumbered toc}, depth=2] ... \end{flmxList}
+%   \end{flmxList}
+%   \end{flmxBlock}
+% A heading without an anchor is listed without a link.
+%
+% Defaults:
+%   block flm.toc   the title \contentsname as an unnumbered heading of
+%                   level 0 (\flmxHeading[level=0, toc=false]), then the
+%                   lists;
+%   list toc        one paragraph per entry, without a marker, indented from
+%                   the left by \flmxTocIndent for each level of depth past
+%                   the first (the list's depth key);
+%   link toc        the title linked to the heading, dots, and the page
+%                   number of the heading, unlinked, flush right:
+%                   \hyperref[flmx:<target>]{#1}\nobreak\dotfill\nobreak
+%                   \pageref*{flmx:<target>};
+%   span flm.toc.entry.number  the number followed by \enspace (the space
+%                   written after the span is dropped).
+% A template changes the look with \flmxDefineBlock{flm.toc}{...}{...},
+% \flmxDefineList{toc}{...}{...}, \flmxDefineItem{toc}{...},
+% \flmxDefineLink{toc}{<code over #1>} (\flmxKey{target} is the heading's
+% anchor), \flmxDefineSpan{flm.toc.entry.number}{<code over #1>}, and the
+% length \flmxTocIndent (1.5em) with \setlength.
+
+\newlength\flmxTocIndent
+\setlength\flmxTocIndent{1.5em}
+
+\ExplSyntaxOn
+
+\flmxDefineBlock { flm.toc }
+  {
+    \par
+    \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { }
+    \flmxHeading [ level = 0 , toc = false , plain = { \contentsname } ] { \contentsname }
+  }
+  { \par }
+
+\flmxDefineList { toc }
+  {
+    \par
+    \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { }
+    \dim_set:Nn \leftskip
+      { \flmxTocIndent * \int_max:nn { 0 } { 0 \flmxKey { depth } - 1 } }
+    \dim_zero:N \parindent
+  }
+  { \par }
+\flmxDefineItem { toc }
+  {
+    \par
+    \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { }
+  }
+
+\flmxDefineLink { toc }
+  {
+    \flmxIfKey { target }
+      {
+        \hyperref [ flmx:\flmxKey { target } ] {#1}
+        \nobreak \dotfill \nobreak
+        \pageref* { flmx:\flmxKey { target } }
+      }
+      {#1}
+  }
+
+\flmxDefineSpan { flm.toc.entry.number }
+  {
+    \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { }
+    #1 \enspace
+    \group_insert_after:N \ignorespaces
+  }
+
+\ExplSyntaxOff

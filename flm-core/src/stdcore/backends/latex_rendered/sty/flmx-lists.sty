@@ -1,0 +1,145 @@
+% flm.latex.def.flmx.lists -- lists.
+%
+% FLM computes every label itself (a number, a bullet, a term): the label
+% stands in the item's keys, and no LaTeX counter is stepped. The elements:
+%   \begin{flmxList}[kinds, anchor, depth]
+%   \flmxItem[label, anchor]
+%   <the item's content: paragraphs, verbatim blocks, nested lists>
+%   \flmxItem[...]
+%   ...
+%   \end{flmxList}
+% \flmxItem takes no content argument: the item's content follows it, up to
+% the next \flmxItem or the \end, as with LaTeX's \item. Their keys:
+%   kinds    (list) the list's kind tokens: at most one of numbered,
+%            unnumbered, terms first, then others, such as the name of the
+%            environment the list comes from (enumerate, itemize,
+%            description) and labeled (every item carries its own label);
+%   anchor   (list, item) where the list or the item is a reference target;
+%   depth    (list) the list's depth among lists, 1 for an outermost list;
+%   label    (item) the item's label (its number, its bullet, its term),
+%            where it has one.
+%
+% The default look, over LaTeX's \list and \item, by the list's structural
+% kind tokens (the only ones it knows):
+%   numbered, labeled  \item[<label>], the label flush right in the label
+%            box; an item of a labeled list without a label shows none;
+%   unnumbered  \item[<label>] where the item has a label, else \item with a
+%            bullet by depth: \textbullet, \textendash,
+%            \textasteriskcentered, then \textperiodcentered;
+%   terms    the label in bold, run into the item (\labelwidth zero), the
+%            item's lines hanging at the list's indentation.
+% A list without a structural token is written as unnumbered. The list's
+% target stands before the list, an item's at the start of its content.
+%
+% Registering a look. A list and its items are written with the code
+% registered under the first of the list's kind tokens that has one, else
+% with the default. Both registrations go by the list's kind tokens (an
+% item has none of its own):
+%   \flmxDefineList{<kind token>}{<begin code>}{<end code>}
+%   \flmxDefineItem{<kind token>}{<code run at the item>}
+% for instance \flmxDefineList{enumerate}{\begin{enumerate}}{\end{enumerate}}
+% and \flmxDefineItem{enumerate}{\item[\flmxKey{label}]}. An item's code
+% sees the item's keys (\flmxKey{label}); the list's kind tokens and depth
+% are \flmxListKinds and \flmxListDepth. The defaults are replaced with
+% \flmxDefineListDefault{<begin>}{<end>} and \flmxDefineItemDefault{<code>}.
+
+\ExplSyntaxOn
+
+\tl_new:N \l__flmx_list_kinds_tl
+\tl_new:N \l__flmx_list_depth_tl
+\tl_new:N \l__flmx_list_shape_tl
+\bool_new:N \l__flmx_list_labeled_bool
+\cs_generate_variant:Nn \str_case:nnF { V }
+
+\NewExpandableDocumentCommand \flmxListKinds { } { \tl_use:N \l__flmx_list_kinds_tl }
+\NewExpandableDocumentCommand \flmxListDepth { } { \tl_use:N \l__flmx_list_depth_tl }
+
+% Saves the list's kind tokens and depth, and its shape: the structural
+% token the default goes by (unnumbered where there is none), and whether
+% it is labeled.
+\cs_new_protected:Npn \__flmx_list_save:
+  {
+    \tl_set:Ne \l__flmx_list_kinds_tl { \flmxKey { kinds } }
+    \tl_set:Ne \l__flmx_list_depth_tl { \flmxKey { depth } }
+    \tl_set:Nn \l__flmx_list_shape_tl { unnumbered }
+    \bool_set_false:N \l__flmx_list_labeled_bool
+    \tl_set_eq:NN \l__flmx_kinds_tl \l__flmx_list_kinds_tl
+    \tl_replace_all:Nnn \l__flmx_kinds_tl { ~ } { , }
+    \clist_map_inline:Nn \l__flmx_kinds_tl
+      {
+        \str_case:nn {##1}
+          {
+            { numbered } { \tl_set:Nn \l__flmx_list_shape_tl { numbered } }
+            { terms } { \tl_set:Nn \l__flmx_list_shape_tl { terms } }
+            { labeled } { \bool_set_true:N \l__flmx_list_labeled_bool }
+          }
+      }
+  }
+
+\NewDocumentEnvironment { flmxList } { O { } }
+  {
+    \__flmx_set_keys:n {#1}
+    \__flmx_list_save:
+    \__flmx_env_begin:nnn { list } { kinds } {#1}
+  }
+  { \__flmx_env_end:n { list } }
+
+% The bullet of an unnumbered list at the depth #1.
+\cs_new:Npn \__flmx_list_bullet:n #1
+  {
+    \int_case:nnF {#1}
+      {
+        { 1 } { \textbullet }
+        { 2 } { \textendash }
+        { 3 } { \textasteriskcentered }
+      }
+      { \textperiodcentered }
+  }
+\cs_new_protected:Npn \__flmx_list_term:n #1
+  { \hspace \labelsep \normalfont \bfseries #1 }
+
+\flmxDefineListDefault
+  {
+    \__flmx_anchor:
+    \str_case:VnF \l__flmx_list_shape_tl
+      {
+        { terms }
+          {
+            \list { }
+              {
+                \setlength \labelwidth { 0pt }
+                \setlength \itemindent { -\leftmargin }
+                \cs_set_eq:NN \makelabel \__flmx_list_term:n
+              }
+          }
+        { numbered } { \list { } { } }
+      }
+      { \list { \__flmx_list_bullet:n { \l__flmx_list_depth_tl } } { } }
+  }
+  { \endlist }
+
+% The item: its keys, then the code registered under the list's first kind
+% token that has one, else the default.
+\cs_new_protected:Npn \__flmx_item_find:
+  {
+    \bool_set_false:N \l__flmx_found_bool
+    \tl_set:Nn \l__flmx_found_tl { __flmx_item_default }
+    \tl_set_eq:NN \l__flmx_kinds_tl \l__flmx_list_kinds_tl
+    \tl_replace_all:Nnn \l__flmx_kinds_tl { ~ } { , }
+    \clist_map_inline:Nn \l__flmx_kinds_tl { \__flmx_try:nn { item } {##1} }
+  }
+\NewDocumentCommand \flmxItem { O { } }
+  {
+    \__flmx_set_keys:n {#1}
+    \__flmx_item_find:
+    \use:c { \l__flmx_found_tl }
+  }
+\flmxDefineItemDefault
+  {
+    \flmxIfKey { label }
+      { \item [ \flmxKey { label } ] }
+      { \bool_if:NTF \l__flmx_list_labeled_bool { \item [ ] } { \item } }
+    \__flmx_anchor:
+  }
+
+\ExplSyntaxOff

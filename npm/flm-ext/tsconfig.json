@@ -1,0 +1,7 @@
+{
+  "compilerOptions": {
+    "allowJs": true, "checkJs": true, "noEmit": true, "strict": false,
+    "target": "es2022", "module": "es2022", "moduleResolution": "bundler", "types": []
+  },
+  "files": ["../../flm-ext/flm.d.ts", "../../flm-ext/tests/js/lowerjs/main.js", "../../flm-ext/tests/js/wordcount/main.js"]
+}

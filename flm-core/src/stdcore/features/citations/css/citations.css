@@ -1,0 +1,19 @@
+/* flm.citations.style */
+/* Citations: the line height of a raised citation mark, so that the mark
+   does not push its line apart from the lines around it.  This is the only
+   rule.  The space before an attached citation mark is not set here: the
+   backend writes it as a no-break space in the text, inside its own span
+   (`flm-citations-space`), so that it is part of the text a reader
+   copies. */
+@layer flm {
+  :root {
+    /* The line height of a raised mark: 0 keeps the raised numbers from
+       pushing their line away from the line above. */
+    --flm-citations-raised-line-height: 0;
+  }
+
+  /* A raised citation mark, written in the superscript form. */
+  .flm-citations-mark[data-flm-style="superscript"] {
+    line-height: var(--flm-citations-raised-line-height, 0);
+  }
+}

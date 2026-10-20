@@ -1,0 +1,14 @@
+1.Introduction
+===============
+
+Some text.
+
+An aside
+========
+
+More text.
+
+2.Methods
+==========
+
+See 1 and 2.

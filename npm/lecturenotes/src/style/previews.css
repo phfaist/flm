@@ -1,0 +1,51 @@
+/* flm-lecturenotes: the previews.
+   The popup that shows a copy of what a link points to (a reference, a
+   defined term, a citation, a footnote).  The script adds it at the end of the
+   page's body and places it below or above the link; it scrolls past its
+   maximum height.  Headings in it are set in the popup's size, with no space
+   above. */
+
+/* A previewed link: no callout of the system on a long press, which opens the
+   preview instead. */
+.flm-pres-link[data-flm-kind="ref"],
+.flm-pres-link[data-flm-kind="term"],
+.flm-pres-link[data-flm-kind="cite"],
+.flm-pres-link[data-flm-kind="xnote"] {
+  -webkit-touch-callout: none;
+}
+
+.ln-preview {
+  --flm-heading-size-1: var(--ln-preview-heading-size);
+  --flm-heading-size-2: var(--ln-preview-heading-size);
+  --flm-heading-size-3: var(--ln-preview-heading-size);
+  --flm-heading-size-4: var(--ln-preview-heading-size);
+  --flm-heading-size-5: var(--ln-preview-heading-size);
+  --flm-heading-size-6: var(--ln-preview-heading-size);
+  --flm-heading-space-above: 0;
+  --flm-heading-space-below: var(--ln-preview-heading-space);
+  display: none;
+  position: absolute;
+  z-index: var(--ln-preview-layer);
+  box-sizing: border-box;
+  max-width: var(--ln-preview-max-width);
+  max-height: var(--ln-preview-max-height);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--ln-preview-padding);
+  background: var(--ln-bg);
+  border: var(--ln-rule);
+  border-radius: var(--ln-preview-radius);
+  box-shadow: var(--ln-preview-shadow);
+  font-size: var(--ln-preview-size);
+  line-height: var(--ln-preview-line-height);
+  text-align: left;
+}
+.ln-preview.ln-preview-shown {
+  display: block;
+}
+/* The line under a citation's entries saying how many more there are. */
+.ln-preview-more {
+  margin: var(--ln-preview-more-space) 0 0;
+  color: var(--ln-muted);
+  font-style: italic;
+}

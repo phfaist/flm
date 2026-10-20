@@ -1,0 +1,463 @@
+[
+  {
+    "elem": "flm.pres.block-heading",
+    "body": [
+      {
+        "chars": "Introduction"
+      }
+    ],
+    "payload": {
+      "name": "section",
+      "level": 1,
+      "in_toc": true,
+      "anchor": "sec-intro"
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "This document exercises every standard feature of build step 1: headings, paragraphs, the base formatting commands, math, user definitions and references. It is version 1.0."
+      }
+    ],
+    "payload": {}
+  },
+  {
+    "elem": "flm.pres.block-heading",
+    "body": [
+      {
+        "chars": "Formatting"
+      }
+    ],
+    "payload": {
+      "name": "subsection",
+      "level": 2,
+      "in_toc": true,
+      "anchor": "sec-fmt"
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "Some "
+      },
+      {
+        "elem": "flm.pres.span",
+        "body": [
+          {
+            "chars": "emphasized"
+          }
+        ],
+        "payload": {
+          "style": "emph"
+        }
+      },
+      {
+        "chars": ", "
+      },
+      {
+        "elem": "flm.pres.span",
+        "body": [
+          {
+            "chars": "bold"
+          }
+        ],
+        "payload": {
+          "style": "bold"
+        }
+      },
+      {
+        "chars": ", "
+      },
+      {
+        "elem": "flm.pres.span",
+        "body": [
+          {
+            "chars": "italic"
+          }
+        ],
+        "payload": {
+          "style": "italic"
+        }
+      },
+      {
+        "chars": " and "
+      },
+      {
+        "elem": "flm.pres.span",
+        "body": [
+          {
+            "chars": "monospace"
+          }
+        ],
+        "payload": {
+          "style": "monospace"
+        }
+      },
+      {
+        "chars": " text — with a dash, an ellipsis… and “quotes” resolved by typography."
+      },
+      {
+        "kind": "comment",
+        "text": " A comment vanishes (the language's default comment prefix is `%%`)."
+      }
+    ],
+    "payload": {}
+  },
+  {
+    "elem": "flm.pres.block-heading",
+    "body": [
+      {
+        "chars": "Math"
+      }
+    ],
+    "payload": {
+      "name": "subsubsection",
+      "level": 3,
+      "in_toc": true,
+      "anchor": "sec--Math"
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "Inline math "
+      },
+      {
+        "elem": "flm.pres.math-passthrough",
+        "body": [
+          {
+            "chars": "x_1 + "
+          },
+          {
+            "elem": "flm.math-passthrough.opaque",
+            "name": "alpha"
+          }
+        ],
+        "payload": {
+          "display": "inline"
+        }
+      },
+      {
+        "chars": " and display math "
+      },
+      {
+        "elem": "flm.pres.math-passthrough",
+        "body": [
+          {
+            "chars": " "
+          },
+          {
+            "elem": "flm.math-passthrough.opaque",
+            "name": "int"
+          },
+          {
+            "chars": "_0^1 f(x)"
+          },
+          {
+            "elem": "flm.math-passthrough.opaque",
+            "name": ","
+          },
+          {
+            "chars": "dx = 1 "
+          }
+        ],
+        "payload": {
+          "display": "display"
+        }
+      },
+      {
+        "chars": " then two environments:"
+      }
+    ],
+    "payload": {}
+  },
+  {
+    "elem": "flm.pres.math-passthrough",
+    "body": [
+      {
+        "elem": "flm.pres.math-text",
+        "body": [],
+        "payload": {
+          "anchor": "eq--1opqm"
+        }
+      },
+      {
+        "chars": "\n  E = mc^2"
+      },
+      {
+        "chars": "\\tag*{"
+      },
+      {
+        "elem": "flm.pres.math-text",
+        "body": [
+          {
+            "chars": "(1)"
+          }
+        ],
+        "payload": {
+          "at_tag": true
+        }
+      },
+      {
+        "chars": "}"
+      },
+      {
+        "chars": "\n"
+      }
+    ],
+    "payload": {
+      "display": "display",
+      "env": "equation"
+    }
+  },
+  {
+    "elem": "flm.pres.math-passthrough",
+    "body": [
+      {
+        "elem": "flm.pres.math-text",
+        "body": [],
+        "payload": {
+          "anchor": "eq--2oqua"
+        }
+      },
+      {
+        "chars": "\n  a &= b "
+      },
+      {
+        "elem": "flm.field",
+        "name": "\\"
+      },
+      {
+        "elem": "flm.pres.math-text",
+        "body": [],
+        "payload": {
+          "anchor": "eq--3oqke"
+        }
+      },
+      {
+        "chars": "\n  c &= d"
+      },
+      {
+        "chars": "\n"
+      }
+    ],
+    "payload": {
+      "display": "display",
+      "env": "align*"
+    }
+  },
+  {
+    "elem": "flm.pres.block-heading",
+    "body": [
+      {
+        "chars": "Verbatim"
+      }
+    ],
+    "payload": {
+      "name": "subsubsection",
+      "level": 3,
+      "in_toc": true,
+      "anchor": "sec--Verbatim"
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "Inline "
+      },
+      {
+        "elem": "flm.pres.verbatim",
+        "body": [
+          {
+            "chars": "a{b}\\c"
+          }
+        ],
+        "payload": {
+          "kind": "text",
+          "display": "inline"
+        }
+      },
+      {
+        "chars": " text, the code "
+      },
+      {
+        "elem": "flm.pres.verbatim",
+        "body": [
+          {
+            "chars": "f(x) = 1"
+          }
+        ],
+        "payload": {
+          "kind": "code",
+          "display": "inline",
+          "lang": "python"
+        }
+      },
+      {
+        "chars": " and the identifier "
+      },
+      {
+        "elem": "flm.pres.verbatim",
+        "body": [
+          {
+            "chars": "struct"
+          }
+        ],
+        "payload": {
+          "kind": "a",
+          "display": "inline",
+          "lang": "rust"
+        }
+      },
+      {
+        "chars": ", then "
+      },
+      {
+        "elem": "flm.pres.verbatim",
+        "body": [
+          {
+            "chars": "raw {text}"
+          }
+        ],
+        "payload": {
+          "kind": "text",
+          "display": "inline"
+        }
+      },
+      {
+        "chars": " in the same paragraph, and a code block:"
+      }
+    ],
+    "payload": {}
+  },
+  {
+    "elem": "flm.pres.verbatim",
+    "body": [
+      {
+        "chars": "def f(x):\n    return {x} + 1\n"
+      }
+    ],
+    "payload": {
+      "kind": "code",
+      "display": "block",
+      "lang": "python"
+    }
+  },
+  {
+    "elem": "flm.pres.block-heading",
+    "body": [
+      {
+        "chars": "Definitions"
+      }
+    ],
+    "payload": {
+      "name": "paragraph",
+      "level": 4,
+      "in_toc": true,
+      "anchor": "sec--Definitions"
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "Hello, World! from a user macro, and [Note: a user environment] in the same paragraph."
+      }
+    ],
+    "payload": {}
+  },
+  {
+    "elem": "flm.pres.block-heading",
+    "body": [
+      {
+        "chars": "References"
+      }
+    ],
+    "payload": {
+      "name": "subparagraph",
+      "level": 5,
+      "in_toc": true,
+      "anchor": "sec--References"
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "See "
+      },
+      {
+        "elem": "flm.pres.link",
+        "body": [
+          {
+            "chars": "Introduction"
+          }
+        ],
+        "payload": {
+          "href": "#sec-intro",
+          "kind": "ref"
+        }
+      },
+      {
+        "chars": ", "
+      },
+      {
+        "elem": "flm.pres.link",
+        "body": [
+          {
+            "chars": "Formatting"
+          }
+        ],
+        "payload": {
+          "href": "#sec-fmt",
+          "kind": "ref"
+        }
+      },
+      {
+        "chars": " and "
+      },
+      {
+        "elem": "flm.pres.span",
+        "body": [
+          {
+            "chars": "sec:missing"
+          }
+        ],
+        "payload": {
+          "style": "unresolved-reference"
+        }
+      },
+      {
+        "chars": "."
+      }
+    ],
+    "payload": {}
+  },
+  {
+    "elem": "flm.pres.block-heading",
+    "body": [
+      {
+        "chars": "Unnumbered"
+      }
+    ],
+    "payload": {
+      "name": "section",
+      "level": 1,
+      "in_toc": true,
+      "anchor": "sec--Unnumbered"
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "A starred heading takes no number and stays in the contents."
+      }
+    ],
+    "payload": {}
+  }
+]

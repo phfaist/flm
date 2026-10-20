@@ -1,0 +1,40 @@
+# The stub extension of the engine `native`'s proof: one crate written against the guest
+# client `flm_ext::guest`, which the test `flm-ext/tests/native.rs` compiles into its own
+# program (it includes `src/lib.rs` as a module) and which builds unchanged for
+# `wasm32-unknown-unknown`:
+#
+#     cargo build --manifest-path flm-ext/tests/native/stub/Cargo.toml \
+#         --target wasm32-unknown-unknown --release --locked
+#
+# A standalone crate (its own empty workspace, outside the repository's), the template of
+# `flm-ext/tests/wasm/wordcount/`: the type `cdylib`, the guest client with the feature
+# `guest` alone, and a release profile that aborts on a panic. The lockfile `Cargo.lock`
+# beside this file is committed, and the build is `--locked`: when the version or the
+# dependencies of `flm-core` or `flm-ext` change, regenerate it with
+#
+#     cargo generate-lockfile --manifest-path flm-ext/tests/native/stub/Cargo.toml --offline
+[package]
+name = "stub"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+flm-ext = { path = "../../..", default-features = false, features = ["guest"] }
+serde_json = "1"
+
+# A small module: optimized for size, the whole program optimized at link time, one
+# code unit; a panic aborts the module (a trap), whose message the guest client keeps
+# for the host.
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+codegen-units = 1
+
+[workspace]

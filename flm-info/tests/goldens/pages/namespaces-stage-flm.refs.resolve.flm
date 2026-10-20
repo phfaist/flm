@@ -1,0 +1,22 @@
+---
+title: "Stage flm.refs.resolve"
+flm:
+  use: [flmdoc]
+  math: false
+---
+\begin{docitem}{stage}{flm.refs.resolve}
+
+\docsummary{Resolves every reference site against the labels of the document and of the external index, into `flm.refs.resolutions`; reports every reference that points at no label.}
+
+\docfield{Declared by}{the feature \docref{features/refs}{\verbcode{refs}}}
+
+\docfield{Effect}{\verbcode{compute}}
+
+\docfield{Scope}{\verbcode{per-tree}}
+
+\docfield{Writes}{\verbcode{flm.refs.resolutions}}
+
+\docfield{In the plan of the workflow \docref{workflows/text}{\verbcode{text}}}{scheduled, in batch 4}
+
+\end{docitem}
+

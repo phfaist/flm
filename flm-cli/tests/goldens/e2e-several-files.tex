@@ -1,0 +1,39 @@
+\documentclass[twocolumn]{article}
+\usepackage{index-flmrecomposed.87f71783}
+\begin{document}
+\title{A document of several files}
+\author{Ann Author}
+\date{30 September 2026}
+\maketitle
+\flmHeading[toc=true]
+\section{Introduction}{\flmLabels{\label{ref1}}}
+
+This paragraph begins in the primary file, continues with words of an included file, which names \flmUDproject{} through the house
+package's macro,
+ and ends in the primary
+file, as one paragraph. The method is in \flmRef{ref2}.\flmXNfootnote{A note of the primary
+file.}
+
+\flmHeading[toc=true]
+\section{The \emph{Method}}{\flmLabels{\label{ref2}}}
+A section kept in a file of its own, back to \flmRef{ref1}.\flmXNfootnote{A note of the
+included file.}
+
+\flmHeading[toc=true]
+\subsection{Details}{\flmLabels{}}
+
+The details, read relative to the file that names them:
+\begin{itemize}
+\item one;
+\item two.
+\end{itemize}
+
+
+
+\flmHeading[toc=true]
+\section{Conclusion}{\flmLabels{}}
+
+The primary file goes on after the section kept in a file of its own, and its notes are
+counted after that file's.\flmXNfootnote{A note of the primary file after the included file.}
+%%
+\end{document}

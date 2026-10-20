@@ -1,0 +1,4 @@
+# The body the library makes, with nothing around it.
+output: latex-rendered
+engine: content-only
+accepts: []

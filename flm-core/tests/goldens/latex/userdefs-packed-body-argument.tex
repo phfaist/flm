@@ -1,0 +1,68 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.cfeaebff.sty
+\begin{flmUEpackedwrap}{{one}{2}{3}{4}{5}{6}{7}{8}{9}{ten}}the body\end{flmUEpackedwrap}
+%%
+% ===== latex-recomposed:style flmrecomposed.cfeaebff.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.cfeaebff}
+% --- packages ---
+% flm.latex.pkg.newunicodechar
+\RequirePackage{newunicodechar}
+% --- unicode characters written as UTF-8 ---
+\newunicodechar{—}{\textemdash}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.ifblank
+% \flmIfBlankTF{<content>}{<then>}{<else>}: the branch a user definition's own
+% "is this blank?" test selects — <then> where <content> holds nothing at
+% all, <else> otherwise. Not a customization point: change your own
+% definition, not this. It is long, so that an argument holding a paragraph
+% break is tested rather than stopping the compilation, and expandable, so
+% that the test never stops the expansion of a definition that has to expand.
+%
+% This block uses expl3, LaTeX's programming layer, which
+% is part of the format and needs no package; its names read only between
+% \ExplSyntaxOn and \ExplSyntaxOff. \tl_if_empty:nTF is true exactly when its
+% argument holds no token at all, which is the condition FLM's own blank test
+% asks: a single space is content, and a comment is gone before the argument
+% exists.
+\ExplSyntaxOn
+\providecommand\flmIfBlankTF[3]{\tl_if_empty:nTF {#1} {#2} {#3}}
+\ExplSyntaxOff
+% flm.latex.def.userargs
+% \flmArg{<n>}{<arguments>}, \flmIfArgTF{<n>}{<arguments>}{<then>}{<else>} and
+% \flmIfArgBlankTF{<n>,...}{<arguments>}{<then>}{<else>}: reading one argument of
+% a user definition that takes more than nine of them. Such a definition is
+% called with all its arguments in one group, one pair of braces around each
+% ( \flmUDbig{{a}{b}{c}...} ), because a macro body has nine parameters; its
+% body reads part <n> of that group through these. \flmArg gives the argument's
+% content, \flmIfArgTF asks whether the argument holds \BooleanTrue, and
+% \flmIfArgBlankTF asks whether the listed arguments hold nothing at all between
+% them. Not a customization point: change your own definition, not this. Long,
+% so that an argument holding a paragraph break is read rather than stopping the
+% compilation, and expandable, so that reading an argument never stops the
+% expansion of a definition that has to expand.
+%
+% \tl_item:nn is the LaTeX kernel's own: it picks part <n>, counting from one,
+% and strips the braces around it. A test never reads a part directly --
+% \IfBooleanTF{\flmArg{2}{#1}} stops with "Invalid argument" and
+% \flmIfBlankTF{\flmArg{2}{#1}} answers the wrong branch without a word, since
+% both look at the accessor's own tokens -- so the two tests expand the accessor
+% first with \exp_args:Ne, which needs the \expanded primitive: every TeX engine
+% has carried it since 2019, so it is older than the LaTeX this file asks for.
+% What the part itself holds is left untouched: a space in an argument stays
+% content, and a command in one is not expanded early.
+%
+% \flmIfArgBlankTF asks its question through \flmIfBlankTF, the block above,
+% rather than spelling the test again: what "blank" means is written in one
+% place regardless of a definition's size. A definition taking more than nine
+% arguments therefore always brings that block into this file along with this
+% one, whether or not it asks a blank test.
+\ExplSyntaxOn
+\providecommand\flmArg[2]{\tl_item:nn {#2} {#1}}
+\providecommand\flmIfArgTF[4]{\exp_args:Ne \IfBooleanTF {\tl_item:nn {#2} {#1}} {#3} {#4}}
+\providecommand\flmIfArgBlankTF[4]{\exp_args:Ne \flmIfBlankTF {\clist_map_tokens:nn {#1} {\tl_item:nn {#2}}} {#3} {#4}}
+\ExplSyntaxOff
+% --- user definitions ---
+% flmUEpackedwrap (the document's packedwrap): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \RenewDocumentEnvironment after loading this file changes it
+\ProvideDocumentEnvironment{flmUEpackedwrap}{+m +b}{(note \flmArg{1}{#1}: \emph{#2} — end \flmArg{10}{#1})}{}
+\endinput

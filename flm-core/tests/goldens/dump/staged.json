@@ -1,0 +1,24 @@
+[
+  {
+    "elem": "flm.paragraph",
+    "children": [
+      {
+        "chars": "a "
+      },
+      {
+        "kind": "list",
+        "children": [
+          {
+            "chars": "b"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "elem": "t.pres",
+    "payload": {
+      "style": "bold"
+    }
+  }
+]

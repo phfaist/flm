@@ -1,0 +1,2 @@
+See the feature headings <features/headings.html>, and the page of the program’s
+paths <program/paths.html>.

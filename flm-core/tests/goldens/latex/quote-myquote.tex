@@ -1,0 +1,34 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.19854d18.sty
+\begin{myquote}\flmQuoteText{Mine.}\flmQuoteAttributed{Me}\end{myquote}
+%%
+% ===== latex-recomposed:style flmrecomposed.19854d18.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.19854d18}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.quote
+% Quotations: one command for each kind of quotation section (a passage,
+% lines, an attribution, a block), written between the environment's \begin
+% and \end lines.
+% \flmQuoteText{<passage>}: a quoted passage, ending a paragraph.
+% \flmQuoteLines{<lines>}: lines set as written, each ended by \\\relax, with no
+%   paragraph indentation; a line's indentation is \flmIndent{<length>} at
+%   its start, a tab being \flmTabWidth.
+% \flmQuoteAttributed{<attribution>}: the attribution, on a line of its own
+%   set to the right, after a dash.
+% \flmQuoteBlock{<paragraphs>}: paragraphs and blocks, indented as the one
+%   item of a list with no label, its left margin 4em.
+% \flmIndent{<length>}: space of <length> at the start of a line.
+% Redefine one of these commands to set that kind of quotation section
+% differently.
+% The environments blockquote (set as \flmQuoteBlock sets its paragraphs) and
+% address (a group set in \small), which standard LaTeX does not define, are
+% defined below; a definition made before this file is loaded is kept.
+\ProvideDocumentCommand\flmQuoteText{+m}{#1\par}
+\ProvideDocumentCommand\flmQuoteLines{+m}{\par\begingroup\setlength{\parindent}{0pt}\leavevmode#1\par\endgroup}
+\ProvideDocumentCommand\flmQuoteAttributed{+m}{\par\begingroup\raggedleft---~#1\par\endgroup}
+\ProvideDocumentCommand\flmQuoteBlock{+m}{\par\list{}{\itemindent\parindent\leftmargin=4em\relax}\item\relax #1\endlist}
+\ProvideDocumentCommand\flmIndent{m}{\hspace*{#1}}
+\ProvideDocumentEnvironment{blockquote}{}{\par\list{}{\itemindent\parindent\leftmargin=4em\relax}\item\relax}{\endlist}
+\ProvideDocumentEnvironment{address}{}{\par\begingroup\small}{\par\endgroup}
+\endinput

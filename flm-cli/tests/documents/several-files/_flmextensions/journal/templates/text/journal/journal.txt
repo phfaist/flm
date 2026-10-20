@@ -1,0 +1,3 @@
+== The Journal ==
+{{ regions.content }}
+== end ==

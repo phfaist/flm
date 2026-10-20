@@ -1,0 +1,31 @@
+[
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "elem": "flm.pres.deco-mark",
+        "body": [],
+        "payload": {
+          "slot": 1
+        }
+      },
+      {
+        "chars": "b"
+      }
+    ],
+    "slots": {
+      "flm.pres.deco.runin": [
+        {
+          "elem": "flm.pres.deco.runin",
+          "body": [
+            {
+              "chars": "Note"
+            }
+          ],
+          "payload": {}
+        }
+      ]
+    },
+    "payload": {}
+  }
+]

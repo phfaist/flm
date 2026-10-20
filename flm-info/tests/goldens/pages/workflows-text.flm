@@ -1,0 +1,449 @@
+---
+title: "Workflow text"
+flm:
+  use: [flmdoc]
+  math: false
+---
+\begin{docitem}{workflow}{text}
+
+\docsummary{render the document as plain text, running every check}
+
+\docfield{Declared by}{the feature \docref{features/text}{\verbcode{text}}}
+
+\docfield{Outputs}{\docref{namespaces/output/text}{\verbcode{text}}}
+
+\docfield{Demands}{\verbcode{flm.validated}}
+
+\end{docitem}
+
+\section*{The plan}
+
+The plan in view was built from this workflow. It demands the capabilities \docref{namespaces/capability/flm.blocks.contract-checked}{\verbcode{flm.blocks.contract-checked}}, \docref{namespaces/capability/flm.citations.check}{\verbcode{flm.citations.check}}, \docref{namespaces/capability/flm.floats.check-handlers}{\verbcode{flm.floats.check-handlers}}, \docref{namespaces/capability/flm.input.spliced}{\verbcode{flm.input.spliced}}, \docref{namespaces/capability/flm.math.content}{\verbcode{flm.math.content}}, \docref{namespaces/capability/flm.meta.read}{\verbcode{flm.meta.read}}, \docref{namespaces/capability/flm.output.text.document}{\verbcode{flm.output.text.document}}, \docref{namespaces/capability/flm.refs.check-labels}{\verbcode{flm.refs.check-labels}}, \docref{namespaces/capability/flm.theorems.check-proofs}{\verbcode{flm.theorems.check-proofs}}.
+
+\subsection*{Rewrite stages}
+
+\begin{docitem}{stage}{flm.input.splice}
+
+\docfield{Declared by}{the feature \docref{features/input}{\verbcode{input}}; see \docref{namespaces/stage/flm.input.splice}{the stage's page}}
+
+\docfield{Writes}{\docref{namespaces/table/flm.input.spliced}{\verbcode{flm.input.spliced}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.userdefs.expand-always}
+
+\docfield{Declared by}{the feature \docref{features/userdefs}{\verbcode{userdefs}}; see \docref{namespaces/stage/flm.userdefs.expand-always}{the stage's page}}
+
+\docfield{Writes}{\docref{namespaces/table/flm.userdefs.always-expanded}{\verbcode{flm.userdefs.always-expanded}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.userdefs.expand}
+
+\docfield{Declared by}{the feature \docref{features/userdefs}{\verbcode{userdefs}}; see \docref{namespaces/stage/flm.userdefs.expand}{the stage's page}}
+
+\docfield{Writes}{\docref{namespaces/table/flm.userdefs.expanded}{\verbcode{flm.userdefs.expanded}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.blocks.structure}
+
+\docfield{Declared by}{the feature \docref{features/blocks}{\verbcode{blocks}}; see \docref{namespaces/stage/flm.blocks.structure}{the stage's page}}
+
+\docfield{Writes}{\docref{namespaces/table/flm.blocks.structured}{\verbcode{flm.blocks.structured}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.userdefs}{\verbcode{flm.userdefs}}}
+
+\end{docitem}
+
+\subsection*{Batch 0}
+
+\begin{docitem}{stage}{flm.blocks.check-contract}
+
+\docfield{Declared by}{the feature \docref{features/blocks}{\verbcode{blocks}}; see \docref{namespaces/stage/flm.blocks.check-contract}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.blocks.structured}{\verbcode{flm.blocks.structured}} (written by \docref{namespaces/stage/flm.blocks.structure}{\verbcode{flm.blocks.structure}}; may be absent), \docref{namespaces/table/flm.userdefs.expanded}{\verbcode{flm.userdefs.expanded}} (written by \docref{namespaces/stage/flm.userdefs.expand}{\verbcode{flm.userdefs.expand}}; may be absent)}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.blocks}{\verbcode{flm.blocks}}, \docref{namespaces/capability/flm.userdefs.always-expanded}{\verbcode{flm.userdefs.always-expanded}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.index.build}
+
+\docfield{Declared by}{the feature \docref{features/index}{\verbcode{index}}; see \docref{namespaces/stage/flm.index.build}{the stage's page}}
+
+\docfield{Writes}{\docref{namespaces/table/flm.element-index}{\verbcode{flm.element-index}}}
+
+\end{docitem}
+
+\subsection*{Batch 1}
+
+\begin{docitem}{stage}{flm.refpoints.scan}
+
+\docfield{Declared by}{the feature \docref{features/refpoints}{\verbcode{refpoints}}; see \docref{namespaces/stage/flm.refpoints.scan}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.element-index}{\verbcode{flm.element-index}} (written by \docref{namespaces/stage/flm.index.build}{\verbcode{flm.index.build}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.refpoints}{\verbcode{flm.refpoints}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.element-index}{\verbcode{flm.element-index}}}
+
+\end{docitem}
+
+\subsection*{Batch 2}
+
+\begin{docitem}{stage}{flm.numbering.number}
+
+\docfield{Declared by}{the feature \docref{features/numbering}{\verbcode{numbering}}; see \docref{namespaces/stage/flm.numbering.number}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.refpoints}{\verbcode{flm.refpoints}} (written by \docref{namespaces/stage/flm.refpoints.scan}{\verbcode{flm.refpoints.scan}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.counters}{\verbcode{flm.counters}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.refpoints}{\verbcode{flm.refpoints}}}
+
+\docfield{Reads the options}{\docref{namespaces/option-type/NumberingOptions}{\verbcode{NumberingOptions}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.refs.scan}
+
+\docfield{Declared by}{the feature \docref{features/refs}{\verbcode{refs}}; see \docref{namespaces/stage/flm.refs.scan}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.element-index}{\verbcode{flm.element-index}} (written by \docref{namespaces/stage/flm.index.build}{\verbcode{flm.index.build}}), \docref{namespaces/table/flm.refpoints}{\verbcode{flm.refpoints}} (written by \docref{namespaces/stage/flm.refpoints.scan}{\verbcode{flm.refpoints.scan}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.labels}{\verbcode{flm.labels}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.element-index}{\verbcode{flm.element-index}}, \docref{namespaces/capability/flm.refpoints}{\verbcode{flm.refpoints}}}
+
+\end{docitem}
+
+\subsection*{Batch 3}
+
+\begin{docitem}{stage}{flm.refs.anchors}
+
+\docfield{Declared by}{the feature \docref{features/refs}{\verbcode{refs}}; see \docref{namespaces/stage/flm.refs.anchors}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.counters}{\verbcode{flm.counters}} (written by \docref{namespaces/stage/flm.numbering.number}{\verbcode{flm.numbering.number}}), \docref{namespaces/table/flm.labels}{\verbcode{flm.labels}} (written by \docref{namespaces/stage/flm.refs.scan}{\verbcode{flm.refs.scan}}), \docref{namespaces/table/flm.refpoints}{\verbcode{flm.refpoints}} (written by \docref{namespaces/stage/flm.refpoints.scan}{\verbcode{flm.refpoints.scan}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.anchors}{\verbcode{flm.anchors}}, \docref{namespaces/table/flm.refs.targets}{\verbcode{flm.refs.targets}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.refpoints}{\verbcode{flm.refpoints}}, \docref{namespaces/capability/flm.counters}{\verbcode{flm.counters}}, \docref{namespaces/capability/flm.labels}{\verbcode{flm.labels}}}
+
+\end{docitem}
+
+\subsection*{Batch 4}
+
+\begin{docitem}{stage}{flm.refs.resolve}
+
+\docfield{Declared by}{the feature \docref{features/refs}{\verbcode{refs}}; see \docref{namespaces/stage/flm.refs.resolve}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.element-index}{\verbcode{flm.element-index}} (written by \docref{namespaces/stage/flm.index.build}{\verbcode{flm.index.build}}), \docref{namespaces/table/flm.refs.external-index}{\verbcode{flm.refs.external-index}} (may be absent), \docref{namespaces/table/flm.refs.targets}{\verbcode{flm.refs.targets}} (written by \docref{namespaces/stage/flm.refs.anchors}{\verbcode{flm.refs.anchors}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.refs.resolutions}{\verbcode{flm.refs.resolutions}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.element-index}{\verbcode{flm.element-index}}, \docref{namespaces/capability/flm.refs.targets}{\verbcode{flm.refs.targets}}}
+
+\docfield{Reads the options}{\docref{namespaces/option-type/RefsRenderOptions}{\verbcode{RefsRenderOptions}}}
+
+\end{docitem}
+
+\subsection*{Batch 5}
+
+\begin{docitem}{stage}{flm.refs.check-labels}
+
+\docfield{Declared by}{the feature \docref{features/refs}{\verbcode{refs}}; see \docref{namespaces/stage/flm.refs.check-labels}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.labels}{\verbcode{flm.labels}} (written by \docref{namespaces/stage/flm.refs.scan}{\verbcode{flm.refs.scan}}), \docref{namespaces/table/flm.refs.resolutions}{\verbcode{flm.refs.resolutions}} (written by \docref{namespaces/stage/flm.refs.resolve}{\verbcode{flm.refs.resolve}})}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.labels}{\verbcode{flm.labels}}, \docref{namespaces/capability/flm.refs.resolutions}{\verbcode{flm.refs.resolutions}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.xnotes.collect}
+
+\docfield{Declared by}{the feature \docref{features/xnotes}{\verbcode{xnotes}}; see \docref{namespaces/stage/flm.xnotes.collect}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.counters}{\verbcode{flm.counters}} (written by \docref{namespaces/stage/flm.numbering.number}{\verbcode{flm.numbering.number}}), \docref{namespaces/table/flm.refpoints}{\verbcode{flm.refpoints}} (written by \docref{namespaces/stage/flm.refpoints.scan}{\verbcode{flm.refpoints.scan}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.xnotes}{\verbcode{flm.xnotes}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.refpoints}{\verbcode{flm.refpoints}}, \docref{namespaces/capability/flm.counters}{\verbcode{flm.counters}}}
+
+\end{docitem}
+
+\subsection*{Batch 6}
+
+\begin{docitem}{stage}{flm.xnotes.build-list.footnote}
+
+\docfield{Declared by}{the feature \docref{features/xnotes}{\verbcode{xnotes}}; see \docref{namespaces/stage/flm.xnotes.build-list.footnote}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.xnotes}{\verbcode{flm.xnotes}} (written by \docref{namespaces/stage/flm.xnotes.collect}{\verbcode{flm.xnotes.collect}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.xnotes.list.footnote}{\verbcode{flm.xnotes.list.footnote}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.xnotes}{\verbcode{flm.xnotes}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.theorems.check-proofs}
+
+\docfield{Declared by}{the feature \docref{features/theorems}{\verbcode{theorems}}; see \docref{namespaces/stage/flm.theorems.check-proofs}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.element-index}{\verbcode{flm.element-index}} (written by \docref{namespaces/stage/flm.index.build}{\verbcode{flm.index.build}}), \docref{namespaces/table/flm.refs.resolutions}{\verbcode{flm.refs.resolutions}} (written by \docref{namespaces/stage/flm.refs.resolve}{\verbcode{flm.refs.resolve}})}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.element-index}{\verbcode{flm.element-index}}, \docref{namespaces/capability/flm.refs.resolutions}{\verbcode{flm.refs.resolutions}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.graphics.inspect}
+
+\docfield{Declared by}{the feature \docref{features/graphics}{\verbcode{graphics}}; see \docref{namespaces/stage/flm.graphics.inspect}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.element-index}{\verbcode{flm.element-index}} (written by \docref{namespaces/stage/flm.index.build}{\verbcode{flm.index.build}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.graphics.info}{\verbcode{flm.graphics.info}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.element-index}{\verbcode{flm.element-index}}}
+
+\end{docitem}
+
+\subsection*{Batch 7}
+
+\begin{docitem}{stage}{flm.graphics.publish.text}
+
+\docfield{Declared by}{the feature \docref{features/graphics}{\verbcode{graphics}}; see \docref{namespaces/stage/flm.graphics.publish.text}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.element-index}{\verbcode{flm.element-index}} (written by \docref{namespaces/stage/flm.index.build}{\verbcode{flm.index.build}}), \docref{namespaces/table/flm.graphics.info}{\verbcode{flm.graphics.info}} (written by \docref{namespaces/stage/flm.graphics.inspect}{\verbcode{flm.graphics.inspect}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.graphics.published.text}{\verbcode{flm.graphics.published.text}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.element-index}{\verbcode{flm.element-index}}, \docref{namespaces/capability/flm.graphics.info}{\verbcode{flm.graphics.info}}}
+
+\docfield{Reads the options}{\docref{namespaces/option-type/GraphicsRenderOptions}{\verbcode{GraphicsRenderOptions}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.floats.check-handlers}
+
+\docfield{Declared by}{the feature \docref{features/floats}{\verbcode{floats}}; see \docref{namespaces/stage/flm.floats.check-handlers}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.element-index}{\verbcode{flm.element-index}} (written by \docref{namespaces/stage/flm.index.build}{\verbcode{flm.index.build}})}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.element-index}{\verbcode{flm.element-index}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.citations.collect}
+
+\docfield{Declared by}{the feature \docref{features/citations}{\verbcode{citations}}; see \docref{namespaces/stage/flm.citations.collect}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.element-index}{\verbcode{flm.element-index}} (written by \docref{namespaces/stage/flm.index.build}{\verbcode{flm.index.build}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.citations.keys}{\verbcode{flm.citations.keys}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.element-index}{\verbcode{flm.element-index}}}
+
+\end{docitem}
+
+\subsection*{Batch 8}
+
+\begin{docitem}{stage}{flm.citations.retrieve}
+
+\docfield{Declared by}{the feature \docref{features/citations}{\verbcode{citations}}; see \docref{namespaces/stage/flm.citations.retrieve}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.citations.keys}{\verbcode{flm.citations.keys}} (written by \docref{namespaces/stage/flm.citations.collect}{\verbcode{flm.citations.collect}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.citations}{\verbcode{flm.citations}}, \docref{namespaces/table/flm.citations.entries}{\verbcode{flm.citations.entries}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.citations.keys}{\verbcode{flm.citations.keys}}}
+
+\end{docitem}
+
+\subsection*{Batch 9}
+
+\begin{docitem}{stage}{flm.citations.check}
+
+\docfield{Declared by}{the feature \docref{features/citations}{\verbcode{citations}}; see \docref{namespaces/stage/flm.citations.check}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.citations.entries}{\verbcode{flm.citations.entries}} (written by \docref{namespaces/stage/flm.citations.retrieve}{\verbcode{flm.citations.retrieve}}), \docref{namespaces/table/flm.citations.keys}{\verbcode{flm.citations.keys}} (written by \docref{namespaces/stage/flm.citations.collect}{\verbcode{flm.citations.collect}})}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.citations.keys}{\verbcode{flm.citations.keys}}, \docref{namespaces/capability/flm.citations.entries}{\verbcode{flm.citations.entries}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.citations.build-bibliography}
+
+\docfield{Declared by}{the feature \docref{features/citations}{\verbcode{citations}}; see \docref{namespaces/stage/flm.citations.build-bibliography}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.citations}{\verbcode{flm.citations}} (written by \docref{namespaces/stage/flm.citations.retrieve}{\verbcode{flm.citations.retrieve}}), \docref{namespaces/table/flm.citations.entries}{\verbcode{flm.citations.entries}} (written by \docref{namespaces/stage/flm.citations.retrieve}{\verbcode{flm.citations.retrieve}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.citations.bibliography}{\verbcode{flm.citations.bibliography}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.citations}{\verbcode{flm.citations}}, \docref{namespaces/capability/flm.citations.entries}{\verbcode{flm.citations.entries}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.meta.build}
+
+\docfield{Declared by}{the feature \docref{features/meta}{\verbcode{meta}}; see \docref{namespaces/stage/flm.meta.build}{the stage's page}}
+
+\docfield{Writes}{\docref{namespaces/table/flm.meta.author}{\verbcode{flm.meta.author}}, \docref{namespaces/table/flm.meta.date}{\verbcode{flm.meta.date}}, \docref{namespaces/table/flm.meta.title}{\verbcode{flm.meta.title}}}
+
+\docfield{Reads the options}{\docref{namespaces/option-type/DocMeta}{\verbcode{DocMeta}}}
+
+\end{docitem}
+
+\subsection*{Batch 10}
+
+\begin{docitem}{stage}{flm.text.pieces}
+
+\docfield{Declared by}{the feature \docref{features/text}{\verbcode{text}}; see \docref{namespaces/stage/flm.text.pieces}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.anchors}{\verbcode{flm.anchors}} (written by \docref{namespaces/stage/flm.refs.anchors}{\verbcode{flm.refs.anchors}}), \docref{namespaces/table/flm.citations}{\verbcode{flm.citations}} (written by \docref{namespaces/stage/flm.citations.retrieve}{\verbcode{flm.citations.retrieve}}), \docref{namespaces/table/flm.citations.bibliography}{\verbcode{flm.citations.bibliography}} (written by \docref{namespaces/stage/flm.citations.build-bibliography}{\verbcode{flm.citations.build-bibliography}}), \docref{namespaces/table/flm.citations.entries}{\verbcode{flm.citations.entries}} (written by \docref{namespaces/stage/flm.citations.retrieve}{\verbcode{flm.citations.retrieve}}), \docref{namespaces/table/flm.counters}{\verbcode{flm.counters}} (written by \docref{namespaces/stage/flm.numbering.number}{\verbcode{flm.numbering.number}}), \docref{namespaces/table/flm.graphics.info}{\verbcode{flm.graphics.info}} (written by \docref{namespaces/stage/flm.graphics.inspect}{\verbcode{flm.graphics.inspect}}), \docref{namespaces/table/flm.graphics.published.text}{\verbcode{flm.graphics.published.text}} (written by \docref{namespaces/stage/flm.graphics.publish.text}{\verbcode{flm.graphics.publish.text}}), \docref{namespaces/table/flm.meta.author}{\verbcode{flm.meta.author}} (written by \docref{namespaces/stage/flm.meta.build}{\verbcode{flm.meta.build}}), \docref{namespaces/table/flm.meta.date}{\verbcode{flm.meta.date}} (written by \docref{namespaces/stage/flm.meta.build}{\verbcode{flm.meta.build}}), \docref{namespaces/table/flm.meta.title}{\verbcode{flm.meta.title}} (written by \docref{namespaces/stage/flm.meta.build}{\verbcode{flm.meta.build}}), \docref{namespaces/table/flm.refs.resolutions}{\verbcode{flm.refs.resolutions}} (written by \docref{namespaces/stage/flm.refs.resolve}{\verbcode{flm.refs.resolve}}), \docref{namespaces/table/flm.xnotes}{\verbcode{flm.xnotes}} (written by \docref{namespaces/stage/flm.xnotes.collect}{\verbcode{flm.xnotes.collect}}), \docref{namespaces/table/flm.xnotes.list.footnote}{\verbcode{flm.xnotes.list.footnote}} (written by \docref{namespaces/stage/flm.xnotes.build-list.footnote}{\verbcode{flm.xnotes.build-list.footnote}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.lowered.text.pieces}{\verbcode{flm.lowered.text.pieces}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.floats.check-handlers}{\verbcode{flm.floats.check-handlers}}, \docref{namespaces/capability/flm.blocks.structured}{\verbcode{flm.blocks.structured}}, \docref{namespaces/capability/flm.counters}{\verbcode{flm.counters}}, \docref{namespaces/capability/flm.anchors}{\verbcode{flm.anchors}}, \docref{namespaces/capability/flm.refs.resolutions}{\verbcode{flm.refs.resolutions}}, \docref{namespaces/capability/flm.xnotes.list.footnote}{\verbcode{flm.xnotes.list.footnote}}, \docref{namespaces/capability/flm.xnotes}{\verbcode{flm.xnotes}}, \docref{namespaces/capability/flm.graphics.info}{\verbcode{flm.graphics.info}}, \docref{namespaces/capability/flm.graphics.published.text}{\verbcode{flm.graphics.published.text}}, \docref{namespaces/capability/flm.citations}{\verbcode{flm.citations}}, \docref{namespaces/capability/flm.citations.entries}{\verbcode{flm.citations.entries}}, \docref{namespaces/capability/flm.citations.bibliography}{\verbcode{flm.citations.bibliography}}, \docref{namespaces/capability/flm.meta.title}{\verbcode{flm.meta.title}}, \docref{namespaces/capability/flm.meta.author}{\verbcode{flm.meta.author}}, \docref{namespaces/capability/flm.meta.date}{\verbcode{flm.meta.date}}}
+
+\docfield{Reads the options}{\docref{namespaces/option-type/GraphicsRenderOptions}{\verbcode{GraphicsRenderOptions}}, \docref{namespaces/option-type/PiecesRenderOptions}{\verbcode{PiecesRenderOptions}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.text.lower}
+
+\docfield{Declared by}{the feature \docref{features/text}{\verbcode{text}}; see \docref{namespaces/stage/flm.text.lower}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.anchors}{\verbcode{flm.anchors}} (written by \docref{namespaces/stage/flm.refs.anchors}{\verbcode{flm.refs.anchors}}), \docref{namespaces/table/flm.citations}{\verbcode{flm.citations}} (written by \docref{namespaces/stage/flm.citations.retrieve}{\verbcode{flm.citations.retrieve}}), \docref{namespaces/table/flm.citations.entries}{\verbcode{flm.citations.entries}} (written by \docref{namespaces/stage/flm.citations.retrieve}{\verbcode{flm.citations.retrieve}}), \docref{namespaces/table/flm.counters}{\verbcode{flm.counters}} (written by \docref{namespaces/stage/flm.numbering.number}{\verbcode{flm.numbering.number}}), \docref{namespaces/table/flm.graphics.info}{\verbcode{flm.graphics.info}} (written by \docref{namespaces/stage/flm.graphics.inspect}{\verbcode{flm.graphics.inspect}}), \docref{namespaces/table/flm.graphics.published.text}{\verbcode{flm.graphics.published.text}} (written by \docref{namespaces/stage/flm.graphics.publish.text}{\verbcode{flm.graphics.publish.text}}), \docref{namespaces/table/flm.refs.resolutions}{\verbcode{flm.refs.resolutions}} (written by \docref{namespaces/stage/flm.refs.resolve}{\verbcode{flm.refs.resolve}}), \docref{namespaces/table/flm.xnotes}{\verbcode{flm.xnotes}} (written by \docref{namespaces/stage/flm.xnotes.collect}{\verbcode{flm.xnotes.collect}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.lowered.text}{\verbcode{flm.lowered.text}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.floats.check-handlers}{\verbcode{flm.floats.check-handlers}}, \docref{namespaces/capability/flm.blocks.structured}{\verbcode{flm.blocks.structured}}, \docref{namespaces/capability/flm.counters}{\verbcode{flm.counters}}, \docref{namespaces/capability/flm.anchors}{\verbcode{flm.anchors}}, \docref{namespaces/capability/flm.refs.resolutions}{\verbcode{flm.refs.resolutions}}, \docref{namespaces/capability/flm.xnotes}{\verbcode{flm.xnotes}}, \docref{namespaces/capability/flm.graphics.info}{\verbcode{flm.graphics.info}}, \docref{namespaces/capability/flm.graphics.published.text}{\verbcode{flm.graphics.published.text}}, \docref{namespaces/capability/flm.citations}{\verbcode{flm.citations}}, \docref{namespaces/capability/flm.citations.entries}{\verbcode{flm.citations.entries}}}
+
+\docfield{Reads the options}{\docref{namespaces/option-type/GraphicsRenderOptions}{\verbcode{GraphicsRenderOptions}}}
+
+\end{docitem}
+
+\subsection*{Batch 11}
+
+\begin{docitem}{stage}{flm.text.emit}
+
+\docfield{Declared by}{the feature \docref{features/text}{\verbcode{text}}; see \docref{namespaces/stage/flm.text.emit}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.lowered.text}{\verbcode{flm.lowered.text}} (written by \docref{namespaces/stage/flm.text.lower}{\verbcode{flm.text.lower}}), \docref{namespaces/table/flm.lowered.text.pieces}{\verbcode{flm.lowered.text.pieces}} (written by \docref{namespaces/stage/flm.text.pieces}{\verbcode{flm.text.pieces}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.output.text}{\verbcode{flm.output.text}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.lowered.text}{\verbcode{flm.lowered.text}}, \docref{namespaces/capability/flm.lowered.text.pieces}{\verbcode{flm.lowered.text.pieces}}}
+
+\docfield{Reads the options}{\docref{namespaces/option-type/TextRenderOptions}{\verbcode{TextRenderOptions}}}
+
+\end{docitem}
+
+\subsection*{Batch 12}
+
+\begin{docitem}{stage}{flm.text.regions}
+
+\docfield{Declared by}{the feature \docref{features/text}{\verbcode{text}}; see \docref{namespaces/stage/flm.text.regions}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.output.text}{\verbcode{flm.output.text}} (written by \docref{namespaces/stage/flm.text.emit}{\verbcode{flm.text.emit}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.output.text.regions}{\verbcode{flm.output.text.regions}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.output.text}{\verbcode{flm.output.text}}}
+
+\end{docitem}
+
+\subsection*{Batch 13}
+
+\begin{docitem}{stage}{flm.text.final}
+
+\docfield{Declared by}{the feature \docref{features/text}{\verbcode{text}}; see \docref{namespaces/stage/flm.text.final}{the stage's page}}
+
+\docfield{Reads}{\docref{namespaces/table/flm.output.text.regions}{\verbcode{flm.output.text.regions}} (written by \docref{namespaces/stage/flm.text.regions}{\verbcode{flm.text.regions}})}
+
+\docfield{Writes}{\docref{namespaces/table/flm.output.text.document}{\verbcode{flm.output.text.document}}}
+
+\docfield{Requires}{\docref{namespaces/capability/flm.output.text.regions}{\verbcode{flm.output.text.regions}}}
+
+\end{docitem}
+
+\begin{docitem}{stage}{flm.math-passthrough.check}
+
+\docfield{Declared by}{the feature \docref{features/math-passthrough}{\verbcode{math-passthrough}}; see \docref{namespaces/stage/flm.math-passthrough.check}{the stage's page}}
+
+\end{docitem}
+
+\subsection*{Ruled out}
+
+\begin{itemize}
+\item \docref{namespaces/stage/flm.blocks.raw}{\verbcode{flm.blocks.raw}}, by \docref{namespaces/stage/flm.blocks.structure}{\verbcode{flm.blocks.structure}}, which provides \docref{namespaces/capability/flm.blocks}{\verbcode{flm.blocks}} as well
+\item \docref{namespaces/stage/flm.userdefs.keep}{\verbcode{flm.userdefs.keep}}, by \docref{namespaces/stage/flm.userdefs.expand}{\verbcode{flm.userdefs.expand}}, which provides \docref{namespaces/capability/flm.userdefs}{\verbcode{flm.userdefs}} as well
+\end{itemize}
+
+\subsection*{Lowering}
+
+The lowering rule chosen for each element on the backend \docref{namespaces/backend/text}{\verbcode{text}}:
+
+\begin{itemize}
+\item \verbcode{flm.cells.cell}: \docref{namespaces/lowering-rule/flm.cells.cell.lower.default}{\verbcode{flm.cells.cell.lower.default}}
+\item \verbcode{flm.cells.cells}: \docref{namespaces/lowering-rule/flm.cells.cells.lower.default}{\verbcode{flm.cells.cells.lower.default}}
+\item \verbcode{flm.cells.colnames}: \docref{namespaces/lowering-rule/flm.cells.colnames.lower.default}{\verbcode{flm.cells.colnames.lower.default}}
+\item \verbcode{flm.cells.column}: \docref{namespaces/lowering-rule/flm.cells.column.lower.default}{\verbcode{flm.cells.column.lower.default}}
+\item \verbcode{flm.cells.data}: \docref{namespaces/lowering-rule/flm.cells.data.lower.default}{\verbcode{flm.cells.data.lower.default}}
+\item \verbcode{flm.cells.merge}: \docref{namespaces/lowering-rule/flm.cells.merge.lower.default}{\verbcode{flm.cells.merge.lower.default}}
+\item \verbcode{flm.cells.row}: \docref{namespaces/lowering-rule/flm.cells.row.lower.default}{\verbcode{flm.cells.row.lower.default}}
+\item \verbcode{flm.cells.rownames}: \docref{namespaces/lowering-rule/flm.cells.rownames.lower.default}{\verbcode{flm.cells.rownames.lower.default}}
+\item \verbcode{flm.citations.bibliography}: \docref{namespaces/lowering-rule/flm.citations.bibliography.lower.default}{\verbcode{flm.citations.bibliography.lower.default}}
+\item \verbcode{flm.citations.bibliography.entry}: \docref{namespaces/lowering-rule/flm.citations.bibliography.entry.lower.default}{\verbcode{flm.citations.bibliography.entry.lower.default}}
+\item \verbcode{flm.citations.cite}: \docref{namespaces/lowering-rule/flm.citations.cite.lower.default}{\verbcode{flm.citations.cite.lower.default}}
+\item \verbcode{flm.citations.refcite}: \docref{namespaces/lowering-rule/flm.citations.refcite.lower.default}{\verbcode{flm.citations.refcite.lower.default}}
+\item \verbcode{flm.defterm}: \docref{namespaces/lowering-rule/flm.defterm.lower.default}{\verbcode{flm.defterm.lower.default}}
+\item \verbcode{flm.defterm.term-pointer}: \docref{namespaces/lowering-rule/flm.defterm.term-pointer.lower.default}{\verbcode{flm.defterm.term-pointer.lower.default}}
+\item \verbcode{flm.field}: \docref{namespaces/lowering-rule/flm.field.lower.default}{\verbcode{flm.field.lower.default}}
+\item \verbcode{flm.floats.float}: \docref{namespaces/lowering-rule/flm.floats.float.lower.default}{\verbcode{flm.floats.float.lower.default}}
+\item \verbcode{flm.graphics.image}: \docref{namespaces/lowering-rule/flm.graphics.image.lower.text}{\verbcode{flm.graphics.image.lower.text}}
+\item \verbcode{flm.heading}: \docref{namespaces/lowering-rule/flm.heading.lower.default}{\verbcode{flm.heading.lower.default}}
+\item \verbcode{flm.heading.number}: \docref{namespaces/lowering-rule/flm.heading.number.lower.default}{\verbcode{flm.heading.number.lower.default}}
+\item \verbcode{flm.href.link}: \docref{namespaces/lowering-rule/flm.href.link.lower.default}{\verbcode{flm.href.link.lower.default}}
+\item \verbcode{flm.hyperref}: \docref{namespaces/lowering-rule/flm.hyperref.lower.default}{\verbcode{flm.hyperref.lower.default}}
+\item \verbcode{flm.input}: \docref{namespaces/lowering-rule/flm.input.lower.default}{\verbcode{flm.input.lower.default}}
+\item \verbcode{flm.lists.item}: \docref{namespaces/lowering-rule/flm.lists.item.lower.default}{\verbcode{flm.lists.item.lower.default}}
+\item \verbcode{flm.lists.list}: \docref{namespaces/lowering-rule/flm.lists.list.lower.default}{\verbcode{flm.lists.list.lower.default}}
+\item \verbcode{flm.literal}: \docref{namespaces/lowering-rule/flm.literal.lower.default}{\verbcode{flm.literal.lower.default}}
+\item \verbcode{flm.math}: \docref{namespaces/lowering-rule/flm.math.lower.passthrough}{\verbcode{flm.math.lower.passthrough}}
+\item \verbcode{flm.math-passthrough.opaque}: \docref{namespaces/lowering-rule/flm.math-passthrough.opaque.lower.default}{\verbcode{flm.math-passthrough.opaque.lower.default}}
+\item \verbcode{flm.math.ensuremath}: \docref{namespaces/lowering-rule/flm.math.ensuremath.lower.default}{\verbcode{flm.math.ensuremath.lower.default}}
+\item \verbcode{flm.math.environment}: \docref{namespaces/lowering-rule/flm.math.environment.lower.passthrough}{\verbcode{flm.math.environment.lower.passthrough}}
+\item \verbcode{flm.math.eqref}: \docref{namespaces/lowering-rule/flm.math.eqref.lower.default}{\verbcode{flm.math.eqref.lower.default}}
+\item \verbcode{flm.math.text}: \docref{namespaces/lowering-rule/flm.math.text.lower.default}{\verbcode{flm.math.text.lower.default}}
+\item \verbcode{flm.meta.author}: \docref{namespaces/lowering-rule/flm.meta.author.lower.default}{\verbcode{flm.meta.author.lower.default}}
+\item \verbcode{flm.meta.author.name}: \docref{namespaces/lowering-rule/flm.meta.author.name.lower.default}{\verbcode{flm.meta.author.name.lower.default}}
+\item \verbcode{flm.meta.date}: \docref{namespaces/lowering-rule/flm.meta.date.lower.default}{\verbcode{flm.meta.date.lower.default}}
+\item \verbcode{flm.meta.title}: \docref{namespaces/lowering-rule/flm.meta.title.lower.default}{\verbcode{flm.meta.title.lower.default}}
+\item \verbcode{flm.paragraph}: \docref{namespaces/lowering-rule/flm.paragraph.lower.default}{\verbcode{flm.paragraph.lower.default}}
+\item \verbcode{flm.quote}: \docref{namespaces/lowering-rule/flm.quote.lower.default}{\verbcode{flm.quote.lower.default}}
+\item \verbcode{flm.quote.section}: \docref{namespaces/lowering-rule/flm.quote.section.lower.default}{\verbcode{flm.quote.section.lower.default}}
+\item \verbcode{flm.ref}: \docref{namespaces/lowering-rule/flm.ref.lower.default}{\verbcode{flm.ref.lower.default}}
+\item \verbcode{flm.sentence-spacing}: \docref{namespaces/lowering-rule/flm.sentence-spacing.lower.default}{\verbcode{flm.sentence-spacing.lower.default}}
+\item \verbcode{flm.term}: \docref{namespaces/lowering-rule/flm.term.lower.default}{\verbcode{flm.term.lower.default}}
+\item \verbcode{flm.textstyle}: \docref{namespaces/lowering-rule/flm.textstyle.lower.default}{\verbcode{flm.textstyle.lower.default}}
+\item \verbcode{flm.theorems.name}: \docref{namespaces/lowering-rule/flm.theorems.name.lower.default}{\verbcode{flm.theorems.name.lower.default}}
+\item \verbcode{flm.theorems.relation}: \docref{namespaces/lowering-rule/flm.theorems.relation.lower.default}{\verbcode{flm.theorems.relation.lower.default}}
+\item \verbcode{flm.theorems.theorem}: \docref{namespaces/lowering-rule/flm.theorems.theorem.lower.default}{\verbcode{flm.theorems.theorem.lower.default}}
+\item \verbcode{flm.theorems.title-pointer}: \docref{namespaces/lowering-rule/flm.theorems.title-pointer.lower.default}{\verbcode{flm.theorems.title-pointer.lower.default}}
+\item \verbcode{flm.toc}: \docref{namespaces/lowering-rule/flm.toc.lower.default}{\verbcode{flm.toc.lower.default}}
+\item \verbcode{flm.toc.entry}: \docref{namespaces/lowering-rule/flm.toc.entry.lower.default}{\verbcode{flm.toc.entry.lower.default}}
+\item \verbcode{flm.toc.list}: \docref{namespaces/lowering-rule/flm.toc.list.lower.default}{\verbcode{flm.toc.list.lower.default}}
+\item \verbcode{flm.unknown.environment}: \docref{namespaces/lowering-rule/flm.unknown.environment.lower.default}{\verbcode{flm.unknown.environment.lower.default}}
+\item \verbcode{flm.unknown.macro}: \docref{namespaces/lowering-rule/flm.unknown.macro.lower.default}{\verbcode{flm.unknown.macro.lower.default}}
+\item \verbcode{flm.verbatim}: \docref{namespaces/lowering-rule/flm.verbatim.lower.default}{\verbcode{flm.verbatim.lower.default}}
+\item \verbcode{flm.verbatim.environment}: \docref{namespaces/lowering-rule/flm.verbatim.environment.lower.default}{\verbcode{flm.verbatim.environment.lower.default}}
+\item \verbcode{flm.verbatim.macro}: \docref{namespaces/lowering-rule/flm.verbatim.macro.lower.default}{\verbcode{flm.verbatim.macro.lower.default}}
+\item \verbcode{flm.xnotes.content-pointer}: \docref{namespaces/lowering-rule/flm.xnotes.content-pointer.lower.default}{\verbcode{flm.xnotes.content-pointer.lower.default}}
+\item \verbcode{flm.xnotes.entry}: \docref{namespaces/lowering-rule/flm.xnotes.entry.lower.default}{\verbcode{flm.xnotes.entry.lower.default}}
+\item \verbcode{flm.xnotes.footnote.list}: \docref{namespaces/lowering-rule/flm.xnotes.footnote.list.lower.default}{\verbcode{flm.xnotes.footnote.list.lower.default}}
+\item \verbcode{flm.xnotes.mark-of}: \docref{namespaces/lowering-rule/flm.xnotes.mark-of.lower.default}{\verbcode{flm.xnotes.mark-of.lower.default}}
+\item \verbcode{flm.xnotes.xnote}: \docref{namespaces/lowering-rule/flm.xnotes.xnote.lower.default}{\verbcode{flm.xnotes.xnote.lower.default}}
+\end{itemize}
+

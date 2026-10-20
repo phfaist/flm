@@ -1,0 +1,62 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.91ff4b0d.sty
+\begin{equation}
+  a = b\flmLabels{\label{ref1}}
+\end{equation}
+
+See \eqref{ref1}.
+%%
+% ===== latex-recomposed:style flmrecomposed.91ff4b0d.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.91ff4b0d}
+% --- packages ---
+% flm.latex.pkg.amsmath
+\RequirePackage{amsmath}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.labels
+% \flmLabels{<\label commands>}: the labels of one place in the document.
+% In text it runs them as written. On a line of a display-math
+% environment, where amsmath keeps the last label of a line and loses the
+% ones before it, it runs the first and records every further one as an alias:
+% a line per alias is written to the .aux file after the last page and read on
+% the next run, making the alias refer to what the first label refers to
+% (for \ref and for \zcref alike). Redefine \flmLabels to change what a
+% group of labels does; \def\flmLabels#1{#1} restores plain LaTeX behavior,
+% amsmath's "Multiple \label's" message included.
+\ProvideDocumentCommand\flmLabels{m}{%
+  \ifmmode\expandafter\flm@labels@math\else\expandafter\@firstofone\fi{#1}}
+% Reading the group: the first \label as written, the rest as aliases of it.
+\def\flm@labels@math#1{\def\flm@lbl@first{}\flm@lbl@scan#1\flm@lbl@stop}
+\def\flm@lbl@scan{\@ifnextchar\label\flm@lbl@take\flm@lbl@rest}
+\def\flm@lbl@take\label#1{%
+  \ifx\flm@lbl@first\@empty
+    \def\flm@lbl@first{#1}%
+    \label{#1}%
+  \else
+    \expandafter\flm@recordalias\expandafter{\flm@lbl@first}{#1}%
+  \fi
+  \flm@lbl@scan}
+\def\flm@lbl@rest#1\flm@lbl@stop{#1}
+% Collecting the aliases. A name is recorded once however often the line is
+% typeset (amsmath measures a line before setting it).
+\def\flm@aliaslist{}
+\def\flm@recordalias#1#2{%
+  \ifcsname flm@alias@#2\endcsname\else
+    \expandafter\gdef\csname flm@alias@#2\endcsname{}%
+    \g@addto@macro\flm@aliaslist{\flm@alias@entry{#2}{#1}}%
+  \fi}
+% Writing them, from the hook that runs after the last page has been shipped
+% out: every \newlabel of that page has reached the .aux file by then, so the
+% alias lines come after them. \AtEndDocument would run too early.
+\def\flm@alias@write#1#2{\immediate\write\@auxout{\string\flm@aliaslabel{#1}{#2}}}
+\AddToHook{enddocument/afterlastpage}{\let\flm@alias@entry\flm@alias@write\flm@aliaslist}
+% Reading them back: the alias refers to what the original refers to. The
+% assignments are global because the .aux file is read inside a group.
+\def\flm@aliaslabel#1#2{%
+  \ifcsname r@#2\endcsname
+    \global\expandafter\let\csname r@#1\expandafter\endcsname\csname r@#2\endcsname
+  \fi
+  \ifcsname Z@R@#2\endcsname
+    \global\expandafter\let\csname Z@R@#1\expandafter\endcsname\csname Z@R@#2\endcsname
+  \fi}
+\endinput

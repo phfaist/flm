@@ -1,0 +1,5 @@
+extension:
+  description: Fails in each way a guest can
+  engine: wasm
+  wasm:
+    module: ./failing.wasm

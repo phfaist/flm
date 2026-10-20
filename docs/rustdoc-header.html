@@ -1,0 +1,187 @@
+<!-- rustdoc sidebar customization for the flm-rs workspace documentation.
+
+     Injected into every generated page via the `html-in-header` rustdoc flag
+     (wired up in `.cargo/config.toml`; build with `cargo docs`). It
+     restructures the sidebar into two top-level sections: "Guide" (the
+     narrative pages, pinned on top) and "API" (the workspace crates and
+     everything rustdoc generates for them), and it removes rustdoc's own
+     "Crates" list (which would also list dependencies from stale doc builds).
+
+     Maintenance:
+       - adding a guide chapter (markdown page in `docs/` plus a module under
+         `guide` in `flm-core/src/lib.rs`): add it to GUIDE_PAGES below, in
+         reading order;
+       - CRATES lists the crates whose public API the sidebar showcases: flm_core
+         and flm_main. flm_cli and flm_phfpack are built with the workspace but
+         deliberately left out of the list.
+
+     This relies only on coarse, stable parts of rustdoc's page structure (the
+     `rustdoc-vars` meta tag, `.sidebar-elems`, `#rustdoc-toc`,
+     `#rustdoc-modnav`); if a toolchain update changes those, the sidebar
+     degrades to rustdoc's default rendering rather than breaking.
+-->
+<style>
+/* Fallback (and anti-flash) rule: hide rustdoc's "Crates" list even before
+   the script below removes it from the DOM. */
+.sidebar-elems ul.block.crate,
+.sidebar-elems h3:has(+ ul.block.crate) {
+    display: none;
+}
+
+/* Top-level sidebar section headers ("Guide", "API"): small-caps labels. */
+.sidebar h3.flm-nav-h {
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    margin: 1.1rem 0 0.35rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--sidebar-border-color);
+}
+.sidebar .flm-guide-nav h3.flm-nav-h {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0.5rem;
+}
+
+/* Demote rustdoc's own sidebar headings ("Sections", "Crate Items", ...) so
+   they read as subordinate to the two section labels above. */
+.sidebar .flm-api-nav h3,
+.sidebar .flm-guide-nav h3:not(.flm-nav-h) {
+    font-size: 1rem;
+}
+
+/* Highlight the guide chapter being read and the current crate (rustdoc's
+   `li.current` already sets the font weight; add the background it uses for
+   its own current-crate entry). */
+.sidebar .flm-guide-nav li.current a,
+.sidebar ul.flm-crates li.current a {
+    background-color: var(--sidebar-current-link-background-color);
+}
+</style>
+<script>
+/* Registered from the <head>; runs at DOMContentLoaded, i.e. after rustdoc's
+   deferred main.js has finished building the sidebar. */
+document.addEventListener("DOMContentLoaded", () => {
+    "use strict";
+    /* Guide chapters in reading order: [path under flm_core/guide/, title]. */
+    const GUIDE_PAGES = [
+        ["", "Overview"],
+        /* User Guide */
+        ["introduction/", "Introduction"],
+        ["language_syntax/", "FLM language syntax"],
+        ["command_line/", "The flm command-line tool"],
+        /* Developer Guide */
+        ["concepts_overview/", "Concepts overview"],
+        ["document_model/", "The document model"],
+        ["pipeline/", "Stages, capabilities, and plans"],
+        ["rendering/", "Rendering: backends and outputs"],
+        ["numbering/", "Numbering: counters and counter styles"],
+        ["extending/", "Extending FLM: features and packages"],
+        ["embedding/", "Embedding flm-core"],
+        ["panics/", "List of panicking items"],
+        ["python_flm_migration/", "Migrating from Python FLM"],
+        /* AI Guide */
+        ["ai_guide/", "AI guide"],
+        ["ai_guide_document_model/", "AI guide: document model"],
+        ["ai_guide_pipeline/", "AI guide: pipeline"],
+        ["ai_guide_extending/", "AI guide: extending FLM"],
+        ["ai_guide_embedding/", "AI guide: embedding"],
+    ];
+    /* The workspace crates: the entry points of the "API" section. */
+    const CRATES = ["flm_core", "flm_main"];
+
+    const vars = document.querySelector("meta[name='rustdoc-vars']");
+    const elems = document.querySelector("nav.sidebar .sidebar-elems");
+    if (!vars || !elems) {
+        return; /* source view, help/settings page, or unexpected layout */
+    }
+    const rootPath = vars.getAttribute("data-root-path") || "./";
+    const href = path => new URL(rootPath + path, window.location.href).href;
+
+    const sectionHeader = text => {
+        const h = document.createElement("h3");
+        h.className = "flm-nav-h";
+        h.textContent = text;
+        return h;
+    };
+    const linkItem = (url, text) => {
+        const a = document.createElement("a");
+        a.href = url;
+        a.textContent = text;
+        const item = document.createElement("li");
+        item.appendChild(a);
+        return item;
+    };
+
+    /* Drop rustdoc's own "Crates" list (it lists every crate in the doc
+       bundle, including stale dependency builds); the CSS above already
+       hides it. The curated CRATES list below replaces it. */
+    for (const crateList of elems.querySelectorAll("ul.block.crate")) {
+        const heading = crateList.previousElementSibling;
+        if (heading && heading.tagName === "H3") {
+            heading.remove();
+        }
+        crateList.remove();
+    }
+
+    /* Everything rustdoc put in the sidebar becomes the "API" section... */
+    const api = document.createElement("section");
+    api.className = "flm-api-nav";
+    while (elems.firstChild) {
+        api.appendChild(elems.firstChild);
+    }
+
+    /* ...preceded by the pinned "Guide" section. */
+    const guide = document.createElement("section");
+    guide.className = "flm-guide-nav";
+    guide.appendChild(sectionHeader("Guide"));
+    const chapters = document.createElement("ul");
+    chapters.className = "block";
+    let onGuidePage = false;
+    for (const [sub, title] of GUIDE_PAGES) {
+        const url = href("flm_core/guide/" + sub + "index.html");
+        const item = linkItem(url, title);
+        if (new URL(url).pathname === window.location.pathname) {
+            item.className = "current";
+            onGuidePage = true;
+        }
+        chapters.appendChild(item);
+    }
+    guide.appendChild(chapters);
+
+    /* The workspace crates, current one highlighted. */
+    const crates = document.createElement("ul");
+    crates.className = "block flm-crates";
+    for (const name of CRATES) {
+        const item = linkItem(href(name + "/index.html"), name);
+        if (name === vars.getAttribute("data-current-crate")) {
+            item.className = "current";
+        }
+        crates.appendChild(item);
+    }
+
+    if (onGuidePage) {
+        /* On a guide page, keep the page outline under "Guide" (the location
+           header and the module-items index just duplicate the chapter list)
+           and reduce "API" to the crate list. */
+        const toc = api.querySelector("#rustdoc-toc");
+        if (toc) {
+            for (const child of Array.from(toc.children)) {
+                const keep = child.classList.contains("top-toc") ||
+                    (child.nextElementSibling !== null &&
+                        child.nextElementSibling.classList.contains("top-toc"));
+                if (!keep) {
+                    child.remove();
+                }
+            }
+            guide.appendChild(toc);
+        }
+        api.textContent = "";
+    }
+
+    elems.appendChild(guide);
+    elems.appendChild(sectionHeader("API"));
+    elems.appendChild(crates);
+    elems.appendChild(api);
+});
+</script>

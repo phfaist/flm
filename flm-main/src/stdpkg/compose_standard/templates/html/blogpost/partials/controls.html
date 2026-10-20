@@ -1,0 +1,14 @@
+<div class="bp-tools" hidden>
+  <button class="bp-theme-toggle bp-icon" type="button" aria-label="{{ config.label_dark_theme }}" title="{{ config.label_dark_theme }}"><span class="bp-moon">{% with icon_name="moon" %}{% include "partials/icon.html" %}{% endwith %}</span><span class="bp-sun" hidden>{% with icon_name="sun" %}{% include "partials/icon.html" %}{% endwith %}</span></button>
+  <span class="bp-tool-divider" aria-hidden="true"></span>
+  <button class="bp-settings-toggle" type="button" aria-label="{{ config.label_preferences }}" aria-expanded="false" aria-controls="bp-settings"><span aria-hidden="true">Aa</span></button>
+  <div class="bp-settings" id="bp-settings" hidden>
+    <fieldset><legend>{{ config.label_text_size }}</legend><div class="bp-segmented">
+{% for size in ["small", "standard", "large"] %}
+      <button type="button" data-bp-size="{{ size }}" aria-pressed="{{ 'true' if config.text_size == size else 'false' }}">{{ config["label_" ~ size] }}</button>
+{% endfor %}
+    </div></fieldset>
+    <label class="bp-motion-setting"><span>{{ config.label_scroll_effects }}</span><input type="checkbox" role="switch" id="bp-motion-toggle" aria-describedby="bp-motion-hint"><span class="bp-switch" aria-hidden="true"></span></label>
+    <p class="bp-sr" id="bp-motion-hint"></p>
+  </div>
+</div>

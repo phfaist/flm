@@ -1,0 +1,91 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.a5833601.sty
+(see \flmRef{ref-v1}) \flmHyperref{ref-v1}{that section} \eqref{ref-v1} (see \flmRef{ref-v1})%%
+% ===== latex-recomposed:style flmrecomposed.a5833601.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.a5833601}
+% --- packages ---
+% flm.latex.pkg.amsmath
+\RequirePackage{amsmath}
+% flm.latex.pkg.zref-clever
+\RequirePackage{zref-clever}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.refs
+% \flmRef[<options>]{<label>}: a reference that gives the name of its target
+% ("Section 2"), set by \zcref of the zref-clever package.
+%
+% The options are the ones the document wrote, in FLM's own vocabulary. This
+% definition translates each of them by its key -- a value written after the
+% key is ignored, as in FLM -- and drops every key it has no translation for:
+%
+%   noprefix    -> noname                 the number or title alone, with no
+%                                         name before it ("2", not
+%                                         "Section 2")
+%   S           -> S                      the first name capitalized and
+%                                         unabbreviated, for a reference that
+%                                         opens a sentence
+%   capital     -> cap=true,abbrev=false  the names capitalized ("Lemma 1")
+%   lowercase   -> cap=false,abbrev=false the names in lowercase ("lemma 1")
+%   abbreviated -> abbrev=true            the abbreviated names ("Lem. 1")
+%                                         where the reference type declares
+%                                         them, the full names otherwise
+%   anything else -> dropped              the default wording; a variant of
+%                                         your own naming has no counterpart
+%                                         in zref-clever, which would stop on
+%                                         a key it does not know
+%
+% Redefine \flmRef to set references differently -- another package, another
+% wording, your own variants, no link. Your definition sees the options as the
+% document wrote them, in FLM's vocabulary, and maps them as it likes.
+%
+% The translation uses expl3, LaTeX's programming layer, which is part of the
+% format and needs no package; its names read only between \ExplSyntaxOn and
+% \ExplSyntaxOff. \keyval_parse:NNn reads the option list as LaTeX reads any
+% key-value list: it hands a key written alone to the first macro below and a
+% key with its value to the second, which drops the value. \str_case:nnF looks
+% the key up in the table and appends what \zcref is to be given, or nothing.
+% The macros with @ in their names are internals, not a customization point:
+% redefine \flmRef, not its parts.
+\ExplSyntaxOn
+\def\flm@ref@add#1{\tl_put_right:Nn \flm@ref@options {#1,}}
+\def\flm@ref@key#1{\str_case:nnF {#1}
+  {{noprefix}{\flm@ref@add{noname}}
+   {S}{\flm@ref@add{S}}
+   {capital}{\flm@ref@add{cap=true,abbrev=false}}
+   {lowercase}{\flm@ref@add{cap=false,abbrev=false}}
+   {abbreviated}{\flm@ref@add{abbrev=true}}}
+  {}}
+\def\flm@ref@pair#1#2{\flm@ref@key{#1}}
+\def\flm@ref@zcref#1#2{\zcref[#1]{#2}}
+\ProvideDocumentCommand\flmRef{O{} m}{%
+  \def\flm@ref@options{}%
+  \keyval_parse:NNn \flm@ref@key \flm@ref@pair {#1}%
+  \exp_args:No \flm@ref@zcref {\flm@ref@options} {#2}}
+\ExplSyntaxOff
+% flm.latex.def.hyperref
+% \flmHyperref{<label>}{<text>}: <text>, shown as a link to the place <label>
+% refers to.
+%
+% Making a link in a PDF takes the hyperref package, and loading it changes a
+% whole document -- every reference becomes a link, bookmarks are built. That
+% is the author's decision, not this file's, so this file neither loads
+% hyperref nor asks for it: the definition below links through it where the
+% document loaded it and prints the text alone where it did not, so the
+% document compiles either way. The question is about this document's own
+% preamble, so the answer is the same wherever the document is compiled; it is
+% asked here, at the reference, so it is right whether this file was loaded
+% before hyperref or after it.
+%
+% Redefine \flmHyperref to link differently -- another package, a footnote
+% with the target's number, no link at all.
+\ProvideDocumentCommand\flmHyperref{m m}{%
+  \IfPackageLoadedTF{hyperref}{\hyperref[{#1}]{#2}}{#2}}
+% What such a reference contributes to a PDF bookmark: the text alone. A
+% bookmark is plain text and carries no link, and without this line the label
+% would appear in it beside the text. The hook runs when the document begins
+% and does nothing where hyperref is absent.
+\AtBeginDocument{\ifdefined\pdfstringdefDisableCommands
+  \pdfstringdefDisableCommands{%
+    \def\flmHyperref#1#2{#2}%
+  }\fi}
+\endinput

@@ -1,0 +1,41 @@
+# Case 1 compiled from Rust: the extension `wordcount` written against the guest client
+# `flm_ext::guest` and compiled to one WebAssembly module, which `flmextension.yaml` beside
+# this file names. A standalone crate (its own empty workspace, outside the repository's),
+# built by the gated test `flm-ext/tests/wasm_case1.rs` with
+#
+#     cargo build --manifest-path flm-ext/tests/wasm/wordcount/Cargo.toml \
+#         --target wasm32-unknown-unknown --release --locked
+#
+# and the module `target/wasm32-unknown-unknown/release/wordcount.wasm` of its target
+# folder copied beside the manifest. The module is a build product and is not committed.
+# This file is the template of an extension's crate: the type `cdylib`, the guest client
+# with the feature `guest` alone, and a release profile that aborts on a panic.
+# The lockfile `Cargo.lock` beside this file is committed, and the build is `--locked`: when
+# the version or the dependencies of `flm-core` or `flm-ext` change, regenerate it with
+#
+#     cargo generate-lockfile --manifest-path flm-ext/tests/wasm/wordcount/Cargo.toml --offline
+[package]
+name = "wordcount"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+flm-ext = { path = "../../..", default-features = false, features = ["guest"] }
+serde_json = "1"
+
+# A small module: optimized for size, the whole program optimized at link time, one
+# code unit; a panic aborts the module (a trap), whose message the guest client keeps
+# for the host.
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+codegen-units = 1
+
+[workspace]

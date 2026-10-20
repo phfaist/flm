@@ -1,0 +1,144 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.ad59e220.sty
+\begin{flmVerbatimCode}[]
+one: a_b
+two: c & d
+three: e
+four: f
+five: g
+\end{flmVerbatimCode}
+[a\_b|c \& d|e|f|g]
+%%
+% ===== latex-recomposed:style flmrecomposed.ad59e220.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.ad59e220}
+% --- packages ---
+% flm.latex.pkg.fvextra
+\RequirePackage{fvextra}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.verbatim
+% Verbatim content. Inline content is written as
+%   \EscVerb[formatcom=\flmFmtVRB{<kind>}]{<escaped content>}
+% and block content as the flmVerbatimCode environment. \EscVerb comes with
+% fvextra 1.5 (2022) and later, which this file requires.
+% \flmFmtVRB{<kind>} runs the hook \flmFmtVRB<kind>; redefine
+% \flmFmtVRBverbtext, \flmFmtVRBverbcode or \flmFmtVRBverba to change how
+% that kind of verbatim content is set.
+\ProvideDocumentCommand\flmFmtVRBverbtext{}{}
+\ProvideDocumentCommand\flmFmtVRBverbcode{}{\ttfamily}
+\ProvideDocumentCommand\flmFmtVRBverba{}{\itshape}
+\ProvideDocumentCommand\flmFmtVRB{m}{\csname flmFmtVRB#1\endcsname}
+% \flmVerbatimCodeSetup{<lang>} runs at the start of a flmVerbatimCode
+% environment with its language tag (empty when none was given); redefine
+% it to attach syntax highlighting. It runs before the Verbatim environment
+% opens, so it must not open a group or an environment of its own.
+\ProvideDocumentCommand\flmVerbatimCodeSetup{m}{}
+% flmVerbatimCode[<lang>]: a block of code, set with the verbcode hook. The
+% recomposed LaTeX always writes the brackets, [<lang>] or [], because LaTeX's
+% lookahead for an absent optional argument swallows the line end that the
+% verbatim content must begin after. Define the environment before loading
+% this file to replace it.
+\ProvideDocumentEnvironment{flmVerbatimCode}{O{}}{%
+  \flmVerbatimCodeSetup{#1}%
+  \VerbatimEnvironment
+  \begin{Verbatim}[formatcom=\flmFmtVRB{verbcode}]}%
+  {\end{Verbatim}}
+% flmVerbatimText[<lang>]: a block of plain verbatim text, set with the
+% verbtext hook. It takes the same optional argument as flmVerbatimCode and
+% ignores it, so that one command (\flmVerbatimBlock below), which always
+% writes the brackets, serves either environment.
+\ProvideDocumentEnvironment{flmVerbatimText}{O{}}{%
+  \VerbatimEnvironment
+  \begin{Verbatim}[formatcom=\flmFmtVRB{verbtext}]}%
+  {\end{Verbatim}}
+% \flmVerbatimBlock[<options>]{<environment>}{<lines>}: one block of verbatim
+% content written as a single macro call, for the places a block cannot be
+% written out in full -- inside an argument of a call, inside the body a
+% body-grabbing environment hands over, inside a definition's own body -- where
+% LaTeX has read the characters long before anything can say they are verbatim.
+% The three arguments:
+%   <options>     the block environment's own optional argument, always
+%                 written, [<lang>] or [];
+%   <environment> the environment's name, flmVerbatimCode for a code block;
+%   <lines>       one brace group per line of the block, and inside each line
+%                 one brace group per tab-separated segment, every segment
+%                 written in the encoding \EscVerb reads (a backslash before
+%                 every printable ASCII character that is not a letter or a
+%                 digit). The line and segment structure is carried by braces
+%                 rather than by characters because a line feed written into an
+%                 auxiliary file comes back from it as a space, and a tab
+%                 inside an argument is a space before anything can look at it;
+%                 brace groups survive both.
+% The command un-escapes every segment with fvextra's own un-escaper, joins the
+% segments of a line with a tab and the lines with a line feed, and hands
+% \begin{<environment>}[<options>] ... \end{<environment>} to \scantokens,
+% which offers that text to TeX as if it were a file: the environment is
+% entered for real, and fancyvrb reads its lines the way it reads them out of
+% any file. This is the only place this file uses \scantokens, and it is the
+% whole mechanism -- nothing is saved anywhere, no name is made up, nothing
+% outlives the call. The \begin and the \end are written as plain characters
+% (\string\begin\string{...) because \scantokens puts a space after every
+% control word, and fancyvrb looks for the exact characters \end{ on a line:
+% written as control words they would read \end {...} and the environment
+% would never close.
+% The call leaves the mode it found. A block is vertical material, so the
+% environment leaves TeX in vertical mode regardless of what came before; a
+% block that ends a section title would then leave hyperref's link open in
+% vertical mode, which pdfTeX refuses on the run that reads the table of
+% contents back. Called
+% where a paragraph was under way, the command therefore begins one again
+% (\leavevmode); called where TeX was already in vertical mode, it does not,
+% because starting a paragraph there would add an empty line the same block
+% written out in full does not add.
+\begingroup
+\catcode`\^^J=12 \catcode`\^^I=12
+\gdef\flm@vrb@nl{^^J}\gdef\flm@vrb@tab{^^I}
+\endgroup
+\let\flm@vrb@stop\relax
+\let\flm@vrb@leave\relax
+\ProvideDocumentCommand\flmVerbatimBlock{O{} m m}{%
+  \ifhmode\let\flm@vrb@leave\leavevmode\else\let\flm@vrb@leave\relax\fi
+  \begingroup
+    \gdef\flm@vrb@acc{}\def\flm@vrb@lsep{}%
+    \flm@vrb@lines#3\flm@vrb@stop
+    \xdef\flm@vrb@src{%
+      \string\begin\string{#2\string}[#1]\flm@vrb@nl
+      \flm@vrb@acc\flm@vrb@nl\string\end\string{#2\string}}%
+  \endgroup
+  \edef\flm@vrb@restorenl{\newlinechar=\the\newlinechar\relax}%
+  \newlinechar=`\^^J\relax
+  \expandafter\scantokens\expandafter{\flm@vrb@src}%
+  \flm@vrb@restorenl
+  \ifvmode\flm@vrb@leave\fi}
+% The walk over the lines and their segments: one line group at a time, one
+% segment at a time, the segments of a line joined with a tab and the lines
+% with a line feed. \FVExtraDetokenizeREscVArg is fvextra's own un-escaper,
+% the macro \EscVerb itself calls, so that inline verbatim content and a block
+% share one escaping; it is also the only safe route for text that is not
+% ASCII.
+\def\flm@vrb@lines{\@ifnextchar\bgroup\flm@vrb@line\flm@vrb@linesdone}
+\def\flm@vrb@line#1{%
+  \xdef\flm@vrb@acc{\flm@vrb@acc\flm@vrb@lsep}\let\flm@vrb@lsep\flm@vrb@nl
+  \def\flm@vrb@ssep{}\flm@vrb@segs#1\flm@vrb@stop\flm@vrb@lines}
+\def\flm@vrb@linesdone#1\flm@vrb@stop{}
+\def\flm@vrb@segs{\@ifnextchar\bgroup\flm@vrb@seg\flm@vrb@segsdone}
+\def\flm@vrb@seg#1{\FVExtraDetokenizeREscVArg{\flm@vrb@addseg}{#1}\flm@vrb@segs}
+\def\flm@vrb@segsdone#1\flm@vrb@stop{}
+\def\flm@vrb@addseg#1{%
+  \xdef\flm@vrb@acc{\flm@vrb@acc\flm@vrb@ssep#1}\let\flm@vrb@ssep\flm@vrb@tab}
+% What a PDF bookmark holds where a heading contains verbatim content. A
+% bookmark is plain text: it can carry neither the setting of inline verbatim
+% content nor a block at all, so hyperref is told what to put there instead.
+% Inline content gives its text -- without this, fvextra disables \EscVerb
+% without removing its optional argument and the option list appears in the
+% bookmark -- and a block gives its content run together, with no line breaks
+% and no separator between the lines. The two definitions are in a hook that
+% runs when the document begins and does nothing where hyperref is absent, so
+% this file neither requires hyperref nor cares whether it is loaded before or
+% after it.
+\AtBeginDocument{\ifdefined\pdfstringdefDisableCommands
+  \pdfstringdefDisableCommands{%
+    \def\EscVerb[#1]#2{#2}%
+    \def\flmVerbatimBlock[#1]#2#3{#3}%
+  }\fi}
+\endinput

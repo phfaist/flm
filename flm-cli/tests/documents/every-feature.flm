@@ -1,0 +1,78 @@
+---
+title: On \emph{codes} and \(x^2\)
+author: [Ann Author, Bob Writer]
+date: 30 September 2026
+flm:
+  parsing:
+    dollar_math: true
+  features:
+    userdefs:
+      macros:
+        Hs:
+          content: {math: '\mathcal{H}'}
+        pair:
+          args: ['{', '{']
+          content: '(#1, #2)'
+    annotations:
+      annotators:
+        phf:
+          initials: PhF
+---
+\section{Introduction}\label{sec:intro}
+
+A paragraph with \emph{emphasis}, \textbf{bold text}, a literal dash -- and a tie~here,
+a footnote\footnote{A note with \(a+b\).}, a user macro \(\Hs\) and \pair{a}{b}.
+Some \verbtext+verbatim \text+ and a link \href{https://example.com}{to a page},
+see \ref{sec:intro} and \eqref{eq:sum}, with $x = y$ in dollars. %% a comment
+A remark \phf{marked}\phf[check this].
+
+\begin{equation}\label{eq:sum}
+  a + b = c
+\end{equation}
+
+\subsection{Definitions and results}
+
+\begin{defterm}{Entropy}
+A measure of uncertainty.
+\end{defterm}
+
+\begin{theorem}[Main]\label{thm:main}
+Every code is a code.
+\end{theorem}
+\begin{proof}[*thm:main]
+Obvious.
+\end{proof}
+
+\begin{itemize}
+\item\label{item:one} One
+\item Two
+\end{itemize}
+\begin{enumerate}
+\item First
+\end{enumerate}
+\begin{description}
+\item[Term] Its description.
+\end{description}
+
+\begin{quote}
+\text{To be or not to be.}
+\attributed{Shakespeare}
+\end{quote}
+
+\begin{figure}
+\includegraphics{figures/plot.png}
+\caption{A plot}\label{figure:plot}
+\end{figure}
+
+\begin{table}
+\begin{cells}
+  \celldata{A & B}
+\end{cells}
+\caption{A table of cells}\label{table:cells}
+\end{table}
+
+\begin{verbatimcode}
+let x = 1;
+\end{verbatimcode}
+
+See \ref{table:cells}, \ref{figure:plot}, \ref{thm:main} and item~\ref{item:one}.

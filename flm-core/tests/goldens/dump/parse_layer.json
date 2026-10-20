@@ -1,0 +1,111 @@
+[
+  {
+    "elem": "t.section",
+    "name": "section",
+    "args": {
+      "title": [
+        {
+          "chars": "Intro"
+        }
+      ],
+      "fields": [
+        {
+          "elem": "flm.field",
+          "name": "label",
+          "args": {
+            "label": [
+              {
+                "chars": "sec:intro"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "elem": "flm.parbreak"
+  },
+  {
+    "chars": "Hello "
+  },
+  {
+    "elem": "t.emph",
+    "name": "emph",
+    "args": {
+      "body": [
+        {
+          "chars": "world"
+        }
+      ]
+    }
+  },
+  {
+    "chars": ", "
+  },
+  {
+    "elem": "flm.math",
+    "form": "inline",
+    "children": [
+      {
+        "chars": "x^2"
+      }
+    ]
+  },
+  {
+    "chars": " and "
+  },
+  {
+    "elem": "t.verb",
+    "name": "verb",
+    "args": {
+      "code": [
+        {
+          "chars": "raw"
+        }
+      ]
+    }
+  },
+  {
+    "chars": " here"
+  },
+  {
+    "elem": "t.nbsp"
+  },
+  {
+    "chars": "there.\n"
+  },
+  {
+    "elem": "t.quote",
+    "name": "quote",
+    "body": [
+      {
+        "chars": "\n  Quoted. "
+      },
+      {
+        "kind": "comment",
+        "text": " a note"
+      }
+    ]
+  },
+  {
+    "chars": "\n"
+  },
+  {
+    "elem": "t.code",
+    "name": "code",
+    "body": [
+      {
+        "elem": "flm.verbatim",
+        "children": [
+          {
+            "chars": "\\emph{x} % raw\n"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "chars": "\n"
+  }
+]

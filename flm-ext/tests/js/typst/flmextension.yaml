@@ -1,0 +1,5 @@
+extension:
+  description: A Typst backend, the test fixture of a backend written in JavaScript
+  engine: js
+  js:
+    main: main.js

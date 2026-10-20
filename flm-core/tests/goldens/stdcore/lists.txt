@@ -1,0 +1,40 @@
+Lists of every kind.
+
+• A bullet.
+
+• Another, holding a list:
+
+  - nested
+
+  - again
+
+    ▸ deeper
+
+1. First.
+
+2. Second, with steps:
+
+   (i)  one
+
+   (ii) two
+
+3. Third, whose text is long enough to wrap onto a second line at the width of
+   eighty columns.
+
+(a) a
+
+(b) b
+
+I.  one
+
+II. two
+
++      plus
+
+Custom tagged
+
+Entropy A measure of disorder.
+
+Energy  What is conserved.
+
+See Item 1, Item (ii), (ii), Item (a) and Entropy.

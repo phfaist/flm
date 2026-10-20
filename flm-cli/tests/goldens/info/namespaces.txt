@@ -1,0 +1,77 @@
+Namespaces
+
+The families of names the registry holds, each with every name it holds.
+
+Namespace feature <flm info namespaces/feature>: A feature is a unit of the
+registry: it declares commands, stages, tables, settings and the other entities
+listed here, under names it owns.
+
+Namespace package <flm info namespaces/package>: A package is a named bundle of
+features, together with the packages it builds on, that a document or the
+program chooses to use.
+
+Namespace element <flm info namespaces/element>: An element type says what a
+node of a document’s tree means; the nodes of every command carry an element of
+one type.
+
+Namespace capability <flm info namespaces/capability>: A capability is a named
+condition that a stage brings about when it runs, such as a table having been
+written; a plan schedules the stages that provide the capabilities it needs.
+
+Namespace table <flm info namespaces/table>: A table holds data that one stage
+computes over a document and later stages read.
+
+Namespace collection <flm info namespaces/collection>: A collection is a name
+for a set of capabilities: demanding the collection demands every member.
+
+Namespace stage <flm info namespaces/stage>: A stage is one step of the
+processing of a document: it rewrites the trees, computes a table, checks
+something, or writes output.
+
+Namespace lowering-rule <flm info namespaces/lowering-rule>: A lowering rule
+turns the nodes of one element type into elements that a backend writes
+natively.
+
+Namespace backend <flm info namespaces/backend>: A backend turns a document into
+one output format, through its lowering, emit and final stages.
+
+Namespace output <flm info namespaces/output>: An output is a set of files that
+a plan can produce, such as an HTML page.
+
+Namespace workflow <flm info namespaces/workflow>: A workflow says what a build
+produces: its outputs, the capabilities it demands, and its preferences among
+stages and lowering rules.
+
+Namespace option-type <flm info namespaces/option-type>: An option type is a
+typed group of values, set on the registry, on a document or on a render
+request, that stages and lowering rules read.
+
+Namespace service-slot <flm info namespaces/service-slot>: A service slot is a
+named place where features and the embedding program contribute objects that
+stages use.
+
+Namespace scoped-package <flm info namespaces/scoped-package>: A scoped package
+is a set of commands defined only inside certain environment bodies or
+arguments, such as the item command inside a list.
+
+Namespace presentation-element <flm info namespaces/presentation-element>: A
+presentation element is an element of the trees a backend builds from the
+document’s trees; it never appears in a parsed document.
+
+Namespace piece <flm info namespaces/piece>: A piece is a value computed over
+the whole document, such as the list of footnotes, that a backend places before
+or after the document’s content.
+
+Namespace style <flm info namespaces/style>: A style definition is a part of a
+stylesheet that a backend writes into its output when a tree requires it.
+
+Namespace script <flm info namespaces/script>: A script definition is a part of
+a script that a backend writes into its output when a tree requires it.
+
+Namespace settings-key <flm info namespaces/settings-key>: A settings key is one
+value of a feature’s settings, written under the feature’s name; this list gives
+each key as the feature’s name, a dot and the key.
+
+Namespace argument-role <flm info namespaces/argument-role>: An argument role is
+a registered name for what an argument of a command holds, such as a label or a
+file path.

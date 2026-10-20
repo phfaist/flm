@@ -1,0 +1,16 @@
+{
+  "name": "flm-lecturenotes",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The stylesheet and the script of a book-length document shown as one page with a sidebar: the lecture-notes page of FLM, usable on any page that follows its markup",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node build.mjs test"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

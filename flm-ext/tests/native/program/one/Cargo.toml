@@ -1,0 +1,18 @@
+# The extension `one` of the program of `flm-ext/tests/native/program/`: a crate written
+# against the guest client, with the feature `guest` alone, as every extension's crate is. Its
+# library is also of the type `cdylib`, so that the run that builds the program also writes
+# the module of `one`, built where the program turns on `flm-ext`'s feature `native`.
+[package]
+name = "one"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+flm-ext = { path = "../../../..", default-features = false, features = ["guest"] }
+serde_json = "1"

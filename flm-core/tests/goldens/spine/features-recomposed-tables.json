@@ -1,0 +1,56 @@
+{
+  "flm.labels.safe": {
+    "ref": {
+      "labels": {
+        "sec:fmt": "ref2",
+        "sec:intro": "ref1",
+        "sec:missing": "ref3"
+      },
+      "names": {
+        "ref1": "sec:intro",
+        "ref2": "sec:fmt",
+        "ref3": "sec:missing"
+      }
+    }
+  },
+  "flm.output.latex-recomposed": [
+    {
+      "tree": "tree#0",
+      "text": "\\flmHeading[toc=true]\n\\section{Introduction}{\\flmLabels{\\label{ref1}}}\n\nThis document exercises every standard feature of build step 1: headings,\nparagraphs, the base formatting commands, math, user definitions and\nreferences. It is version 1.0.\n\n\\flmHeading[toc=true]\n\\subsection{Formatting}{\\flmLabels{\\label{ref2}}}\n\nSome \\emph{emphasized}, \\textbf{bold}, \\textit{italic} and \\texttt{monospace}\ntext --- with a dash, an ellipsis... and \"quotes\" resolved by typography.\n%% A comment vanishes (the language's default comment prefix is `%%`).\n\n\\flmHeading[toc=true]\n\\subsubsection{Math}{\\flmLabels{}}\n\nInline math \\(x_1 + \\alpha\\) and display math \\[ \\int_0^1 f(x)\\,dx = 1 \\] then\ntwo environments:\n\n\\begin{equation}\n  E = mc^2\n\\end{equation}\n\n\\begin{align*}\n  a &= b \\\\\n  c &= d\n\\end{align*}\n\n\\flmHeading[toc=true]\n\\subsubsection{Verbatim}{\\flmLabels{}}\n\nInline \\EscVerb[formatcom=\\flmFmtVRB{verbtext}]{a\\{b\\}\\\\c} text, the code \\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{f\\(x\\)\\ \\=\\ 1} and the\nidentifier \\EscVerb[formatcom=\\flmFmtVRB{verba}]{struct}, then \\EscVerb[formatcom=\\flmFmtVRB{verbtext}]{raw\\ \\{text\\}}\nin the same paragraph, and a code block:\n\n\\begin{flmVerbatimCode}[python]\ndef f(x):\n    return {x} + 1\n\\end{flmVerbatimCode}\n\n\\flmHeading[toc=true]\n\\paragraph{Definitions}{\\flmLabels{}}\n\n\\flmUDhello{World} from a user macro, and \\begin{flmUEnote}a user environment\\end{flmUEnote}\nin the same paragraph.\n\n\\flmHeading[toc=true]\n\\subparagraph{References}{\\flmLabels{}}\n\nSee \\flmRef{ref1}, \\flmRef[noprefix]{ref2} and \\flmRef{ref3}.\n\n\\flmHeading[toc=true]\n\\section*{Unnumbered}{\\flmLabels{}}\n\nA starred heading takes no number and stays in the contents.\n",
+      "declared": {},
+      "chunks": [],
+      "requires": [
+        "flm.latex.def.heading",
+        "flm.latex.def.labels",
+        "flm.latex.def.refs",
+        "flm.latex.def.verbatim",
+        "flm.latex.pkg.amsmath",
+        "flm.latex.pkg.fvextra"
+      ]
+    }
+  ],
+  "flm.latex-recomposed.packages": [
+    "flm.latex.pkg.amsmath",
+    "flm.latex.pkg.fvextra"
+  ],
+  "flm.latex-recomposed.preamble": {
+    "pieces": [
+      "flm.latex.def.heading",
+      "flm.latex.def.labels",
+      "flm.latex.def.refs",
+      "flm.latex.def.verbatim"
+    ],
+    "definitions": [
+      {
+        "name": "\\flmUDhello",
+        "source": "\\hello",
+        "text": "\\providecommand\\flmUDhello[1]{Hello, #1!}\n"
+      },
+      {
+        "name": "flmUEnote",
+        "source": "note",
+        "text": "\\ProvideDocumentEnvironment{flmUEnote}{}{[Note: }{]}\n"
+      }
+    ]
+  }
+}

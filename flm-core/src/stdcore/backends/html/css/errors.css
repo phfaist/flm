@@ -1,0 +1,71 @@
+/* flm.html.style.errors */
+/* How the page shows the places where the document asked for something
+   that could not be produced: a macro or an environment that no feature
+   declares, an element that this backend cannot write, and the mark that a
+   lowering rule leaves where it dropped part of the content.  Each is shown
+   in a box, not hidden, so that a reader of the page sees the problem and
+   the author can fix it.
+
+   A reference whose target was not found is styled in flm.html.style.core,
+   with the other display styles of a span: each stylesheet holds the rules
+   of the elements for which the HTML backend's conventions table (the table
+   CONVENTIONS of the Rust module flm_core::stdcore::backends::html) lists
+   it, and that table lists flm.html.style.core for a span. */
+@layer flm {
+  :root {
+    --flm-error-color: #a00000;
+    --flm-error-background: #fdeaea;
+    --flm-error-border: 1px solid #a00000;
+    --flm-error-radius: 0.2em;
+    --flm-error-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --flm-error-inline-padding: 0 0.2em;
+    --flm-error-block-padding: 0.4em 0.6em;
+    /* The space between two marks of dropped content placed side by side,
+       such as the marks written before a table of cells. */
+    --flm-dropped-gap: 0.3em;
+    /* The brackets written around the name of an element that this backend
+       cannot write; the name itself is read from the attribute
+       data-flm-element, which the backend writes on that element. */
+    --flm-unsupported-open: "[";
+    --flm-unsupported-close: "]";
+  }
+
+  /* The box in which every error is shown: a macro or an environment that no
+     feature declares, shown as the author typed it; the empty element left
+     where this backend could not write an element; and the mark of dropped
+     content, which holds its own text. */
+  .flm-pres-unknown,
+  .flm-pres-unsupported,
+  .flm-pres-dropped {
+    color: var(--flm-error-color);
+    background: var(--flm-error-background);
+    border: var(--flm-error-border);
+    border-radius: var(--flm-error-radius);
+    padding: var(--flm-error-inline-padding);
+    font-family: var(--flm-error-family);
+  }
+
+  /* An environment that no feature declares spans several lines, so it is
+     given the larger padding. */
+  .flm-pres-unknown[data-flm-kind="environment"] {
+    padding: var(--flm-error-block-padding);
+  }
+  /* The two lines that show where such an environment begins and ends. */
+  .flm-pres-unknown-marker {
+    display: block;
+    font-weight: bold;
+  }
+
+  /* Two marks of dropped content side by side are shown as two boxes, not
+     one. */
+  .flm-pres-dropped + .flm-pres-dropped {
+    margin-inline-start: var(--flm-dropped-gap);
+  }
+
+  /* An element that this backend cannot write is replaced by an empty
+     element, so the page shows the element's name through content that
+     this rule generates. */
+  .flm-pres-unsupported::after {
+    content: var(--flm-unsupported-open) attr(data-flm-element) var(--flm-unsupported-close);
+  }
+}

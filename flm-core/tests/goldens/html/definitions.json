@@ -1,0 +1,44 @@
+{
+  "flm.html.definitions": [
+    {
+      "id": "flm.html.style.core",
+      "kind": "style",
+      "owner": "html",
+      "provided_by_host": false,
+      "parts": [
+        {
+          "inline": ".flm-pres-par { margin: 0 }\n"
+        }
+      ]
+    },
+    {
+      "id": "flm.html.style.math-passthrough",
+      "kind": "style",
+      "owner": "html",
+      "provided_by_host": false,
+      "parts": [
+        {
+          "url": "/css/math-passthrough.css"
+        }
+      ]
+    },
+    {
+      "id": "flm.html.style.page",
+      "kind": "style",
+      "owner": "html",
+      "provided_by_host": false,
+      "parts": [
+        {
+          "url": "/css/page.css"
+        }
+      ]
+    },
+    {
+      "id": "flm.html.mathjax",
+      "kind": "script",
+      "owner": "html",
+      "provided_by_host": true,
+      "parts": []
+    }
+  ]
+}

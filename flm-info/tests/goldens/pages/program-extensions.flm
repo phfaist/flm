@@ -1,0 +1,42 @@
+---
+title: "Packages and extensions available"
+flm:
+  use: [flmdoc]
+  math: false
+---
+The packages and extensions a document may use: those compiled into the program, those found on the search path, and those bundled into the program.
+
+\section*{Compiled into the program}
+
+The packages compiled into the program:
+
+\begin{itemize}
+\item \verbcode{math-passthrough}
+\item \verbcode{std}
+\end{itemize}
+
+\section*{Found on the search path}
+
+The extensions found in the folders of the search path:
+
+\begin{itemize}
+\item \verbcode{narrow}
+\end{itemize}
+
+\section*{Bundled into the program}
+
+The extensions bundled into the program:
+
+\begin{itemize}
+\item \verbcode{flmdoc}
+\item \verbcode{profile-pdf-latex}
+\end{itemize}
+
+\section*{Profiles}
+
+A package or an extension whose name begins with \verbcode{profile-} provides the packages of the profile named by the rest:
+
+\begin{itemize}
+\item \verbcode{profile-pdf-latex} provides the profile \verbcode{pdf-latex}
+\end{itemize}
+

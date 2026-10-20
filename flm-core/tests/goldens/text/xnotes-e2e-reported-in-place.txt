@@ -1,0 +1,11 @@
+A heading holds blocks[¹The heading’s first paragraph. The heading’s second
+paragraph.]
+=======================================================================================
+
+A formula holds blocks:
+
+  \begin{equation}
+  x \text{where a note stands[2The formula’s first paragraph. The formula’s second paragraph.]}
+  \tag*{(1)}\end{equation}
+
+A note refers nowhere.[³See fn:nowhere.]

@@ -1,0 +1,4 @@
+# The content and the pieces the backend places, with nothing around them.
+output: html
+engine: content-only
+accepts: all

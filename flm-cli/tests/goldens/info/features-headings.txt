@@ -1,0 +1,133 @@
+Feature headings
+
+feature headings
+
+Headings: one value of the element flm.heading per heading kind, written with
+the kind’s heading commands (\section to \subparagraph by default); each heading
+carries a level, a reference point and its \label fields.
+
+Title: Headings
+
+Package: stdcore <flm info packages/stdcore>
+
+Element types
+=============
+
+Each node of a document’s tree carries an element, which says what the node
+means. The feature registers these element types, each with the commands written
+for it:
+
+Element type: flm.heading <flm info namespaces/element/flm.heading>
+
+• section: A heading of level 1. Written as
+  \section <flm info features/headings/macros/section>.
+
+• subsection: A heading of level 2. Written as
+  \subsection <flm info features/headings/macros/subsection>.
+
+• subsubsection: A heading of level 3. Written as
+  \subsubsection <flm info features/headings/macros/subsubsection>.
+
+• paragraph: A heading of level 4. Written as
+  \paragraph <flm info features/headings/macros/paragraph>.
+
+• subparagraph: A heading of level 5. Written as
+  \subparagraph <flm info features/headings/macros/subparagraph>.
+
+Element type: flm.field <flm info namespaces/element/flm.field>
+
+• The field \label, which the construct it is written after reads as data.
+  Written as the field \label after
+  \section <flm info features/headings/macros/section>.
+
+• The field \label, which the construct it is written after reads as data.
+  Written as the field \label after
+  \subsection <flm info features/headings/macros/subsection>.
+
+• The field \label, which the construct it is written after reads as data.
+  Written as the field \label after
+  \subsubsection <flm info features/headings/macros/subsubsection>.
+
+• The field \label, which the construct it is written after reads as data.
+  Written as the field \label after
+  \paragraph <flm info features/headings/macros/paragraph>.
+
+• The field \label, which the construct it is written after reads as data.
+  Written as the field \label after
+  \subparagraph <flm info features/headings/macros/subparagraph>.
+
+Element type:
+flm.heading.number <flm info namespaces/element/flm.heading.number>
+
+• The number of a numbered heading, where the kind’s heading title template
+  writes #{number}. No document can write it. No command is written for this
+  value.
+
+Lowering rules
+==============
+
+• flm.heading.number.lower.default <flm info namespaces/lowering-rule/flm.heading.number.lower.default>:
+  a heading’s number lowers to flm.pres.span of role flm.heading.number around
+  the number
+
+• flm.heading.lower.default <flm info namespaces/lowering-rule/flm.heading.lower.default>:
+  a heading lowers to flm.pres.block-heading carrying its kind’s name and level,
+  whether it is listed in a table of contents, and its anchor, or, for a run-in
+  kind, to a flm.pres.deco.runin decoration holding a flm.pres.runin-heading
+  with the same payload; a numbered heading’s content begins with its number
+
+• flm.heading.lower.latex-recomposed <flm info namespaces/lowering-rule/flm.heading.lower.latex-recomposed>:
+  a heading lowers to the LaTeX hook \flmHeading[toc=…] (with alt={…} where the
+  heading has an alternative title), a newline, the LaTeX sectioning command its
+  heading kind maps to, starred when not numbered, and a group holding the
+  labels it read from its \label fields
+
+• flm.heading.number.lower.latex-recomposed <flm info namespaces/lowering-rule/flm.heading.number.lower.latex-recomposed>:
+  a heading’s number lowers to its content; the heading itself is written back
+  as its sectioning command, so the number never reaches this backend
+
+Option types
+============
+
+• HeadingsConfig <flm info namespaces/option-type/HeadingsConfig>: The heading
+  kinds and the heading commands that write them: each kind’s level, counter,
+  counter style, the counter it is numbered within, number format, heading title
+  template, table-of-contents and run-in settings and reference point; each
+  command’s heading kind and default options; and which kinds are numbered.
+  Fixed when the registry is built: it cannot vary per document or per render.
+
+• HeadingsLatexOptions <flm info namespaces/option-type/HeadingsLatexOptions>:
+  The LaTeX sectioning command each heading kind is written as in the recomposed
+  LaTeX, keyed by the kind’s name; a kind not listed is written as the command
+  of its own name. Set per render request.
+
+Styles
+======
+
+• flm.headings.style <flm info namespaces/style/flm.headings.style>: headings:
+  no stylesheet of their own
+
+Settings
+========
+
+The feature’s settings keys, described on the page Settings of feature
+headings <flm info settings/headings>:
+
+• headings <flm info settings/headings>: The heading kinds, in the order they
+  were given.
+
+• commands <flm info settings/headings>: The heading commands, in the order they
+  were given.
+
+• numbering <flm info settings/headings>: Which kinds are numbered:
+  HeadingNumbering::NothingNumbered by default.
+
+• latex_commands <flm info settings/headings>: The LaTeX sectioning command,
+  without the backslash, that each heading kind is written as, keyed by the
+  kind’s name. A kind the map does not list is written as the command of its own
+  name. Empty by default.
+
+Lists of commands
+=================
+
+• Macros of feature headings <flm info features/headings/macros>

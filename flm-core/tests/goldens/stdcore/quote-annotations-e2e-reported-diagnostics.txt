@@ -1,0 +1,30 @@
+===== check =====
+Error flm.annotations.unterminated: \phf must be closed by \endphf within the same group or environment — at `a passage its environment ends\n` — in `argument #1 of macro ‘\phf’` at `` — in `macro ‘\phf’` at `\phf ` — in `environment ‘itemize’` at `\begin` — in `macro ‘\begin’` at `\begin`
+Error flm.annotations.unterminated: \phf must be closed by \endphf within the same group or environment — at `a passage the input ends` — in `argument #1 of macro ‘\phf’` at `` — in `macro ‘\phf’` at `\phf `
+Error flm.blocks.parbreak-in-inline: a paragraph break (a blank line) must not appear inside inline content, such as a `{…}` group or an argument or body laid out inline — at `\n\n`
+===== text =====
+Error flm.annotations.unterminated: \phf must be closed by \endphf within the same group or environment — at `a passage its environment ends\n` — in `argument #1 of macro ‘\phf’` at `` — in `macro ‘\phf’` at `\phf ` — in `environment ‘itemize’` at `\begin` — in `macro ‘\begin’` at `\begin`
+Error flm.annotations.unterminated: \phf must be closed by \endphf within the same group or environment — at `a passage the input ends` — in `argument #1 of macro ‘\phf’` at `` — in `macro ‘\phf’` at `\phf `
+Error flm.blocks.parbreak-in-inline: a paragraph break (a blank line) must not appear inside inline content, such as a `{…}` group or an argument or body laid out inline — at `\n\n`
+Error flm.quote.bare-content: content of the ‘quote’ environment must be written inside \text, \lines, \attributed or \block — at `\nBare content in a quote.\n`
+Error flm.quote.nested-section: \text must be written directly in the body of the quotation environment — at `\text{section inside a section}`
+Error flm.quote.indent-mid-line: \indent must be written at the start of a line — at `\indent `
+Error flm.quote.bare-content: content of the ‘quote’ environment must be written inside \text, \lines, \attributed or \block — at `\phf{\text{x}}`
+Error flm.quote.nested-section: \text must be written directly in the body of the quotation environment — at `\text{x}`
+===== html =====
+Error flm.annotations.unterminated: \phf must be closed by \endphf within the same group or environment — at `a passage its environment ends\n` — in `argument #1 of macro ‘\phf’` at `` — in `macro ‘\phf’` at `\phf ` — in `environment ‘itemize’` at `\begin` — in `macro ‘\begin’` at `\begin`
+Error flm.annotations.unterminated: \phf must be closed by \endphf within the same group or environment — at `a passage the input ends` — in `argument #1 of macro ‘\phf’` at `` — in `macro ‘\phf’` at `\phf `
+Error flm.blocks.parbreak-in-inline: a paragraph break (a blank line) must not appear inside inline content, such as a `{…}` group or an argument or body laid out inline — at `\n\n`
+Error flm.quote.bare-content: content of the ‘quote’ environment must be written inside \text, \lines, \attributed or \block — at `\nBare content in a quote.\n`
+Error flm.quote.nested-section: \text must be written directly in the body of the quotation environment — at `\text{section inside a section}`
+Error flm.quote.indent-mid-line: \indent must be written at the start of a line — at `\indent `
+Error flm.quote.bare-content: content of the ‘quote’ environment must be written inside \text, \lines, \attributed or \block — at `\phf{\text{x}}`
+Error flm.quote.nested-section: \text must be written directly in the body of the quotation environment — at `\text{x}`
+===== latex-recomposed =====
+Error flm.annotations.unterminated: \phf must be closed by \endphf within the same group or environment — at `a passage its environment ends\n` — in `argument #1 of macro ‘\phf’` at `` — in `macro ‘\phf’` at `\phf ` — in `environment ‘itemize’` at `\begin` — in `macro ‘\begin’` at `\begin`
+Error flm.annotations.unterminated: \phf must be closed by \endphf within the same group or environment — at `a passage the input ends` — in `argument #1 of macro ‘\phf’` at `` — in `macro ‘\phf’` at `\phf `
+Error flm.quote.bare-content: content of the ‘quote’ environment must be written inside \text, \lines, \attributed or \block — at `\nBare content in a quote.\n`
+Error flm.quote.nested-section: \text must be written directly in the body of the quotation environment — at `\text{section inside a section}`
+Error flm.quote.indent-mid-line: \indent must be written at the start of a line — at `\indent `
+Error flm.quote.bare-content: content of the ‘quote’ environment must be written inside \text, \lines, \attributed or \block — at `\phf{\text{x}}`
+Error flm.quote.nested-section: \text must be written directly in the body of the quotation environment — at `\text{x}`

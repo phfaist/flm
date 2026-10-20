@@ -1,0 +1,31 @@
+% flm.latex.def.flmx.defterm -- term definitions and the terms they define.
+%
+% The defterm feature writes a term definition as a block of role
+% flm.defterm, its lead-in (where one is configured) a run-in decoration at
+% the start of its first paragraph holding a span of role flm.defterm.leadin;
+% a term link inside the definition of its own term is a span of role
+% flm.defterm.term; any other term link is a link of kind term:
+%   \begin{flmxBlock}[role=flm.defterm, anchor=defterm-Entropy]
+%   \flmxDecoRunin{\flmxSpan[role=flm.defterm.leadin]{Entropy: }}A measure of
+%   disorder; \flmxSpan[role=flm.defterm.term]{entropy} grows.
+%   \end{flmxBlock}
+%
+% Defaults: the definition as a block of paragraphs, a paragraph break
+% before and after, the target of its anchor first; the lead-in as it stands
+% (the decoration sets it in bold); the term in \bfseries; the link of kind
+% term as the links chunk's default link. A template changes the look with
+%   \flmxDefineBlock{flm.defterm}{<begin code>}{<end code>}
+%   \flmxDefineSpan{flm.defterm.leadin}{<code over #1>}
+%   \flmxDefineSpan{flm.defterm.term}{<code over #1>}
+%   \flmxDefineLink{term}{<code over #1, the term's text>}
+
+\flmxDefineBlock{flm.defterm}%
+  {\par\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}}%
+  {\par}
+\flmxDefineSpan{flm.defterm.leadin}%
+  {\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}#1}
+\flmxDefineSpan{flm.defterm.term}%
+  {\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}\textbf{#1}}
+\ExplSyntaxOn
+\flmxDefineLink { term } { \__flmx_link:n {#1} }
+\ExplSyntaxOff

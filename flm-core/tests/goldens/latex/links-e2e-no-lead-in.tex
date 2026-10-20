@@ -1,0 +1,424 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.7714d560.sty
+\flmHeading[toc=true]
+\section{Links in a title: \flmHref{https://example.com/a}{the site} and \flmUrl{https://example.com/b}}{\flmLabels{}}
+
+A paragraph holds \flmHref{https://example.com}{a hyperlink}, an address \flmUrl{https://example.com/100\%25/a_b~c?q=1&r=2\#top} and \flmEmail{someone@example.com}; \flmTerm{ref1}{entropy} is defined below.
+
+\begin{defterm}{Markov chain}\phantomsection\flmLabelsWithDisplayText{Markov chain}{\flmLabels{\label{ref2}\label{ref3}\label{ref4}}}\ignorespaces
+A random process; a \flmTermInDefterm{Markov chain} forgets its past, as all \flmTermInDefterm{Markov chains} do, and may produce \flmTerm{ref1}{entropy}.
+\end{defterm}
+
+\begin{defterm}{entropy}\phantomsection\flmLabelsWithDisplayText{entropy}{\flmLabels{\label{ref1}\label{ref5}}}\ignorespaces
+\emph{A measure} of disorder, which a \flmTerm{ref2}{process} may produce.
+\end{defterm}
+
+\begin{defterm}{\(\alpha\)-decay}\phantomsection\flmLabelsWithDisplayText{\(\alpha\)-decay}{\flmLabels{\label{ref6}}}\ignorespaces
+A decay that emits an \(\alpha\) particle.
+\end{defterm}
+
+See \flmTerm{ref1}{entropy}, \flmTerm{ref1}{the entropy}, \flmTerm{ref3}{Markov chains}, \flmTerm{ref6}{\(\alpha\)-decay}, \flmRef{ref4} and \flmRef{ref5}; \flmHref{https://example.com/g}{a page on \flmTerm{ref1}{entropy}}.
+
+\flmHeading[toc=true]
+\section{A heading about \flmTerm{ref1}{disorder}}{\flmLabels{}}
+
+\begin{itemize}
+\item An item holds \flmHref{https://example.org}{a link} and \flmTerm{ref1}{entropy}.
+\item\begin{defterm}{list term}\phantomsection\flmLabelsWithDisplayText{list term}{\flmLabels{\label{ref7}}}\ignorespaces
+A term defined in a list item, where \flmTermInDefterm{list term} is itself.
+\end{defterm}
+\end{itemize}
+
+A note holds links.\flmXNfootnote{The note holds \flmUrl{https://example.net/} and \flmTerm{ref1}{entropy}.} Another defines a term.\flmXNfootnote{\begin{defterm}{note term}\phantomsection\flmLabelsWithDisplayText{note term}{\flmLabels{\label{ref8}}}\ignorespaces
+A term defined in a footnote.
+\end{defterm}} See \flmTerm{ref8}{note term} and \flmTerm{ref7}{list term}.
+
+\begin{equation}
+S = k \log W \text{ where \flmHref{https://example.com/f}{a link} and \flmTerm{ref1}{entropy} stand}
+\end{equation}
+
+Through definitions: \flmUDseeentropy{}; \flmHref{https://doi.org/10.1000/xyz-1}{10.1000/xyz-1}; \flmUrl{https://example.com/c/\#sec-intro}; \flmHref{https://doi.org/10.1000/a\%20b\#c}{DOI}; \flmTerm{ref2}{this term}.
+
+\begin{defterm}{expanded term}\phantomsection\flmLabelsWithDisplayText{expanded term}{\flmLabels{\label{ref9}}}\ignorespaces
+A term defined through a user definition.
+\end{defterm}
+
+
+% flm: unsupported element flm.userdefs.macro.kdt
+
+See \flmTerm{ref9}{expanded term}.%%
+% ===== latex-recomposed:style flmrecomposed.7714d560.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.7714d560}
+% --- packages ---
+% flm.latex.pkg.amsmath
+\RequirePackage{amsmath}
+% flm.latex.pkg.hyperref
+\RequirePackage{hyperref}
+% flm.latex.pkg.zref-clever
+\RequirePackage{zref-clever}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.xnotes.footnote
+% \flmXNfootnote[<labels>]{<note>}: a note of the kind `footnote' in the FLM document;
+% by default it passes the note, its labels first, to \footnote.
+% Redefine it to set these notes another way.
+\ProvideDocumentCommand\flmXNfootnote{+O{} +m}{\footnote{#1#2}}
+% flm.latex.def.href
+% Links to an address outside the document, one hook per FLM command:
+% \flmHref{<address>}{<text>}: <text>, linked to <address>, as \href does.
+% \flmUrl{<address>}: the display of <address>, linked to <address> and
+%   typeset the way \url typesets an address.
+% \flmEmail{<address>}: the display of mailto:<address> -- the address --
+%   linked to mailto:<address> and typeset the same way.
+% The display is what the other outputs of FLM show of such a link: its target
+% without one leading http://, https:// or mailto: and without the trailing
+% run of the characters / # ? -- https://example.com/?# shows example.com.
+% Every argument is an ordinary one: in <address> the characters # % \ are
+% written \# \% \\. Redefine a hook to link or typeset differently.
+%
+% The display is derived by \flm@href@display{<address>}, written in expl3,
+% LaTeX's programming layer, which is part of the format and needs no package;
+% its names read only between \ExplSyntaxOn and \ExplSyntaxOff. It reads the
+% address as a string of characters (\tl_to_str:n), drops the backslash of
+% each \# \% \\, then the prefix, then the trailing run, one character at a
+% time. It works by expansion alone and leaves the display and nothing else,
+% so that it serves where a hook is typeset and where hyperref builds a PDF
+% bookmark by expansion. The macros with @ in their names are internals, not a
+% customization point: redefine a hook, not its parts.
+\ExplSyntaxOn
+\def\flm@href@display#1{\exp_args:Ne \flm@href@trim
+  {\exp_args:Ne \flm@href@unprefix
+    {\exp_args:Ne \flm@href@unescape {\tl_to_str:n {#1}}}}}
+% Every character, a backslash dropped and the character after it kept.
+\def\flm@href@unescape#1{\str_if_empty:nF {#1}
+  {\str_if_eq:eeTF {\str_head:n {#1}} {\c_backslash_str}
+    {\exp_args:Ne \flm@href@unescape@one {\str_tail:n {#1}}}
+    {\flm@href@unescape@one {#1}}}}
+\def\flm@href@unescape@one#1{\str_head:n {#1}
+  \exp_args:Ne \flm@href@unescape {\str_tail:n {#1}}}
+% The first of the three prefixes the string begins with, taken off.
+\def\flm@href@unprefix#1{\flm@href@unprefix@try {#1} {http://}
+  {\flm@href@unprefix@try {#1} {https://}
+    {\flm@href@unprefix@try {#1} {mailto:} {#1}}}}
+\def\flm@href@unprefix@try#1#2#3{\str_if_eq:eeTF
+  {\str_range:nnn {#1} {1} {\str_count:n {#2}}} {#2}
+  {\str_range:nnn {#1} {\str_count:n {#2} + 1} {-1}} {#3}}
+% The last character taken off while it is one of / # ?.
+\def\flm@href@trim#1{\exp_args:Ne \flm@href@trim@last {\str_item:nn {#1} {-1}} {#1}}
+\def\flm@href@trim@last#1#2{\bool_lazy_any:nTF
+  {{\str_if_eq_p:nn {#1} {/}} {\str_if_eq_p:ee {#1} {\c_hash_str}} {\str_if_eq_p:nn {#1} {?}}}
+  {\exp_args:Ne \flm@href@trim {\str_range:nnn {#2} {1} {-2}}} {#2}}
+% The display of <target>, typeset by \nolinkurl.
+\def\flm@href@show#1{\exp_args:Ne \nolinkurl {\flm@href@display {#1}}}
+\ExplSyntaxOff
+\ProvideDocumentCommand\flmHref{m m}{\href{#1}{#2}}
+\ProvideDocumentCommand\flmUrl{m}{\href{#1}{\flm@href@show{#1}}}
+\ProvideDocumentCommand\flmEmail{m}{\href{mailto:#1}{\flm@href@show{mailto:#1}}}
+% What such a link contributes to a PDF bookmark: its text or its display
+% alone. The hook runs when the document begins, so that it also holds where
+% the document loads hyperref itself, after this file, having named it in the
+% render option skip_packages; it does nothing where hyperref is absent.
+\AtBeginDocument{\ifdefined\pdfstringdefDisableCommands
+  \pdfstringdefDisableCommands{%
+    \def\flmHref#1#2{#2}%
+    \def\flmUrl#1{\flm@href@display{#1}}%
+    \def\flmEmail#1{\flm@href@display{mailto:#1}}%
+  }\fi}
+% flm.latex.def.defterm
+% Defined terms. A term definition is written as the environment defterm,
+% whose one argument is the term. This file defines the environment further
+% below, in the part headed "definitions written from the configuration of
+% FLM features"; the environment's opening text is the lead-in that the
+% document was recomposed with. The body of a term definition opens with
+% \phantomsection, so that a link to the term definition leads to it, and
+% with \flmLabelsWithDisplayText, so that a reference to one of its labels
+% prints the term.
+% \flmTerm{<label>}{<shown>}: <shown>, a link to the definition of a term,
+%   <label> being a label of that definition, as \flmHyperref takes it.
+% \flmTermInDefterm{<shown>}: <shown> written inside the definition of its
+%   own term: the term being defined, set apart, with no link.
+% Redefine either command to set term links another way.
+\ProvideDocumentCommand\flmTerm{m m}{\flmHyperref{#1}{#2}}
+\ProvideDocumentCommand\flmTermInDefterm{m}{\emph{#1}}
+% What a term link contributes to a PDF bookmark: its text alone. The code
+% below runs when the document begins (\AtBeginDocument) and does nothing
+% where hyperref is not loaded.
+\AtBeginDocument{\ifdefined\pdfstringdefDisableCommands
+  \pdfstringdefDisableCommands{%
+    \def\flmTerm#1#2{#2}%
+    \def\flmTermInDefterm#1{#1}%
+  }\fi}
+% flm.latex.def.refs
+% \flmRef[<options>]{<label>}: a reference that gives the name of its target
+% ("Section 2"), set by \zcref of the zref-clever package.
+%
+% The options are the ones the document wrote, in FLM's own vocabulary. This
+% definition translates each of them by its key -- a value written after the
+% key is ignored, as in FLM -- and drops every key it has no translation for:
+%
+%   noprefix    -> noname                 the number or title alone, with no
+%                                         name before it ("2", not
+%                                         "Section 2")
+%   S           -> S                      the first name capitalized and
+%                                         unabbreviated, for a reference that
+%                                         opens a sentence
+%   capital     -> cap=true,abbrev=false  the names capitalized ("Lemma 1")
+%   lowercase   -> cap=false,abbrev=false the names in lowercase ("lemma 1")
+%   abbreviated -> abbrev=true            the abbreviated names ("Lem. 1")
+%                                         where the reference type declares
+%                                         them, the full names otherwise
+%   anything else -> dropped              the default wording; a variant of
+%                                         your own naming has no counterpart
+%                                         in zref-clever, which would stop on
+%                                         a key it does not know
+%
+% Redefine \flmRef to set references differently -- another package, another
+% wording, your own variants, no link. Your definition sees the options as the
+% document wrote them, in FLM's vocabulary, and maps them as it likes.
+%
+% The translation uses expl3, LaTeX's programming layer, which is part of the
+% format and needs no package; its names read only between \ExplSyntaxOn and
+% \ExplSyntaxOff. \keyval_parse:NNn reads the option list as LaTeX reads any
+% key-value list: it hands a key written alone to the first macro below and a
+% key with its value to the second, which drops the value. \str_case:nnF looks
+% the key up in the table and appends what \zcref is to be given, or nothing.
+% The macros with @ in their names are internals, not a customization point:
+% redefine \flmRef, not its parts.
+\ExplSyntaxOn
+\def\flm@ref@add#1{\tl_put_right:Nn \flm@ref@options {#1,}}
+\def\flm@ref@key#1{\str_case:nnF {#1}
+  {{noprefix}{\flm@ref@add{noname}}
+   {S}{\flm@ref@add{S}}
+   {capital}{\flm@ref@add{cap=true,abbrev=false}}
+   {lowercase}{\flm@ref@add{cap=false,abbrev=false}}
+   {abbreviated}{\flm@ref@add{abbrev=true}}}
+  {}}
+\def\flm@ref@pair#1#2{\flm@ref@key{#1}}
+\def\flm@ref@zcref#1#2{\zcref[#1]{#2}}
+\ProvideDocumentCommand\flmRef{O{} m}{%
+  \def\flm@ref@options{}%
+  \keyval_parse:NNn \flm@ref@key \flm@ref@pair {#1}%
+  \exp_args:No \flm@ref@zcref {\flm@ref@options} {#2}}
+\ExplSyntaxOff
+% flm.latex.def.hyperref
+% \flmHyperref{<label>}{<text>}: <text>, shown as a link to the place <label>
+% refers to.
+%
+% Making a link in a PDF takes the hyperref package, and loading it changes a
+% whole document -- every reference becomes a link, bookmarks are built. That
+% is the author's decision, not this file's, so this file neither loads
+% hyperref nor asks for it: the definition below links through it where the
+% document loaded it and prints the text alone where it did not, so the
+% document compiles either way. The question is about this document's own
+% preamble, so the answer is the same wherever the document is compiled; it is
+% asked here, at the reference, so it is right whether this file was loaded
+% before hyperref or after it.
+%
+% Redefine \flmHyperref to link differently -- another package, a footnote
+% with the target's number, no link at all.
+\ProvideDocumentCommand\flmHyperref{m m}{%
+  \IfPackageLoadedTF{hyperref}{\hyperref[{#1}]{#2}}{#2}}
+% What such a reference contributes to a PDF bookmark: the text alone. A
+% bookmark is plain text and carries no link, and without this line the label
+% would appear in it beside the text. The hook runs when the document begins
+% and does nothing where hyperref is absent.
+\AtBeginDocument{\ifdefined\pdfstringdefDisableCommands
+  \pdfstringdefDisableCommands{%
+    \def\flmHyperref#1#2{#2}%
+  }\fi}
+% flm.latex.def.label-display-text
+% \flmLabelsWithDisplayText{<text>}{<labels>}: makes <labels> refer to this
+% place, with <text> as what a reference to them prints. It is the only
+% command for that: a heading the class did not number uses it, and so does
+% anything else that has a name but no number.
+%
+% It places no anchor of its own. Under hyperref a sectioning command, starred
+% or not, already places one at the title; a \label after it points there.
+% \refstepcounter would place a second anchor here, below the title, and a
+% link would lead below the heading. So the counter is stepped with
+% the plain \stepcounter and the two things this needs are set here:
+% \@currentlabel, which is what a \label records, and \@currentcounter,
+% which is what zref-clever reads to give the label its reference type. The
+% group keeps every change local.
+%
+% <text> is expanded to make \@currentlabel, and \label does not survive that
+% expansion; so a \label inside <text> (for example a footnote's) is dropped
+% from the label's text only. At its own place in the document it still makes
+% its own label.
+%
+% A caller with no sectioning command before it -- for example a defined term
+% in running text -- writes \phantomsection at its own place, so that a link
+% has an anchor of its own to lead to.
+%
+% Redefine \flmLabelsWithDisplayText to change how such labels are made.
+\ifcsname c@flm@internal@refcnt\endcsname\else\newcounter{flm@internal@refcnt}\fi
+\ProvideDocumentCommand\flmLabelsWithDisplayText{m m}{%
+  \begingroup
+    \stepcounter{flm@internal@refcnt}%
+    {\let\label\@gobble\protected@xdef\flm@lwdt@text{#1}}%
+    \let\@currentlabel\flm@lwdt@text
+    \def\@currentcounter{flm@internal@refcnt}%
+    #2%
+  \endgroup}
+% flm.latex.def.zref-clever-type
+% The zref-clever reference type of the counter \flmLabelsWithDisplayText
+% steps, with every name prefix empty, so that a reference to such a label
+% prints its text alone ("Introduction", not "Section Introduction").
+% Every other label keeps the name its own type gives it. Redefine these
+% settings, or the type of the counter, to put something before the text.
+\zcsetup{countertype={flm@internal@refcnt=flm--internal--ref}}
+\zcRefTypeSetup{flm--internal--ref}{Name-sg = , name-sg = , Name-pl = , name-pl = ,}
+% flm.latex.def.labels
+% \flmLabels{<\label commands>}: the labels of one place in the document.
+% In text it runs them as written. On a line of a display-math
+% environment, where amsmath keeps the last label of a line and loses the
+% ones before it, it runs the first and records every further one as an alias:
+% a line per alias is written to the .aux file after the last page and read on
+% the next run, making the alias refer to what the first label refers to
+% (for \ref and for \zcref alike). Redefine \flmLabels to change what a
+% group of labels does; \def\flmLabels#1{#1} restores plain LaTeX behavior,
+% amsmath's "Multiple \label's" message included.
+\ProvideDocumentCommand\flmLabels{m}{%
+  \ifmmode\expandafter\flm@labels@math\else\expandafter\@firstofone\fi{#1}}
+% Reading the group: the first \label as written, the rest as aliases of it.
+\def\flm@labels@math#1{\def\flm@lbl@first{}\flm@lbl@scan#1\flm@lbl@stop}
+\def\flm@lbl@scan{\@ifnextchar\label\flm@lbl@take\flm@lbl@rest}
+\def\flm@lbl@take\label#1{%
+  \ifx\flm@lbl@first\@empty
+    \def\flm@lbl@first{#1}%
+    \label{#1}%
+  \else
+    \expandafter\flm@recordalias\expandafter{\flm@lbl@first}{#1}%
+  \fi
+  \flm@lbl@scan}
+\def\flm@lbl@rest#1\flm@lbl@stop{#1}
+% Collecting the aliases. A name is recorded once however often the line is
+% typeset (amsmath measures a line before setting it).
+\def\flm@aliaslist{}
+\def\flm@recordalias#1#2{%
+  \ifcsname flm@alias@#2\endcsname\else
+    \expandafter\gdef\csname flm@alias@#2\endcsname{}%
+    \g@addto@macro\flm@aliaslist{\flm@alias@entry{#2}{#1}}%
+  \fi}
+% Writing them, from the hook that runs after the last page has been shipped
+% out: every \newlabel of that page has reached the .aux file by then, so the
+% alias lines come after them. \AtEndDocument would run too early.
+\def\flm@alias@write#1#2{\immediate\write\@auxout{\string\flm@aliaslabel{#1}{#2}}}
+\AddToHook{enddocument/afterlastpage}{\let\flm@alias@entry\flm@alias@write\flm@aliaslist}
+% Reading them back: the alias refers to what the original refers to. The
+% assignments are global because the .aux file is read inside a group.
+\def\flm@aliaslabel#1#2{%
+  \ifcsname r@#2\endcsname
+    \global\expandafter\let\csname r@#1\expandafter\endcsname\csname r@#2\endcsname
+  \fi
+  \ifcsname Z@R@#2\endcsname
+    \global\expandafter\let\csname Z@R@#1\expandafter\endcsname\csname Z@R@#2\endcsname
+  \fi}
+% flm.latex.def.heading
+% \flmHeading[<keys>]<sectioning command><star>{<title>}{<labels>}: a heading
+% and the labels that refer to it, written on two lines for readability, as in
+%   \flmHeading[toc=true]
+%   \section*{Title}{\flmLabels{\label{ref1}}}
+% It runs the sectioning command as written, then makes the labels refer to
+% the heading: by its number when the class numbered it, by its title when it
+% did not (a starred heading, or a level below secnumdepth). It finds out
+% which without patching anything: a class numbers a heading through
+% \refstepcounter, which records the counter's name in \@currentcounter.
+%
+% The optional argument is a key-value list. It is written here, on the hook,
+% and never on the sectioning command: a starred sectioning command takes no
+% optional argument, and giving one to \section* is not an error, it is
+% silently wrong -- \section*[Short]{Long} takes one token as its heading,
+% so the opening bracket alone becomes the heading and Short, the closing
+% bracket and Long all run together into the following paragraph. Two keys
+% are defined:
+%
+%   toc=true|false     whether the heading is listed in the table of contents.
+%                      Absent, it is listed as LaTeX lists it. After a starred
+%                      sectioning command with toc=true, which LaTeX never
+%                      lists, \addcontentsline{toc}{<level>}{<entry>} adds it:
+%                      <level> is the command's own name (section for
+%                      \section), <entry> the alternative title if alt was
+%                      written, else the title; under hyperref the starred
+%                      command has already placed the anchor the line links
+%                      to. On an unstarred heading toc=false is not honored:
+%                      the heading stays listed and a warning says so.
+%
+%   alt={Short title}  an alternative title: what goes into the table of
+%                      contents, the running head and the PDF bookmark, while
+%                      the page keeps the full title. It is handed to the
+%                      sectioning command as its own optional argument, so it
+%                      does what \section[Short title]{Full title} does, and
+%                      nothing else: a reference to an unnumbered heading still
+%                      prints the full title. A starred heading does not hand
+%                      it to the sectioning command; where it is written
+%                      toc=true, alt is its line in the table of contents.
+%
+% What counts is whether the key was written, not what it holds. alt={} is an
+% empty alternative title and is handed over as \section[]{Full title}, which
+% is how LaTeX asks for an empty table-of-contents entry; no optional argument
+% at all, and an empty one ([]), hand nothing over and leave the sectioning
+% command exactly as it was. Writing alt with no value is LaTeX's own error,
+% as is a key that is not defined here, and a value of toc other than true or
+% false. The values and the record that alt was written are cleared at every
+% call, so one heading's keys never reach the next. The recomposed LaTeX writes
+% toc on every heading and alt where the heading was given an alternative
+% title; both keys are also there for a document written by hand and for a
+% user who redefines the hook.
+%
+% Redefine \flmHeading to change what a heading does. The block below uses
+% expl3, LaTeX's programming layer, which is part of the format and needs no
+% package; its names read only between \ExplSyntaxOn and \ExplSyntaxOff.
+% \keys_define:nn declares the keys and \keys_set:nn reads a list of them;
+% \bool_if:NTF asks whether the key was written. The three declarations are
+% guarded on their own names, as every declaration in this file is, so that two
+% of these style files can be loaded in one LaTeX run. The macros with @ in
+% their names are internals, not a customization point: redefine \flmHeading,
+% not its parts.
+\ExplSyntaxOn
+\ifcsname flm@heading@alt\endcsname\else\tl_new:N \flm@heading@alt\fi
+\ifcsname flm@heading@given\endcsname\else\bool_new:N \flm@heading@given\fi
+\ifcsname flm@heading@toc\endcsname\else\tl_new:N \flm@heading@toc\fi
+\keys_define:nn {flm/heading}
+  {alt .code:n = {\tl_set:Nn \flm@heading@alt {#1}
+                  \bool_set_true:N \flm@heading@given} ,
+   alt .value_required:n = true ,
+   toc .choices:nn = {true, false} {\tl_set_eq:NN \flm@heading@toc \l_keys_choice_tl} ,
+   toc .value_required:n = true}
+\def\flm@heading@withalt#1#2#3{#2[#1]{#3}}
+% The contents line of a starred heading: <level> then <entry>.
+\def\flm@heading@addtoc#1#2{\addcontentsline{toc}{#1}{#2}}
+% toc=false on an unstarred heading: the heading stays listed.
+\def\flm@heading@notoc#1{\PackageWarning{flm}{toc=false~on~the~unstarred~
+  \string#1~is~not~honored~by~the~default~\string\flmHeading;~the~heading~
+  stays~in~the~table~of~contents}}
+\ProvideDocumentCommand\flmHeading{O{} m s m m}{%
+  \tl_clear:N \flm@heading@alt
+  \bool_set_false:N \flm@heading@given
+  \tl_clear:N \flm@heading@toc
+  \keys_set:nn {flm/heading} {#1}%
+  \def\@currentcounter{}%
+  \IfBooleanTF{#3}
+    {#2*{#4}%
+     \str_if_eq:VnT \flm@heading@toc {true}
+       {\edef\flm@heading@level{\cs_to_str:N #2}%
+        \bool_if:NTF \flm@heading@given
+          {\exp_args:NVV \flm@heading@addtoc \flm@heading@level \flm@heading@alt}
+          {\exp_args:NV \flm@heading@addtoc \flm@heading@level {#4}}}}
+    {\str_if_eq:VnT \flm@heading@toc {false} {\flm@heading@notoc{#2}}%
+     \bool_if:NTF \flm@heading@given
+       {\exp_args:NV \flm@heading@withalt \flm@heading@alt #2{#4}}
+       {#2{#4}}}%
+  \ifx\@currentcounter\@empty
+    \flmLabelsWithDisplayText{#4}{#5}%
+  \else
+    #5%
+  \fi}
+\ExplSyntaxOff
+% --- definitions written from the configuration of FLM features ---
+% defterm (the defterm feature's, written from its configuration): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \RenewDocumentEnvironment after loading this file changes it
+\ProvideDocumentEnvironment{defterm}{+m}{}{}
+% --- user definitions ---
+% \flmUDseeentropy (the document's \seeentropy): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDseeentropy{see \flmTerm{ref1}{entropy}}
+\endinput

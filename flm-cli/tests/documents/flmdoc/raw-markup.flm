@@ -1,0 +1,22 @@
+---
+flm:
+  math: false
+  use: [flmdoc]
+  features:
+    userdefs:
+      macros:
+        code:
+          args: ['{']
+          content: '`#1`'
+        signature:
+          args: ['{']
+          content: '\docsignature{#1}'
+        page:
+          args: ['{']
+          content: '\docref{#1}{the page}'
+---
+A code span \code{holding characters}, and one \code{holding \emph{markup}}.
+
+\signature{\emph{markup}}
+
+See \page{\emph{markup}}.

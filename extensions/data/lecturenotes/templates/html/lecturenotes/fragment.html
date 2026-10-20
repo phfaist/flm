@@ -1,0 +1,39 @@
+<!-- The lecture-notes page's parts, for a site that places the document inside a page
+of its own: the library's styles, the title block, the table of contents, the content,
+the pieces after the content, the library's scripts. -->
+<!-- The library's styles -->
+{% if regions.styles %}
+{{ regions.styles }}
+{% endif %}
+<!-- The title block -->
+<header class="ln-titleblock">
+{% if "flm.meta.title" in pieces %}
+{{ pieces["flm.meta.title"].text }}
+{% endif %}
+{% if "flm.meta.author" in pieces %}
+{{ pieces["flm.meta.author"].text }}
+{% endif %}
+{% if "flm.meta.date" in pieces %}
+{{ pieces["flm.meta.date"].text }}
+{% endif %}
+</header>
+<!-- The table of contents -->
+<aside class="ln-sidebar">
+{% if "flm.toc" in pieces %}
+{{ pieces["flm.toc"].text }}
+{% endif %}
+</aside>
+<!-- The content -->
+<article class="flm-content" id="flm-content">
+{{ regions.content }}
+</article>
+<!-- The pieces after the content -->
+<section class="ln-backmatter">
+{% for name, piece in pieces|items if piece.place == "after-content" %}
+{{ piece.text }}
+{% endfor %}
+</section>
+<!-- The library's scripts -->
+{% if regions.scripts %}
+{{ regions.scripts }}
+{% endif %}

@@ -1,0 +1,8 @@
+Let \(x = 1\) hold.
+
+  \[ y = 2 \]
+
+  \begin{align}
+   a &= b \\
+   c &= d
+  \end{align}

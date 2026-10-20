@@ -1,0 +1,22 @@
+---
+title: "Package doc/_flmextensions/narrow.yaml\\#_"
+flm:
+  use: [flmdoc]
+  math: false
+---
+\begin{docitem}{package}{doc/_flmextensions/narrow.yaml#_}
+
+\docsummary{A package holding no feature.}
+
+\docfield{Origin}{from the extension \verbcode{doc/_flmextensions/narrow.yaml}}
+
+\docfield{Package of the extension}{\verbcode{_}}
+
+\docfield{Description}{Narrow text.}
+
+\docfield{Author}{Ada Lovelace}
+
+\docfield{Engine}{\verbcode{data}}
+
+\end{docitem}
+

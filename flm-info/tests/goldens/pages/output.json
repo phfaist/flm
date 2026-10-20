@@ -1,0 +1,147 @@
+{
+  "meta": {
+    "kind": "info",
+    "flm": "0.5.0",
+    "format": 1
+  },
+  "pages": [
+    {
+      "path": "features/headings/macros/section",
+      "kind": "command",
+      "title": "Macro \\section",
+      "summary": "`\\section*[…]{title}\\label{…}`: A heading of level 1.",
+      "body": {
+        "kind": "macro",
+        "name": "section",
+        "feature": "headings",
+        "declarations": [
+          {
+            "feature": "headings",
+            "names": [
+              "section"
+            ],
+            "kind": "macro",
+            "modes": [
+              "text"
+            ],
+            "docs": "`\\section*[…]{title}\\label{…}`: A heading of level 1.",
+            "summary": "`\\section*[…]{title}\\label{…}`: A heading of level 1.",
+            "arguments": [
+              {
+                "form": "an optional `*` marker",
+                "written": "*",
+                "name": "star",
+                "layout": "inline",
+                "docs": "A star: not numbered (`numbered=false`).",
+                "summary": "A star: not numbered (`numbered=false`)."
+              },
+              {
+                "form": "an optional `[key=value,…]` group",
+                "written": "[options]",
+                "name": "options",
+                "layout": "inline",
+                "docs": "Key-values: `numbered=true|false`, `toc=true|false`.",
+                "summary": "Key-values: `numbered=true|false`, `toc=true|false`."
+              },
+              {
+                "form": "a mandatory `{…}` group",
+                "written": "{title}",
+                "name": "title",
+                "layout": "inline",
+                "docs": "The heading's title.",
+                "summary": "The heading's title.",
+                "holds_content": true
+              },
+              {
+                "form": "the fields `\\label` written after the command",
+                "written": "\\label{target}",
+                "name": "fields",
+                "layout": "inline",
+                "docs": "`\\label{…}` fields written after the construct, each attaching a label to it.",
+                "summary": "`\\label{…}` fields written after the construct, each attaching a label to it.",
+                "fields": [
+                  {
+                    "name": "label",
+                    "repeatable": true,
+                    "docs": "Attaches a label to the construct, which a reference can point at; may be repeated.",
+                    "summary": "Attaches a label to the construct, which a reference can point at; may be repeated.",
+                    "arguments": [
+                      {
+                        "form": "a `{…}` group read as plain characters",
+                        "written": "{target}",
+                        "name": "target",
+                        "layout": "inline",
+                        "docs": "The label, written `type:label` (`sec:intro`).",
+                        "summary": "The label, written `type:label` (`sec:intro`).",
+                        "role": "flm.refs.defined-label"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "element": {
+              "name": "flm.heading",
+              "docs": "`section`: A heading of level 1.",
+              "summary": "`section`: A heading of level 1.",
+              "aspects": [
+                "flm_core::model::aspects::BlockRoleAspect",
+                "flm_core::model::aspects::Sectioning",
+                "flm_core::model::aspects::Referenceable"
+              ],
+              "number": 48
+            }
+          }
+        ]
+      },
+      "children": []
+    },
+    {
+      "path": "settings/parsing",
+      "kind": "parsing-settings",
+      "title": "Parsing settings",
+      "summary": "The settings that decide how a document's source is read, as the registry was built with them.",
+      "body": {
+        "keys": [
+          {
+            "name": "comments",
+            "value": true,
+            "default": true,
+            "description": "Whether comments are recognized at all. Default: `true`.",
+            "summary": "Whether comments are recognized at all. Default: `true`.",
+            "schema": {
+              "type": "boolean",
+              "description": "Whether comments are recognized at all. Default: `true`.",
+              "default": true
+            }
+          },
+          {
+            "name": "comment_prefix",
+            "value": "%%",
+            "default": "%%",
+            "description": "What starts a comment. Default: `%%` (two characters, unlike LaTeX's\nsingle `%`). An empty prefix recognizes no comment.\n\nThis setting also decides whether a lone `%` is a forbidden character:\nsee `FlmParsing::percent_forbidden`.",
+            "summary": "What starts a comment. Default: `%%` (two characters, unlike LaTeX's\nsingle `%`). An empty prefix recognizes no comment.",
+            "schema": {
+              "type": "string",
+              "description": "What starts a comment. Default: `%%` (two characters, unlike LaTeX's\nsingle `%`). An empty prefix recognizes no comment.\n\nThis setting also decides whether a lone `%` is a forbidden character:\nsee `FlmParsing::percent_forbidden`.",
+              "default": "%%"
+            }
+          },
+          {
+            "name": "dollar_math",
+            "value": false,
+            "default": false,
+            "description": "Whether `$…$` and `$$…$$` delimit mathematics. Default: `false`, in which\ncase a `$` in the source is reported as\n`DollarMathDisabled`. `\\(…\\)` and\n`\\[…\\]` delimit mathematics either way.",
+            "summary": "Whether `$…$` and `$$…$$` delimit mathematics. Default: `false`, in which\ncase a `$` in the source is reported as\n`DollarMathDisabled`. `\\(…\\)` and\n`\\[…\\]` delimit mathematics either way.",
+            "schema": {
+              "type": "boolean",
+              "description": "Whether `$…$` and `$$…$$` delimit mathematics. Default: `false`, in which\ncase a `$` in the source is reported as\n`DollarMathDisabled`. `\\(…\\)` and\n`\\[…\\]` delimit mathematics either way.",
+              "default": false
+            }
+          }
+        ]
+      },
+      "children": []
+    }
+  ]
+}

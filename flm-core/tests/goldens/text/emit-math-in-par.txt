@@ -1,0 +1,3 @@
+Consider
+  \[z\]
+and then more text after it.

@@ -1,0 +1,19 @@
+Introduction
+============
+
+See Section 1 and this emphasized bit
+here in a paragraph that is long enough
+to wrap at forty columns.
+
+Theorem. Every finite thing is finite,
+and this sentence is long enough to wrap
+somewhere. □
+
+1. First item, with enough words in it
+   to wrap across two lines nicely.
+
+2. Second item text that also wraps a
+   little.
+
+let x = 1;
+let y = 2;

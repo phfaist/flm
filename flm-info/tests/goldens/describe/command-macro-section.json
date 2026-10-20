@@ -1,0 +1,79 @@
+[
+  {
+    "feature": "headings",
+    "names": [
+      "section"
+    ],
+    "kind": "macro",
+    "modes": [
+      "text"
+    ],
+    "docs": "`\\section*[…]{title}\\label{…}`: A heading of level 1.",
+    "summary": "`\\section*[…]{title}\\label{…}`: A heading of level 1.",
+    "arguments": [
+      {
+        "form": "an optional `*` marker",
+        "written": "*",
+        "name": "star",
+        "layout": "inline",
+        "docs": "A star: not numbered (`numbered=false`).",
+        "summary": "A star: not numbered (`numbered=false`)."
+      },
+      {
+        "form": "an optional `[key=value,…]` group",
+        "written": "[options]",
+        "name": "options",
+        "layout": "inline",
+        "docs": "Key-values: `numbered=true|false`, `toc=true|false`.",
+        "summary": "Key-values: `numbered=true|false`, `toc=true|false`."
+      },
+      {
+        "form": "a mandatory `{…}` group",
+        "written": "{title}",
+        "name": "title",
+        "layout": "inline",
+        "docs": "The heading's title.",
+        "summary": "The heading's title.",
+        "holds_content": true
+      },
+      {
+        "form": "the fields `\\label` written after the command",
+        "written": "\\label{target}",
+        "name": "fields",
+        "layout": "inline",
+        "docs": "`\\label{…}` fields written after the construct, each attaching a label to it.",
+        "summary": "`\\label{…}` fields written after the construct, each attaching a label to it.",
+        "fields": [
+          {
+            "name": "label",
+            "repeatable": true,
+            "docs": "Attaches a label to the construct, which a reference can point at; may be repeated.",
+            "summary": "Attaches a label to the construct, which a reference can point at; may be repeated.",
+            "arguments": [
+              {
+                "form": "a `{…}` group read as plain characters",
+                "written": "{target}",
+                "name": "target",
+                "layout": "inline",
+                "docs": "The label, written `type:label` (`sec:intro`).",
+                "summary": "The label, written `type:label` (`sec:intro`).",
+                "role": "flm.refs.defined-label"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "element": {
+      "name": "flm.heading",
+      "docs": "`section`: A heading of level 1.",
+      "summary": "`section`: A heading of level 1.",
+      "aspects": [
+        "flm_core::model::aspects::BlockRoleAspect",
+        "flm_core::model::aspects::Sectioning",
+        "flm_core::model::aspects::Referenceable"
+      ],
+      "number": 48
+    }
+  }
+]

@@ -1,0 +1,13 @@
+# The manifest of the extension `flmdoc` in its WebAssembly form: the module that
+# `extensions/rust/build-wasm.sh` builds, beside this file. The `flm` program also carries
+# the extension compiled in; it then reads this file with the engine `native` in place of
+# `wasm`, and without the module.
+#
+# The extension stages a few presentation nodes per construct and keeps nothing between
+# calls: the engine's own limits (64 MiB of memory, 1 000 000 000 units of fuel per handler
+# call) are enough.
+extension:
+  description: The markup of documentation pages (code spans between backticks, documentation items, links to other pages) for the text and HTML backends
+  engine: wasm
+  wasm:
+    module: flmdoc.wasm

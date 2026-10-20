@@ -1,0 +1,71 @@
+Quotations marked
+=================
+
+To be or not to be.
+
+Line one
+    Line two, marked
+        Line three
+
+Shakespeare
+
+A block section holding a highlight and .
+
+A second paragraph with a comment cut
+
+and a list:
+
+• one
+
+• two, marked
+
+A blockquote’s first paragraph, marked.
+
+Its second paragraph, before a list:
+
+1. an item
+
+123 Main St
+    City, ST 12345
+
+Roses are red,
+    violets are blue.
+
+Anonymous
+
+Some text
+
+More text.
+
+Some text A highlight
+
+across a paragraph break, then a highlight of abc’s and x[y].
+
+see
+
+• a list in a passage
+
+here
+
+• An entry marked and .
+
+• An entry holding a quotation:
+
+  Quoted in a list.
+
+• An entry with a comment
+
+  in it.
+
+A footnote.¹
+
+A formula \(x = y \text{where y is marked}\) in the text.
+
+A user definition’s template: .
+
+Footnotes
+---------
+
+¹ Holding a passage, , and
+
+  .

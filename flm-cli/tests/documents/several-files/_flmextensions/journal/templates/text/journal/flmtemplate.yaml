@@ -1,0 +1,5 @@
+# The journal's text: the content between two rules.
+output: text
+engine: minijinja
+main: journal.txt
+accepts: all

@@ -1,0 +1,17 @@
+# A document for LuaLaTeX: the class `documentclass` with the options `classoptions`, the
+# style file loaded by its package name, then the pieces placed before the content (the
+# title, the authors, the date, the table of contents), the content, and the pieces placed
+# after it (the lists of notes, the bibliography), each as the library writes it.
+output: latex-rendered
+engine: minijinja
+main: article.tex
+accepts: all
+# LaTeX uses braces itself: statements stand between `<<*` and `*>>`, values between
+# `<<<` and `>>>`, comments between `<<!--` and `-->>`.
+delimiters:
+  block: ["<<*", "*>>"]
+  variable: ["<<<", ">>>"]
+  comment: ["<<!--", "-->>"]
+config:
+  documentclass: article
+  classoptions: ""

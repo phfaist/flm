@@ -1,0 +1,113 @@
+% flm.latex.def.flmx.xnotes -- notes: footnotes, endnotes and the other kinds.
+%
+% The xnotes feature writes a note by its kind's placement.
+%
+% A kind placed in a list (the default of the standard kind footnote): the
+% note's mark in the running text, a superscript span of role
+% flm.xnotes.xnote.mark holding a link of kind xnote to the note; the notes
+% are a block of role flm.xnotes.<kind>.list, kind tokens xnotes and the
+% kind's name, holding the kind's title as an unnumbered heading and a
+% labeled list, each item's label a superscript span of role
+% flm.xnotes.entry.mark:
+%   Text.\flmxSpan[style=superscript, role=flm.xnotes.xnote.mark,
+%     anchor=fnref-1]{\flmxLink[kind=xnote, href={\#fn-1}, target=fn-1,
+%     doc-role=noteref, label={Footnote 1}]{1}}
+%   ...
+%   \begin{flmxBlock}[role=flm.xnotes.footnote.list, kinds={xnotes footnote},
+%     doc-role=endnotes]
+%   \flmxHeading[kind=xnotes, level=2, toc=false, plain={Footnotes}]{Footnotes}
+%   \begin{flmxList}[kinds={numbered xnotes footnote labeled}, depth=1]
+%   \flmxItem[label={\flmxSpan[style=superscript,
+%     role=flm.xnotes.entry.mark]{1}}, anchor=fn-1]
+%   The note.
+%   \end{flmxList}
+%   \end{flmxBlock}
+%
+% A kind placed in place: the note where it is written,
+%   \flmxXnote[kind, anchor, doc-role]{<mark>}{<content>}
+% with the keys
+%   kind      the note's kind (footnote, or a kind the document configures);
+%   anchor    the note's own anchor, where it has one;
+%   doc-role  the document role, footnote;
+% <mark> FLM's mark, a superscript span of role flm.xnotes.xnote.mark
+% carrying the target of the mark's anchor, and <content> the note's
+% content, which may hold several paragraphs.
+%
+% Defaults:
+%   the block of role flm.xnotes.<kind>.list, registered under the kind
+%     token xnotes, so for every kind: a block of paragraphs, the target of
+%     its anchor first (the heading and the list keep their own looks);
+%   the link kinds xnote (mark to note) and xnote-back (note back to its
+%     mark) as the links chunk's default link;
+%   \flmxXnote of every kind: a footnote at the bottom of the page carrying
+%     FLM's mark, in the text and before the note (LaTeX's footnote counter
+%     is not used), the note's text starting with the target of its anchor.
+% The marks' spans are left to the span's default, the superscript of their
+% style: registering one of their roles replaces that look.
+%
+% A template changes the look with
+%   \flmxDefineBlock{xnotes}{<begin code>}{<end code>}  (every kind's list)
+%   \flmxDefineBlock{flm.xnotes.<kind>.list}{<begin code>}{<end code>}
+%   \flmxDefineSpan{flm.xnotes.xnote.mark}{<code over #1>}
+%   \flmxDefineSpan{flm.xnotes.entry.mark}{<code over #1>}
+%   \flmxDefineLink{xnote}{<code over #1>}, \flmxDefineLink{xnote-back}{...}
+%   \flmxDefineXnote{<kind>}{<code over #1 (the mark) and #2 (the content)>}
+% for instance \flmxDefineXnote{footnote}{#1\marginpar{\footnotesize #1 #2}}
+% for margin notes; \flmxDefineXnoteDefault{...} changes every kind without
+% a registration of its own.
+
+\ExplSyntaxOn
+
+\flmxDefineBlock { xnotes }
+  { \par \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } }
+  { \par }
+\flmxDefineLink { xnote } { \__flmx_link:n {#1} }
+\flmxDefineLink { xnote-back } { \__flmx_link:n {#1} }
+
+\NewDocumentCommand \flmxXnote { O { } +m +m }
+  { \__flmx_command:nnnnn { xnote } { kind } {#1} {#2} {#3} }
+
+% The mark #1 as LaTeX's footnote mark shows it: the span of the mark's role
+% set as it stands (\@makefnmark raises it), and, where #2 is false, without
+% placing the mark's target, so that the target stands once, in the text.
+\cs_new_protected:Npn \__flmx_xnote_mark:nn #1#2
+  {
+    \group_begin:
+      \bool_if:nF {#2} { \cs_set_eq:NN \flmxTarget \use_none:n }
+      \flmxDefineSpan { flm.xnotes.xnote.mark }
+        { \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } ##1 }
+      #1
+    \group_end:
+  }
+
+% The two forms \@thefnmark holds: the mark placing its target (in the text)
+% and the mark placing none (before the note, and where a \ref to the note's
+% anchor typesets the mark). LaTeX internal names, not expl3 ones: LaTeX
+% writes \@thefnmark to the .aux file as the label's text, which is read back
+% outside expl3 syntax.
+\cs_new_protected:Npn \flmx@xnotemark #1
+  { \__flmx_xnote_mark:nn {#1} { \c_true_bool } }
+\cs_new_protected:Npn \flmx@xnotemarknotarget #1
+  { \__flmx_xnote_mark:nn {#1} { \c_false_bool } }
+
+% Removes the paragraph breaks at the head of a note's content (a note of
+% several paragraphs begins with one), so that its first line follows the
+% mark.
+\cs_new_protected:Npn \__flmx_xnote_skip_pars:
+  { \peek_meaning_remove_ignore_spaces:NTF \par { \__flmx_xnote_skip_pars: } { } }
+
+% The default: LaTeX's \@footnotemark and \@footnotetext, the pair \footnote
+% calls, with the mark \@thefnmark set to FLM's mark.
+\flmxDefineXnoteDefault
+  {
+    \cs_gset:Npn \@thefnmark { \flmx@xnotemark {#1} }
+    \@footnotemark
+    \cs_gset:Npn \@thefnmark { \flmx@xnotemarknotarget {#1} }
+    \@footnotetext
+      {
+        \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { }
+        \__flmx_xnote_skip_pars: #2
+      }
+  }
+
+\ExplSyntaxOff

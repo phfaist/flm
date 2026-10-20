@@ -1,0 +1,15 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.932de7c1.sty
+An aside.\flmXNsidenote{Inline.} And one holding paragraphs.\flmXNsidenote{First.
+
+Second.} On.%%
+% ===== latex-recomposed:style flmrecomposed.932de7c1.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.932de7c1}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.xnotes.sidenote
+% \flmXNsidenote[<labels>]{<note>}: a note of the kind `sidenote' in the FLM document;
+% by default it passes the note, its labels first, to \footnote.
+% Redefine it to set these notes another way.
+\ProvideDocumentCommand\flmXNsidenote{+O{} +m}{\footnote{#1#2}}
+\endinput

@@ -1,0 +1,9 @@
+# The workflow `htmltex`, which asks for the outputs `html` and `latex-recomposed` in one
+# command: the two cannot be computed by one run, and the planner refuses the workflow.
+extension:
+  description: The page and the recomposed LaTeX together.
+flm:
+  workflows:
+    htmltex:
+      extends: html
+      outputs: [html, latex-recomposed]

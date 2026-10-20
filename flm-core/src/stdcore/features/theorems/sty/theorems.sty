@@ -1,0 +1,94 @@
+% flm.latex.def.flmx.theorems -- theorems, proofs and the other theorem kinds.
+%
+% The theorems feature writes a theorem as a block of role
+% flm.theorems.theorem whose kind tokens are its theorem class's name, then
+% its theorem kind's; the heading is a run-in decoration at the start of the
+% first paragraph, the kind's word and number in a span of role
+% flm.theorems.name, the title in a span of role flm.theorems.title:
+%   \begin{flmxBlock}[role=flm.theorems.theorem, kinds={theoremlike theorem}, anchor=theorem-1]
+%   \flmxDecoRunin[stop={.}]{\flmxSpan[role=flm.theorems.name]{Theorem 1}
+%     (\flmxSpan[role=flm.theorems.title]{Pythagoras})}The statement.
+%   \end{flmxBlock}
+% A class with a closing mark (the shipped class prooflike) ends the last
+% paragraph with the mark in \flmxDecoFinal.
+%
+% Defaults, registered under the shipped classes' kind tokens:
+%   theoremlike     a group of paragraphs with \medskip before and after,
+%                   the first not indented, the body in \itshape;
+%   definitionlike  the same, the body in \normalfont (upright, also
+%                   inside a theoremlike theorem);
+%   prooflike       the same, the body in \normalfont.
+% In these three, the heading (the first run-in decoration of the theorem)
+% is upright and in the text's weight, the name in \bfseries (in \itshape
+% for prooflike) and the title as it stands; a later run-in decoration in
+% the body keeps its own look; the closing mark (\flmxDecoFinal) is written
+% with the decoration's look. A theorem of a class of the
+% host's own is written with the block's default.
+%
+% A template changes the look of a class with
+%   \flmxDefineBlock{<class token>}{<begin code>}{<end code>}
+% A theorem is looked up under its role, then its class token, then its kind
+% token: registering the role flm.theorems.theorem replaces every class's
+% look, and a kind token (theorem, lemma, ...) is reached only for a class
+% that has no registration. The name and the title:
+%   \flmxDefineSpan{flm.theorems.name}{<code over #1>}
+%   \flmxDefineSpan{flm.theorems.title}{<code over #1>}
+
+\ExplSyntaxOn
+
+\tl_new:N \l__flmx_theorems_name_tl
+\tl_set:Nn \l__flmx_theorems_name_tl { \bfseries }
+\bool_new:N \g__flmx_theorems_heading_bool
+\bool_new:N \l__flmx_theorems_inside_bool
+
+% The begin code of a shipped class: #1 the body's font, #2 the name's font.
+% The theorem's first run-in decoration is set upright in the text's weight;
+% every other one is written with the decoration's look outside the theorem.
+% The outer default is saved in the outermost theorem of a shipped class
+% only: a theorem nested in another (a proof inside a proof) reaches the
+% default outside every theorem, not the enclosing theorem's override.
+\cs_new_protected:Npn \__flmx_theorems_begin:nn #1#2
+  {
+    \par \medskip
+    \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { }
+    \tl_set:Nn \l__flmx_theorems_name_tl {#2}
+    \bool_if:NF \l__flmx_theorems_inside_bool
+      {
+        \cs_set_eq:Nc \__flmx_theorems_outer_deco:n { __flmx_decorunin_default }
+        \bool_set_true:N \l__flmx_theorems_inside_bool
+      }
+    \bool_gset_true:N \g__flmx_theorems_heading_bool
+    \flmxDefineDecoRuninDefault
+      {
+        \bool_if:NTF \g__flmx_theorems_heading_bool
+          {
+            \bool_gset_false:N \g__flmx_theorems_heading_bool
+            { \normalfont ##1 \flmxKey { stop } } \hspace { \flmxRuninSep }
+          }
+          { \__flmx_theorems_outer_deco:n {##1} }
+      }
+    #1
+    \noindent \ignorespaces
+  }
+\cs_new_protected:Npn \__flmx_theorems_end:
+  { \par \medskip }
+
+\flmxDefineBlock { theoremlike }
+  { \__flmx_theorems_begin:nn { \itshape } { \bfseries } }
+  { \__flmx_theorems_end: }
+\flmxDefineBlock { definitionlike }
+  { \__flmx_theorems_begin:nn { \normalfont } { \bfseries } }
+  { \__flmx_theorems_end: }
+\flmxDefineBlock { prooflike }
+  { \__flmx_theorems_begin:nn { \normalfont } { \itshape } }
+  { \__flmx_theorems_end: }
+
+\flmxDefineSpan { flm.theorems.name }
+  {
+    \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { }
+    { \tl_use:N \l__flmx_theorems_name_tl #1 }
+  }
+\flmxDefineSpan { flm.theorems.title }
+  { \flmxIfKey { anchor } { \flmxTarget { \flmxKey { anchor } } } { } #1 }
+
+\ExplSyntaxOff

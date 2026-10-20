@@ -1,0 +1,6 @@
+---
+flm:
+  math: passthrough
+  use: [flmdoc]
+---
+In mathematics a backtick is an ordinary character, \(a`b`c\), while in text `x` is code.

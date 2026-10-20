@@ -1,0 +1,21 @@
+Introduction
+============
+
+See this emphasized bit here in a
+paragraph that is long enough to wrap at
+forty columns, with \(x_1\) inline and
+a{b too.
+
+Theorem. Every finite thing is finite,
+and this sentence is long enough to wrap
+somewhere. □
+
+Quoted [aside] text that is long enough
+to wrap in the block.
+
+let x = 1;
+let y = 2;
+
+  \begin{equation}
+    a = b
+  \end{equation}

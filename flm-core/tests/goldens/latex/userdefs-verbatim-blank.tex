@@ -1,0 +1,29 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.cc656c5e.sty
+1:\flmUDask{x} 2:\flmUDask{}
+%%
+% ===== latex-recomposed:style flmrecomposed.cc656c5e.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.cc656c5e}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.ifblank
+% \flmIfBlankTF{<content>}{<then>}{<else>}: the branch a user definition's own
+% "is this blank?" test selects — <then> where <content> holds nothing at
+% all, <else> otherwise. Not a customization point: change your own
+% definition, not this. It is long, so that an argument holding a paragraph
+% break is tested rather than stopping the compilation, and expandable, so
+% that the test never stops the expansion of a definition that has to expand.
+%
+% This block uses expl3, LaTeX's programming layer, which
+% is part of the format and needs no package; its names read only between
+% \ExplSyntaxOn and \ExplSyntaxOff. \tl_if_empty:nTF is true exactly when its
+% argument holds no token at all, which is the condition FLM's own blank test
+% asks: a single space is content, and a comment is gone before the argument
+% exists.
+\ExplSyntaxOn
+\providecommand\flmIfBlankTF[3]{\tl_if_empty:nTF {#1} {#2} {#3}}
+\ExplSyntaxOff
+% --- user definitions ---
+% \flmUDask (the document's \ask): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDask[1]{\flmIfBlankTF{#1}{BLANK}{FULL}}
+\endinput

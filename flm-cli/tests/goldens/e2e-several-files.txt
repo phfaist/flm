@@ -1,0 +1,45 @@
+== The Journal ==
+A document of several files
+
+Ann Author
+
+30 September 2026
+
+Introduction
+============
+
+This paragraph begins in the primary file, continues with
+words of an included file, which names the Example project
+through the house package’s macro, and ends in the primary
+file, as one paragraph. The method is in The Method.ᵃ
+
+The Method
+==========
+
+A section kept in a file of its own, back to Introduction.ᵇ
+
+Details
+-------
+
+The details, read relative to the file that names them:
+
+• one;
+
+• two.
+
+Conclusion
+==========
+
+The primary file goes on after the section kept in a file of
+its own, and its notes are counted after that file’s.ᶜ
+
+Footnotes
+=========
+
+ᵃ A note of the primary file.
+
+ᵇ A note of the included file.
+
+ᶜ A note of the primary file after the included file.
+
+== end ==

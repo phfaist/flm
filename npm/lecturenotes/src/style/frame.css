@@ -1,0 +1,211 @@
+/* flm-lecturenotes: the frame of the page.
+   A sticky bar across the top; under it, the main column and, on the right, the
+   sidebar, a scroll box of its own as high as the window under the bar.  The
+   page scrolls as a whole.  The elements are the page's own (classes under the
+   prefix ln-): .ln-app holds .ln-topbar, .ln-sidebar and .ln-main. */
+
+.ln-app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--ln-sidebar-width);
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "bar bar" "main sidebar";
+  min-height: 100vh;
+}
+
+/* ── The bar ─────────────────────────────────────────────────────────────── */
+.ln-topbar {
+  grid-area: bar;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--ln-bar-gap);
+  height: var(--ln-bar-height);
+  padding: var(--ln-bar-padding);
+  box-sizing: border-box;
+  background: var(--ln-bg);
+  border-bottom: var(--ln-rule);
+  font-size: var(--ln-bar-size);
+}
+.ln-book-title {
+  color: var(--ln-text);
+  font-weight: var(--ln-bar-title-weight);
+  white-space: nowrap;
+  text-decoration: none;
+}
+.ln-book-title:hover {
+  color: var(--ln-accent);
+}
+.ln-current-chapter {
+  flex: 1;
+  min-width: 0;
+  color: var(--ln-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ln-current-chapter::before {
+  content: var(--ln-chapter-lead);
+  margin-right: var(--ln-chapter-lead-gap);
+}
+.ln-current-chapter:empty::before {
+  content: none;
+}
+.ln-topbar-nav {
+  display: inline-flex;
+  gap: var(--ln-button-gap);
+}
+.ln-topbar-nav button {
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  background: none;
+  color: var(--ln-muted);
+  border: var(--ln-rule);
+  border-radius: var(--ln-button-radius);
+  width: var(--ln-button-size);
+  height: var(--ln-button-size);
+  padding: 0;
+}
+.ln-topbar-nav button:hover {
+  color: var(--ln-accent);
+  border-color: var(--ln-accent);
+}
+.ln-topbar-nav button:disabled {
+  opacity: var(--ln-disabled-opacity);
+  cursor: default;
+}
+.ln-topbar-nav button:disabled:hover {
+  color: var(--ln-muted);
+  border-color: var(--ln-border);
+}
+/* The links of the bar (the setting `links` of the FLM template). */
+.ln-topbar-links {
+  display: inline-flex;
+  gap: var(--ln-bar-gap);
+  white-space: nowrap;
+}
+.ln-topbar-link {
+  color: var(--ln-accent);
+  text-decoration: none;
+  transition: color var(--ln-fast);
+}
+.ln-topbar-link:hover {
+  color: var(--ln-accent-hover);
+  text-decoration: underline;
+}
+
+/* ── The sidebar ─────────────────────────────────────────────────────────── */
+.ln-sidebar {
+  grid-area: sidebar;
+  position: sticky;
+  top: var(--ln-bar-height);
+  height: calc(100vh - var(--ln-bar-height));
+  overflow-y: auto;
+  padding: var(--ln-sidebar-padding);
+  box-sizing: border-box;
+  border-left: var(--ln-rule);
+  background: var(--ln-bg);
+  font-size: var(--ln-sidebar-size);
+  line-height: var(--ln-sidebar-line-height);
+  /* reaching the sidebar's end does not scroll the page */
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ln-border) transparent;
+}
+.ln-sidebar-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 var(--ln-label-space-below);
+  font-size: var(--ln-label-size);
+  font-weight: var(--ln-label-weight);
+  text-transform: uppercase;
+  letter-spacing: var(--ln-label-spacing);
+  color: var(--ln-muted);
+}
+.ln-sidebar-buttons {
+  display: inline-flex;
+}
+/* The triangle toggle: pointing right while the sections of the chapters not
+   being read are folded, down while everything is open. */
+.ln-toc-toggle {
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  background: none;
+  border: var(--ln-rule);
+  border-color: transparent;
+  border-radius: var(--ln-toggle-radius);
+  color: var(--ln-muted);
+  width: var(--ln-toggle-width);
+  height: var(--ln-toggle-height);
+  padding: 0;
+}
+.ln-toc-toggle::before {
+  content: var(--ln-folded-icon);
+  font-size: var(--ln-toggle-icon-size);
+}
+.ln-toc-all .ln-toc-toggle::before {
+  content: var(--ln-open-icon);
+}
+.ln-toc-toggle:hover {
+  color: var(--ln-accent);
+  border-color: var(--ln-border);
+}
+
+/* ── The main column ─────────────────────────────────────────────────────── */
+.ln-main {
+  grid-area: main;
+  min-width: 0;
+  padding: 0 var(--ln-gutter) var(--ln-space-below);
+}
+.ln-column {
+  max-width: var(--ln-measure);
+  margin: 0 auto;
+}
+
+/* ── A wide window: the sidebar hidden by the bar's button ───────────────── */
+@media (width > 56rem) {
+  .ln-sidebar-collapsed .ln-app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "bar" "main";
+  }
+  .ln-sidebar-collapsed .ln-sidebar {
+    display: none;
+  }
+}
+
+/* ── A narrow window: the sidebar is a drawer from the right, opened by the
+   bar's button; the book's title leaves the bar.  The script tells the drawer
+   from the column by the sidebar's position (fixed). ──────────────────────── */
+@media (width <= 56rem) {
+  .ln-app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "bar" "main";
+  }
+  .ln-sidebar {
+    position: fixed;
+    top: var(--ln-bar-height);
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    width: min(var(--ln-sidebar-width), var(--ln-drawer-max-width));
+    height: auto;
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform var(--ln-drawer-motion), visibility var(--ln-drawer-motion);
+    box-shadow: var(--ln-shadow);
+  }
+  .ln-drawer-open .ln-sidebar {
+    transform: none;
+    visibility: visible;
+  }
+  .ln-main {
+    padding: 0 var(--ln-gutter-narrow) var(--ln-space-below-narrow);
+  }
+  .ln-book-title {
+    display: none;
+  }
+}

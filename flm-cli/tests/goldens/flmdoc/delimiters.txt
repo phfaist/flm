@@ -1,0 +1,13 @@
+macro \{
+
+\{
+
+Writes an opening brace.
+
+Forms
+
+{: A brace alone, written between plus signs.
+
+{text} text: A form written between braces, which pair up.
+
+See also: the closing brace <flm info macros/close-brace>

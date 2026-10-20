@@ -1,0 +1,10 @@
+Introduction
+============
+
+This is emphasized text by FLM.
+
+  \begin{equation}
+    E = mc^2\tag*{(1)}
+  \end{equation}
+
+See Introduction and sec:missing.

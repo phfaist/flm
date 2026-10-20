@@ -1,0 +1,80 @@
+---
+title: "Front matter"
+flm:
+  use: [flmdoc]
+  math: false
+---
+The keys that a document's front matter takes under `flm`.
+
+\begin{docitem}{key}{use}
+
+\docsummary{The packages the document uses: one entry, or a list. An entry is `LOCATOR` or `LOCATOR#PACKAGE`: `LOCATOR` names a package compiled into the program or an extension found on the search path (segments of letters, digits, `-` and `_` joined by `/`, the first of which may begin with `@`, which YAML requires quoting); `PACKAGE` names one of the extension's packages, `_` (its default package) when absent. A path is not an entry. The values suggested are the packages compiled into the program and the extensions found on the search path when this schema was made, each by its locator; any other may be written.}
+
+\docfield{Type}{\verbcode{string or list of string or null}}
+
+\end{docitem}
+
+\begin{docitem}{key}{initial_use}
+
+\docsummary{The packages used before those of `use`, in place of the list the program starts from: one package's name, or a list. The list is used exactly as written: a package it does not name is not used unless `use` lists it. The values suggested are the packages compiled into the program and the extensions found on the search path when this schema was made, each by its locator; any other may be written.}
+
+\docfield{Type}{\verbcode{string or list of string}}
+
+\end{docitem}
+
+\begin{docitem}{key}{math}
+
+\docsummary{The math processor, the package that processes the document's mathematics: a processor's name, `NAME`, which uses the package `math-NAME` (`mathjax` for `math-mathjax`, `passthrough` for `math-passthrough`) after the packages of `initial_use` and before those of `use`; or `false`, which uses no processor, for a document whose packages under `use` provide one. Without this key, the program's default processor is used. That default is not guaranteed to stay the same: a document that needs a stable result specifies its processor here. The names suggested are those of the processors among the packages compiled into the program and the extensions found on the search path when this schema was made, `NAME` for each one named `math-NAME`; any other name may be written.}
+
+\docfield{Type}{\verbcode{string or false}}
+
+\end{docitem}
+
+\begin{docitem}{key}{features}
+
+\docsummary{The features' settings: a map from a feature's name to its settings, or to `false` to switch the feature off.}
+
+\docfield{Type}{\verbcode{map or null}}
+
+\end{docitem}
+
+\begin{docitem}{key}{parsing}
+
+\docsummary{How the content is read: `comments`, whether comments are recognized (default `true`); `comment_prefix`, what starts a comment (default `%%`); `dollar_math`, whether `$…$` and `$$…$$` delimit mathematics (default `false`, and a `$` is then an error).}
+
+\docfield{Type}{\verbcode{map}}
+
+\end{docitem}
+
+\begin{docitem}{key}{feature_order}
+
+\docsummary{The order of features: one chain, or a list. A chain is `NAME < NAME < … < NAME`, two or more features' names (not packages'), each placed after the one before it; the chains of every source add up. A feature that is not in use is left out of a chain. Chains that place features in a circle are an error. Where several features define one command, the chains choose the definition that applies: that of the feature they place after the others.}
+
+\docfield{Type}{\verbcode{string or list of string or null}}
+
+\end{docitem}
+
+\begin{docitem}{key}{input_as}
+
+\docsummary{In a file included with `\input` only: the file opens with a heading. The heading is the command `heading` (such as `section`) applied to the file's `title`; it carries the label `label` when one is given, and it is numbered unless `numbered` is `false`.}
+
+\docfield{Type}{\verbcode{map}}
+
+\end{docitem}
+
+\begin{docitem}{key}{layout}
+
+\docsummary{How the content is read at its top level: `blocks` (paragraphs and blocks), `inline` (one run of text), or `auto` (blocks when the content holds a paragraph break or a block, inline otherwise).}
+
+\docfield{Type}{\verbcode{one of "blocks", "inline", "auto"}}
+
+\end{docitem}
+
+\begin{docitem}{key}{default_profile}
+
+\docsummary{The profile to build with when no other is given: a profile's name. The profile `NAME` uses the extension `profile-NAME` when one exists, after the document's other packages, and runs the workflow `NAME`.}
+
+\docfield{Type}{\verbcode{string}}
+
+\end{docitem}
+

@@ -1,0 +1,16 @@
+# A standalone scientific notebook with a paper panel and FLM's own contents.
+output: html
+engine: minijinja
+accepts: all
+requires: [flm.toc]
+
+main: ./notebook.html
+
+config:
+  accent: "#237867"
+  stylesheets: []
+  sidebar_image_url: ""
+  sidebar_image_alt: ""
+  sidebar_image_link: ""
+  fold_code: true
+  code_label: Code

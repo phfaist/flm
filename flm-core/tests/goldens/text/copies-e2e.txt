@@ -1,0 +1,53 @@
+Intro¹
+======
+
+See Intro¹, and again Intro¹.
+
+Labeled²
+========
+
+See Labeled²; its note is Footnote 2.
+
+[image: figures/a.png]
+
+A photo³
+
+See A photo³.
+
+Entropy⁴: A measure of disorder.
+
+See Entropy⁴.
+
+Tag⁵ One.
+
+See Tag⁵.
+
+Aside[¹A note shown where it stands.]
+=====================================
+
+See Aside¹.
+
+See sec:nowhere
+===============
+
+See See sec:nowhere, and again See sec:nowhere.
+
+Plot [image: bare.png]
+====
+
+See Plot [image: bare.png], and again Plot [image: bare.png].
+
+A definition refers nowhere: (see sec:nowhere) and (see sec:nowhere).
+
+Footnotes
+---------
+
+¹ A note in the title.
+
+² A labeled note.
+
+³ A note in the caption.
+
+⁴ A note in the term.
+
+⁵ A note in the tag.

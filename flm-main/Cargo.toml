@@ -1,0 +1,159 @@
+[package]
+name = "flm-main"
+description = "The FLM host library: files, front matter, settings, packages and outputs"
+version.workspace = true
+edition.workspace = true
+# Rust 1.88: the reader of PDF files, `lopdf`, needs it (the library `flm-core`
+# stays on the workspace's 1.86).
+rust-version = "1.88"
+authors.workspace = true
+license.workspace = true
+# The table of the files of `stdmain`'s compose templates, compiled into the program.
+build = "build.rs"
+
+[lints]
+workspace = true
+
+[features]
+default = ["fs", "bundled-extensions"]
+# The disk: reading files (`files::DiskFiles`) and writing outputs
+# (`output::DiskSink`), and the host service `programs` (`host_programs`). Without it the
+# crate performs no input or output and compiles for WebAssembly.
+fs = ["dep:nix"]
+# Image files: the resolver, the inspector and the in-process converter of the module
+# `graphics`, and the feature `graphics-files` of the package `std`.
+graphics = ["dep:image", "dep:png", "dep:kamadak-exif", "dep:lopdf", "dep:roxmltree"]
+# Citations: fetching the details of cited works through the crate `autocitefetch`, and
+# the feature `citations-standard` of the package `std`.
+citations = ["dep:autocitefetch", "dep:autocitefetch-std", "dep:hayagriva", "dep:percent-encoding"]
+# The live preview (the module `watch`): watching the files a build read, rebuilding, and
+# serving the outputs to a browser on this machine.
+watch = ["fs", "dep:notify", "dep:notify-debouncer-full", "dep:tiny_http", "dep:percent-encoding", "dep:which", "dep:yaml-edit"]
+# JavaScript extensions: the engine `js` in the loader of every preparation. Off by
+# default, so that flm-main without its default features still compiles for WebAssembly.
+js = ["flm-ext/quickjs"]
+# Extensions compiled to WebAssembly: the engine `wasm` in the loader of every preparation.
+# Off by default, as `js`.
+wasm = ["flm-ext/wasm"]
+# The extensions shipped with FLM, compiled into the program (the crate `flm-extensions`):
+# the source `bundled::BundledSource`, last on the search path of every preparation, and the
+# engine `native` running the extensions written in Rust among them.
+bundled-extensions = ["dep:flm-extensions", "flm-extensions/native", "flm-ext/native"]
+
+[dependencies]
+flm-core = { path = "../flm-core" }
+# The extension layer: the loader, the data engine, the block step.
+flm-ext = { path = "../flm-ext" }
+# The extensions shipped with FLM: their files as data, and the extensions written in Rust
+# (cargo feature `bundled-extensions`).
+flm-extensions = { path = "../extensions", optional = true }
+# Settings arrive as data in the library's one data model.
+serde = { version = "1", features = ["derive"] }
+# The schema of the settings of `std`'s features, as every crate declaring settings
+# derives it (the library's `SettingsData`).
+schemars = { version = "1", default-features = false, features = ["derive", "std", "preserve_order"] }
+serde_json = "1"
+# Base64, the standard alphabet with padding: the content of a file that is not UTF-8 text,
+# given to and read back from a program run by the host service `programs`, in the form
+# the extension layer gives an artifact's content.
+base64 = "0.22"
+# YAML, for the front matter: a reader written in Rust alone that gives the
+# position of every value (floor Rust 1.85). Its default feature, the decoding
+# of text in encodings other than UTF-8, is left out.
+saphyr = { version = "0.1", default-features = false }
+# Templates, for the composer: no input or output of its own, builds for
+# WebAssembly, and delimiters that can be changed for LaTeX (`custom_syntax`).
+minijinja = { version = "2", default-features = false, features = ["builtins", "serde", "custom_syntax", "std_collections", "preserve_order", "multi_template", "loader", "json"] }
+# Image files (cargo feature `graphics`). `image` reads and writes the raster formats
+# (PNG, JPEG, GIF, WebP) and converts between them; its other formats and its thread
+# pool are left out. `png`, the crate `image` reads PNG files with, gives the
+# resolution a PNG file states, which `image` does not pass on.
+image = { version = "0.25.9", default-features = false, features = ["png", "jpeg", "gif", "webp"], optional = true }
+png = { version = "0.18", optional = true }
+# The resolution a JPEG file states in its EXIF data, where its JFIF header states none.
+kamadak-exif = { version = "0.6", optional = true }
+# The first page's size of a PDF file: object streams, cross-reference streams and
+# page attributes inherited from the page tree are the crate's to read. Its dates and
+# thread pool are left out.
+lopdf = { version = "0.45.0", default-features = false, optional = true }
+# The root element of an SVG file, whose `width` and `height` state its size.
+roxmltree = { version = "0.21", optional = true }
+# Fetching the details of cited works (cargo feature `citations`): the sources (the arXiv,
+# doi.org, bibliography files, entries written by hand), the cache and its lifetimes, the
+# waiting between requests and the retries are the crate's. `autocitefetch-std` gives the
+# cache file, the clock, the timer and, through its default feature `http`, the network
+# over `ureq`.
+autocitefetch = { version = "0.1.1", optional = true }
+autocitefetch-std = { version = "0.1.0", optional = true }
+# Formatting a cited work's record as its entry under a style in the Citation Style
+# Language (cargo feature `citations`): the styles of its archive (`archive`), and records
+# in CSL-JSON (`csl-json`). Its reader of BibLaTeX files is left out.
+hayagriva = { version = "0.10.1", default-features = false, features = ["archive", "csl-json"], optional = true }
+# The DOI in the address of the link appended to an entry, percent-encoded (cargo feature
+# `citations`); an address the preview's server is asked for, decoded (cargo feature `watch`).
+percent-encoding = { version = "2.3", optional = true }
+# Watching files (cargo feature `watch`): one back end per operating system.
+notify = { version = "8.2", optional = true }
+# The quiet period over `notify` (cargo feature `watch`): the events of one save joined into
+# one, and the two halves of a rename matched.
+notify-debouncer-full = { version = "0.7", optional = true }
+# Serving the preview (cargo feature `watch`): a synchronous HTTP server, with no
+# asynchronous runtime.
+tiny_http = { version = "0.12", optional = true }
+# Finding an editor's program on the search path of programs (cargo feature `watch`), as the
+# system's own lookup does, the extensions of programs on Windows included.
+which = { version = "8", optional = true }
+# Editing a front matter's text in place (cargo feature `watch`), for the preview's *Settings*
+# tool: a parser that keeps every byte of the text, comments and blank lines included, and
+# changes one value at a time. Its default feature, base64 for binary values, is left out.
+yaml-edit = { version = "0.3.2", default-features = false, optional = true }
+
+# Stopping a program run by the host service `programs` (cargo feature `fs`) together with
+# the programs it started: a signal sent to its process group (`killpg`), which the standard
+# library cannot send, through a safe call.
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", default-features = false, features = ["signal"], optional = true }
+
+[dev-dependencies]
+# The tests of the preview's page drive Chrome without a window through its debugging
+# protocol, JSON messages over a WebSocket: the client side of the WebSocket, with no TLS.
+tungstenite = "0.30"
+# The keyword `pattern` of the schemas of settings, checked by the validator shared with
+# `flm-core`'s tests (`flm-core/tests/support/json_schema.rs`).
+regex = "1"
+
+[[test]]
+name = "graphics"
+required-features = ["graphics"]
+
+[[test]]
+name = "magick"
+required-features = ["graphics"]
+
+[[test]]
+name = "citations"
+required-features = ["citations"]
+
+[[test]]
+name = "citation_entries"
+required-features = ["citations"]
+
+[[test]]
+name = "watch_probe"
+required-features = ["watch"]
+
+[[test]]
+name = "watch"
+required-features = ["watch"]
+
+[[test]]
+name = "watch_server"
+required-features = ["watch"]
+
+[[test]]
+name = "watch_page"
+required-features = ["watch"]
+
+[[test]]
+name = "watch_gestures"
+required-features = ["watch"]

@@ -1,0 +1,988 @@
+{
+  "name": "text",
+  "owner": "text",
+  "docs": "render the document as plain text, running every check",
+  "summary": "render the document as plain text, running every check",
+  "chain": [
+    "text"
+  ],
+  "declared": {
+    "name": "text",
+    "extends": null,
+    "outputs": [
+      "text"
+    ],
+    "demands": [
+      "flm.validated"
+    ],
+    "prefer": [],
+    "lowering": {},
+    "unsupported": {},
+    "docs": "render the document as plain text, running every check"
+  },
+  "combined": {
+    "name": "text",
+    "extends": null,
+    "outputs": [
+      "text"
+    ],
+    "demands": [
+      "flm.validated"
+    ],
+    "prefer": [],
+    "lowering": {},
+    "unsupported": {},
+    "docs": "render the document as plain text, running every check"
+  },
+  "plan": {
+    "workflow": "text",
+    "demands": [
+      "flm.blocks.contract-checked",
+      "flm.citations.check",
+      "flm.floats.check-handlers",
+      "flm.input.spliced",
+      "flm.math.content",
+      "flm.meta.read",
+      "flm.output.text.document",
+      "flm.refs.check-labels",
+      "flm.theorems.check-proofs"
+    ],
+    "stages": [
+      {
+        "name": "flm.input.splice",
+        "owner": "input",
+        "rewrite": true,
+        "reads": [],
+        "writes": [
+          "flm.input.spliced"
+        ],
+        "requires": [],
+        "options": []
+      },
+      {
+        "name": "flm.userdefs.expand-always",
+        "owner": "userdefs",
+        "rewrite": true,
+        "reads": [],
+        "writes": [
+          "flm.userdefs.always-expanded"
+        ],
+        "requires": [],
+        "options": []
+      },
+      {
+        "name": "flm.userdefs.expand",
+        "owner": "userdefs",
+        "rewrite": true,
+        "reads": [],
+        "writes": [
+          "flm.userdefs.expanded"
+        ],
+        "requires": [],
+        "options": []
+      },
+      {
+        "name": "flm.blocks.structure",
+        "owner": "blocks",
+        "rewrite": true,
+        "reads": [],
+        "writes": [
+          "flm.blocks.structured"
+        ],
+        "requires": [
+          "flm.userdefs"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.blocks.check-contract",
+        "owner": "blocks",
+        "batch": 0,
+        "reads": [
+          {
+            "table": "flm.blocks.structured",
+            "optional": true,
+            "writer": "flm.blocks.structure"
+          },
+          {
+            "table": "flm.userdefs.expanded",
+            "optional": true,
+            "writer": "flm.userdefs.expand"
+          }
+        ],
+        "writes": [],
+        "requires": [
+          "flm.blocks",
+          "flm.userdefs.always-expanded"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.index.build",
+        "owner": "index",
+        "batch": 0,
+        "reads": [],
+        "writes": [
+          "flm.element-index"
+        ],
+        "requires": [],
+        "options": []
+      },
+      {
+        "name": "flm.refpoints.scan",
+        "owner": "refpoints",
+        "batch": 1,
+        "reads": [
+          {
+            "table": "flm.element-index",
+            "writer": "flm.index.build"
+          }
+        ],
+        "writes": [
+          "flm.refpoints"
+        ],
+        "requires": [
+          "flm.element-index"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.numbering.number",
+        "owner": "numbering",
+        "batch": 2,
+        "reads": [
+          {
+            "table": "flm.refpoints",
+            "writer": "flm.refpoints.scan"
+          }
+        ],
+        "writes": [
+          "flm.counters"
+        ],
+        "requires": [
+          "flm.refpoints"
+        ],
+        "options": [
+          "NumberingOptions"
+        ]
+      },
+      {
+        "name": "flm.refs.scan",
+        "owner": "refs",
+        "batch": 2,
+        "reads": [
+          {
+            "table": "flm.element-index",
+            "writer": "flm.index.build"
+          },
+          {
+            "table": "flm.refpoints",
+            "writer": "flm.refpoints.scan"
+          }
+        ],
+        "writes": [
+          "flm.labels"
+        ],
+        "requires": [
+          "flm.element-index",
+          "flm.refpoints"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.refs.anchors",
+        "owner": "refs",
+        "batch": 3,
+        "reads": [
+          {
+            "table": "flm.counters",
+            "writer": "flm.numbering.number"
+          },
+          {
+            "table": "flm.labels",
+            "writer": "flm.refs.scan"
+          },
+          {
+            "table": "flm.refpoints",
+            "writer": "flm.refpoints.scan"
+          }
+        ],
+        "writes": [
+          "flm.anchors",
+          "flm.refs.targets"
+        ],
+        "requires": [
+          "flm.refpoints",
+          "flm.counters",
+          "flm.labels"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.refs.resolve",
+        "owner": "refs",
+        "batch": 4,
+        "reads": [
+          {
+            "table": "flm.element-index",
+            "writer": "flm.index.build"
+          },
+          {
+            "table": "flm.refs.external-index",
+            "optional": true
+          },
+          {
+            "table": "flm.refs.targets",
+            "writer": "flm.refs.anchors"
+          }
+        ],
+        "writes": [
+          "flm.refs.resolutions"
+        ],
+        "requires": [
+          "flm.element-index",
+          "flm.refs.targets"
+        ],
+        "options": [
+          "RefsRenderOptions"
+        ]
+      },
+      {
+        "name": "flm.refs.check-labels",
+        "owner": "refs",
+        "batch": 5,
+        "reads": [
+          {
+            "table": "flm.labels",
+            "writer": "flm.refs.scan"
+          },
+          {
+            "table": "flm.refs.resolutions",
+            "writer": "flm.refs.resolve"
+          }
+        ],
+        "writes": [],
+        "requires": [
+          "flm.labels",
+          "flm.refs.resolutions"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.xnotes.collect",
+        "owner": "xnotes",
+        "batch": 5,
+        "reads": [
+          {
+            "table": "flm.counters",
+            "writer": "flm.numbering.number"
+          },
+          {
+            "table": "flm.refpoints",
+            "writer": "flm.refpoints.scan"
+          }
+        ],
+        "writes": [
+          "flm.xnotes"
+        ],
+        "requires": [
+          "flm.refpoints",
+          "flm.counters"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.xnotes.build-list.footnote",
+        "owner": "xnotes",
+        "batch": 6,
+        "reads": [
+          {
+            "table": "flm.xnotes",
+            "writer": "flm.xnotes.collect"
+          }
+        ],
+        "writes": [
+          "flm.xnotes.list.footnote"
+        ],
+        "requires": [
+          "flm.xnotes"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.theorems.check-proofs",
+        "owner": "theorems",
+        "batch": 6,
+        "reads": [
+          {
+            "table": "flm.element-index",
+            "writer": "flm.index.build"
+          },
+          {
+            "table": "flm.refs.resolutions",
+            "writer": "flm.refs.resolve"
+          }
+        ],
+        "writes": [],
+        "requires": [
+          "flm.element-index",
+          "flm.refs.resolutions"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.graphics.inspect",
+        "owner": "graphics",
+        "batch": 6,
+        "reads": [
+          {
+            "table": "flm.element-index",
+            "writer": "flm.index.build"
+          }
+        ],
+        "writes": [
+          "flm.graphics.info"
+        ],
+        "requires": [
+          "flm.element-index"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.graphics.publish.text",
+        "owner": "graphics",
+        "batch": 7,
+        "reads": [
+          {
+            "table": "flm.element-index",
+            "writer": "flm.index.build"
+          },
+          {
+            "table": "flm.graphics.info",
+            "writer": "flm.graphics.inspect"
+          }
+        ],
+        "writes": [
+          "flm.graphics.published.text"
+        ],
+        "requires": [
+          "flm.element-index",
+          "flm.graphics.info"
+        ],
+        "options": [
+          "GraphicsRenderOptions"
+        ]
+      },
+      {
+        "name": "flm.floats.check-handlers",
+        "owner": "floats",
+        "batch": 7,
+        "reads": [
+          {
+            "table": "flm.element-index",
+            "writer": "flm.index.build"
+          }
+        ],
+        "writes": [],
+        "requires": [
+          "flm.element-index"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.citations.collect",
+        "owner": "citations",
+        "batch": 7,
+        "reads": [
+          {
+            "table": "flm.element-index",
+            "writer": "flm.index.build"
+          }
+        ],
+        "writes": [
+          "flm.citations.keys"
+        ],
+        "requires": [
+          "flm.element-index"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.citations.retrieve",
+        "owner": "citations",
+        "batch": 8,
+        "reads": [
+          {
+            "table": "flm.citations.keys",
+            "writer": "flm.citations.collect"
+          }
+        ],
+        "writes": [
+          "flm.citations",
+          "flm.citations.entries"
+        ],
+        "requires": [
+          "flm.citations.keys"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.citations.check",
+        "owner": "citations",
+        "batch": 9,
+        "reads": [
+          {
+            "table": "flm.citations.entries",
+            "writer": "flm.citations.retrieve"
+          },
+          {
+            "table": "flm.citations.keys",
+            "writer": "flm.citations.collect"
+          }
+        ],
+        "writes": [],
+        "requires": [
+          "flm.citations.keys",
+          "flm.citations.entries"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.citations.build-bibliography",
+        "owner": "citations",
+        "batch": 9,
+        "reads": [
+          {
+            "table": "flm.citations",
+            "writer": "flm.citations.retrieve"
+          },
+          {
+            "table": "flm.citations.entries",
+            "writer": "flm.citations.retrieve"
+          }
+        ],
+        "writes": [
+          "flm.citations.bibliography"
+        ],
+        "requires": [
+          "flm.citations",
+          "flm.citations.entries"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.meta.build",
+        "owner": "meta",
+        "batch": 9,
+        "reads": [],
+        "writes": [
+          "flm.meta.author",
+          "flm.meta.date",
+          "flm.meta.title"
+        ],
+        "requires": [],
+        "options": [
+          "DocMeta"
+        ]
+      },
+      {
+        "name": "flm.text.pieces",
+        "owner": "text",
+        "batch": 10,
+        "reads": [
+          {
+            "table": "flm.anchors",
+            "writer": "flm.refs.anchors"
+          },
+          {
+            "table": "flm.citations",
+            "writer": "flm.citations.retrieve"
+          },
+          {
+            "table": "flm.citations.bibliography",
+            "writer": "flm.citations.build-bibliography"
+          },
+          {
+            "table": "flm.citations.entries",
+            "writer": "flm.citations.retrieve"
+          },
+          {
+            "table": "flm.counters",
+            "writer": "flm.numbering.number"
+          },
+          {
+            "table": "flm.graphics.info",
+            "writer": "flm.graphics.inspect"
+          },
+          {
+            "table": "flm.graphics.published.text",
+            "writer": "flm.graphics.publish.text"
+          },
+          {
+            "table": "flm.meta.author",
+            "writer": "flm.meta.build"
+          },
+          {
+            "table": "flm.meta.date",
+            "writer": "flm.meta.build"
+          },
+          {
+            "table": "flm.meta.title",
+            "writer": "flm.meta.build"
+          },
+          {
+            "table": "flm.refs.resolutions",
+            "writer": "flm.refs.resolve"
+          },
+          {
+            "table": "flm.xnotes",
+            "writer": "flm.xnotes.collect"
+          },
+          {
+            "table": "flm.xnotes.list.footnote",
+            "writer": "flm.xnotes.build-list.footnote"
+          }
+        ],
+        "writes": [
+          "flm.lowered.text.pieces"
+        ],
+        "requires": [
+          "flm.floats.check-handlers",
+          "flm.blocks.structured",
+          "flm.counters",
+          "flm.anchors",
+          "flm.refs.resolutions",
+          "flm.xnotes.list.footnote",
+          "flm.xnotes",
+          "flm.graphics.info",
+          "flm.graphics.published.text",
+          "flm.citations",
+          "flm.citations.entries",
+          "flm.citations.bibliography",
+          "flm.meta.title",
+          "flm.meta.author",
+          "flm.meta.date"
+        ],
+        "options": [
+          "GraphicsRenderOptions",
+          "PiecesRenderOptions"
+        ]
+      },
+      {
+        "name": "flm.text.lower",
+        "owner": "text",
+        "batch": 10,
+        "reads": [
+          {
+            "table": "flm.anchors",
+            "writer": "flm.refs.anchors"
+          },
+          {
+            "table": "flm.citations",
+            "writer": "flm.citations.retrieve"
+          },
+          {
+            "table": "flm.citations.entries",
+            "writer": "flm.citations.retrieve"
+          },
+          {
+            "table": "flm.counters",
+            "writer": "flm.numbering.number"
+          },
+          {
+            "table": "flm.graphics.info",
+            "writer": "flm.graphics.inspect"
+          },
+          {
+            "table": "flm.graphics.published.text",
+            "writer": "flm.graphics.publish.text"
+          },
+          {
+            "table": "flm.refs.resolutions",
+            "writer": "flm.refs.resolve"
+          },
+          {
+            "table": "flm.xnotes",
+            "writer": "flm.xnotes.collect"
+          }
+        ],
+        "writes": [
+          "flm.lowered.text"
+        ],
+        "requires": [
+          "flm.floats.check-handlers",
+          "flm.blocks.structured",
+          "flm.counters",
+          "flm.anchors",
+          "flm.refs.resolutions",
+          "flm.xnotes",
+          "flm.graphics.info",
+          "flm.graphics.published.text",
+          "flm.citations",
+          "flm.citations.entries"
+        ],
+        "options": [
+          "GraphicsRenderOptions"
+        ]
+      },
+      {
+        "name": "flm.text.emit",
+        "owner": "text",
+        "batch": 11,
+        "reads": [
+          {
+            "table": "flm.lowered.text",
+            "writer": "flm.text.lower"
+          },
+          {
+            "table": "flm.lowered.text.pieces",
+            "writer": "flm.text.pieces"
+          }
+        ],
+        "writes": [
+          "flm.output.text"
+        ],
+        "requires": [
+          "flm.lowered.text",
+          "flm.lowered.text.pieces"
+        ],
+        "options": [
+          "TextRenderOptions"
+        ]
+      },
+      {
+        "name": "flm.text.regions",
+        "owner": "text",
+        "batch": 12,
+        "reads": [
+          {
+            "table": "flm.output.text",
+            "writer": "flm.text.emit"
+          }
+        ],
+        "writes": [
+          "flm.output.text.regions"
+        ],
+        "requires": [
+          "flm.output.text"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.text.final",
+        "owner": "text",
+        "batch": 13,
+        "reads": [
+          {
+            "table": "flm.output.text.regions",
+            "writer": "flm.text.regions"
+          }
+        ],
+        "writes": [
+          "flm.output.text.document"
+        ],
+        "requires": [
+          "flm.output.text.regions"
+        ],
+        "options": []
+      },
+      {
+        "name": "flm.math-passthrough.check",
+        "owner": "math-passthrough",
+        "batch": 13,
+        "reads": [],
+        "writes": [],
+        "requires": [],
+        "options": []
+      }
+    ],
+    "commit_order": [
+      "flm.blocks.check-contract",
+      "flm.citations.check",
+      "flm.citations.retrieve",
+      "flm.citations.collect",
+      "flm.index.build",
+      "flm.floats.check-handlers",
+      "flm.input.splice",
+      "flm.math-passthrough.check",
+      "flm.meta.build",
+      "flm.text.final",
+      "flm.text.regions",
+      "flm.text.emit",
+      "flm.text.lower",
+      "flm.refs.anchors",
+      "flm.blocks.structure",
+      "flm.numbering.number",
+      "flm.graphics.inspect",
+      "flm.graphics.publish.text",
+      "flm.refs.scan",
+      "flm.text.pieces",
+      "flm.citations.build-bibliography",
+      "flm.refpoints.scan",
+      "flm.refs.check-labels",
+      "flm.refs.resolve",
+      "flm.theorems.check-proofs",
+      "flm.userdefs.expand-always",
+      "flm.xnotes.collect",
+      "flm.xnotes.build-list.footnote",
+      "flm.userdefs.expand"
+    ],
+    "excluded": [
+      {
+        "stage": "flm.blocks.raw",
+        "excluded_by": "flm.blocks.structure",
+        "over": "flm.blocks"
+      },
+      {
+        "stage": "flm.userdefs.keep",
+        "excluded_by": "flm.userdefs.expand",
+        "over": "flm.userdefs"
+      }
+    ],
+    "warnings": [],
+    "lowering": [
+      {
+        "backend": "text",
+        "rules": [
+          {
+            "element": "flm.cells.cell",
+            "rule": "flm.cells.cell.lower.default"
+          },
+          {
+            "element": "flm.cells.cells",
+            "rule": "flm.cells.cells.lower.default"
+          },
+          {
+            "element": "flm.cells.colnames",
+            "rule": "flm.cells.colnames.lower.default"
+          },
+          {
+            "element": "flm.cells.column",
+            "rule": "flm.cells.column.lower.default"
+          },
+          {
+            "element": "flm.cells.data",
+            "rule": "flm.cells.data.lower.default"
+          },
+          {
+            "element": "flm.cells.merge",
+            "rule": "flm.cells.merge.lower.default"
+          },
+          {
+            "element": "flm.cells.row",
+            "rule": "flm.cells.row.lower.default"
+          },
+          {
+            "element": "flm.cells.rownames",
+            "rule": "flm.cells.rownames.lower.default"
+          },
+          {
+            "element": "flm.citations.bibliography",
+            "rule": "flm.citations.bibliography.lower.default"
+          },
+          {
+            "element": "flm.citations.bibliography.entry",
+            "rule": "flm.citations.bibliography.entry.lower.default"
+          },
+          {
+            "element": "flm.citations.cite",
+            "rule": "flm.citations.cite.lower.default"
+          },
+          {
+            "element": "flm.citations.refcite",
+            "rule": "flm.citations.refcite.lower.default"
+          },
+          {
+            "element": "flm.defterm",
+            "rule": "flm.defterm.lower.default"
+          },
+          {
+            "element": "flm.defterm.term-pointer",
+            "rule": "flm.defterm.term-pointer.lower.default"
+          },
+          {
+            "element": "flm.field",
+            "rule": "flm.field.lower.default"
+          },
+          {
+            "element": "flm.floats.float",
+            "rule": "flm.floats.float.lower.default"
+          },
+          {
+            "element": "flm.graphics.image",
+            "rule": "flm.graphics.image.lower.text"
+          },
+          {
+            "element": "flm.heading",
+            "rule": "flm.heading.lower.default"
+          },
+          {
+            "element": "flm.heading.number",
+            "rule": "flm.heading.number.lower.default"
+          },
+          {
+            "element": "flm.href.link",
+            "rule": "flm.href.link.lower.default"
+          },
+          {
+            "element": "flm.hyperref",
+            "rule": "flm.hyperref.lower.default"
+          },
+          {
+            "element": "flm.input",
+            "rule": "flm.input.lower.default"
+          },
+          {
+            "element": "flm.lists.item",
+            "rule": "flm.lists.item.lower.default"
+          },
+          {
+            "element": "flm.lists.list",
+            "rule": "flm.lists.list.lower.default"
+          },
+          {
+            "element": "flm.literal",
+            "rule": "flm.literal.lower.default"
+          },
+          {
+            "element": "flm.math",
+            "rule": "flm.math.lower.passthrough"
+          },
+          {
+            "element": "flm.math-passthrough.opaque",
+            "rule": "flm.math-passthrough.opaque.lower.default"
+          },
+          {
+            "element": "flm.math.ensuremath",
+            "rule": "flm.math.ensuremath.lower.default"
+          },
+          {
+            "element": "flm.math.environment",
+            "rule": "flm.math.environment.lower.passthrough"
+          },
+          {
+            "element": "flm.math.eqref",
+            "rule": "flm.math.eqref.lower.default"
+          },
+          {
+            "element": "flm.math.text",
+            "rule": "flm.math.text.lower.default"
+          },
+          {
+            "element": "flm.meta.author",
+            "rule": "flm.meta.author.lower.default"
+          },
+          {
+            "element": "flm.meta.author.name",
+            "rule": "flm.meta.author.name.lower.default"
+          },
+          {
+            "element": "flm.meta.date",
+            "rule": "flm.meta.date.lower.default"
+          },
+          {
+            "element": "flm.meta.title",
+            "rule": "flm.meta.title.lower.default"
+          },
+          {
+            "element": "flm.paragraph",
+            "rule": "flm.paragraph.lower.default"
+          },
+          {
+            "element": "flm.quote",
+            "rule": "flm.quote.lower.default"
+          },
+          {
+            "element": "flm.quote.section",
+            "rule": "flm.quote.section.lower.default"
+          },
+          {
+            "element": "flm.ref",
+            "rule": "flm.ref.lower.default"
+          },
+          {
+            "element": "flm.sentence-spacing",
+            "rule": "flm.sentence-spacing.lower.default"
+          },
+          {
+            "element": "flm.term",
+            "rule": "flm.term.lower.default"
+          },
+          {
+            "element": "flm.textstyle",
+            "rule": "flm.textstyle.lower.default"
+          },
+          {
+            "element": "flm.theorems.name",
+            "rule": "flm.theorems.name.lower.default"
+          },
+          {
+            "element": "flm.theorems.relation",
+            "rule": "flm.theorems.relation.lower.default"
+          },
+          {
+            "element": "flm.theorems.theorem",
+            "rule": "flm.theorems.theorem.lower.default"
+          },
+          {
+            "element": "flm.theorems.title-pointer",
+            "rule": "flm.theorems.title-pointer.lower.default"
+          },
+          {
+            "element": "flm.toc",
+            "rule": "flm.toc.lower.default"
+          },
+          {
+            "element": "flm.toc.entry",
+            "rule": "flm.toc.entry.lower.default"
+          },
+          {
+            "element": "flm.toc.list",
+            "rule": "flm.toc.list.lower.default"
+          },
+          {
+            "element": "flm.unknown.environment",
+            "rule": "flm.unknown.environment.lower.default"
+          },
+          {
+            "element": "flm.unknown.macro",
+            "rule": "flm.unknown.macro.lower.default"
+          },
+          {
+            "element": "flm.verbatim",
+            "rule": "flm.verbatim.lower.default"
+          },
+          {
+            "element": "flm.verbatim.environment",
+            "rule": "flm.verbatim.environment.lower.default"
+          },
+          {
+            "element": "flm.verbatim.macro",
+            "rule": "flm.verbatim.macro.lower.default"
+          },
+          {
+            "element": "flm.xnotes.content-pointer",
+            "rule": "flm.xnotes.content-pointer.lower.default"
+          },
+          {
+            "element": "flm.xnotes.entry",
+            "rule": "flm.xnotes.entry.lower.default"
+          },
+          {
+            "element": "flm.xnotes.footnote.list",
+            "rule": "flm.xnotes.footnote.list.lower.default"
+          },
+          {
+            "element": "flm.xnotes.mark-of",
+            "rule": "flm.xnotes.mark-of.lower.default"
+          },
+          {
+            "element": "flm.xnotes.xnote",
+            "rule": "flm.xnotes.xnote.lower.default"
+          }
+        ]
+      }
+    ],
+    "externals": []
+  }
+}

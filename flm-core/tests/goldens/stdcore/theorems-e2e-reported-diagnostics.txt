@@ -1,0 +1,20 @@
+===== check =====
+Warning flm.refs.unresolved: the reference points at the label `thm:missing`, which is not defined — at `\begin{proof}[*thm:missing]\nA back-reference naming nothing.`
+Warning flm.theorems.missing-proof: theorem thm:alone has no proof that refers back to it. Write its proof as `\begin{proof}[*thm:alone]`; or mark the theorem with `\noproofref`; or set `expects_proof` to false for the kind `theorem` in the configuration of the theorems feature. — at `\begin{theorem}\label{thm:alone}\nA theorem no proof refers b`
+Error flm.theorems.bad-relation-ref: the title of this `proof` environment begins with `*`, so it must be written `*type:label` or `**type:label`, in plain characters, with the label of the statement it proves — at `*nolabel`
+===== text =====
+Error flm.refs.unresolved: the reference points at the label `thm:missing`, which is not defined — at `\begin{proof}[*thm:missing]\nA back-reference naming nothing.`
+Warning flm.theorems.missing-proof: theorem thm:alone has no proof that refers back to it. Write its proof as `\begin{proof}[*thm:alone]`; or mark the theorem with `\noproofref`; or set `expects_proof` to false for the kind `theorem` in the configuration of the theorems feature. — at `\begin{theorem}\label{thm:alone}\nA theorem no proof refers b`
+Error flm.theorems.bad-relation-ref: the title of this `proof` environment begins with `*`, so it must be written `*type:label` or `**type:label`, in plain characters, with the label of the statement it proves — at `*nolabel`
+===== html =====
+Error flm.refs.unresolved: the reference points at the label `thm:missing`, which is not defined — at `\begin{proof}[*thm:missing]\nA back-reference naming nothing.`
+Warning flm.theorems.missing-proof: theorem thm:alone has no proof that refers back to it. Write its proof as `\begin{proof}[*thm:alone]`; or mark the theorem with `\noproofref`; or set `expects_proof` to false for the kind `theorem` in the configuration of the theorems feature. — at `\begin{theorem}\label{thm:alone}\nA theorem no proof refers b`
+Error flm.theorems.bad-relation-ref: the title of this `proof` environment begins with `*`, so it must be written `*type:label` or `**type:label`, in plain characters, with the label of the statement it proves — at `*nolabel`
+===== latex-recomposed, authored =====
+Error flm.refs.unresolved: the reference points at the label `thm:missing`, which is not defined — at `\begin{proof}[*thm:missing]\nA back-reference naming nothing.`
+Warning flm.theorems.missing-proof: theorem thm:alone has no proof that refers back to it. Write its proof as `\begin{proof}[*thm:alone]`; or mark the theorem with `\noproofref`; or set `expects_proof` to false for the kind `theorem` in the configuration of the theorems feature. — at `\begin{theorem}\label{thm:alone}\nA theorem no proof refers b`
+Error flm.theorems.bad-relation-ref: the title of this `proof` environment begins with `*`, so it must be written `*type:label` or `**type:label`, in plain characters, with the label of the statement it proves — at `*nolabel`
+===== latex-recomposed, resolved =====
+Error flm.refs.unresolved: the reference points at the label `thm:missing`, which is not defined — at `\begin{proof}[*thm:missing]\nA back-reference naming nothing.`
+Warning flm.theorems.missing-proof: theorem thm:alone has no proof that refers back to it. Write its proof as `\begin{proof}[*thm:alone]`; or mark the theorem with `\noproofref`; or set `expects_proof` to false for the kind `theorem` in the configuration of the theorems feature. — at `\begin{theorem}\label{thm:alone}\nA theorem no proof refers b`
+Error flm.theorems.bad-relation-ref: the title of this `proof` environment begins with `*`, so it must be written `*type:label` or `**type:label`, in plain characters, with the label of the statement it proves — at `*nolabel`

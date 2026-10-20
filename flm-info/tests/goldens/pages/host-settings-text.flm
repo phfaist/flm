@@ -1,0 +1,134 @@
+---
+title: "Settings of feature text"
+flm:
+  use: [flmdoc]
+  math: false
+---
+the line width in columns (null: never wrap), default 80; the width of a tab in columns, default 4; the stop written after a run-in heading's title, default `.`, the empty text for none; whether a link to an address outside the document prints the address after its content, default on; whether a link whose content already shows its address prints the address too, default off; and the heading level printed as a first-level heading, default 1. Set per render request.
+
+\docfield{Declared by}{the feature \docref{features/text}{\verbcode{text}}}
+
+\begin{docitem}{setting}{width}
+
+\docsummary{The line width in columns; `None` never wraps. The default is 80.}
+
+\docfield{Type}{\verbcode{integer or null}}
+
+\docfield{Default}{\verbcode{80}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\docfield{Value in effect}{\verbcode{30}}
+
+\docfield{Written in}{doc/paper.flm:6:14}
+
+\end{docitem}
+
+\begin{docitem}{setting}{tab_width}
+
+\docsummary{The width of a tab in columns: how far a line indented by one
+tab (one `\indent`
+in a lines section of a quotation) is indented. The default is 4. Every
+length, in any unit, is converted to columns by
+`columns`.}
+
+\docfield{Type}{\verbcode{integer}}
+
+\docfield{Default}{\verbcode{4}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+
+\begin{docitem}{setting}{run_in_stop}
+
+\docsummary{The stop written after the title of a run-in heading (a heading set at
+the start of the paragraph it introduces), so that `\paragraph{Note} Some
+content.` is printed as `Note. Some content.` The default is
+`DEFAULT_RUN_IN_STOP`,
+a period; the empty text writes no stop.}
+
+The stop is written only when the title does not already end in
+sentence punctuation
+(`ends_in_sentence_punctuation`).
+That test looks only at the last characters of the title's text, so a
+title ending in a formula, or in a symbol drawn by an author's own
+command, gets the stop after it. A program that needs another treatment
+of headings registers a lowering rule or a stage of its own (the
+extension guide).
+
+\docfield{Type}{\verbcode{string}}
+
+\docfield{Default}{\verbcode{.}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+
+\begin{docitem}{setting}{link_addresses}
+
+\docsummary{Whether a link to an address outside the document prints that address
+after its content, between angle brackets: `\href{https://example.com}{Click
+here}` prints `Click here <https://example.com>`. The default is `true`.
+Off, every link prints its content alone, which keeps a text holding
+many links readable. A link to a place inside the document prints its
+content alone either way.}
+
+\docfield{Type}{\verbcode{boolean}}
+
+\docfield{Default}{\verbcode{true}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+
+\begin{docitem}{setting}{link_addresses_when_shown}
+
+\docsummary{Whether a link whose content already shows its address also prints the
+address after it. A `\url` or an `\email` is such a link: its content
+is derived from the address by the lowering rule that produced the
+link, which sets
+`LinkPayload::shows_target`.
+With this option off (the default), `\url{https://example.com}` prints
+`example.com`; on, it prints `example.com <https://example.com>`. It
+has no effect when `link_addresses` is off.}
+
+\docfield{Type}{\verbcode{boolean}}
+
+\docfield{Default}{\verbcode{false}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+
+\begin{docitem}{setting}{root_heading_level}
+
+\docsummary{The heading level the text output writes as its first-level heading.
+A heading's level is a number counted from zero, smaller for an outer
+heading
+(`HeadingPayload::level`).
+A heading at this level is underlined with `=`, a heading one level
+deeper with `-`, and every deeper heading is preceded by `#`
+characters, one
+more than its depth below this level as
+`heading_depth` counts
+it from 0: three for a heading two levels below. The default is
+`DEFAULT_ROOT_HEADING_LEVEL`,
+1, the level of a section, the same as for the HTML backend's option of
+the same name
+(`HtmlRenderOptions::root_heading_level`).}
+
+A heading whose level is less than this one is reported as
+`flm.pres.heading-above-root`
+and written as a first-level heading. The option affects only the
+underline or the `#` characters of a block heading: the numbering and the
+run-in headings use a heading's own level.
+
+\docfield{Type}{\verbcode{integer}}
+
+\docfield{Default}{\verbcode{1}}
+
+\docfield{Where it may be set}{\verbcode{render}}
+
+\end{docitem}
+

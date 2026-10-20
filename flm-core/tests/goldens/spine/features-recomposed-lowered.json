@@ -1,0 +1,1133 @@
+[
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.raw",
+          "body": [],
+          "payload": {
+            "text": "toc=true"
+          }
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmHeading",
+      "args": [
+        "optional"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "Introduction"
+        }
+      ]
+    },
+    "payload": {
+      "name": "section",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "{"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.macro",
+          "slots": {
+            "arg": [
+              {
+                "chars": "ref1"
+              }
+            ]
+          },
+          "payload": {
+            "name": "label",
+            "args": [
+              "mandatory"
+            ]
+          }
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmLabels",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "}"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "chars": "This document exercises every standard feature of build step 1: headings,\nparagraphs, the base formatting commands, math, user definitions and\nreferences. It is version "
+  },
+  {
+    "chars": "1.0"
+  },
+  {
+    "chars": "."
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.raw",
+          "body": [],
+          "payload": {
+            "text": "toc=true"
+          }
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmHeading",
+      "args": [
+        "optional"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "Formatting"
+        }
+      ]
+    },
+    "payload": {
+      "name": "subsection",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "{"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.macro",
+          "slots": {
+            "arg": [
+              {
+                "chars": "ref2"
+              }
+            ]
+          },
+          "payload": {
+            "name": "label",
+            "args": [
+              "mandatory"
+            ]
+          }
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmLabels",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "}"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "chars": "Some "
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "emphasized"
+        }
+      ]
+    },
+    "payload": {
+      "name": "emph",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "chars": ", "
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "bold"
+        }
+      ]
+    },
+    "payload": {
+      "name": "textbf",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "chars": ", "
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "italic"
+        }
+      ]
+    },
+    "payload": {
+      "name": "textit",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "chars": " and "
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "monospace"
+        }
+      ]
+    },
+    "payload": {
+      "name": "texttt",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "chars": "\ntext --- with a dash, an ellipsis... and \"quotes\" resolved by typography.\n"
+  },
+  {
+    "kind": "comment",
+    "text": " A comment vanishes (the language's default comment prefix is `%%`)."
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.raw",
+          "body": [],
+          "payload": {
+            "text": "toc=true"
+          }
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmHeading",
+      "args": [
+        "optional"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "Math"
+        }
+      ]
+    },
+    "payload": {
+      "name": "subsubsection",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "{"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": []
+    },
+    "payload": {
+      "name": "flmLabels",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "}"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "chars": "Inline math "
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\\("
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "x_1 + \\alpha"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\\)"
+    }
+  },
+  {
+    "chars": " and display math "
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\\["
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": " \\int_0^1 f(x)\\,dx = 1 "
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\\]"
+    }
+  },
+  {
+    "chars": " then\ntwo environments:"
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\\begin{equation}"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n  E = mc^2"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\\end{equation}"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\\begin{align*}"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n  a &= b "
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\\\\"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n  c &= d"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\\end{align*}"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.raw",
+          "body": [],
+          "payload": {
+            "text": "toc=true"
+          }
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmHeading",
+      "args": [
+        "optional"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "Verbatim"
+        }
+      ]
+    },
+    "payload": {
+      "name": "subsubsection",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "{"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": []
+    },
+    "payload": {
+      "name": "flmLabels",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "}"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "chars": "Inline "
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.raw",
+          "body": [],
+          "payload": {
+            "text": "formatcom=\\flmFmtVRB{verbtext}"
+          }
+        }
+      ],
+      "arg": [
+        {
+          "chars": "a{b}\\c"
+        }
+      ]
+    },
+    "payload": {
+      "name": "EscVerb",
+      "args": [
+        "optional",
+        "escverb"
+      ]
+    }
+  },
+  {
+    "chars": " text, the code "
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.raw",
+          "body": [],
+          "payload": {
+            "text": "formatcom=\\flmFmtVRB{verbcode}"
+          }
+        }
+      ],
+      "arg": [
+        {
+          "chars": "f(x) = 1"
+        }
+      ]
+    },
+    "payload": {
+      "name": "EscVerb",
+      "args": [
+        "optional",
+        "escverb"
+      ]
+    }
+  },
+  {
+    "chars": " and the\nidentifier "
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.raw",
+          "body": [],
+          "payload": {
+            "text": "formatcom=\\flmFmtVRB{verba}"
+          }
+        }
+      ],
+      "arg": [
+        {
+          "chars": "struct"
+        }
+      ]
+    },
+    "payload": {
+      "name": "EscVerb",
+      "args": [
+        "optional",
+        "escverb"
+      ]
+    }
+  },
+  {
+    "chars": ", then "
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.raw",
+          "body": [],
+          "payload": {
+            "text": "formatcom=\\flmFmtVRB{verbtext}"
+          }
+        }
+      ],
+      "arg": [
+        {
+          "chars": "raw {text}"
+        }
+      ]
+    },
+    "payload": {
+      "name": "EscVerb",
+      "args": [
+        "optional",
+        "escverb"
+      ]
+    }
+  },
+  {
+    "chars": "\nin the same paragraph, and a code block:"
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.environment",
+    "body": [
+      {
+        "chars": "def f(x):\n    return {x} + 1\n"
+      }
+    ],
+    "slots": {
+      "arg": [
+        {
+          "chars": "python"
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmVerbatimCode",
+      "args": [
+        "optional"
+      ],
+      "verbatim": true
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.raw",
+          "body": [],
+          "payload": {
+            "text": "toc=true"
+          }
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmHeading",
+      "args": [
+        "optional"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "Definitions"
+        }
+      ]
+    },
+    "payload": {
+      "name": "paragraph",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "{"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": []
+    },
+    "payload": {
+      "name": "flmLabels",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "}"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.definition",
+    "body": [
+      {
+        "chars": "Hello, "
+      },
+      {
+        "elem": "flm.pres.latex.raw",
+        "body": [],
+        "payload": {
+          "text": "#1"
+        }
+      },
+      {
+        "chars": "!"
+      }
+    ],
+    "payload": {
+      "kind": "macro",
+      "name": "flmUDhello",
+      "source": "hello",
+      "args": 1
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "World"
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmUDhello",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "chars": " from a user macro, and "
+  },
+  {
+    "elem": "flm.pres.latex.definition",
+    "slots": {
+      "begin": [
+        {
+          "chars": "[Note: "
+        }
+      ],
+      "end": [
+        {
+          "chars": "]"
+        }
+      ]
+    },
+    "payload": {
+      "kind": "environment",
+      "name": "flmUEnote",
+      "source": "note"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.environment",
+    "body": [
+      {
+        "chars": "a user environment"
+      }
+    ],
+    "payload": {
+      "name": "flmUEnote",
+      "verbatim": false
+    }
+  },
+  {
+    "chars": "\nin the same paragraph."
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.raw",
+          "body": [],
+          "payload": {
+            "text": "toc=true"
+          }
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmHeading",
+      "args": [
+        "optional"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "References"
+        }
+      ]
+    },
+    "payload": {
+      "name": "subparagraph",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "{"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": []
+    },
+    "payload": {
+      "name": "flmLabels",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "}"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "chars": "See "
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "ref1"
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmRef",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "chars": ", "
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "noprefix"
+        }
+      ],
+      "arg": [
+        {
+          "chars": "ref2"
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmRef",
+      "args": [
+        "optional",
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "chars": " and "
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "ref3"
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmRef",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "chars": "."
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "elem": "flm.pres.latex.raw",
+          "body": [],
+          "payload": {
+            "text": "toc=true"
+          }
+        }
+      ]
+    },
+    "payload": {
+      "name": "flmHeading",
+      "args": [
+        "optional"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": [
+        {
+          "chars": "Unnumbered"
+        }
+      ]
+    },
+    "payload": {
+      "name": "section",
+      "args": [
+        "star",
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "{"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.macro",
+    "slots": {
+      "arg": []
+    },
+    "payload": {
+      "name": "flmLabels",
+      "args": [
+        "mandatory"
+      ]
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "}"
+    }
+  },
+  {
+    "elem": "flm.pres.latex.raw",
+    "body": [],
+    "payload": {
+      "text": "\n\n"
+    }
+  },
+  {
+    "chars": "A starred heading takes no number and stays in the contents.\n"
+  }
+]

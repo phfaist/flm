@@ -1,0 +1,31 @@
+Dashes and emphasis
+===================
+
+A paragraph with emphasis, bold text, code and a link to the
+site <https://example.org>; inline mathematics \(x^2 + y^2\).
+
+• one
+
+• two, emphasized
+
+1. first
+
+2. second
+
+  \[ \int_0^1 f(x) \, dx \]
+
+A callout with content.
+
+Verbatim and the rest
+---------------------
+
+raw   text
+
+defined: A term and its definition.
+
+A footnote¹ and a term defined.
+
+Footnotes
+---------
+
+¹ the note

@@ -1,0 +1,11 @@
+{
+  "name": "flm-ext",
+  "private": true,
+  "description": "The TypeScript check of two fixtures of flm-ext against flm-ext/flm.d.ts, the declarations of FLM's extension interface (flm-ext/tests/typescript_check.rs). A package of the declarations for extension authors would be published from this folder.",
+  "scripts": {
+    "test": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

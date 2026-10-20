@@ -1,0 +1,42 @@
+[
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "Before."
+      }
+    ],
+    "payload": {}
+  },
+  {
+    "elem": "flm.pres.math-passthrough",
+    "body": [
+      {
+        "chars": "\n  a &= \\alpha "
+      },
+      {
+        "elem": "flm.field",
+        "name": "\\"
+      },
+      {
+        "chars": "\n  b &= 2"
+      },
+      {
+        "chars": "\n"
+      }
+    ],
+    "payload": {
+      "display": "display",
+      "env": "align*"
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "After."
+      }
+    ],
+    "payload": {}
+  }
+]

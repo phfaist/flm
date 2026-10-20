@@ -1,0 +1,6 @@
+---
+title: Three works
+flm:
+  use: [bibfile]
+---
+See \cite{knuth84} and \cite{lamport94}; the code of \cite{Shor95} (also \cite{shor95}).

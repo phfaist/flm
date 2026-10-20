@@ -1,0 +1,22 @@
+---
+title: "Scoped package flm.lists.items"
+flm:
+  use: [flmdoc]
+  math: false
+---
+\begin{docitem}{scoped-package}{flm.lists.items}
+
+\docsummary{The command recognized inside a list environment's body: `\item`, which begins an item.}
+
+\docfield{Declared by}{the feature \docref{features/lists}{\verbcode{lists}}}
+
+\docfield{Available in}{inside the body of \docref{features/lists/environments/description}{\verbcode{\begin{description}}}, the body of \docref{features/lists/environments/enumerate}{\verbcode{\begin{enumerate}}}, the body of \docref{features/lists/environments/itemize}{\verbcode{\begin{itemize}}}}
+
+\end{docitem}
+
+\section*{Macros}
+
+\begin{itemize}
+\item \docref{features/lists/scopedpackages/flm.lists.items/macros/item}{\verbcode{\item}}: `\item[tag]\label{item:…}`: begins an item; the optional tag is its label.
+\end{itemize}
+

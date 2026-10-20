@@ -1,0 +1,27 @@
+---
+title: "Macro \\textbackslash{}ref"
+flm:
+  use: [flmdoc]
+  math: false
+---
+\begin{docitem}{macro}{\ref}
+
+\docsignature{\ref[options]{target}}
+
+\docsummary{`\ref[options]{type:label}`: a reference to the labeled place, showing its number, else its content, else the label.}
+
+\begin{docparams}
+\docparam{[options]}{options}{}{Display options: the name of a wording variant of the word before a number, `S` for the capitalized wording, or `noprefix` to leave the word out.}
+\docparam{{target}}{target}{flm.refs.target}{The target label, `type:label`, or several separated by commas.}
+\end{docparams}
+
+\docfield{Declared by}{the feature \docref{features/refs}{\verbcode{refs}}}
+
+\docfield{Available in}{\verbcode{text} mode}
+
+\docfield{Element}{\docref{namespaces/element/flm.ref}{\verbcode{flm.ref}}: A reference to a labeled place, showing its number, else its content, else the label.}
+
+\docfield{Aspects}{\verbcode{flm_core::model::aspects::BlockRoleAspect}, \verbcode{flm_core::model::aspects::ApartFromText}, \verbcode{flm_core::model::aspects::Referencing}}
+
+\end{docitem}
+

@@ -1,0 +1,248 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.f6fc115e.sty
+Before the list, a list in running text \begin{itemize}\item one\item two\end{itemize} and the sentence goes on.
+
+\begin{enumerate}
+\item\flmLabels{\label{ref1}} A formula \(x^2\) and a display:
+\[ a = b \]
+\item A reference to \flmRef{ref1} and to \flmRef{ref2}.
+\item\flmLabels{\label{ref2}} Code:
+\begin{flmVerbatimCode}[]
+fn main() {}
+\end{flmVerbatimCode}
+\item A nested list:
+\begin{itemize}\item\EscVerb[formatcom=\flmFmtVRB{verbcode}]{inline} code\item\emph{emphasis}\end{itemize}
+\end{enumerate}%%
+% ===== latex-recomposed:style flmrecomposed.f6fc115e.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.f6fc115e}
+% --- packages ---
+% flm.latex.pkg.fvextra
+\RequirePackage{fvextra}
+% flm.latex.pkg.zref-clever
+\RequirePackage{zref-clever}
+% --- commands and environments the library defines for the document ---
+% flm.latex.def.refs
+% \flmRef[<options>]{<label>}: a reference that gives the name of its target
+% ("Section 2"), set by \zcref of the zref-clever package.
+%
+% The options are the ones the document wrote, in FLM's own vocabulary. This
+% definition translates each of them by its key -- a value written after the
+% key is ignored, as in FLM -- and drops every key it has no translation for:
+%
+%   noprefix    -> noname                 the number or title alone, with no
+%                                         name before it ("2", not
+%                                         "Section 2")
+%   S           -> S                      the first name capitalized and
+%                                         unabbreviated, for a reference that
+%                                         opens a sentence
+%   capital     -> cap=true,abbrev=false  the names capitalized ("Lemma 1")
+%   lowercase   -> cap=false,abbrev=false the names in lowercase ("lemma 1")
+%   abbreviated -> abbrev=true            the abbreviated names ("Lem. 1")
+%                                         where the reference type declares
+%                                         them, the full names otherwise
+%   anything else -> dropped              the default wording; a variant of
+%                                         your own naming has no counterpart
+%                                         in zref-clever, which would stop on
+%                                         a key it does not know
+%
+% Redefine \flmRef to set references differently -- another package, another
+% wording, your own variants, no link. Your definition sees the options as the
+% document wrote them, in FLM's vocabulary, and maps them as it likes.
+%
+% The translation uses expl3, LaTeX's programming layer, which is part of the
+% format and needs no package; its names read only between \ExplSyntaxOn and
+% \ExplSyntaxOff. \keyval_parse:NNn reads the option list as LaTeX reads any
+% key-value list: it hands a key written alone to the first macro below and a
+% key with its value to the second, which drops the value. \str_case:nnF looks
+% the key up in the table and appends what \zcref is to be given, or nothing.
+% The macros with @ in their names are internals, not a customization point:
+% redefine \flmRef, not its parts.
+\ExplSyntaxOn
+\def\flm@ref@add#1{\tl_put_right:Nn \flm@ref@options {#1,}}
+\def\flm@ref@key#1{\str_case:nnF {#1}
+  {{noprefix}{\flm@ref@add{noname}}
+   {S}{\flm@ref@add{S}}
+   {capital}{\flm@ref@add{cap=true,abbrev=false}}
+   {lowercase}{\flm@ref@add{cap=false,abbrev=false}}
+   {abbreviated}{\flm@ref@add{abbrev=true}}}
+  {}}
+\def\flm@ref@pair#1#2{\flm@ref@key{#1}}
+\def\flm@ref@zcref#1#2{\zcref[#1]{#2}}
+\ProvideDocumentCommand\flmRef{O{} m}{%
+  \def\flm@ref@options{}%
+  \keyval_parse:NNn \flm@ref@key \flm@ref@pair {#1}%
+  \exp_args:No \flm@ref@zcref {\flm@ref@options} {#2}}
+\ExplSyntaxOff
+% flm.latex.def.labels
+% \flmLabels{<\label commands>}: the labels of one place in the document.
+% In text it runs them as written. On a line of a display-math
+% environment, where amsmath keeps the last label of a line and loses the
+% ones before it, it runs the first and records every further one as an alias:
+% a line per alias is written to the .aux file after the last page and read on
+% the next run, making the alias refer to what the first label refers to
+% (for \ref and for \zcref alike). Redefine \flmLabels to change what a
+% group of labels does; \def\flmLabels#1{#1} restores plain LaTeX behavior,
+% amsmath's "Multiple \label's" message included.
+\ProvideDocumentCommand\flmLabels{m}{%
+  \ifmmode\expandafter\flm@labels@math\else\expandafter\@firstofone\fi{#1}}
+% Reading the group: the first \label as written, the rest as aliases of it.
+\def\flm@labels@math#1{\def\flm@lbl@first{}\flm@lbl@scan#1\flm@lbl@stop}
+\def\flm@lbl@scan{\@ifnextchar\label\flm@lbl@take\flm@lbl@rest}
+\def\flm@lbl@take\label#1{%
+  \ifx\flm@lbl@first\@empty
+    \def\flm@lbl@first{#1}%
+    \label{#1}%
+  \else
+    \expandafter\flm@recordalias\expandafter{\flm@lbl@first}{#1}%
+  \fi
+  \flm@lbl@scan}
+\def\flm@lbl@rest#1\flm@lbl@stop{#1}
+% Collecting the aliases. A name is recorded once however often the line is
+% typeset (amsmath measures a line before setting it).
+\def\flm@aliaslist{}
+\def\flm@recordalias#1#2{%
+  \ifcsname flm@alias@#2\endcsname\else
+    \expandafter\gdef\csname flm@alias@#2\endcsname{}%
+    \g@addto@macro\flm@aliaslist{\flm@alias@entry{#2}{#1}}%
+  \fi}
+% Writing them, from the hook that runs after the last page has been shipped
+% out: every \newlabel of that page has reached the .aux file by then, so the
+% alias lines come after them. \AtEndDocument would run too early.
+\def\flm@alias@write#1#2{\immediate\write\@auxout{\string\flm@aliaslabel{#1}{#2}}}
+\AddToHook{enddocument/afterlastpage}{\let\flm@alias@entry\flm@alias@write\flm@aliaslist}
+% Reading them back: the alias refers to what the original refers to. The
+% assignments are global because the .aux file is read inside a group.
+\def\flm@aliaslabel#1#2{%
+  \ifcsname r@#2\endcsname
+    \global\expandafter\let\csname r@#1\expandafter\endcsname\csname r@#2\endcsname
+  \fi
+  \ifcsname Z@R@#2\endcsname
+    \global\expandafter\let\csname Z@R@#1\expandafter\endcsname\csname Z@R@#2\endcsname
+  \fi}
+% flm.latex.def.verbatim
+% Verbatim content. Inline content is written as
+%   \EscVerb[formatcom=\flmFmtVRB{<kind>}]{<escaped content>}
+% and block content as the flmVerbatimCode environment. \EscVerb comes with
+% fvextra 1.5 (2022) and later, which this file requires.
+% \flmFmtVRB{<kind>} runs the hook \flmFmtVRB<kind>; redefine
+% \flmFmtVRBverbtext, \flmFmtVRBverbcode or \flmFmtVRBverba to change how
+% that kind of verbatim content is set.
+\ProvideDocumentCommand\flmFmtVRBverbtext{}{}
+\ProvideDocumentCommand\flmFmtVRBverbcode{}{\ttfamily}
+\ProvideDocumentCommand\flmFmtVRBverba{}{\itshape}
+\ProvideDocumentCommand\flmFmtVRB{m}{\csname flmFmtVRB#1\endcsname}
+% \flmVerbatimCodeSetup{<lang>} runs at the start of a flmVerbatimCode
+% environment with its language tag (empty when none was given); redefine
+% it to attach syntax highlighting. It runs before the Verbatim environment
+% opens, so it must not open a group or an environment of its own.
+\ProvideDocumentCommand\flmVerbatimCodeSetup{m}{}
+% flmVerbatimCode[<lang>]: a block of code, set with the verbcode hook. The
+% recomposed LaTeX always writes the brackets, [<lang>] or [], because LaTeX's
+% lookahead for an absent optional argument swallows the line end that the
+% verbatim content must begin after. Define the environment before loading
+% this file to replace it.
+\ProvideDocumentEnvironment{flmVerbatimCode}{O{}}{%
+  \flmVerbatimCodeSetup{#1}%
+  \VerbatimEnvironment
+  \begin{Verbatim}[formatcom=\flmFmtVRB{verbcode}]}%
+  {\end{Verbatim}}
+% flmVerbatimText[<lang>]: a block of plain verbatim text, set with the
+% verbtext hook. It takes the same optional argument as flmVerbatimCode and
+% ignores it, so that one command (\flmVerbatimBlock below), which always
+% writes the brackets, serves either environment.
+\ProvideDocumentEnvironment{flmVerbatimText}{O{}}{%
+  \VerbatimEnvironment
+  \begin{Verbatim}[formatcom=\flmFmtVRB{verbtext}]}%
+  {\end{Verbatim}}
+% \flmVerbatimBlock[<options>]{<environment>}{<lines>}: one block of verbatim
+% content written as a single macro call, for the places a block cannot be
+% written out in full -- inside an argument of a call, inside the body a
+% body-grabbing environment hands over, inside a definition's own body -- where
+% LaTeX has read the characters long before anything can say they are verbatim.
+% The three arguments:
+%   <options>     the block environment's own optional argument, always
+%                 written, [<lang>] or [];
+%   <environment> the environment's name, flmVerbatimCode for a code block;
+%   <lines>       one brace group per line of the block, and inside each line
+%                 one brace group per tab-separated segment, every segment
+%                 written in the encoding \EscVerb reads (a backslash before
+%                 every printable ASCII character that is not a letter or a
+%                 digit). The line and segment structure is carried by braces
+%                 rather than by characters because a line feed written into an
+%                 auxiliary file comes back from it as a space, and a tab
+%                 inside an argument is a space before anything can look at it;
+%                 brace groups survive both.
+% The command un-escapes every segment with fvextra's own un-escaper, joins the
+% segments of a line with a tab and the lines with a line feed, and hands
+% \begin{<environment>}[<options>] ... \end{<environment>} to \scantokens,
+% which offers that text to TeX as if it were a file: the environment is
+% entered for real, and fancyvrb reads its lines the way it reads them out of
+% any file. This is the only place this file uses \scantokens, and it is the
+% whole mechanism -- nothing is saved anywhere, no name is made up, nothing
+% outlives the call. The \begin and the \end are written as plain characters
+% (\string\begin\string{...) because \scantokens puts a space after every
+% control word, and fancyvrb looks for the exact characters \end{ on a line:
+% written as control words they would read \end {...} and the environment
+% would never close.
+% The call leaves the mode it found. A block is vertical material, so the
+% environment leaves TeX in vertical mode regardless of what came before; a
+% block that ends a section title would then leave hyperref's link open in
+% vertical mode, which pdfTeX refuses on the run that reads the table of
+% contents back. Called
+% where a paragraph was under way, the command therefore begins one again
+% (\leavevmode); called where TeX was already in vertical mode, it does not,
+% because starting a paragraph there would add an empty line the same block
+% written out in full does not add.
+\begingroup
+\catcode`\^^J=12 \catcode`\^^I=12
+\gdef\flm@vrb@nl{^^J}\gdef\flm@vrb@tab{^^I}
+\endgroup
+\let\flm@vrb@stop\relax
+\let\flm@vrb@leave\relax
+\ProvideDocumentCommand\flmVerbatimBlock{O{} m m}{%
+  \ifhmode\let\flm@vrb@leave\leavevmode\else\let\flm@vrb@leave\relax\fi
+  \begingroup
+    \gdef\flm@vrb@acc{}\def\flm@vrb@lsep{}%
+    \flm@vrb@lines#3\flm@vrb@stop
+    \xdef\flm@vrb@src{%
+      \string\begin\string{#2\string}[#1]\flm@vrb@nl
+      \flm@vrb@acc\flm@vrb@nl\string\end\string{#2\string}}%
+  \endgroup
+  \edef\flm@vrb@restorenl{\newlinechar=\the\newlinechar\relax}%
+  \newlinechar=`\^^J\relax
+  \expandafter\scantokens\expandafter{\flm@vrb@src}%
+  \flm@vrb@restorenl
+  \ifvmode\flm@vrb@leave\fi}
+% The walk over the lines and their segments: one line group at a time, one
+% segment at a time, the segments of a line joined with a tab and the lines
+% with a line feed. \FVExtraDetokenizeREscVArg is fvextra's own un-escaper,
+% the macro \EscVerb itself calls, so that inline verbatim content and a block
+% share one escaping; it is also the only safe route for text that is not
+% ASCII.
+\def\flm@vrb@lines{\@ifnextchar\bgroup\flm@vrb@line\flm@vrb@linesdone}
+\def\flm@vrb@line#1{%
+  \xdef\flm@vrb@acc{\flm@vrb@acc\flm@vrb@lsep}\let\flm@vrb@lsep\flm@vrb@nl
+  \def\flm@vrb@ssep{}\flm@vrb@segs#1\flm@vrb@stop\flm@vrb@lines}
+\def\flm@vrb@linesdone#1\flm@vrb@stop{}
+\def\flm@vrb@segs{\@ifnextchar\bgroup\flm@vrb@seg\flm@vrb@segsdone}
+\def\flm@vrb@seg#1{\FVExtraDetokenizeREscVArg{\flm@vrb@addseg}{#1}\flm@vrb@segs}
+\def\flm@vrb@segsdone#1\flm@vrb@stop{}
+\def\flm@vrb@addseg#1{%
+  \xdef\flm@vrb@acc{\flm@vrb@acc\flm@vrb@ssep#1}\let\flm@vrb@ssep\flm@vrb@tab}
+% What a PDF bookmark holds where a heading contains verbatim content. A
+% bookmark is plain text: it can carry neither the setting of inline verbatim
+% content nor a block at all, so hyperref is told what to put there instead.
+% Inline content gives its text -- without this, fvextra disables \EscVerb
+% without removing its optional argument and the option list appears in the
+% bookmark -- and a block gives its content run together, with no line breaks
+% and no separator between the lines. The two definitions are in a hook that
+% runs when the document begins and does nothing where hyperref is absent, so
+% this file neither requires hyperref nor cares whether it is loaded before or
+% after it.
+\AtBeginDocument{\ifdefined\pdfstringdefDisableCommands
+  \pdfstringdefDisableCommands{%
+    \def\EscVerb[#1]#2{#2}%
+    \def\flmVerbatimBlock[#1]#2#3{#3}%
+  }\fi}
+\endinput

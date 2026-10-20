@@ -1,0 +1,17 @@
+[image: x]
+
+Only text, no image.
+
+[image: figures/y.png]
+
+One
+
+Unlabeled.
+
+[image: figures/z.png]
+
+Zed
+
+[image: figures/w.png]
+
+See figure:w.

@@ -1,0 +1,122 @@
+Tables of cells
+===============
+
+A table between paragraphs, the first example of the Python product’s
+documentation:
+
+Header 1      Header 2
+------------  ------------
+Row 1, Col 1  Row 1, Col 2
+Row 2, Col 1  Row 2, Col 2
+
+A header spanning two columns, then data placed from the second column on:
+
+     Hi!
+  -  ---  -  -
+  A  B    C  D
+  E  F    G  H
+
+Merged cells from a mapping:
+
+      A    AA
+      B    BB
+
+Styles per column, a mapping permuting the columns, and a cell overriding its
+entry:
+
+One  Two  Three
+---  ---  -----  
+C    B    A
+A    B    C
+
+Every token, with names for the rows and the columns:
+
+Name                 City                     Height
+-------------------  -----------------------  ------
+John                 Berlin                     1.80
+Anna                         Zurich             1.65
+Two columns by name                            Last
+                     To the end of the table
+
+  Name   Value
+  Alpha  1
+  Beta   2
+
+Table 1: A simple table.
+
+See Tab. 1 and Table 1.
+
+• An item holding a table:
+
+  Key  Value
+  ---  -----
+  a    1
+
+A footnote holding blocks.¹
+
+Content                                                         Nested
+--------------------------------------------------------------  ------
+A formula \(x^2\), a reference to Tables of cells and a note².  n  m
+                                                                -  -
+A second paragraph.                                             1  2
+
+Mistakes
+========
+
+Content outside a cell:
+
+[dropped: content outside \cell]
+
+A  B
+
+A placement that cannot be read:
+
+A  P
+
+A command among the styles:
+
+S
+
+An unknown style:
+
+U
+
+A value a style does not take:
+
+V
+
+Names that cannot be:
+
+N
+
+Two cells on one position:
+
+[dropped: cell overlapping another]
+
+O
+
+A table too large:
+
+[dropped: cell making the table too large]
+
+T
+
+An empty table:
+
+A blank line inside a row’s data:
+
+A B  C
+
+Commands outside their table:
+
+x                               y [dropped: & out of place] z
+v [dropped: \\ out of place] w
+
+Footnotes
+---------
+
+¹ Its first paragraph.
+
+  c  d
+
+² In a cell.

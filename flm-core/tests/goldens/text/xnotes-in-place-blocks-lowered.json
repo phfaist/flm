@@ -1,0 +1,71 @@
+[
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "Two paragraphs."
+      }
+    ],
+    "payload": {}
+  },
+  {
+    "elem": "flm.pres.block",
+    "body": [
+      {
+        "elem": "flm.pres.par",
+        "body": [
+          {
+            "chars": "["
+          },
+          {
+            "elem": "flm.pres.span",
+            "body": [
+              {
+                "chars": "1"
+              }
+            ],
+            "payload": {
+              "style": "superscript",
+              "role": "flm.xnotes.xnote.mark",
+              "anchor": "fnref--1yuhk"
+            }
+          },
+          {
+            "chars": "First paragraph."
+          }
+        ],
+        "payload": {}
+      },
+      {
+        "elem": "flm.pres.par",
+        "body": [
+          {
+            "chars": "Second paragraph."
+          },
+          {
+            "chars": "]"
+          }
+        ],
+        "payload": {}
+      }
+    ],
+    "payload": {
+      "role": "flm.xnotes.xnote.inplace",
+      "kinds": [
+        "xnotes",
+        "footnote"
+      ],
+      "anchor": "fn-1",
+      "doc_role": "footnote"
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "And on."
+      }
+    ],
+    "payload": {}
+  }
+]

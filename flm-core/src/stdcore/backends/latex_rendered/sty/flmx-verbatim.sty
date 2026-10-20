@@ -1,0 +1,62 @@
+% flm.latex.def.flmx.verbatim -- verbatim text.
+%
+% Verbatim text is written as ordinary LaTeX text in which every character
+% stands for itself: the special characters escaped (\{, \}, \%, \&, \#, \_,
+% \$, \textbackslash{}, \textasciitilde{}, \textasciicircum{}), every space a
+% control space (\ ), a tab four of them. No verbatim catcodes are used, so
+% verbatim text may stand anywhere: in a list item, a footnote, a table
+% cell, a template's argument. The elements:
+%   \flmxVerbatim[kind, lang]{<text>}
+%       inline verbatim text; default: the text in \flmxVerbatimFont.
+%   \begin{flmxVerbatimBlock}[kind, lang]
+%   \flmxVerbLine{<line>}
+%   ...
+%   \end{flmxVerbatimBlock}
+%       a block, one \flmxVerbLine per line (an empty line is
+%       \flmxVerbLine{}); default: a paragraph group in \flmxVerbatimFont
+%       with \parindent and \parskip zero, ragged right, each line
+%       \par\noindent\strut<line>, between the hooks \flmxVerbatimBlockBegin
+%       and \flmxVerbatimBlockEnd (empty by default; redefine them for a
+%       frame or a background).
+% Their keys:
+%   kind   text (characters), code (computer code) or a (an identifier,
+%          such as a keyword or a name);
+%   lang   the language the text is written in, where one was given.
+%
+% The three kinds share one default. A template distinguishes them, or a
+% language, by registering a look per kind:
+%   \flmxDefineVerbatim{<kind>}{<code over #1, the text>}
+%   \flmxDefineVerbatimBlock{<kind>}{<begin code>}{<end code>}
+% and replaces the font with \renewcommand\flmxVerbatimFont{...} (the font
+% switch, \ttfamily by default), the defaults with
+% \flmxDefineVerbatimDefault{<code over #1>} and
+% \flmxDefineVerbatimBlockDefault{<begin>}{<end>}, and the line with
+% \renewcommand\flmxVerbLine[1]{...}.
+
+\ExplSyntaxOn
+
+\NewDocumentCommand \flmxVerbatimFont { } { \ttfamily }
+\NewDocumentCommand \flmxVerbatimBlockBegin { } { }
+\NewDocumentCommand \flmxVerbatimBlockEnd { } { }
+
+\NewDocumentCommand \flmxVerbatim { O { } +m }
+  { \__flmx_command:nnnn { verbatim } { kind } {#1} {#2} }
+\flmxDefineVerbatimDefault { { \flmxVerbatimFont #1 } }
+
+\NewDocumentEnvironment { flmxVerbatimBlock } { O { } }
+  { \__flmx_env_begin:nnn { verbatimblock } { kind } {#1} }
+  { \__flmx_env_end:n { verbatimblock } }
+\flmxDefineVerbatimBlockDefault
+  {
+    \par
+    \flmxVerbatimBlockBegin
+    \flmxVerbatimFont
+    \setlength \parindent { 0pt }
+    \setlength \parskip { 0pt }
+    \raggedright
+  }
+  { \par \flmxVerbatimBlockEnd }
+
+\NewDocumentCommand \flmxVerbLine { m } { \par \noindent \strut #1 }
+
+\ExplSyntaxOff

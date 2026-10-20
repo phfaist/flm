@@ -1,0 +1,56 @@
+# An editorial article built from FLM's semantic HTML and rendered pieces.
+output: html
+engine: minijinja
+main: blogpost.html
+accepts: all
+requires: [flm.toc]
+
+config:
+  brand_name: ""
+  brand_url: ""
+  logo_url: ""
+  logo_alt: ""
+  breadcrumbs: []
+  lead_image_url: ""
+  lead_image_alt: ""
+  lead_image_caption: ""
+  contents_title: Contents
+  footer_text: ""
+  footer_links: []
+  theme: light
+  code_theme: auto
+  figure_background: auto
+  text_size: standard
+  remember_preferences: true
+  reader_controls: true
+  reading_time: true
+  copy_code: true
+  zoom_figures: true
+  heading_links: true
+  motion: subtle
+  section_reveal: true
+  heading_accent: true
+  smooth_scroll: true
+  reading_progress: true
+  label_skip_content: Skip to content
+  label_breadcrumbs: Breadcrumbs
+  label_preferences: Reading preferences
+  label_text_size: Text size
+  label_small: Small
+  label_standard: Default
+  label_large: Large
+  label_scroll_effects: Scroll effects
+  label_reduced_motion: Effects are off to respect your device's reduced-motion preference.
+  label_disabled_motion: Effects are disabled for this document.
+  label_light_theme: Switch to light appearance
+  label_dark_theme: Switch to dark appearance
+  label_progress: Article reading progress
+  label_minutes: min read
+  label_copy: Copy code
+  label_copied: Code copied
+  label_copy_unavailable: Copy is unavailable. Select the code and use your browser's Copy command.
+  label_expand: Expand figure
+  label_close: Close expanded figure
+  label_figure: Figure
+  label_footer: Footer
+  label_link_heading: Link to this heading

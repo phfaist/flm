@@ -1,0 +1,3174 @@
+[
+  {
+    "name": "feature",
+    "what": "A feature is a unit of the registry: it declares commands, stages, tables, settings and the other entities listed here, under names it owns.",
+    "entries": [
+      {
+        "name": "textstyles",
+        "summary": "The inline formatting commands `\\emph`, `\\textbf`, `\\textit` and `\\texttt`: four values of the element type `flm.textstyle`, each lowered to a `flm.pres.span` node that carries its style."
+      },
+      {
+        "name": "literals",
+        "summary": "The commands that stand for one character of text (`\\%`, `\\#`, `\\&`, `\\$`, `\\ `, `\\{`, `\\}`, `\\textbackslash`) and the special character sequence `~` for a non-breaking space: nine values of the element type `flm.literal`. Also `\\@`, a hint about whether a period ends a sentence."
+      },
+      {
+        "name": "blocks",
+        "summary": "Lays out every document tree in paragraphs and blocks, from the block role of each element and the layout it declares for its arguments and body, and resolves the text once: the `flm.blocks.structure` rewrite stage provides `flm.blocks.structured`; the `flm.blocks.raw` marker stage keeps the trees as parsed; the `flm.blocks.check-contract` stage checks the tree contract."
+      },
+      {
+        "name": "index",
+        "summary": "The element index `flm.element-index`: for every tree, the nodes of the tree and the element each carries, in document order, so that a stage finds the nodes whose element carries an aspect without walking the tree."
+      },
+      {
+        "name": "refpoints",
+        "summary": "The table `flm.refpoints`: every reference point of the run (a place that can be referred to, numbered or given an anchor), as its element declared it, in document order; the `refs` and `numbering` features read it."
+      },
+      {
+        "name": "numbering",
+        "summary": "Counters, counter styles and the numbers of reference points: the five service slots into which features declare counters, counter styles, within-joiners, number writers and parent sets, the per-document numbering options, the stage that numbers, in document order, every reference point that has a number source, and the table `flm.counters` it writes."
+      },
+      {
+        "name": "math",
+        "summary": "Mathematics: the display-math environments and their equation lines, the text commands of math mode, `\\ensuremath`, `\\eqref`, equation numbering, and the capabilities `flm.math.content` and `flm.math.rendered`. A feature that processes mathematics (`math-passthrough`) checks and lowers the formulas."
+      },
+      {
+        "name": "refs",
+        "summary": "Labels and references: the `\\ref` and `\\hyperref` commands, the labels written after constructs, the link identifier of every reference point, the resolution of every reference, and the check of duplicate labels and label types."
+      },
+      {
+        "name": "headings",
+        "summary": "Headings: one value of the element `flm.heading` per heading kind, written with the kind's heading commands (`\\section` to `\\subparagraph` by default); each heading carries a level, a reference point and its `\\label` fields."
+      },
+      {
+        "name": "verbatim",
+        "summary": "Content shown exactly as written: the macros `\\verbtext`, `\\verbcode` and `\\verba` and the environments `verbatimtext` and `verbatimcode`, each lowered to a `flm.pres.verbatim` node that carries its verbatim kind and its language."
+      },
+      {
+        "name": "lists",
+        "summary": "The list environments as element values of `flm.lists.list`, `\\item` inside their bodies, the label shown beside each item, and one reference point per item."
+      },
+      {
+        "name": "xnotes",
+        "summary": "Footnotes and the other kinds of xnote (notes set apart from the running text): the configured kinds and their commands, the two reference points of every xnote, the service slot `flm.xnotes.kinds` of the kinds, and the table `flm.xnotes` of every xnote of a document by kind."
+      },
+      {
+        "name": "href",
+        "summary": "Links to an address outside the document: `\\href{address}{text}`, `\\url{address}` and `\\email{address}`, lowering to `flm.pres.link` with the kind token `url`."
+      },
+      {
+        "name": "defterm",
+        "summary": "Defined terms: the `defterm` environment, which defines a term and carries one reference point, and `\\term`, a link to a term's definition, which the references feature resolves."
+      },
+      {
+        "name": "theorems",
+        "summary": "Theorem-like environments (`theorem`, `lemma`, `proof`, …), one per configured kind, all of the element `flm.theorems.theorem`: each with an optional title, numbered and labeled where its kind's class is numbered, a heading at the start of its first paragraph, an optional closing mark, and, on a proof, a back-reference to the statement it proves."
+      },
+      {
+        "name": "quote",
+        "summary": "Quotations: the quote environments (`quote`, `blockquote`, `address` and any a host configures), their quotation-section commands `\\text`, `\\lines`, `\\attributed` and `\\block`, and the commands `\\\\` and `\\indent` of a lines section."
+      },
+      {
+        "name": "annotations",
+        "summary": "A reviewer's marks: one command per configured annotator, written `\\phf{…}` or `\\phf … \\endphf` for a highlighted passage and `\\phf[…]` for a remark, with `phf` the annotator's command."
+      },
+      {
+        "name": "graphics",
+        "summary": "Images, written `\\includegraphics[options]{path}` inside the body of a float type that makes the command available (the `figure` and `table` types do) or, under `global`, wherever text can be written: inline content, except as a direct child of a float's body, where an image is a block. The file that a host's graphics resolver finds and what its inspector reports about it are recorded; each output publishes the image by reference, as a copy beside the output or written into a `data:` address, converted where a conversion rule says so. On the plain-text, HTML and rendered LaTeX outputs the image lowers to `flm.pres.image` with the published address, on the recomposed LaTeX to the LaTeX hook `\\flmIncludeGraphics`."
+      },
+      {
+        "name": "floats",
+        "summary": "Floats such as figures and tables: one environment per float type, each an element value of `flm.floats.float`, holding content with an optional caption, labels and a number given by the type's numbering policy."
+      },
+      {
+        "name": "cells",
+        "summary": "The `cells` environment, inside a `table` float or, under `global`, wherever blocks can be written: a grid filled with `\\cell` and `\\celldata`, cells spanning rows or columns with `\\merge`, names for rows and columns with `\\rownames` and `\\colnames`, and style tokens referring to the cell styles of the service slot `flm.cells.styles`."
+      },
+      {
+        "name": "citations",
+        "summary": "Citing works by key: `\\cite[note]{keys}`, adjacent calls read as one citation chunk, and `\\R\\cite{keys}`, a citation written as a noun of its sentence. The host's citation providers give each cited citation key its citation entry and say which citation keys refer to the same work; the works are numbered in order of first citation, each citation chunk is shown as a citation mark linking to its works, and the works are listed after the content, or their citation entries are shown in the citation marks."
+      },
+      {
+        "name": "input",
+        "summary": "`\\input{file}`: the content of another file, parsed where the command is written and put in place of the command by the rewrite `flm.input.splice`, which publishes `flm.input.spliced`."
+      },
+      {
+        "name": "userdefs",
+        "summary": "Macros, environments and special character sequences defined by substitution. Each definition is an element carrying the `Expand` aspect. The rewrite stages `flm.userdefs.expand-always` and `flm.userdefs.expand` expand the use sites of the `always` and of the `per-plan` definitions; the `flm.userdefs.keep` marker stage keeps the latter in the tree instead. Every definition's `expand-in-tree` rule gives its element a rule on every backend; a `per-plan` definition's `emit-call` and `instantiate-at-lowering` rules lower a use site kept in the tree. The templates are compiled when the registry is built, which also records whether each definition can be written as one LaTeX definition."
+      },
+      {
+        "name": "lowering",
+        "summary": "the presentation vocabulary, the field element and the structural elements' default lowering rules"
+      },
+      {
+        "name": "meta",
+        "summary": "The document's metadata (its title, its authors, its date and any other key) as an option set per document, and the three pieces that show the title, the authors and the date before the content."
+      },
+      {
+        "name": "toc",
+        "summary": "The document's table of contents: the table `flm.toc.entries` of the listed headings, and the piece `flm.toc` (off by default) that shows them as nested lists before the content."
+      },
+      {
+        "name": "pieces",
+        "summary": "the service slot into which features declare the document-level values a backend places before or after the content, and the render option that chooses which of them a render request places"
+      },
+      {
+        "name": "text",
+        "summary": "plain-text output over the layout engine: the `text` output and workflow"
+      },
+      {
+        "name": "latex",
+        "summary": "registers what every LaTeX backend shares: the LaTeX construct elements, the placeholder rule, the service slots through which a backend resolves LaTeX package requests and definition pieces, and the standard package definitions and definition pieces"
+      },
+      {
+        "name": "latex-recomposed",
+        "summary": "the document recomposed into LaTeX from the raw tree: the `latex-recomposed` output and workflow, a body and a style file"
+      },
+      {
+        "name": "latex-rendered",
+        "summary": "the document as fully resolved LaTeX for LuaLaTeX, written through one command or environment per presentation element: the `latex-rendered` output and workflow, a document and a style file"
+      },
+      {
+        "name": "html",
+        "summary": "HTML output for a browser: the construct element `flm.pres.html.tag`, the `html` backend, the `html` output and the `html` workflow"
+      },
+      {
+        "name": "check",
+        "summary": "The collection `flm.validated`, which every check joins, and the `check` workflow, which demands it: the document is validated and no output is written."
+      },
+      {
+        "name": "math-passthrough",
+        "summary": "Mathematics carried to the output as written: unknown macros and environments in math mode kept as source (`flm.math-passthrough.opaque`), the check `flm.math.content`, which accepts every formula, and the lowering rules of the formulas on every backend. Requires the `math` feature."
+      }
+    ]
+  },
+  {
+    "name": "package",
+    "what": "A package is a named bundle of features, together with the packages it builds on, that a document or the program chooses to use.",
+    "entries": [
+      {
+        "name": "stdcore"
+      },
+      {
+        "name": "math-passthrough"
+      }
+    ]
+  },
+  {
+    "name": "element",
+    "what": "An element type says what a node of a document's tree means; the nodes of every command carry an element of one type.",
+    "entries": [
+      {
+        "name": "flm.text",
+        "owner": "flm",
+        "summary": "a run of text characters"
+      },
+      {
+        "name": "flm.comment",
+        "owner": "flm",
+        "summary": "a source comment"
+      },
+      {
+        "name": "flm.container",
+        "owner": "flm",
+        "summary": "a container that holds content without meaning anything itself"
+      },
+      {
+        "name": "flm.group",
+        "owner": "flm",
+        "summary": "a `{…}` content group"
+      },
+      {
+        "name": "flm.math",
+        "owner": "flm",
+        "summary": "a mathematics group"
+      },
+      {
+        "name": "flm.verbatim",
+        "owner": "flm",
+        "summary": "a verbatim group, the parent of a run of raw text"
+      },
+      {
+        "name": "flm.paragraph",
+        "owner": "flm",
+        "summary": "a paragraph"
+      },
+      {
+        "name": "flm.parbreak",
+        "owner": "flm",
+        "summary": "a paragraph break (a blank line in the source)"
+      },
+      {
+        "name": "flm.placeholder",
+        "owner": "flm",
+        "summary": "a placeholder of a template (`#1`, `#{name}`), replaced by content when the template is expanded"
+      },
+      {
+        "name": "flm.unknown.macro",
+        "owner": "flm",
+        "summary": "a macro the parse could not attribute to any feature, reported as an error"
+      },
+      {
+        "name": "flm.unknown.environment",
+        "owner": "flm",
+        "summary": "an environment the parse could not attribute to any feature, reported as an error; its body is block content"
+      },
+      {
+        "name": "flm.textstyle",
+        "owner": "textstyles",
+        "summary": "Semantic emphasis of its content."
+      },
+      {
+        "name": "flm.literal",
+        "owner": "literals",
+        "summary": "The character `%`, written `\\%`."
+      },
+      {
+        "name": "flm.sentence-spacing",
+        "owner": "literals",
+        "summary": "A hint about the space after a period: whether that period ends a sentence. It produces no character."
+      },
+      {
+        "name": "flm.math.environment",
+        "owner": "math",
+        "summary": "The `equation` display-math environment."
+      },
+      {
+        "name": "flm.math.text",
+        "owner": "math",
+        "summary": "`\\text{…}` inside mathematics: its argument is document content, read in text mode."
+      },
+      {
+        "name": "flm.math.ensuremath",
+        "owner": "math",
+        "summary": "`\\ensuremath{…}` in text: an inline formula, as `\\(…\\)`."
+      },
+      {
+        "name": "flm.math.eqref",
+        "owner": "math",
+        "summary": "A reference to an equation line that shows its number in parentheses."
+      },
+      {
+        "name": "flm.ref",
+        "owner": "refs",
+        "summary": "A reference to a labeled place, showing its number, else its content, else the label."
+      },
+      {
+        "name": "flm.hyperref",
+        "owner": "refs",
+        "summary": "A reference to a labeled place, showing the text written for it."
+      },
+      {
+        "name": "flm.heading",
+        "owner": "headings",
+        "summary": "`section`: A heading of level 1."
+      },
+      {
+        "name": "flm.field",
+        "owner": "headings",
+        "summary": "The field `\\label`, which the construct it is written after reads as data."
+      },
+      {
+        "name": "flm.heading.number",
+        "owner": "headings",
+        "summary": "The number of a numbered heading, where the kind's heading title template writes `#{number}`. No document can write it."
+      },
+      {
+        "name": "flm.verbatim.macro",
+        "owner": "verbatim",
+        "summary": "`\\verbtext`: inline verbatim content of kind `text`."
+      },
+      {
+        "name": "flm.verbatim.environment",
+        "owner": "verbatim",
+        "summary": "`\\begin{verbatimtext}…\\end{verbatimtext}`: verbatim content of kind `text`."
+      },
+      {
+        "name": "flm.lists.list",
+        "owner": "lists",
+        "summary": "`description`: a list whose items are unnumbered."
+      },
+      {
+        "name": "flm.xnotes.footnote.list",
+        "owner": "xnotes",
+        "summary": "The list of the `footnote` xnotes of a document."
+      },
+      {
+        "name": "flm.xnotes.xnote",
+        "owner": "xnotes",
+        "summary": "`\\footnote`: a note of the xnote kind `footnote`."
+      },
+      {
+        "name": "flm.xnotes.entry",
+        "owner": "xnotes",
+        "summary": "One entry of a list of xnotes, holding a pointer to the xnote's content."
+      },
+      {
+        "name": "flm.xnotes.mark-of",
+        "owner": "xnotes",
+        "summary": "The mark of an xnote, written in its place in content shown again."
+      },
+      {
+        "name": "flm.xnotes.content-pointer",
+        "owner": "xnotes",
+        "summary": "The content of an xnote, shown where this node is placed."
+      },
+      {
+        "name": "flm.href.link",
+        "owner": "href",
+        "summary": "`\\href`: a hyperlink to an address outside the document."
+      },
+      {
+        "name": "flm.defterm",
+        "owner": "defterm",
+        "summary": "The definition of a term (the `defterm` environment), the target of the term links to that term."
+      },
+      {
+        "name": "flm.field",
+        "owner": "defterm",
+        "summary": "The field `\\label`, which the construct it is written after reads as data."
+      },
+      {
+        "name": "flm.term",
+        "owner": "defterm",
+        "summary": "A link to the definition of a term, showing the text written for it."
+      },
+      {
+        "name": "flm.defterm.term-pointer",
+        "owner": "defterm",
+        "summary": "The term of a term definition, shown where a lead-in template places `#{term}`; synthesized, never written in a document."
+      },
+      {
+        "name": "flm.theorems.theorem",
+        "owner": "theorems",
+        "summary": "`conjecture`: a theorem-like environment of the theorem class `theoremlike`."
+      },
+      {
+        "name": "flm.field",
+        "owner": "theorems",
+        "summary": "The field `\\label`, which the construct it is written after reads as data."
+      },
+      {
+        "name": "flm.theorems.name",
+        "owner": "theorems",
+        "summary": "The kind's word and the theorem's number in a theorem's heading; synthesized, never written in a document."
+      },
+      {
+        "name": "flm.theorems.title-pointer",
+        "owner": "theorems",
+        "summary": "The title of a theorem, shown where its heading template places `#{title}`; synthesized, never written in a document."
+      },
+      {
+        "name": "flm.theorems.relation",
+        "owner": "theorems",
+        "summary": "The statement a proof refers to, shown where its heading template places `#{title}`; synthesized, never written in a document."
+      },
+      {
+        "name": "flm.quote",
+        "owner": "quote",
+        "summary": "`address`: a quote environment, a quotation set apart from the running text."
+      },
+      {
+        "name": "flm.floats.float",
+        "owner": "floats",
+        "summary": "A float: one element value per float type, each written as the environment of the type's name."
+      },
+      {
+        "name": "flm.citations.cite",
+        "owner": "citations",
+        "summary": "A citation chunk, `\\cite[note]{keys}`, attached to the content before it."
+      },
+      {
+        "name": "flm.field",
+        "owner": "citations",
+        "summary": "The field `\\cite`, which the construct it is written after reads as data."
+      },
+      {
+        "name": "flm.citations.refcite",
+        "owner": "citations",
+        "summary": "A citation chunk written as a noun, `\\R\\cite{keys}`, after a word, `ref.~` or `refs.~` by default."
+      },
+      {
+        "name": "flm.citations.bibliography",
+        "owner": "citations",
+        "summary": "A list of cited works."
+      },
+      {
+        "name": "flm.citations.bibliography.entry",
+        "owner": "citations",
+        "summary": "One entry of a list of cited works."
+      },
+      {
+        "name": "flm.input",
+        "owner": "input",
+        "summary": "`\\input{file}`: the content of another file, brought in where the command is written."
+      },
+      {
+        "name": "flm.field",
+        "owner": "lowering",
+        "summary": "A field: a macro that a construct absorbs as data rather than as content, such as the `\\label` written after a heading; only the construct that declared the field reads it."
+      },
+      {
+        "name": "flm.meta.title",
+        "owner": "meta",
+        "summary": "The document's title."
+      },
+      {
+        "name": "flm.meta.author",
+        "owner": "meta",
+        "summary": "The document's authors, one author per child."
+      },
+      {
+        "name": "flm.meta.author.name",
+        "owner": "meta",
+        "summary": "One author of the document."
+      },
+      {
+        "name": "flm.meta.date",
+        "owner": "meta",
+        "summary": "The document's date."
+      },
+      {
+        "name": "flm.toc",
+        "owner": "toc",
+        "summary": "The table of contents: one list of entries."
+      },
+      {
+        "name": "flm.toc.list",
+        "owner": "toc",
+        "summary": "A list of entries of the table of contents."
+      },
+      {
+        "name": "flm.toc.entry",
+        "owner": "toc",
+        "summary": "One entry of the table of contents: the title, then the list of its sub-entries."
+      },
+      {
+        "name": "flm.math-passthrough.opaque",
+        "owner": "math-passthrough",
+        "summary": "A macro or environment that no feature declares, written in math mode: the node keeps its source as written, because mathematical notation uses an open-ended set of commands."
+      },
+      {
+        "name": "flm.field",
+        "owner": "math",
+        "summary": "A `\\\\` inside a display-math environment: the end of an equation line, with the optional vertical spacing written after it."
+      },
+      {
+        "name": "flm.field",
+        "owner": "refs",
+        "summary": "A `\\label{type:label}` inside an argument that accepts labels: a label attached to the construct the argument belongs to."
+      },
+      {
+        "name": "flm.lists.item",
+        "owner": "lists",
+        "summary": "`\\item`: begins an item of the list in whose body it is written."
+      },
+      {
+        "name": "flm.field",
+        "owner": "lists",
+        "summary": "The field `\\label`, which the construct it is written after reads as data."
+      },
+      {
+        "name": "flm.quote.section",
+        "owner": "quote",
+        "summary": "`\\text{…}`: a text section of a quotation."
+      },
+      {
+        "name": "flm.field",
+        "owner": "quote",
+        "summary": "A `\\\\` inside a lines section of a quotation: the end of a line."
+      },
+      {
+        "name": "flm.graphics.image",
+        "owner": "graphics",
+        "summary": "`\\includegraphics[options]{path}`: an image the document shows."
+      },
+      {
+        "name": "flm.field",
+        "owner": "floats",
+        "summary": "A `\\caption[alt=…]{…}` in a float's body: the float's caption."
+      },
+      {
+        "name": "flm.cells.cells",
+        "owner": "cells",
+        "summary": "`\\begin{cells}…\\end{cells}`: a table of cells."
+      },
+      {
+        "name": "flm.cells.cell",
+        "owner": "cells",
+        "summary": "`\\cell<styles>[placement]{content}`: one cell of a table of cells."
+      },
+      {
+        "name": "flm.cells.data",
+        "owner": "cells",
+        "summary": "`\\celldata<styles>[mapping]{data}`: several cells of a table of cells, by rows."
+      },
+      {
+        "name": "flm.cells.row",
+        "owner": "cells",
+        "summary": "`\\\\` in a table of cells: the next cell starts a new row."
+      },
+      {
+        "name": "flm.cells.rownames",
+        "owner": "cells",
+        "summary": "`\\rownames{names}`: names for the rows of a table of cells."
+      },
+      {
+        "name": "flm.cells.colnames",
+        "owner": "cells",
+        "summary": "`\\colnames{names}`: names for the columns of a table of cells."
+      },
+      {
+        "name": "flm.cells.merge",
+        "owner": "cells",
+        "summary": "`\\merge{range}`: a span of rows or of columns, in a cell's placement."
+      },
+      {
+        "name": "flm.cells.column",
+        "owner": "cells",
+        "summary": "`&` in the data of `\\celldata`: the end of an entry."
+      }
+    ]
+  },
+  {
+    "name": "capability",
+    "what": "A capability is a named condition that a stage brings about when it runs, such as a table having been written; a plan schedules the stages that provide the capabilities it needs.",
+    "entries": [
+      {
+        "name": "flm.blocks",
+        "owner": "blocks",
+        "summary": "A decision about block structure has been made: the trees are laid out in paragraphs and blocks (`flm.blocks.structured`, the default) or kept as parsed (`flm.blocks.raw`)."
+      },
+      {
+        "name": "flm.blocks.raw",
+        "owner": "blocks",
+        "summary": "The trees are kept as parsed: no paragraphs, and the text unresolved. The alternative to `flm.blocks.structured`; a plan that demands both is refused."
+      },
+      {
+        "name": "flm.blocks.contract-checked",
+        "owner": "blocks",
+        "summary": "Every frozen tree satisfies the parts of the tree contract that the plan's trees are subject to, or its violations have been reported as `flm.blocks.contract-violated`. A member of `flm.validated`."
+      },
+      {
+        "name": "flm.math.content",
+        "owner": "math",
+        "summary": "The mathematics of the document has been checked. No stage of the `math` feature provides it: a feature that processes mathematics provides it with a check of its own and adds that check to the collection `flm.validated` (the feature of the package `math-passthrough` accepts every formula)."
+      },
+      {
+        "name": "flm.math.rendered",
+        "owner": "math",
+        "summary": "Some rendered form of the mathematics exists. No standard feature provides it; an extension that renders mathematics provides a refinement."
+      },
+      {
+        "name": "flm.refs.check-labels",
+        "owner": "refs",
+        "summary": "The labels have been checked: every label written for two reference points and every label whose type its point does not accept has been reported as an Error, and every reference has been resolved, a reference that points at no label being reported."
+      },
+      {
+        "name": "flm.theorems.check-proofs",
+        "owner": "theorems",
+        "summary": "The theorems have been checked: every statement expecting a proof that no proof refers back to and that carries no `\\noproofref` was reported as a Warning, and every title that begins with a star but is not a well-formed back-reference as an Error. A member of `flm.validated`."
+      },
+      {
+        "name": "flm.floats.check-handlers",
+        "owner": "floats",
+        "summary": "Each content handler that a float type used in the document lists, and that no registered feature contributes, has been reported once. A member of `flm.validated`."
+      },
+      {
+        "name": "flm.citations.check",
+        "owner": "citations",
+        "summary": "The citations have been checked: every cited key with no citation entry was reported as an Error. A member of `flm.validated`."
+      },
+      {
+        "name": "flm.userdefs",
+        "owner": "userdefs",
+        "summary": "A decision about the `per-plan` user definitions has been made: their use sites are expanded in the tree (`flm.userdefs.expanded`, the default) or kept in the tree for the lowering rules (`flm.userdefs.kept`)."
+      },
+      {
+        "name": "flm.userdefs.kept",
+        "owner": "userdefs",
+        "summary": "The use sites of the `per-plan` user definitions are kept in the tree, for a lowering rule to expand or to write as a call. The alternative to `flm.userdefs.expanded`; a plan that demands both is refused."
+      },
+      {
+        "name": "flm.meta.read",
+        "owner": "meta",
+        "summary": "The document's metadata has been parsed, and every problem the parse found has been reported. A member of `flm.validated`."
+      },
+      {
+        "name": "flm.output.html.singlefile",
+        "owner": "html",
+        "summary": "the page written as one HTML file"
+      },
+      {
+        "name": "flm.blocks.structured",
+        "owner": "blocks",
+        "summary": "Lays out each tree in paragraphs and blocks, from the block role of each element and the layout it declares for its arguments and body, and resolves the text once. Publishes the trees as `flm.blocks.structured`, the default refinement of `flm.blocks`."
+      },
+      {
+        "name": "flm.element-index",
+        "owner": "index",
+        "summary": "For every tree, every node whose element a feature registered, in document order, with the number the registry assigned to that element."
+      },
+      {
+        "name": "flm.refpoints",
+        "owner": "refpoints",
+        "summary": "Every reference point that a node's element declares through the `Referenceable` aspect, whole, in document order, with lookup by the point's identity."
+      },
+      {
+        "name": "flm.counters",
+        "owner": "numbering",
+        "summary": "Every reference point the numbering stage read, with its counter, its counter value, the counters it is numbered within and its counter style, or nothing for a point that is not numbered."
+      },
+      {
+        "name": "flm.labels",
+        "owner": "refs",
+        "summary": "For every label, the reference point that keeps it; the labels written more than once; and the labels whose type their point does not accept."
+      },
+      {
+        "name": "flm.anchors",
+        "owner": "refs",
+        "summary": "Every reference point's anchor (the identifier a link points at), formed from its first label, its title, its position or its number, or given by its element, or none when the point has nothing to form it from or an earlier point holds the same one."
+      },
+      {
+        "name": "flm.refs.targets",
+        "owner": "refs",
+        "summary": "For every label whose point received an anchor: the reference point that keeps it, its link target (`#` and the anchor) and what a reference to it shows; read by the resolve stage."
+      },
+      {
+        "name": "flm.refs.resolutions",
+        "owner": "refs",
+        "summary": "How every reference site resolved: to a reference point of this document, to a label of another document from the external index, or not at all."
+      },
+      {
+        "name": "flm.refs.external-index",
+        "owner": "refs",
+        "summary": "Labels of other documents, each with its link target and the content a reference to it shows; installed by the caller when the run is constructed, and read only when installed."
+      },
+      {
+        "name": "flm.labels.safe",
+        "owner": "refs",
+        "summary": "For the recomposed LaTeX: the safe label (`ref1`, `ref2`, …) written in place of every label whose type is not written raw, numbered in the order the document first mentions the labels, and the reverse correspondence."
+      },
+      {
+        "name": "flm.labels.safe.value",
+        "owner": "refs",
+        "summary": "For the recomposed LaTeX: for every reference node of a synthesized value, the name written for each target that has no safe label in the document (`ref-v1`, …); held in the value's catch-up store, and empty for a document tree."
+      },
+      {
+        "name": "flm.xnotes.list.footnote",
+        "owner": "xnotes",
+        "summary": "The list of the `footnote` xnotes of the document: a synthesized value, or nothing to place."
+      },
+      {
+        "name": "flm.xnotes",
+        "owner": "xnotes",
+        "summary": "Every xnote of the document, by xnote kind, in document order: its reference point and the reference point of its mark."
+      },
+      {
+        "name": "flm.graphics.info",
+        "owner": "graphics",
+        "summary": "what is known about each image, by node address: its path, its origin, the file the resolver found and the inspector's result, completed"
+      },
+      {
+        "name": "flm.graphics.published.text",
+        "owner": "graphics",
+        "summary": "the address the `text` backend writes for each image, by node address"
+      },
+      {
+        "name": "flm.graphics.published.html",
+        "owner": "graphics",
+        "summary": "the address the `html` backend writes for each image, by node address"
+      },
+      {
+        "name": "flm.graphics.published.latex-recomposed",
+        "owner": "graphics",
+        "summary": "the address the `latex-recomposed` backend writes for each image, by node address"
+      },
+      {
+        "name": "flm.graphics.published.latex-rendered",
+        "owner": "graphics",
+        "summary": "the address the `latex-rendered` backend writes for each image, by node address"
+      },
+      {
+        "name": "flm.citations.keys",
+        "owner": "citations",
+        "summary": "Every citation key the document cites, once, in order of first citation, with where it is first cited."
+      },
+      {
+        "name": "flm.citations",
+        "owner": "citations",
+        "summary": "The cited works of the document: for each citation key, the work it refers to, with the work's number (in order of the first citation of any of its keys), its identifier `citation-<n>` and its identity."
+      },
+      {
+        "name": "flm.citations.entries",
+        "owner": "citations",
+        "summary": "The citation entries of the cited works: for each citation key, its citation entry or the reason it has none."
+      },
+      {
+        "name": "flm.citations.bibliography",
+        "owner": "citations",
+        "summary": "The list of the cited works of the document, as a synthesized value, or nothing to place."
+      },
+      {
+        "name": "flm.input.spliced",
+        "owner": "input",
+        "summary": "Replaces every `\\input` whose file was brought in by the file's content, in place of the command among its sibling nodes. Publishes the trees as `flm.input.spliced`; runs before the expansion of user definitions and before block structure."
+      },
+      {
+        "name": "flm.userdefs.always-expanded",
+        "owner": "userdefs",
+        "summary": "Expands the use sites of the user definitions whose expansion policy is `always`. Publishes the trees as `flm.userdefs.always-expanded`, a capability that goes with either alternative of `flm.userdefs`. The lowering rule of every `always` definition requires it, so this stage is in every plan that lowers a registry holding such a definition."
+      },
+      {
+        "name": "flm.userdefs.expanded",
+        "owner": "userdefs",
+        "summary": "Expands the use sites of the user definitions whose expansion policy is `per-plan`. Publishes the trees as `flm.userdefs.expanded`, the default refinement of `flm.userdefs`. Runs after `flm.userdefs.expand-always` when both are in the plan."
+      },
+      {
+        "name": "flm.meta.title",
+        "owner": "meta",
+        "summary": "The document's title, parsed: its content, or nothing to place."
+      },
+      {
+        "name": "flm.meta.author",
+        "owner": "meta",
+        "summary": "The document's authors, parsed: their content, or nothing to place."
+      },
+      {
+        "name": "flm.meta.date",
+        "owner": "meta",
+        "summary": "The document's date, parsed: its content, or nothing to place."
+      },
+      {
+        "name": "flm.toc.entries",
+        "owner": "toc",
+        "summary": "The document's listed headings, in document order: each heading's address, level, first reference point and the content its entry shows."
+      },
+      {
+        "name": "flm.toc",
+        "owner": "toc",
+        "summary": "The table of contents as nested lists, or nothing to place."
+      },
+      {
+        "name": "flm.lowered.text",
+        "owner": "text",
+        "summary": "the text backend's lowered trees, one per document tree"
+      },
+      {
+        "name": "flm.lowered.text.pieces",
+        "owner": "text",
+        "summary": "the pieces that the render request places, lowered for the text backend"
+      },
+      {
+        "name": "flm.output.text.regions",
+        "owner": "text",
+        "summary": "the output's one region: the printed text"
+      },
+      {
+        "name": "flm.output.text",
+        "owner": "text",
+        "summary": "the printed text and its position marks, which record where each presentation node was printed"
+      },
+      {
+        "name": "flm.output.text.document",
+        "owner": "text",
+        "summary": "the printed text as a one-artifact set"
+      },
+      {
+        "name": "flm.lowered.latex-recomposed",
+        "owner": "latex-recomposed",
+        "summary": "the recomposed backend's lowered trees, one per document tree"
+      },
+      {
+        "name": "flm.output.latex-recomposed",
+        "owner": "latex-recomposed",
+        "summary": "per tree: the recomposed LaTeX, the characters it declares, the requirement identifiers it needs"
+      },
+      {
+        "name": "flm.latex-recomposed.packages",
+        "owner": "latex-recomposed",
+        "summary": "the package identifiers the recomposed trees require"
+      },
+      {
+        "name": "flm.latex-recomposed.preamble",
+        "owner": "latex-recomposed",
+        "summary": "the definition pieces the recomposed trees require and the user definitions they recomposed"
+      },
+      {
+        "name": "flm.output.latex-recomposed.document",
+        "owner": "latex-recomposed",
+        "summary": "the recomposed LaTeX and its style file as an artifact set"
+      },
+      {
+        "name": "flm.lowered.latex-recomposed.pieces",
+        "owner": "latex-recomposed",
+        "summary": "the pieces that the render request places, lowered for the recomposed backend"
+      },
+      {
+        "name": "flm.output.latex-recomposed.regions",
+        "owner": "latex-recomposed",
+        "summary": "the body, the pieces and the style file's package name"
+      },
+      {
+        "name": "flm.output.latex-recomposed.style",
+        "owner": "latex-recomposed",
+        "summary": "the style file beside the recomposed LaTeX, where it has one"
+      },
+      {
+        "name": "flm.output.latex-recomposed.artifacts",
+        "owner": "latex-recomposed",
+        "summary": "files a stage produces beside the recomposed LaTeX for it to refer to (copies of images), added to the document's set after the style file"
+      },
+      {
+        "name": "flm.lowered.latex-rendered",
+        "owner": "latex-rendered",
+        "summary": "the rendered-LaTeX backend's lowered trees, one per document tree"
+      },
+      {
+        "name": "flm.output.latex-rendered",
+        "owner": "latex-rendered",
+        "summary": "per tree: the rendered LaTeX with the trees placed in it, the requirement identifiers and the definitions it staged"
+      },
+      {
+        "name": "flm.lowered.latex-rendered.pieces",
+        "owner": "latex-rendered",
+        "summary": "the pieces that the render request places, lowered for the rendered-LaTeX backend"
+      },
+      {
+        "name": "flm.output.latex-rendered.pieces",
+        "owner": "latex-rendered",
+        "summary": "the rendered LaTeX of each piece the render request places, with its words and requirements"
+      },
+      {
+        "name": "flm.output.latex-rendered.regions",
+        "owner": "latex-rendered",
+        "summary": "the content, the pieces and the style file's package name"
+      },
+      {
+        "name": "flm.output.latex-rendered.style",
+        "owner": "latex-rendered",
+        "summary": "the style file beside the rendered LaTeX"
+      },
+      {
+        "name": "flm.output.latex-rendered.document",
+        "owner": "latex-rendered",
+        "summary": "the rendered LaTeX document, its style file and the files beside it"
+      },
+      {
+        "name": "flm.output.latex-rendered.artifacts",
+        "owner": "latex-rendered",
+        "summary": "files a stage produces beside the rendered LaTeX for it to refer to (copies of images), added to the document's set after the style file"
+      },
+      {
+        "name": "flm.html.definitions",
+        "owner": "html",
+        "summary": "the stylesheets and scripts the page requires, each with how it is delivered"
+      },
+      {
+        "name": "flm.lowered.html",
+        "owner": "html",
+        "summary": "the HTML backend's lowered trees, one per document tree"
+      },
+      {
+        "name": "flm.output.html",
+        "owner": "html",
+        "summary": "the HTML of each document tree, and the stylesheets and scripts each tree requires"
+      },
+      {
+        "name": "flm.output.html.document",
+        "owner": "html",
+        "summary": "the page as the entry artifact, and the files beside it"
+      },
+      {
+        "name": "flm.output.html.artifacts",
+        "owner": "html",
+        "summary": "files a stage produces for the page to link to, added to the page's set"
+      },
+      {
+        "name": "flm.lowered.html.pieces",
+        "owner": "html",
+        "summary": "the pieces that the render request places, lowered for the HTML backend"
+      },
+      {
+        "name": "flm.output.html.pieces",
+        "owner": "html",
+        "summary": "the HTML of each piece that the render request places, and the stylesheets and scripts each piece requires"
+      },
+      {
+        "name": "flm.output.html.regions",
+        "owner": "html",
+        "summary": "the parts the page is made of: the content, the pieces, the stylesheets and the scripts"
+      }
+    ]
+  },
+  {
+    "name": "table",
+    "what": "A table holds data that one stage computes over a document and later stages read.",
+    "entries": [
+      {
+        "name": "flm.blocks.structured",
+        "owner": "blocks",
+        "summary": "Lays out each tree in paragraphs and blocks, from the block role of each element and the layout it declares for its arguments and body, and resolves the text once. Publishes the trees as `flm.blocks.structured`, the default refinement of `flm.blocks`."
+      },
+      {
+        "name": "flm.element-index",
+        "owner": "index",
+        "summary": "For every tree, every node whose element a feature registered, in document order, with the number the registry assigned to that element."
+      },
+      {
+        "name": "flm.refpoints",
+        "owner": "refpoints",
+        "summary": "Every reference point that a node's element declares through the `Referenceable` aspect, whole, in document order, with lookup by the point's identity."
+      },
+      {
+        "name": "flm.counters",
+        "owner": "numbering",
+        "summary": "Every reference point the numbering stage read, with its counter, its counter value, the counters it is numbered within and its counter style, or nothing for a point that is not numbered."
+      },
+      {
+        "name": "flm.labels",
+        "owner": "refs",
+        "summary": "For every label, the reference point that keeps it; the labels written more than once; and the labels whose type their point does not accept."
+      },
+      {
+        "name": "flm.anchors",
+        "owner": "refs",
+        "summary": "Every reference point's anchor (the identifier a link points at), formed from its first label, its title, its position or its number, or given by its element, or none when the point has nothing to form it from or an earlier point holds the same one."
+      },
+      {
+        "name": "flm.refs.targets",
+        "owner": "refs",
+        "summary": "For every label whose point received an anchor: the reference point that keeps it, its link target (`#` and the anchor) and what a reference to it shows; read by the resolve stage."
+      },
+      {
+        "name": "flm.refs.resolutions",
+        "owner": "refs",
+        "summary": "How every reference site resolved: to a reference point of this document, to a label of another document from the external index, or not at all."
+      },
+      {
+        "name": "flm.refs.external-index",
+        "owner": "refs",
+        "summary": "Labels of other documents, each with its link target and the content a reference to it shows; installed by the caller when the run is constructed, and read only when installed."
+      },
+      {
+        "name": "flm.labels.safe",
+        "owner": "refs",
+        "summary": "For the recomposed LaTeX: the safe label (`ref1`, `ref2`, …) written in place of every label whose type is not written raw, numbered in the order the document first mentions the labels, and the reverse correspondence."
+      },
+      {
+        "name": "flm.labels.safe.value",
+        "owner": "refs",
+        "summary": "For the recomposed LaTeX: for every reference node of a synthesized value, the name written for each target that has no safe label in the document (`ref-v1`, …); held in the value's catch-up store, and empty for a document tree."
+      },
+      {
+        "name": "flm.xnotes.list.footnote",
+        "owner": "xnotes",
+        "summary": "The list of the `footnote` xnotes of the document: a synthesized value, or nothing to place."
+      },
+      {
+        "name": "flm.xnotes",
+        "owner": "xnotes",
+        "summary": "Every xnote of the document, by xnote kind, in document order: its reference point and the reference point of its mark."
+      },
+      {
+        "name": "flm.graphics.info",
+        "owner": "graphics",
+        "summary": "what is known about each image, by node address: its path, its origin, the file the resolver found and the inspector's result, completed"
+      },
+      {
+        "name": "flm.graphics.published.text",
+        "owner": "graphics",
+        "summary": "the address the `text` backend writes for each image, by node address"
+      },
+      {
+        "name": "flm.graphics.published.html",
+        "owner": "graphics",
+        "summary": "the address the `html` backend writes for each image, by node address"
+      },
+      {
+        "name": "flm.graphics.published.latex-recomposed",
+        "owner": "graphics",
+        "summary": "the address the `latex-recomposed` backend writes for each image, by node address"
+      },
+      {
+        "name": "flm.graphics.published.latex-rendered",
+        "owner": "graphics",
+        "summary": "the address the `latex-rendered` backend writes for each image, by node address"
+      },
+      {
+        "name": "flm.citations.keys",
+        "owner": "citations",
+        "summary": "Every citation key the document cites, once, in order of first citation, with where it is first cited."
+      },
+      {
+        "name": "flm.citations",
+        "owner": "citations",
+        "summary": "The cited works of the document: for each citation key, the work it refers to, with the work's number (in order of the first citation of any of its keys), its identifier `citation-<n>` and its identity."
+      },
+      {
+        "name": "flm.citations.entries",
+        "owner": "citations",
+        "summary": "The citation entries of the cited works: for each citation key, its citation entry or the reason it has none."
+      },
+      {
+        "name": "flm.citations.bibliography",
+        "owner": "citations",
+        "summary": "The list of the cited works of the document, as a synthesized value, or nothing to place."
+      },
+      {
+        "name": "flm.input.spliced",
+        "owner": "input",
+        "summary": "Replaces every `\\input` whose file was brought in by the file's content, in place of the command among its sibling nodes. Publishes the trees as `flm.input.spliced`; runs before the expansion of user definitions and before block structure."
+      },
+      {
+        "name": "flm.userdefs.always-expanded",
+        "owner": "userdefs",
+        "summary": "Expands the use sites of the user definitions whose expansion policy is `always`. Publishes the trees as `flm.userdefs.always-expanded`, a capability that goes with either alternative of `flm.userdefs`. The lowering rule of every `always` definition requires it, so this stage is in every plan that lowers a registry holding such a definition."
+      },
+      {
+        "name": "flm.userdefs.expanded",
+        "owner": "userdefs",
+        "summary": "Expands the use sites of the user definitions whose expansion policy is `per-plan`. Publishes the trees as `flm.userdefs.expanded`, the default refinement of `flm.userdefs`. Runs after `flm.userdefs.expand-always` when both are in the plan."
+      },
+      {
+        "name": "flm.meta.title",
+        "owner": "meta",
+        "summary": "The document's title, parsed: its content, or nothing to place."
+      },
+      {
+        "name": "flm.meta.author",
+        "owner": "meta",
+        "summary": "The document's authors, parsed: their content, or nothing to place."
+      },
+      {
+        "name": "flm.meta.date",
+        "owner": "meta",
+        "summary": "The document's date, parsed: its content, or nothing to place."
+      },
+      {
+        "name": "flm.toc.entries",
+        "owner": "toc",
+        "summary": "The document's listed headings, in document order: each heading's address, level, first reference point and the content its entry shows."
+      },
+      {
+        "name": "flm.toc",
+        "owner": "toc",
+        "summary": "The table of contents as nested lists, or nothing to place."
+      },
+      {
+        "name": "flm.lowered.text",
+        "owner": "text",
+        "summary": "the text backend's lowered trees, one per document tree"
+      },
+      {
+        "name": "flm.lowered.text.pieces",
+        "owner": "text",
+        "summary": "the pieces that the render request places, lowered for the text backend"
+      },
+      {
+        "name": "flm.output.text.regions",
+        "owner": "text",
+        "summary": "the output's one region: the printed text"
+      },
+      {
+        "name": "flm.output.text",
+        "owner": "text",
+        "summary": "the printed text and its position marks, which record where each presentation node was printed"
+      },
+      {
+        "name": "flm.output.text.document",
+        "owner": "text",
+        "summary": "the printed text as a one-artifact set"
+      },
+      {
+        "name": "flm.lowered.latex-recomposed",
+        "owner": "latex-recomposed",
+        "summary": "the recomposed backend's lowered trees, one per document tree"
+      },
+      {
+        "name": "flm.output.latex-recomposed",
+        "owner": "latex-recomposed",
+        "summary": "per tree: the recomposed LaTeX, the characters it declares, the requirement identifiers it needs"
+      },
+      {
+        "name": "flm.latex-recomposed.packages",
+        "owner": "latex-recomposed",
+        "summary": "the package identifiers the recomposed trees require"
+      },
+      {
+        "name": "flm.latex-recomposed.preamble",
+        "owner": "latex-recomposed",
+        "summary": "the definition pieces the recomposed trees require and the user definitions they recomposed"
+      },
+      {
+        "name": "flm.output.latex-recomposed.document",
+        "owner": "latex-recomposed",
+        "summary": "the recomposed LaTeX and its style file as an artifact set"
+      },
+      {
+        "name": "flm.lowered.latex-recomposed.pieces",
+        "owner": "latex-recomposed",
+        "summary": "the pieces that the render request places, lowered for the recomposed backend"
+      },
+      {
+        "name": "flm.output.latex-recomposed.regions",
+        "owner": "latex-recomposed",
+        "summary": "the body, the pieces and the style file's package name"
+      },
+      {
+        "name": "flm.output.latex-recomposed.style",
+        "owner": "latex-recomposed",
+        "summary": "the style file beside the recomposed LaTeX, where it has one"
+      },
+      {
+        "name": "flm.output.latex-recomposed.artifacts",
+        "owner": "latex-recomposed",
+        "summary": "files a stage produces beside the recomposed LaTeX for it to refer to (copies of images), added to the document's set after the style file"
+      },
+      {
+        "name": "flm.lowered.latex-rendered",
+        "owner": "latex-rendered",
+        "summary": "the rendered-LaTeX backend's lowered trees, one per document tree"
+      },
+      {
+        "name": "flm.output.latex-rendered",
+        "owner": "latex-rendered",
+        "summary": "per tree: the rendered LaTeX with the trees placed in it, the requirement identifiers and the definitions it staged"
+      },
+      {
+        "name": "flm.lowered.latex-rendered.pieces",
+        "owner": "latex-rendered",
+        "summary": "the pieces that the render request places, lowered for the rendered-LaTeX backend"
+      },
+      {
+        "name": "flm.output.latex-rendered.pieces",
+        "owner": "latex-rendered",
+        "summary": "the rendered LaTeX of each piece the render request places, with its words and requirements"
+      },
+      {
+        "name": "flm.output.latex-rendered.regions",
+        "owner": "latex-rendered",
+        "summary": "the content, the pieces and the style file's package name"
+      },
+      {
+        "name": "flm.output.latex-rendered.style",
+        "owner": "latex-rendered",
+        "summary": "the style file beside the rendered LaTeX"
+      },
+      {
+        "name": "flm.output.latex-rendered.document",
+        "owner": "latex-rendered",
+        "summary": "the rendered LaTeX document, its style file and the files beside it"
+      },
+      {
+        "name": "flm.output.latex-rendered.artifacts",
+        "owner": "latex-rendered",
+        "summary": "files a stage produces beside the rendered LaTeX for it to refer to (copies of images), added to the document's set after the style file"
+      },
+      {
+        "name": "flm.html.definitions",
+        "owner": "html",
+        "summary": "the stylesheets and scripts the page requires, each with how it is delivered"
+      },
+      {
+        "name": "flm.lowered.html",
+        "owner": "html",
+        "summary": "the HTML backend's lowered trees, one per document tree"
+      },
+      {
+        "name": "flm.output.html",
+        "owner": "html",
+        "summary": "the HTML of each document tree, and the stylesheets and scripts each tree requires"
+      },
+      {
+        "name": "flm.output.html.document",
+        "owner": "html",
+        "summary": "the page as the entry artifact, and the files beside it"
+      },
+      {
+        "name": "flm.output.html.artifacts",
+        "owner": "html",
+        "summary": "files a stage produces for the page to link to, added to the page's set"
+      },
+      {
+        "name": "flm.lowered.html.pieces",
+        "owner": "html",
+        "summary": "the pieces that the render request places, lowered for the HTML backend"
+      },
+      {
+        "name": "flm.output.html.pieces",
+        "owner": "html",
+        "summary": "the HTML of each piece that the render request places, and the stylesheets and scripts each piece requires"
+      },
+      {
+        "name": "flm.output.html.regions",
+        "owner": "html",
+        "summary": "the parts the page is made of: the content, the pieces, the stylesheets and the scripts"
+      }
+    ]
+  },
+  {
+    "name": "collection",
+    "what": "A collection is a name for a set of capabilities: demanding the collection demands every member.",
+    "entries": [
+      {
+        "name": "flm.validated",
+        "owner": "check",
+        "summary": "Every check the registry's features add has run. The standard features add `flm.blocks.contract-checked`, `flm.refs.check-labels`, `flm.theorems.check-proofs`, `flm.floats.check-handlers`, `flm.citations.check`, `flm.meta.read` and `flm.input.spliced`; the feature that processes mathematics adds its check (`math-passthrough` adds `flm.math.content`). Demanding the collection demands every member."
+      }
+    ]
+  },
+  {
+    "name": "stage",
+    "what": "A stage is one step of the processing of a document: it rewrites the trees, computes a table, checks something, or writes output.",
+    "entries": [
+      {
+        "name": "flm.blocks.structure",
+        "owner": "blocks",
+        "summary": "Lays out each tree in paragraphs and blocks, from the block role of each element and the layout it declares for its arguments and body, and resolves the text once. Publishes the trees as `flm.blocks.structured`, the default refinement of `flm.blocks`."
+      },
+      {
+        "name": "flm.blocks.raw",
+        "owner": "blocks",
+        "summary": "Does nothing and provides `flm.blocks.raw`, so that a plan that requires the trees as parsed excludes the `flm.blocks.structure` rewrite stage."
+      },
+      {
+        "name": "flm.blocks.check-contract",
+        "owner": "blocks",
+        "summary": "Checks every frozen tree against the parts of the tree contract that apply to the plan's trees, and reports each violation as `flm.blocks.contract-violated`."
+      },
+      {
+        "name": "flm.index.build",
+        "owner": "index",
+        "summary": "Walks the frozen tree once in document order and records every node whose element a feature registered into `flm.element-index`."
+      },
+      {
+        "name": "flm.refpoints.scan",
+        "owner": "refpoints",
+        "summary": "Asks every node whose element carries the `Referenceable` aspect for its reference points, once, and records each point whole, in document order, into `flm.refpoints`."
+      },
+      {
+        "name": "flm.numbering.number",
+        "owner": "numbering",
+        "summary": "Advances the declared counters over the reference points of the document, in document order, and records each point's counter value in `flm.counters`."
+      },
+      {
+        "name": "flm.refs.scan",
+        "owner": "refs",
+        "summary": "Records in `flm.labels`, from the reference points of `flm.refpoints` in document order, which point keeps each label, the labels written twice and the labels whose type their point does not accept; reports labels and reference targets not spelled `type:label`."
+      },
+      {
+        "name": "flm.refs.anchors",
+        "owner": "refs",
+        "summary": "Gives every reference point its anchor (the identifier a link points at), formed from its label, its title, its position or its number, into `flm.anchors`, reporting two points with the same anchor; writes, for every label whose point received an anchor, its point, its link target and the content a reference shows, into `flm.refs.targets`."
+      },
+      {
+        "name": "flm.refs.resolve",
+        "owner": "refs",
+        "summary": "Resolves every reference site against the labels of the document and of the external index, into `flm.refs.resolutions`; reports every reference that points at no label."
+      },
+      {
+        "name": "flm.refs.check-labels",
+        "owner": "refs",
+        "summary": "Reports every label written for two reference points and every label whose type its point does not accept; it reads the resolutions so that the resolve stage runs and its reports of unresolved references come with the check."
+      },
+      {
+        "name": "flm.refs.safe-labels",
+        "owner": "refs",
+        "summary": "For the recomposed LaTeX: allocates the safe label (`ref1`, `ref2`, …) of every label a reference point carries and of every reference target, resolved or not, in the order the document first mentions it, into `flm.labels.safe`."
+      },
+      {
+        "name": "flm.refs.value-safe-labels",
+        "owner": "refs",
+        "summary": "For the recomposed LaTeX, over a synthesized value spliced at lowering: gives every target its references mention that has no safe label in `flm.labels.safe` a value name, `ref-v1`, `ref-v2`, … in the order the value first mentions it, into `flm.labels.safe.value`; writes nothing over a document tree."
+      },
+      {
+        "name": "flm.xnotes.build-list.footnote",
+        "owner": "xnotes",
+        "summary": "Builds the list of the `footnote` xnotes of the document: a synthesized value holding one entry per xnote, each a pointer to the xnote's content, written into the piece `flm.xnotes.list.footnote`."
+      },
+      {
+        "name": "flm.xnotes.collect",
+        "owner": "xnotes",
+        "summary": "Records every xnote of the document (a reference point whose kind is an xnote kind's name, followed on the same node by the point of its mark) into `flm.xnotes`, by kind and in document order, each with the region of its content. Reports the numbered kinds that no numbering feature numbers, and the nodes whose number of xnotes of a kind differs from their number of regions holding an xnote's content."
+      },
+      {
+        "name": "flm.theorems.check-proofs",
+        "owner": "theorems",
+        "summary": "Reports every statement of a kind expecting a proof that no proof's back-reference resolves to and that carries no `\\noproofref` (a Warning), and every title beginning with a star that is not a well-formed back-reference (an Error)."
+      },
+      {
+        "name": "flm.graphics.inspect",
+        "owner": "graphics",
+        "summary": "Asks the host's graphics resolver and inspector, where they are registered, about every image, and records the file found and the inspector's result, completed, by node address into `flm.graphics.info`."
+      },
+      {
+        "name": "flm.graphics.publish.text",
+        "owner": "graphics",
+        "summary": "Writes the address that the `text` backend writes for each image, as the output's strategy decides it, into `flm.graphics.published.text`."
+      },
+      {
+        "name": "flm.graphics.publish.html",
+        "owner": "graphics",
+        "summary": "Writes the address that the `html` backend writes for each image, as the output's strategy decides it, into `flm.graphics.published.html`, and the copies of image files into `flm.output.html.artifacts`."
+      },
+      {
+        "name": "flm.graphics.publish.latex-recomposed",
+        "owner": "graphics",
+        "summary": "Writes the address that the `latex-recomposed` backend writes for each image, as the output's strategy decides it, into `flm.graphics.published.latex-recomposed`, and the copies of image files into `flm.output.latex-recomposed.artifacts`."
+      },
+      {
+        "name": "flm.graphics.publish.latex-rendered",
+        "owner": "graphics",
+        "summary": "Writes the address that the `latex-rendered` backend writes for each image, as the output's strategy decides it, into `flm.graphics.published.latex-rendered`, and the copies of image files into `flm.output.latex-rendered.artifacts`."
+      },
+      {
+        "name": "flm.floats.check-handlers",
+        "owner": "floats",
+        "summary": "Reports, once per run, each content handler that a float type used in the document lists and that no registered feature contributes (a Note, at the first float of the type)."
+      },
+      {
+        "name": "flm.citations.collect",
+        "owner": "citations",
+        "summary": "Records every citation key that the document's `\\cite` and `\\R` commands cite, in order of first citation, with where it is first cited, into `flm.citations.keys`."
+      },
+      {
+        "name": "flm.citations.retrieve",
+        "owner": "citations",
+        "summary": "Asks the citation providers of `flm.citations.providers`, in order, about every citation key the document cites and writes their citation entries into `flm.citations.entries`; then numbers the cited works, in order of first citation, into `flm.citations`."
+      },
+      {
+        "name": "flm.citations.check",
+        "owner": "citations",
+        "summary": "Reports, as an Error, every citation key the document cites that has no citation entry in `flm.citations.entries`."
+      },
+      {
+        "name": "flm.citations.build-bibliography",
+        "owner": "citations",
+        "summary": "Builds the list of the cited works, in the order of their numbers, each with its citation entry, into the piece `flm.citations.bibliography`."
+      },
+      {
+        "name": "flm.input.splice",
+        "owner": "input",
+        "summary": "Replaces every `\\input` whose file was brought in by the file's content, in place of the command among its sibling nodes. Publishes the trees as `flm.input.spliced`; runs before the expansion of user definitions and before block structure."
+      },
+      {
+        "name": "flm.userdefs.expand-always",
+        "owner": "userdefs",
+        "summary": "Expands the use sites of the user definitions whose expansion policy is `always`. Publishes the trees as `flm.userdefs.always-expanded`, a capability that goes with either alternative of `flm.userdefs`. The lowering rule of every `always` definition requires it, so this stage is in every plan that lowers a registry holding such a definition."
+      },
+      {
+        "name": "flm.userdefs.expand",
+        "owner": "userdefs",
+        "summary": "Expands the use sites of the user definitions whose expansion policy is `per-plan`. Publishes the trees as `flm.userdefs.expanded`, the default refinement of `flm.userdefs`. Runs after `flm.userdefs.expand-always` when both are in the plan."
+      },
+      {
+        "name": "flm.userdefs.keep",
+        "owner": "userdefs",
+        "summary": "Does nothing and provides `flm.userdefs.kept`, so that a plan that requires the use sites of the `per-plan` user definitions kept in the tree excludes the `flm.userdefs.expand` rewrite stage, and those use sites reach the lowering rules."
+      },
+      {
+        "name": "flm.meta.build",
+        "owner": "meta",
+        "summary": "Parses the document's title, authors and date as inline content and builds the pieces `flm.meta.title`, `flm.meta.author` and `flm.meta.date`."
+      },
+      {
+        "name": "flm.toc.build",
+        "owner": "toc",
+        "summary": "Lists the document's headings that the table of contents shows, in document order, into `flm.toc.entries`, and builds the table of contents as nested lists into the piece `flm.toc`."
+      },
+      {
+        "name": "flm.text.pieces",
+        "owner": "text",
+        "summary": "lowers every piece that the render request places for the `text` backend"
+      },
+      {
+        "name": "flm.text.regions",
+        "owner": "text",
+        "summary": "writes the printed text as the output's one region into `flm.output.text.regions`"
+      },
+      {
+        "name": "flm.text.lower",
+        "owner": "text",
+        "summary": "lowers every frozen tree for the `text` backend"
+      },
+      {
+        "name": "flm.text.emit",
+        "owner": "text",
+        "summary": "prints the text backend's lowered trees as one text, with a position mark for each printed presentation node, into `flm.output.text`"
+      },
+      {
+        "name": "flm.text.final",
+        "owner": "text",
+        "summary": "writes the content region as the one-artifact set `flm.output.text.document`"
+      },
+      {
+        "name": "flm.latex-recomposed.pieces",
+        "owner": "latex-recomposed",
+        "summary": "lowers every piece that the render request places for the `latex-recomposed` backend"
+      },
+      {
+        "name": "flm.latex-recomposed.regions",
+        "owner": "latex-recomposed",
+        "summary": "emits the pieces, assembles the style file from the requirements into `flm.output.latex-recomposed.style`, and writes the body, the pieces and the style file's name as the regions `flm.output.latex-recomposed.regions`"
+      },
+      {
+        "name": "flm.latex-recomposed.lower",
+        "owner": "latex-recomposed",
+        "summary": "lowers every frozen tree for the `latex-recomposed` backend"
+      },
+      {
+        "name": "flm.latex-recomposed.emit",
+        "owner": "latex-recomposed",
+        "summary": "writes the recomposed backend's lowered tree as LaTeX: the recomposed LaTeX per tree, the package identifiers, the definition pieces and the recomposed user definitions"
+      },
+      {
+        "name": "flm.latex-recomposed.final",
+        "owner": "latex-recomposed",
+        "summary": "writes the body and the style file as the artifact set `flm.output.latex-recomposed.document`"
+      },
+      {
+        "name": "flm.latex-rendered.pieces",
+        "owner": "latex-rendered",
+        "summary": "lowers every piece that the render request places for the `latex-rendered` backend"
+      },
+      {
+        "name": "flm.latex-rendered.emit-pieces",
+        "owner": "latex-rendered",
+        "summary": "writes each lowered piece's LaTeX into `flm.output.latex-rendered.pieces`"
+      },
+      {
+        "name": "flm.latex-rendered.regions",
+        "owner": "latex-rendered",
+        "summary": "resolves the requirements, assembles the style file into `flm.output.latex-rendered.style`, and writes the content, the pieces and the style file's package name as the regions `flm.output.latex-rendered.regions`"
+      },
+      {
+        "name": "flm.latex-rendered.lower",
+        "owner": "latex-rendered",
+        "summary": "lowers every frozen tree for the `latex-rendered` backend"
+      },
+      {
+        "name": "flm.latex-rendered.emit",
+        "owner": "latex-rendered",
+        "summary": "writes each lowered tree's LaTeX, its requirements and the definitions it staged into `flm.output.latex-rendered`"
+      },
+      {
+        "name": "flm.latex-rendered.final",
+        "owner": "latex-rendered",
+        "summary": "writes the document in the backend's fixed skeleton, with its style file, as the artifact set `flm.output.latex-rendered.document`"
+      },
+      {
+        "name": "flm.html.resolve-definitions",
+        "owner": "html",
+        "summary": "resolves the stylesheets and scripts that the document's trees and pieces required, the ones the host requires, and the host's deliveries, into `flm.html.definitions`"
+      },
+      {
+        "name": "flm.html.pieces",
+        "owner": "html",
+        "summary": "lowers every piece that the render request places for the `html` backend"
+      },
+      {
+        "name": "flm.html.emit-pieces",
+        "owner": "html",
+        "summary": "writes each lowered piece's HTML, and the stylesheets and scripts it requires, into `flm.output.html.pieces`"
+      },
+      {
+        "name": "flm.html.regions",
+        "owner": "html",
+        "summary": "makes the page's regions — the content, the pieces, the stylesheets, the scripts, the title's words and the language — into `flm.output.html.regions`"
+      },
+      {
+        "name": "flm.html.lower",
+        "owner": "html",
+        "summary": "lowers every frozen tree for the `html` backend"
+      },
+      {
+        "name": "flm.html.emit",
+        "owner": "html",
+        "summary": "writes each lowered tree's HTML, and the stylesheets and scripts it requires, into `flm.output.html`"
+      },
+      {
+        "name": "flm.html.final.singlefile",
+        "owner": "html",
+        "summary": "assembles the page from the regions in the backend's own layout and writes it as the entry artifact of `flm.output.html.document`"
+      },
+      {
+        "name": "flm.math-passthrough.check",
+        "owner": "math-passthrough",
+        "summary": "The check of passthrough mathematics: it accepts every formula as written, reports every equation line that holds no mathematics as `flm.math-passthrough.empty-line`, and provides `flm.math.content`."
+      }
+    ]
+  },
+  {
+    "name": "lowering-rule",
+    "what": "A lowering rule turns the nodes of one element type into elements that a backend writes natively.",
+    "entries": [
+      {
+        "name": "flm.textstyle.lower.default",
+        "owner": "textstyles",
+        "summary": "a formatting command lowers to `flm.pres.span` carrying its style"
+      },
+      {
+        "name": "flm.textstyle.lower.latex-recomposed",
+        "owner": "textstyles",
+        "summary": "a formatting command lowers to the LaTeX macro of the same name over its argument"
+      },
+      {
+        "name": "flm.literal.lower.default",
+        "owner": "literals",
+        "summary": "a literal lowers to a text node holding the character it stands for"
+      },
+      {
+        "name": "flm.sentence-spacing.lower.default",
+        "owner": "literals",
+        "summary": "`\\@` lowers to nothing"
+      },
+      {
+        "name": "flm.literal.lower.latex-recomposed",
+        "owner": "literals",
+        "summary": "a literal lowers to a raw node holding its spelling as written"
+      },
+      {
+        "name": "flm.sentence-spacing.lower.latex-recomposed",
+        "owner": "literals",
+        "summary": "`\\@` lowers to a raw node holding `\\@`"
+      },
+      {
+        "name": "flm.math.text.lower.default",
+        "owner": "math",
+        "summary": "a text command of math mode lowers to a `flm.pres.math-text` node that carries its name, over its argument lowered through the rules"
+      },
+      {
+        "name": "flm.math.ensuremath.lower.default",
+        "owner": "math",
+        "summary": "`\\ensuremath` lowers to its argument lowered through the rules: in text an inline formula, inside mathematics the mathematics it holds"
+      },
+      {
+        "name": "flm.math.text.lower.latex-recomposed",
+        "owner": "math",
+        "summary": "a text command of math mode lowers to the LaTeX macro of the same name, over its argument lowered as document text"
+      },
+      {
+        "name": "flm.math.eqref.lower.default",
+        "owner": "math",
+        "summary": "an `\\eqref` lowers to what `\\ref[noprefix]` lowers to for the same label: the line's number in parentheses, inside a link to the equation line"
+      },
+      {
+        "name": "flm.math.eqref.lower.latex-recomposed",
+        "owner": "math",
+        "summary": "an `\\eqref` lowers to the LaTeX `\\eqref` around its label's safe label"
+      },
+      {
+        "name": "flm.math.environment.lower.default",
+        "owner": "math",
+        "summary": "a display-math environment that no feature processes is an Error, and lowers to a `flm.pres.span` of role `flm.math` over the content of its equation lines lowered as ordinary content"
+      },
+      {
+        "name": "flm.ref.lower.default",
+        "owner": "refs",
+        "summary": "a `\\ref` lowers to one `flm.pres.link` per resolved target, around the target's number, its content or its label, and to a `flm.pres.span` styled as unresolved around the text of a target that nothing resolves"
+      },
+      {
+        "name": "flm.hyperref.lower.default",
+        "owner": "refs",
+        "summary": "a `\\hyperref` lowers to a `flm.pres.link` around the text the author wrote when its target resolves, and to a `flm.pres.span` styled as unresolved around the same text when it does not"
+      },
+      {
+        "name": "flm.ref.lower.latex-recomposed",
+        "owner": "refs",
+        "summary": "a `\\ref` lowers to the LaTeX hook `\\flmRef` (or to `\\zcref` with the latex-recomposed backend's render option `label_hooks` off) around the safe labels of its targets, its options as an optional argument"
+      },
+      {
+        "name": "flm.hyperref.lower.latex-recomposed",
+        "owner": "refs",
+        "summary": "a `\\hyperref` lowers to the LaTeX hook `\\flmHyperref` (or to `\\hyperref` with the latex-recomposed backend's render option `label_hooks` off) around the safe label of its target and the author's text, recomposed as content"
+      },
+      {
+        "name": "flm.heading.number.lower.default",
+        "owner": "headings",
+        "summary": "a heading's number lowers to `flm.pres.span` of role `flm.heading.number` around the number"
+      },
+      {
+        "name": "flm.heading.lower.default",
+        "owner": "headings",
+        "summary": "a heading lowers to `flm.pres.block-heading` carrying its kind's name and level, whether it is listed in a table of contents, and its anchor, or, for a run-in kind, to a `flm.pres.deco.runin` decoration holding a `flm.pres.runin-heading` with the same payload; a numbered heading's content begins with its number"
+      },
+      {
+        "name": "flm.heading.lower.latex-recomposed",
+        "owner": "headings",
+        "summary": "a heading lowers to the LaTeX hook `\\flmHeading[toc=…]` (with `alt={…}` where the heading has an alternative title), a newline, the LaTeX sectioning command its heading kind maps to, starred when not numbered, and a group holding the labels it read from its `\\label` fields"
+      },
+      {
+        "name": "flm.heading.number.lower.latex-recomposed",
+        "owner": "headings",
+        "summary": "a heading's number lowers to its content; the heading itself is written back as its sectioning command, so the number never reaches this backend"
+      },
+      {
+        "name": "flm.verbatim.macro.lower.default",
+        "owner": "verbatim",
+        "summary": "a verbatim macro lowers to an inline `flm.pres.verbatim` node carrying its verbatim kind and language, over the characters of its content argument"
+      },
+      {
+        "name": "flm.verbatim.environment.lower.default",
+        "owner": "verbatim",
+        "summary": "a verbatim environment lowers to a `flm.pres.verbatim` node carrying its verbatim kind, display and language, over the characters of its body"
+      },
+      {
+        "name": "flm.verbatim.macro.lower.latex-recomposed",
+        "owner": "verbatim",
+        "summary": "a verbatim macro lowers to `\\EscVerb` over its content, in the encoding `\\EscVerb` reads"
+      },
+      {
+        "name": "flm.verbatim.environment.lower.latex-recomposed",
+        "owner": "verbatim",
+        "summary": "an inline verbatim environment lowers to `\\EscVerb` over its content; a block lowers to the `flmVerbatimCode` environment over its content"
+      },
+      {
+        "name": "flm.lists.list.lower.default",
+        "owner": "lists",
+        "summary": "a list lowers to `flm.pres.list` whose kind tokens are its structure, the environment's name and `labeled`, with each item's label, content and anchor"
+      },
+      {
+        "name": "flm.lists.item.lower.default",
+        "owner": "lists",
+        "summary": "an `\\item` that begins no item lowers to nothing and is reported"
+      },
+      {
+        "name": "flm.lists.list.lower.latex-recomposed",
+        "owner": "lists",
+        "summary": "a list lowers to its LaTeX environment, its own templates as the `label=` and `ref=` keys of the `enumitem` package, each item to `\\item` with its tag as the optional argument and its labels in the LaTeX hook `\\flmLabels`, and the items' content through the rules"
+      },
+      {
+        "name": "flm.xnotes.footnote.list.lower.default",
+        "owner": "xnotes",
+        "summary": "the list of the `footnote` xnotes lowers to a `flm.pres.block` holding the title as a `flm.pres.block-heading` and a labeled `flm.pres.list`, one entry per xnote, its mark as the label"
+      },
+      {
+        "name": "flm.xnotes.footnote.list.lower.html",
+        "owner": "xnotes",
+        "summary": "the list of a kind's xnotes lowers as under the general rule, each entry's last paragraph ending with a link back to the xnote's mark; it requires the stylesheet `flm.xnotes.style`"
+      },
+      {
+        "name": "flm.xnotes.footnote.list.lower.latex-recomposed",
+        "owner": "xnotes",
+        "summary": "the list of a kind's xnotes lowers to nothing, because LaTeX sets each xnote where its command is written"
+      },
+      {
+        "name": "flm.xnotes.xnote.lower.default",
+        "owner": "xnotes",
+        "summary": "an xnote lowers to its mark, a superscript `flm.pres.span` holding a link to the xnote, for a listed xnote kind; to a `flm.pres.span` or a `flm.pres.block` holding the mark and the content, bracketed, for an in-place xnote kind"
+      },
+      {
+        "name": "flm.xnotes.entry.lower.default",
+        "owner": "xnotes",
+        "summary": "an entry of a list of xnotes outside its list lowers to nothing and is reported"
+      },
+      {
+        "name": "flm.xnotes.content-pointer.lower.default",
+        "owner": "xnotes",
+        "summary": "a content pointer lowers to the content of the xnote it refers to, lowered where the pointer is placed; a pointer that refers to no xnote's content is refused and writes nothing"
+      },
+      {
+        "name": "flm.xnotes.mark-of.lower.default",
+        "owner": "xnotes",
+        "summary": "an xnote in content shown again lowers to the xnote's mark, a superscript `flm.pres.span` holding the mark text inside a `flm.pres.link` to the xnote, with no anchor"
+      },
+      {
+        "name": "flm.xnotes.xnote.lower.html",
+        "owner": "xnotes",
+        "summary": "an xnote lowers as under the general rule, with no bracket text around an xnote shown in place: the stylesheet `flm.xnotes.style`, which the rule requires, draws the brackets"
+      },
+      {
+        "name": "flm.xnotes.xnote.lower.latex-rendered",
+        "owner": "xnotes",
+        "summary": "an xnote lowers as under the general rule for a listed xnote kind; for an in-place kind, to the macro construct `\\flmxXnote[<keys>]{<mark>}{<content>}`, its keys as a raw node, its mark unlinked, its content lowered through the rules"
+      },
+      {
+        "name": "flm.xnotes.content-pointer.lower.latex-recomposed",
+        "owner": "xnotes",
+        "summary": "a content pointer lowers to nothing: the recomposed LaTeX places no list of xnotes, because LaTeX sets each xnote where its command is written"
+      },
+      {
+        "name": "flm.xnotes.mark-of.lower.latex-recomposed",
+        "owner": "xnotes",
+        "summary": "the mark of an xnote in content shown again lowers to nothing: no rule of the standard package lowers content shown again on the recomposed LaTeX"
+      },
+      {
+        "name": "flm.xnotes.xnote.lower.latex-recomposed",
+        "owner": "xnotes",
+        "summary": "an xnote lowers to `\\flmXN<kind>`, with its labels as the optional argument where it has any (in the LaTeX hook `\\flmLabels` unless the render option `label_hooks` is off), and its content, lowered through the rules, as the mandatory argument"
+      },
+      {
+        "name": "flm.href.link.lower.default",
+        "owner": "href",
+        "summary": "a hyperlink lowers to `flm.pres.link` with the kind token `url` to its address, around its text or its address's display"
+      },
+      {
+        "name": "flm.href.link.lower.latex-recomposed",
+        "owner": "href",
+        "summary": "a hyperlink lowers to its LaTeX hook, `\\flmHref`, `\\flmUrl` or `\\flmEmail`, over its escaped address and, for `\\href`, its text"
+      },
+      {
+        "name": "flm.defterm.lower.default",
+        "owner": "defterm",
+        "summary": "a term definition lowers to `flm.pres.block` of role `flm.defterm` carrying its anchor, around its body's blocks; the lead-in is a `flm.pres.deco.runin` decoration at the start of the first paragraph"
+      },
+      {
+        "name": "flm.term.lower.default",
+        "owner": "defterm",
+        "summary": "a resolved term link lowers to `flm.pres.link` of kind `term` around the text written for it, an unresolved one to an unresolved-styled `flm.pres.span`, one inside the definition of its own term to `flm.pres.span` of role `flm.defterm.term`"
+      },
+      {
+        "name": "flm.defterm.term-pointer.lower.default",
+        "owner": "defterm",
+        "summary": "a term pointer lowers to the term of the term definition it refers to, lowered where the pointer is placed"
+      },
+      {
+        "name": "flm.defterm.lower.latex-recomposed",
+        "owner": "defterm",
+        "summary": "a term definition lowers to the environment `defterm` around its term, its body opening with `\\phantomsection` and `\\flmLabelsWithDisplayText` over its labels; the style file defines the environment from the lead-in template"
+      },
+      {
+        "name": "flm.term.lower.latex-recomposed",
+        "owner": "defterm",
+        "summary": "a term link lowers to `\\flmTerm` around its target's safe label and its text, or, inside the definition of its own term, to `\\flmTermInDefterm` around its text"
+      },
+      {
+        "name": "flm.defterm.term-pointer.lower.latex-recomposed",
+        "owner": "defterm",
+        "summary": "a term pointer lowers to the environment's parameter `#1`: it occurs only in the lead-in written as the begin code of the environment's LaTeX definition"
+      },
+      {
+        "name": "flm.theorems.theorem.lower.default",
+        "owner": "theorems",
+        "summary": "a theorem lowers to `flm.pres.block` of role `flm.theorems.theorem`, its kind tokens the class and the kind, carrying its anchor, around its body's blocks; the heading is a `flm.pres.deco.runin` decoration at the start of the first paragraph and the closing mark a `flm.pres.deco.final` decoration at the end of the last"
+      },
+      {
+        "name": "flm.theorems.name.lower.default",
+        "owner": "theorems",
+        "summary": "the kind's word and number in a theorem's heading lower to `flm.pres.span` of role `flm.theorems.name` around them"
+      },
+      {
+        "name": "flm.theorems.title-pointer.lower.default",
+        "owner": "theorems",
+        "summary": "a title pointer lowers to `flm.pres.span` of role `flm.theorems.title` around the title of the theorem it refers to, lowered where the pointer is placed"
+      },
+      {
+        "name": "flm.theorems.relation.lower.default",
+        "owner": "theorems",
+        "summary": "a back-reference in a proof's heading lowers to `flm.pres.span` of role `flm.theorems.title` around what a reference to the proved statement writes"
+      },
+      {
+        "name": "flm.theorems.theorem.lower.latex-recomposed",
+        "owner": "theorems",
+        "summary": "a theorem lowers to the environment of its kind's name around its title, its labels in the LaTeX hook `\\flmLabels`, `\\noproofref` where written, and its body, with the kind's declaration for the style file; a proof's title is written in the LaTeX hook `\\flmProofTitle`, and its back-reference as written, or, under the render option `resolved_proof_refs`, as a reference in `\\flmProofTitle`"
+      },
+      {
+        "name": "flm.theorems.name.lower.latex-recomposed",
+        "owner": "theorems",
+        "summary": "a node of a theorem's heading lowers to its own body; the recomposed LaTeX instantiates no heading, because LaTeX writes a theorem's heading, so the node never reaches this backend"
+      },
+      {
+        "name": "flm.theorems.title-pointer.lower.latex-recomposed",
+        "owner": "theorems",
+        "summary": "a node of a theorem's heading lowers to its own body; the recomposed LaTeX instantiates no heading, because LaTeX writes a theorem's heading, so the node never reaches this backend"
+      },
+      {
+        "name": "flm.theorems.relation.lower.latex-recomposed",
+        "owner": "theorems",
+        "summary": "a node of a theorem's heading lowers to its own body; the recomposed LaTeX instantiates no heading, because LaTeX writes a theorem's heading, so the node never reaches this backend"
+      },
+      {
+        "name": "flm.quote.lower.default",
+        "owner": "quote",
+        "summary": "a quotation lowers to a `flm.pres.block` of role `flm.quote` whose kind token is the environment's name, holding one `flm.pres.block` per quotation section, of the role of the section's kind"
+      },
+      {
+        "name": "flm.quote.lower.latex-recomposed",
+        "owner": "quote",
+        "summary": "a quotation lowers to the environment of its name, each quotation section through the LaTeX hook of its kind, and a line's indentation through `\\flmIndent`"
+      },
+      {
+        "name": "flm.quote.section.lower.default",
+        "owner": "quote",
+        "summary": "a quotation-section command outside section position lowers to its argument's content, and is reported unless it is part of a quotation body's bare content"
+      },
+      {
+        "name": "flm.graphics.image.lower.text",
+        "owner": "graphics",
+        "summary": "an image lowers to `flm.pres.image`: the address its backend publishes, a block or inline as its position makes it, its alternative text, and its width and height, one scaled from the inspected size where only the other is given, both multiplied by the output's magnification"
+      },
+      {
+        "name": "flm.graphics.image.lower.html",
+        "owner": "graphics",
+        "summary": "an image lowers to `flm.pres.image`: the address its backend publishes, a block or inline as its position makes it, its alternative text, and its width and height, one scaled from the inspected size where only the other is given, both multiplied by the output's magnification"
+      },
+      {
+        "name": "flm.graphics.image.lower.latex-rendered",
+        "owner": "graphics",
+        "summary": "an image lowers to `flm.pres.image`: the address its backend publishes, a block or inline as its position makes it, its alternative text, and its width and height, one scaled from the inspected size where only the other is given, both multiplied by the output's magnification"
+      },
+      {
+        "name": "flm.graphics.image.lower.latex-recomposed",
+        "owner": "graphics",
+        "summary": "an image lowers to the LaTeX hook `\\flmIncludeGraphics`, with its size as keys where it has one, and its escaped address"
+      },
+      {
+        "name": "flm.floats.float.lower.default",
+        "owner": "floats",
+        "summary": "a float lowers to a `flm.pres.block` of role `flm.floats.float`, whose kind tokens are the float type's name and `numbered` or `unnumbered` and which carries the float's anchor; it holds a block of role `flm.floats.float.content` with the float's content and, where the float is numbered or has a caption, a block of role `flm.floats.float.caption` with the line under the content"
+      },
+      {
+        "name": "flm.floats.float.lower.latex-recomposed",
+        "owner": "floats",
+        "summary": "a float lowers to the LaTeX hook environment `flmFloat` over its type and case, around its content, `\\caption{…}` and its labels, after the declaration of its type's reference type"
+      },
+      {
+        "name": "flm.cells.cells.lower.default",
+        "owner": "cells",
+        "summary": "a table of cells lowers to `flm.pres.cells`, its payload the table's model and its `cell` content slots the cells' content, after one dropped mark (`flm.pres.dropped`) per thing left out"
+      },
+      {
+        "name": "flm.cells.cell.lower.default",
+        "owner": "cells",
+        "summary": "a command of the tables of cells lowered outside its table is reported; its content is shown where the command is written, or a dropped mark is placed there"
+      },
+      {
+        "name": "flm.cells.data.lower.default",
+        "owner": "cells",
+        "summary": "a command of the tables of cells lowered outside its table is reported; its content is shown where the command is written, or a dropped mark is placed there"
+      },
+      {
+        "name": "flm.cells.row.lower.default",
+        "owner": "cells",
+        "summary": "a command of the tables of cells lowered outside its table is reported; its content is shown where the command is written, or a dropped mark is placed there"
+      },
+      {
+        "name": "flm.cells.column.lower.default",
+        "owner": "cells",
+        "summary": "a command of the tables of cells lowered outside its table is reported; its content is shown where the command is written, or a dropped mark is placed there"
+      },
+      {
+        "name": "flm.cells.merge.lower.default",
+        "owner": "cells",
+        "summary": "a command of the tables of cells lowered outside its table is reported; its content is shown where the command is written, or a dropped mark is placed there"
+      },
+      {
+        "name": "flm.cells.rownames.lower.default",
+        "owner": "cells",
+        "summary": "a command of the tables of cells lowered outside its table is reported; its content is shown where the command is written, or a dropped mark is placed there"
+      },
+      {
+        "name": "flm.cells.colnames.lower.default",
+        "owner": "cells",
+        "summary": "a command of the tables of cells lowered outside its table is reported; its content is shown where the command is written, or a dropped mark is placed there"
+      },
+      {
+        "name": "flm.cells.cells.lower.latex-recomposed",
+        "owner": "cells",
+        "summary": "a table of cells lowers to one call of the LaTeX hook `\\flmCellsTable` over its column specifications, its `tabularray` options and its rows, after one dropped mark (`flm.pres.dropped`) per thing left out"
+      },
+      {
+        "name": "flm.citations.cite.lower.default",
+        "owner": "citations",
+        "summary": "a citation chunk lowers to the space its form calls for and a `flm.pres.span` of role `flm.citations.mark`, kind token `attached`, holding its numbers as links of kind `cite`"
+      },
+      {
+        "name": "flm.citations.refcite.lower.default",
+        "owner": "citations",
+        "summary": "a citation chunk written with `\\R` lowers to the citation counter style's word in a `flm.pres.span` of role `flm.citations.word`, then the citation mark, kind token `standalone`, shown inline"
+      },
+      {
+        "name": "flm.citations.bibliography.lower.default",
+        "owner": "citations",
+        "summary": "a list of cited works lowers to a `flm.pres.block` holding the title as a `flm.pres.block-heading` and a labeled `flm.pres.list` with one entry per work, its number as the label"
+      },
+      {
+        "name": "flm.citations.bibliography.entry.lower.default",
+        "owner": "citations",
+        "summary": "an entry of a list of cited works is lowered by its list's rule; lowered on its own, it fails"
+      },
+      {
+        "name": "flm.citations.bibliography.lower.latex-recomposed",
+        "owner": "citations",
+        "summary": "on the recomposed LaTeX, nothing is written for the list of the cited works: LaTeX writes its own"
+      },
+      {
+        "name": "flm.citations.bibliography.entry.lower.latex-recomposed",
+        "owner": "citations",
+        "summary": "on the recomposed LaTeX, nothing is written for the list of the cited works: LaTeX writes its own"
+      },
+      {
+        "name": "flm.citations.cite.lower.latex-recomposed",
+        "owner": "citations",
+        "summary": "a citation chunk lowers to `\\flmCitePreSpace` and one `\\flmCite[note]{keys}` per call, the keys written unescaped"
+      },
+      {
+        "name": "flm.citations.refcite.lower.latex-recomposed",
+        "owner": "citations",
+        "summary": "a citation chunk written with `\\R` lowers to `\\flmRefCite{word}{…}` holding the citation counter style's word and one `\\flmCite[note]{keys}` per call, with no `\\flmCitePreSpace`"
+      },
+      {
+        "name": "flm.input.lower.default",
+        "owner": "input",
+        "summary": "an `\\input` that places a heading input's tree lowers to a `flm.pres.subtree` node that gives the tree; one whose file was not brought in, to a `flm.pres.dropped` mark that gives the reference"
+      },
+      {
+        "name": "flm.field.lower.default",
+        "owner": "lowering",
+        "summary": "a field that reaches a backend on its own is an error: the construct it was written after did not read its data"
+      },
+      {
+        "name": "flm.paragraph.lower.default",
+        "owner": "lowering",
+        "summary": "a paragraph group lowers to `flm.pres.par` over its lowered inline run"
+      },
+      {
+        "name": "flm.math.lower.default",
+        "owner": "lowering",
+        "summary": "a math group that no feature processes is an Error, and lowers to a `flm.pres.span` of role `flm.math` over its content lowered as ordinary content"
+      },
+      {
+        "name": "flm.verbatim.lower.default",
+        "owner": "lowering",
+        "summary": "a verbatim group lowers to `flm.pres.verbatim` over its content, verbatim"
+      },
+      {
+        "name": "flm.unknown.macro.lower.default",
+        "owner": "lowering",
+        "summary": "an unattributed macro lowers to a childless `flm.pres.unknown` of its spelling"
+      },
+      {
+        "name": "flm.unknown.environment.lower.default",
+        "owner": "lowering",
+        "summary": "an unattributed environment lowers to `flm.pres.unknown` over its lowered body"
+      },
+      {
+        "name": "flm.meta.title.lower.default",
+        "owner": "meta",
+        "summary": "`flm.meta.title` lowers to a `flm.pres.block` holding the text as one paragraph"
+      },
+      {
+        "name": "flm.meta.date.lower.default",
+        "owner": "meta",
+        "summary": "`flm.meta.date` lowers to a `flm.pres.block` holding the text as one paragraph"
+      },
+      {
+        "name": "flm.meta.author.lower.default",
+        "owner": "meta",
+        "summary": "the authors lower to a `flm.pres.block` holding one paragraph, each author a `flm.pres.span`, joined by `, `"
+      },
+      {
+        "name": "flm.meta.author.name.lower.default",
+        "owner": "meta",
+        "summary": "an author is lowered by the rule of the authors, never on its own"
+      },
+      {
+        "name": "flm.meta.title.lower.latex-recomposed",
+        "owner": "meta",
+        "summary": "on the recomposed LaTeX, `flm.meta.title` is its content, written back as LaTeX"
+      },
+      {
+        "name": "flm.meta.date.lower.latex-recomposed",
+        "owner": "meta",
+        "summary": "on the recomposed LaTeX, `flm.meta.date` is its content, written back as LaTeX"
+      },
+      {
+        "name": "flm.meta.author.lower.latex-recomposed",
+        "owner": "meta",
+        "summary": "on the recomposed LaTeX, the authors are each author's content, joined by `\\and`"
+      },
+      {
+        "name": "flm.toc.lower.default",
+        "owner": "toc",
+        "summary": "the table of contents lowers to a `flm.pres.block` of role `flm.toc` and document role `toc`, holding its list"
+      },
+      {
+        "name": "flm.toc.list.lower.default",
+        "owner": "toc",
+        "summary": "a list of entries lowers to an unlabeled `flm.pres.list` of kinds `unnumbered` and `toc`"
+      },
+      {
+        "name": "flm.toc.entry.lower.default",
+        "owner": "toc",
+        "summary": "an entry lowers to its number and its title inside a link to its heading, then its sub-list"
+      },
+      {
+        "name": "flm.toc.lower.latex-recomposed",
+        "owner": "toc",
+        "summary": "the table of contents writes nothing in the recomposed LaTeX: LaTeX builds its own"
+      },
+      {
+        "name": "flm.toc.list.lower.latex-recomposed",
+        "owner": "toc",
+        "summary": "the table of contents writes nothing in the recomposed LaTeX: LaTeX builds its own"
+      },
+      {
+        "name": "flm.toc.entry.lower.latex-recomposed",
+        "owner": "toc",
+        "summary": "the table of contents writes nothing in the recomposed LaTeX: LaTeX builds its own"
+      },
+      {
+        "name": "flm.placeholder.lower.latex-recomposed",
+        "owner": "latex",
+        "summary": "a placeholder of a template copy, or a part of one of its conditionals, lowers to the LaTeX text the copy carries for it"
+      },
+      {
+        "name": "flm.parbreak.lower.latex-recomposed",
+        "owner": "latex-recomposed",
+        "summary": "a paragraph-break marker lowers to a raw blank line; requires the raw tree"
+      },
+      {
+        "name": "flm.paragraph.lower.latex-recomposed",
+        "owner": "latex-recomposed",
+        "summary": "a paragraph group lowers to its lowered content followed by a raw blank line; requires the raw tree, in which no paragraph group occurs"
+      },
+      {
+        "name": "flm.math-passthrough.opaque.lower.default",
+        "owner": "math-passthrough",
+        "summary": "an unknown command in math mode lowers to `flm.pres.math-passthrough` over its source, unchanged"
+      },
+      {
+        "name": "flm.math.lower.passthrough",
+        "owner": "math-passthrough",
+        "summary": "inline or displayed mathematics lowers to `flm.pres.math-passthrough` over its source, with the argument of every text command inside it lowered as document content"
+      },
+      {
+        "name": "flm.math.environment.lower.passthrough",
+        "owner": "math-passthrough",
+        "summary": "a display-math environment lowers to a displayed `flm.pres.math-passthrough` that carries its name, over its equation lines; each line begins with an empty `flm.pres.math-text` carrying its anchor and ends with its tag (the author's tag or the line's number) and, unless it is the last line, its line break; labels are not written"
+      },
+      {
+        "name": "flm.math.lower.passthrough-latex-recomposed",
+        "owner": "math-passthrough",
+        "summary": "inline or displayed mathematics lowers to its delimiters around its content written from its nodes: byte for byte, except that a use of a user definition is written as a call, with the definition for the style file, or as its expansion"
+      },
+      {
+        "name": "flm.math.environment.lower.passthrough-latex-recomposed",
+        "owner": "math-passthrough",
+        "summary": "a display-math environment lowers to the LaTeX environment of the same name over its equation lines rebuilt one by one, each line's labels written as one group in `\\flmLabels` at the end of the line: as their safe labels when the safe-labels table is present, as the document wrote them when it is absent, and not at all when it is absent and the render options ask for none"
+      }
+    ]
+  },
+  {
+    "name": "backend",
+    "what": "A backend turns a document into one output format, through its lowering, emit and final stages.",
+    "entries": [
+      {
+        "name": "html",
+        "owner": "html",
+        "summary": "HTML for a browser"
+      },
+      {
+        "name": "latex-recomposed",
+        "owner": "latex-recomposed",
+        "summary": "LaTeX recomposed from the raw tree, with a style file"
+      },
+      {
+        "name": "latex-rendered",
+        "owner": "latex-rendered",
+        "summary": "fully resolved LaTeX for LuaLaTeX, with a style file"
+      },
+      {
+        "name": "text",
+        "owner": "text",
+        "summary": "plain text over the layout engine"
+      }
+    ]
+  },
+  {
+    "name": "output",
+    "what": "An output is a set of files that a plan can produce, such as an HTML page.",
+    "entries": [
+      {
+        "name": "html",
+        "owner": "html",
+        "summary": "the document as one HTML page"
+      },
+      {
+        "name": "latex-recomposed",
+        "owner": "latex-recomposed",
+        "summary": "the document recomposed into LaTeX, with its style file"
+      },
+      {
+        "name": "latex-rendered",
+        "owner": "latex-rendered",
+        "summary": "the document as fully resolved LaTeX for LuaLaTeX, with its style file"
+      },
+      {
+        "name": "text",
+        "owner": "text",
+        "summary": "the document as plain text"
+      }
+    ]
+  },
+  {
+    "name": "workflow",
+    "what": "A workflow says what a build produces: its outputs, the capabilities it demands, and its preferences among stages and lowering rules.",
+    "entries": [
+      {
+        "name": "check",
+        "owner": "check",
+        "summary": "validate the document: run every check the features add, and write no output"
+      },
+      {
+        "name": "html",
+        "owner": "html",
+        "summary": "render the document as an HTML page, running every check"
+      },
+      {
+        "name": "latex-recomposed",
+        "owner": "latex-recomposed",
+        "summary": "recompose the document into LaTeX, running every check and leaving every resolution to LaTeX"
+      },
+      {
+        "name": "latex-rendered",
+        "owner": "latex-rendered",
+        "summary": "render the document as LaTeX for LuaLaTeX, running every check and leaving only the typesetting to LaTeX"
+      },
+      {
+        "name": "text",
+        "owner": "text",
+        "summary": "render the document as plain text, running every check"
+      }
+    ]
+  },
+  {
+    "name": "option-type",
+    "what": "An option type is a typed group of values, set on the registry, on a document or on a render request, that stages and lowering rules read.",
+    "entries": [
+      {
+        "name": "BlocksConfig",
+        "owner": "blocks",
+        "summary": "Which families of typographic substitution apply when the text of a document is resolved (curly quotes, dashes, ellipses). Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "HtmlRenderOptions",
+        "owner": "html",
+        "summary": "the page's title and language tag; whether the elements written for a node carry their position in the source; the stop written after a run-in heading's title; what the host delivers in place of the declared content of a stylesheet or script; the stylesheets and scripts the host requires for the page in addition to those its content requires; the tag each heading kind is written with; and the heading level written as `<h1>`. Set per render request."
+      },
+      {
+        "name": "LatexRecomposedRenderOptions",
+        "owner": "latex-recomposed",
+        "summary": "how a non-ASCII character of the text is written (`declare`, the default, writes the character and declares it in the style file; `replace` writes its LaTeX spelling), and the spellings that replace the library's own for given characters; whether the document's source comments are left out; the LaTeX packages this library never requests, and the packages the style file always requests, with their options, merged with the requests that the document's content causes into one `\\RequirePackage` line per package; three parts of LaTeX text written byte for byte into the style file, before the packages, after them and at its end; the user-definition names written as the document spells them rather than under a prefix, and those written as robust commands rather than expandable macros; the stem of the style file's name (default `flmrecomposed`), to which the program's naming of files may add a prefix; when the style file is written (`when-needed`, the default, writes it only where the document needs something in it, `always` writes it for every document, and either way it is written where packages to request always or LaTeX text to write into it are given); whether headings are written through the LaTeX hook `\\flmHeading`, and labels and references through the LaTeX hooks `\\flmLabels`, `\\flmLabelsWithDisplayText` and `\\flmRef` (both on by default); whether the labels of an equation line are left out of the recomposed LaTeX in a registry without the references feature (off by default; no effect where that feature is registered); and whether a proof's back-reference is written as the author wrote it, for the `phfthm` package (the default), or resolved into the LaTeX hook `\\flmProofTitle`, for `amsthm` alone. Set per render request."
+      },
+      {
+        "name": "LatexRenderedRenderOptions",
+        "owner": "latex-rendered",
+        "summary": "the stem of the style file's name (default `flmx`), to which the program's naming of files may add a prefix; the stop written after a run-in heading's title; the LaTeX packages this backend never requests, for a template that loads them itself; the packages the style file always requests, with their options; and three parts of LaTeX text written byte for byte into the style file, after the engine check, after the packages and at its end. Set per render request."
+      },
+      {
+        "name": "PiecesRenderOptions",
+        "owner": "pieces",
+        "summary": "the pieces placed although they are declared off by default (`include`), and the pieces declared on by default that are left out (`exclude`). Set per render request."
+      },
+      {
+        "name": "TextRenderOptions",
+        "owner": "text",
+        "summary": "the line width in columns (null: never wrap), default 80; the width of a tab in columns, default 4; the stop written after a run-in heading's title, default `.`, the empty text for none; whether a link to an address outside the document prints the address after its content, default on; whether a link whose content already shows its address prints the address too, default off; and the heading level printed as a first-level heading, default 1. Set per render request."
+      },
+      {
+        "name": "AnnotationsConfig",
+        "owner": "annotations",
+        "summary": "The annotators, in order, the first numbered 0: for each, the name of its command (without the backslash) and the initials shown at the start of its annotations. Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "AnnotationsRenderOptions",
+        "owner": "annotations",
+        "summary": "Whether every annotation is left out of the output, each highlight shown as its passage alone and each comment not at all (`hidden`, false by default). Set per render request."
+      },
+      {
+        "name": "CellsConfig",
+        "owner": "cells",
+        "summary": "Whether the `cells` environment can be written wherever blocks can (`global`, false by default), in addition to the bodies that refer to the scoped package `flm.cells.environment`, such as a `table` float's. Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "CitationsConfig",
+        "owner": "citations",
+        "summary": "Where the citation entries are shown (`placement`: `listed` after the content, or `in-place` in the citation marks), how a citation mark shows its numbers (`mark`: `bracketed` or `superscript`), the citation counter style (`style`: the number format, the delimiters, the texts joining several numbers, whether consecutive numbers make a range, and the words `\\R` writes), the heading above the list of cited works (`heading_title`, or null for no heading, and `heading_level`), and the text written between the numbers and a note (`note_separator`). Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "DeftermConfig",
+        "owner": "defterm",
+        "summary": "The lead-in of a term definition (the `defterm` environment): a template in which `#{term}` is the term being defined, or none for no lead-in. Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "FloatsConfig",
+        "owner": "floats",
+        "summary": "The float types, each an environment of the type's name: its caption name, its numbering policy, its number format, the words a reference writes before its number, the content handlers it accepts, the scoped packages available in its body and the label types it accepts. Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "GraphicsConfig",
+        "owner": "graphics",
+        "summary": "Whether `\\includegraphics` is also an ordinary command of the document (`global`, false by default), besides a command of the scoped package `flm.graphics.includegraphics`, which a float type can make available in its body (the `figure` and `table` types do). Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "GraphicsRenderOptions",
+        "owner": "graphics",
+        "summary": "How each output publishes its images (`strategy`: `reference`, `copy` or `data-uri`), the conversion rules it applies (`convert`), and the factors by which it multiplies the size of raster and of vector images (`magnification`: `raster` and `vector`, 1 by default), each a map from an output's name to its value. Set per render request."
+      },
+      {
+        "name": "HeadingsConfig",
+        "owner": "headings",
+        "summary": "The heading kinds and the heading commands that write them: each kind's level, counter, counter style, the counter it is numbered within, number format, heading title template, table-of-contents and run-in settings and reference point; each command's heading kind and default options; and which kinds are numbered. Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "HeadingsLatexOptions",
+        "owner": "headings",
+        "summary": "The LaTeX sectioning command each heading kind is written as in the recomposed LaTeX, keyed by the kind's name; a kind not listed is written as the command of its own name. Set per render request."
+      },
+      {
+        "name": "ListsConfig",
+        "owner": "lists",
+        "summary": "The list environments: for each list kind, its environment name, whether its items are numbered, its label templates and its reference templates (read for a numbered list kind) by nesting depth, and its nesting joiner. Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "MathConfig",
+        "owner": "math",
+        "summary": "Whether the lines of `equation`, `align` and `gather` are numbered (`true` by default). Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "MathRecomposeOptions",
+        "owner": "math",
+        "summary": "How the recomposed LaTeX writes a display-math environment: the LaTeX written before and after it, and whether the environment is written through the command `\\flmMathEnvironment`. Set per render request."
+      },
+      {
+        "name": "DocMeta",
+        "owner": "meta",
+        "summary": "the document's metadata: its title, its authors and its date, each an FLM text with the place it was written at, and every other key as data"
+      },
+      {
+        "name": "NumberingConfig",
+        "owner": "numbering",
+        "summary": "The counter styles that replace declared ones: each entry replaces, by its name, the counter style a feature declares. Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "NumberingOptions",
+        "owner": "numbering",
+        "summary": "Per counter, the counter it is numbered within and the value it has before it is first advanced. Set on the document; a render request may set it again, and its value then replaces the document's for that render."
+      },
+      {
+        "name": "QuoteConfig",
+        "owner": "quote",
+        "summary": "The quote environments, by name: for each, the quotation-section commands its body accepts (`text`, `lines`, `attributed`, `block`) and the kind of quotation section that content written outside those commands is read as (the key `bare`; when it is absent, such content is an error). Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "RefsRecomposeOptions",
+        "owner": "refs",
+        "summary": "How the recomposed LaTeX writes labels and references: the label types written as the document wrote them instead of as generated keys, and whether a reference is protected against a command that changes the case of its argument. Set per render request."
+      },
+      {
+        "name": "RefsConfig",
+        "owner": "refs",
+        "summary": "The texts that join the items of a reference to several targets. Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "RefsRenderOptions",
+        "owner": "refs",
+        "summary": "Whether a reference that points at no label is reported as an Error (the default) or, under `unresolved: allow`, as a Warning. Set per render request."
+      },
+      {
+        "name": "TheoremsConfig",
+        "owner": "theorems",
+        "summary": "The theorem-like environments: the theorem classes (whether numbered, whether in the shared counter, the heading template, the closing mark, whether a proof's title is read as a back-reference), the theorem kinds (the class, the words, whether a proof is expected), the number format and the label types a numbered kind accepts. Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "TocOptions",
+        "owner": "toc",
+        "summary": "The deepest heading level the table of contents lists (`depth`, 3 by default). Set on the document; a render request may set it again, and its value then replaces the document's for that render."
+      },
+      {
+        "name": "UserdefsConfig",
+        "owner": "userdefs",
+        "summary": "The user definitions (macros, environments and special character sequences defined by substitution), one map per kind, and the expansion depth limit. Fixed when the registry is built: it cannot vary per document or per render."
+      },
+      {
+        "name": "XnotesConfig",
+        "owner": "xnotes",
+        "summary": "The kinds of xnote (notes set apart from the running text, such as footnotes): for each kind, its commands, the words a reference writes, its label type, whether it is numbered, its number and mark templates, where its notes are shown, how its content is laid out, the title of its list, the text of the link back to the mark and the LaTeX command it is handed to. Fixed when the registry is built: it cannot vary per document or per render."
+      }
+    ]
+  },
+  {
+    "name": "service-slot",
+    "what": "A service slot is a named place where features and the embedding program contribute objects that stages use.",
+    "entries": [
+      {
+        "name": "flm.artifacts.namer",
+        "owner": "lowering",
+        "summary": "the host's naming scheme: the path of each artifact of an output, relative to the output location"
+      },
+      {
+        "name": "flm.cells.styles",
+        "owner": "cells",
+        "summary": "the cell styles a cell's style tokens may refer to: the ones the `cells` feature ships and the ones other features contribute"
+      },
+      {
+        "name": "flm.citations.providers",
+        "owner": "citations",
+        "summary": "The citation providers, which give the citation entries of the cited works and are asked in order for each cited key; the feature never requires one."
+      },
+      {
+        "name": "flm.floats.content",
+        "owner": "floats",
+        "summary": "The content handlers that float types list by name: each accepts a float's content or refuses it."
+      },
+      {
+        "name": "flm.floats.types",
+        "owner": "floats",
+        "summary": "The float types; `floats::contribute_type` declares each one, with the environment of its name."
+      },
+      {
+        "name": "flm.graphics.converters",
+        "owner": "graphics",
+        "summary": "the converters that turn an image of one format into another, asked in the order contributed for each conversion rule an output applies"
+      },
+      {
+        "name": "flm.graphics.inspector",
+        "owner": "graphics",
+        "summary": "the inspector a host supplies, which reports what an image file states: whether it is a vector or a raster image, its size in pixels, its resolution and its physical size"
+      },
+      {
+        "name": "flm.graphics.resolver",
+        "owner": "graphics",
+        "summary": "the graphics resolver a host supplies, which finds the file for an image's path (its identity, its format, the address that reaches it) and reads its content when asked"
+      },
+      {
+        "name": "flm.latex.packages",
+        "owner": "latex",
+        "summary": "the package definitions that a requirement identifier `flm.latex.pkg.<name>` resolves to"
+      },
+      {
+        "name": "flm.latex.preamble",
+        "owner": "latex",
+        "summary": "the definition pieces a requirement identifier `flm.latex.def.<name>` resolves to"
+      },
+      {
+        "name": "flm.numbering.counters",
+        "owner": "numbering",
+        "summary": "The counters that reference points are numbered by, one value per counter: its name, the counter style its numbers are shown in, and the counter it is numbered within."
+      },
+      {
+        "name": "flm.numbering.number-writers",
+        "owner": "numbering",
+        "summary": "The number writers registered by name, one value per number writer: code that turns the counter values to be shown in a counter style into the content a reader sees."
+      },
+      {
+        "name": "flm.numbering.parent-sets",
+        "owner": "numbering",
+        "summary": "The parent sets, one value per set: a named list of counters within which a counter may be numbered; at each reference point, the counter of the set advanced most recently is the parent."
+      },
+      {
+        "name": "flm.numbering.styles",
+        "owner": "numbering",
+        "summary": "The counter styles a number may be shown in, one value per counter style: the number format, the sub-levels, the word before the number, the delimiters and the texts that join several numbers."
+      },
+      {
+        "name": "flm.numbering.within-joiners",
+        "owner": "numbering",
+        "summary": "The within-joiners registered by name, one value per within-joiner: code that writes, before a counter's number, the numbers of the counters it is numbered within."
+      },
+      {
+        "name": "flm.output.regions",
+        "owner": "lowering",
+        "summary": "the outputs whose entry artifact is made of output regions, each with the table that holds its regions and the tables of the files written beside its entry artifact"
+      },
+      {
+        "name": "flm.pieces",
+        "owner": "pieces",
+        "summary": "the pieces each feature offers (document-level values a backend places before or after the content), in the order a backend places them"
+      },
+      {
+        "name": "flm.xnotes.kinds",
+        "owner": "xnotes",
+        "summary": "the kinds of xnote, in order: the ones the `xnotes` feature's configuration declares and the ones other features contribute"
+      }
+    ]
+  },
+  {
+    "name": "scoped-package",
+    "what": "A scoped package is a set of commands defined only inside certain environment bodies or arguments, such as the item command inside a list.",
+    "entries": [
+      {
+        "name": "flm.math.lines",
+        "owner": "math",
+        "summary": "The commands of a display-math environment's body: `\\\\`, `\\label`, `\\tag` and `\\nonumber`."
+      },
+      {
+        "name": "flm.refs.label",
+        "owner": "refs",
+        "summary": "The command available in an argument that accepts labels: `\\label{type:label}`."
+      },
+      {
+        "name": "flm.lists.items",
+        "owner": "lists",
+        "summary": "The command recognized inside a list environment's body: `\\item`, which begins an item."
+      },
+      {
+        "name": "flm.quote.sections.quote",
+        "owner": "quote",
+        "summary": "The quotation-section commands available inside the body of the quote environment `quote`."
+      },
+      {
+        "name": "flm.quote.lines",
+        "owner": "quote",
+        "summary": "The commands available inside a lines section of a quotation: `\\\\`, which ends a line, and `\\indent`, which indents the line it starts."
+      },
+      {
+        "name": "flm.graphics.includegraphics",
+        "owner": "graphics",
+        "summary": "`\\includegraphics[options]{path}`, in the bodies that refer to this package (those of a `figure` and a `table` by default)."
+      },
+      {
+        "name": "flm.floats.fields",
+        "owner": "floats",
+        "summary": "The commands of a float's body, which the float reads: `\\caption[alt=…]{…}`, `\\label{…}` and `\\nonumber`."
+      },
+      {
+        "name": "flm.cells.environment",
+        "owner": "cells",
+        "summary": "The `cells` environment, in the bodies that accept a table of cells."
+      },
+      {
+        "name": "flm.cells.body",
+        "owner": "cells",
+        "summary": "The instructions of a table of cells: `\\cell`, `\\celldata`, `\\\\`, `\\rownames` and `\\colnames`."
+      },
+      {
+        "name": "flm.cells.merge",
+        "owner": "cells",
+        "summary": "`\\merge`, in the placement of a cell and the mapping of `\\celldata`."
+      },
+      {
+        "name": "flm.cells.data",
+        "owner": "cells",
+        "summary": "`&`, in the data of `\\celldata`."
+      }
+    ]
+  },
+  {
+    "name": "presentation-element",
+    "what": "A presentation element is an element of the trees a backend builds from the document's trees; it never appears in a parsed document.",
+    "entries": [
+      {
+        "name": "flm.pres.block",
+        "owner": "lowering",
+        "summary": "a block container with a role and kinds (a run of blocks)"
+      },
+      {
+        "name": "flm.pres.block-heading",
+        "owner": "lowering",
+        "summary": "a heading placed on its own between blocks, with its heading kind's name, a level and whether it is listed in a table of contents: a `body` content slot holding the title (inline content) and an optional `alt` content slot holding the alternative title"
+      },
+      {
+        "name": "flm.pres.cells",
+        "owner": "lowering",
+        "summary": "a table of cells: its grid in the payload, a `cell` content slot per entry"
+      },
+      {
+        "name": "flm.pres.deco-mark",
+        "owner": "lowering",
+        "summary": "the childless mark left where the lowering driver moved a decoration out of a content slot"
+      },
+      {
+        "name": "flm.pres.deco.final",
+        "owner": "lowering",
+        "summary": "a decoration closing its block (a proof's closing mark)"
+      },
+      {
+        "name": "flm.pres.deco.margin",
+        "owner": "lowering",
+        "summary": "a decoration set beside the text, level with its decoration mark"
+      },
+      {
+        "name": "flm.pres.deco.runin",
+        "owner": "lowering",
+        "summary": "a decoration at the start of its block (a theorem's heading)"
+      },
+      {
+        "name": "flm.pres.dropped",
+        "owner": "lowering",
+        "summary": "the childless mark where a rule left out something it could not place"
+      },
+      {
+        "name": "flm.pres.html.tag",
+        "owner": "html",
+        "summary": "one HTML tag: its name, its attributes, and either children or one piece of markup"
+      },
+      {
+        "name": "flm.pres.image",
+        "owner": "lowering",
+        "summary": "an image"
+      },
+      {
+        "name": "flm.pres.latex.definition",
+        "owner": "latex",
+        "summary": "a macro or environment definition, or a feature's declaration, written to the style file and never where the node occurs"
+      },
+      {
+        "name": "flm.pres.latex.environment",
+        "owner": "latex",
+        "summary": "a LaTeX environment: the content slots of its arguments, then the body"
+      },
+      {
+        "name": "flm.pres.latex.macro",
+        "owner": "latex",
+        "summary": "a LaTeX macro call: the command name and one content slot per argument"
+      },
+      {
+        "name": "flm.pres.latex.raw",
+        "owner": "latex",
+        "summary": "LaTeX text written byte for byte"
+      },
+      {
+        "name": "flm.pres.line",
+        "owner": "lowering",
+        "summary": "one line of a `lines` node, with its indentation and alignment"
+      },
+      {
+        "name": "flm.pres.lines",
+        "owner": "lowering",
+        "summary": "a sequence of lines"
+      },
+      {
+        "name": "flm.pres.link",
+        "owner": "lowering",
+        "summary": "a link around inline display content"
+      },
+      {
+        "name": "flm.pres.list",
+        "owner": "lowering",
+        "summary": "a list: a `label` and an `item` content slot per entry"
+      },
+      {
+        "name": "flm.pres.math-passthrough",
+        "owner": "lowering",
+        "summary": "mathematics passed through as source text: the formula's content as written, which the `math-passthrough` feature stages and nothing in FLM has read"
+      },
+      {
+        "name": "flm.pres.math-text",
+        "owner": "lowering",
+        "summary": "document content inside a formula: the argument of a text command"
+      },
+      {
+        "name": "flm.pres.par",
+        "owner": "lowering",
+        "summary": "a laid-out paragraph (an inline run)"
+      },
+      {
+        "name": "flm.pres.runin-heading",
+        "owner": "lowering",
+        "summary": "the title of a run-in heading, inside its run-in decoration, with the same payload and content slots as a block heading: a `body` slot holding the title (inline content) and an optional `alt` slot holding the alternative title"
+      },
+      {
+        "name": "flm.pres.span",
+        "owner": "lowering",
+        "summary": "inline content with a display style, a role and kinds"
+      },
+      {
+        "name": "flm.pres.subtree",
+        "owner": "lowering",
+        "summary": "the position at which another document tree is placed"
+      },
+      {
+        "name": "flm.pres.unknown",
+        "owner": "lowering",
+        "summary": "a macro or environment the parse could not attribute to any feature"
+      },
+      {
+        "name": "flm.pres.unsupported",
+        "owner": "lowering",
+        "summary": "the childless stand-in for a node the backend cannot render"
+      },
+      {
+        "name": "flm.pres.verbatim",
+        "owner": "lowering",
+        "summary": "byte-exact content of a verbatim kind (text, code or identifier), inline or as a block, with an optional language"
+      }
+    ]
+  },
+  {
+    "name": "piece",
+    "what": "A piece is a value computed over the whole document, such as the list of footnotes, that a backend places before or after the document's content.",
+    "entries": [
+      {
+        "name": "flm.xnotes.list.footnote",
+        "owner": "xnotes",
+        "summary": "the list of the `footnote` xnotes, after the document's content"
+      },
+      {
+        "name": "flm.citations.bibliography",
+        "owner": "citations",
+        "summary": "the list of the cited works, placed after the document's content"
+      },
+      {
+        "name": "flm.meta.title",
+        "owner": "meta",
+        "summary": "the document's title, before the content"
+      },
+      {
+        "name": "flm.meta.author",
+        "owner": "meta",
+        "summary": "the document's authors, before the content"
+      },
+      {
+        "name": "flm.meta.date",
+        "owner": "meta",
+        "summary": "the document's date, before the content"
+      },
+      {
+        "name": "flm.toc",
+        "owner": "toc",
+        "summary": "the table of contents, before the content"
+      }
+    ]
+  },
+  {
+    "name": "style",
+    "what": "A style definition is a part of a stylesheet that a backend writes into its output when a tree requires it.",
+    "entries": [
+      {
+        "name": "flm.headings.style",
+        "owner": "headings",
+        "summary": "headings: no stylesheet of their own"
+      },
+      {
+        "name": "flm.xnotes.style",
+        "owner": "xnotes",
+        "summary": "the line above a list of xnotes and the brackets around an xnote shown in place"
+      },
+      {
+        "name": "flm.defterm.style",
+        "owner": "defterm",
+        "summary": "the term being defined, where its own term definition uses it"
+      },
+      {
+        "name": "flm.theorems.style",
+        "owner": "theorems",
+        "summary": "the heading of a theorem: its name set apart from its title"
+      },
+      {
+        "name": "flm.quote.style",
+        "owner": "quote",
+        "summary": "a quotation set apart from the text around it, and its attribution from its passage"
+      },
+      {
+        "name": "flm.floats.style",
+        "owner": "floats",
+        "summary": "a float set apart from the text around it, with its content and the line under its content centered"
+      },
+      {
+        "name": "flm.cells.style",
+        "owner": "cells",
+        "summary": "a table's outline and edge lines, a cell's padding and alignment, and the backgrounds of the custom styles `green`, `blue`, `yellow` and `red`"
+      },
+      {
+        "name": "flm.citations.style",
+        "owner": "citations",
+        "summary": "the line height of a raised citation mark, which keeps the mark from pushing its line apart from the lines around it"
+      },
+      {
+        "name": "flm.meta.style",
+        "owner": "meta",
+        "summary": "the document's title large and bold, and the authors and the date each on a line of its own, indented under the title"
+      },
+      {
+        "name": "flm.toc.style",
+        "owner": "toc",
+        "summary": "the lists of the table of contents without a marker, each nested list indented, and a space after an entry's number"
+      },
+      {
+        "name": "flm.html.style.core",
+        "owner": "html",
+        "summary": "paragraphs, blocks, the display styles of a span, links, images and the three decorations"
+      },
+      {
+        "name": "flm.html.style.headings",
+        "owner": "html",
+        "summary": "the six heading sizes"
+      },
+      {
+        "name": "flm.html.style.verbatim",
+        "owner": "html",
+        "summary": "content set character for character, inline and as a block"
+      },
+      {
+        "name": "flm.html.style.math-passthrough",
+        "owner": "html",
+        "summary": "a displayed formula, and content written inside a formula"
+      },
+      {
+        "name": "flm.html.style.lists",
+        "owner": "html",
+        "summary": "lists with their entries and labels, and a run of lines with its alignment"
+      },
+      {
+        "name": "flm.html.style.errors",
+        "owner": "html",
+        "summary": "what the page shows where the document asked for something that could not be produced"
+      },
+      {
+        "name": "flm.html.style.page",
+        "owner": "html",
+        "summary": "the page's own typography and the width the content is held to; required by the page this backend assembles and by no element"
+      }
+    ]
+  },
+  {
+    "name": "script",
+    "what": "A script definition is a part of a script that a backend writes into its output when a tree requires it.",
+    "entries": [
+      {
+        "name": "flm.html.mathjax",
+        "owner": "html",
+        "summary": "the formula renderer: its configuration, then the address its program is loaded from"
+      }
+    ]
+  },
+  {
+    "name": "settings-key",
+    "what": "A settings key is one value of a feature's settings, written under the feature's name; this list gives each key as the feature's name, a dot and the key.",
+    "entries": [
+      {
+        "name": "blocks.auto_unicode_quotes",
+        "owner": "blocks",
+        "summary": "Whether the straight double quote `\"` and the straight single quote `'`\nbecome curly quotes, opening (`“`, `‘`) or closing (`”`, `’`) according\nto their position. When\n`ligature_unicode_quotes` is\nalso on, the two-character ligature `''` is that family's, and this test\napplies to a single `'`."
+      },
+      {
+        "name": "blocks.ligature_unicode_quotes",
+        "owner": "blocks",
+        "summary": "Whether the TeX quote ligatures apply: ``` `` ``` becomes `“`, `''`\nbecomes `”`, and `` ` `` becomes `‘`. A single `'` becomes `’`, as in\nTeX, only when `auto_unicode_quotes` is\noff; when both families are on, the position test of\n`auto_unicode_quotes` decides a single `'`."
+      },
+      {
+        "name": "blocks.ligature_unicode_dashes",
+        "owner": "blocks",
+        "summary": "Whether the TeX dash ligatures apply: `---` becomes an em dash `—` and\n`--` an en dash `–`."
+      },
+      {
+        "name": "blocks.ligature_unicode_ellipses",
+        "owner": "blocks",
+        "summary": "Whether the ellipsis ligature applies: `...` becomes `…`."
+      },
+      {
+        "name": "numbering.styles",
+        "owner": "numbering",
+        "summary": "The replacements, each replacing the counter style declaration of the\nsame name, in the order they were given."
+      },
+      {
+        "name": "numbering.counters",
+        "owner": "numbering",
+        "summary": "What the document says about each counter it mentions, in name order."
+      },
+      {
+        "name": "math.numbered_equations",
+        "owner": "math",
+        "summary": "Whether the lines of `equation`, `align` and `gather` that carry no\n`\\nonumber` and no `\\tag` are numbered. `true` by default. The lines\nof `equation*`, `align*` and `gather*` are never numbered."
+      },
+      {
+        "name": "math.surround_display_math",
+        "owner": "math",
+        "summary": "The LaTeX written, byte for byte, before and after every displayed\nformula: every display-math environment and every displayed math group\n(`\\[…\\]`). Both empty by default."
+      },
+      {
+        "name": "math.emit_flm_math_environment_macro",
+        "owner": "math",
+        "summary": "Whether an environment is written as\n`\\flmMathEnvironment{<name>}{<arguments>}{<body>}` rather than as\n`\\begin{<name>}…\\end{<name>}`. Off by default. The style file then\nholds the definition of `\\flmMathEnvironment`, which a user may\nredefine."
+      },
+      {
+        "name": "refs.join",
+        "owner": "refs",
+        "summary": "The texts that join the items of a reference to several targets.\nDefault: the defaults of `JoinDecl`."
+      },
+      {
+        "name": "refs.unresolved",
+        "owner": "refs",
+        "summary": "The severity of a reference that points at no label: `error` (the\ndefault) or `allow` (a Warning)."
+      },
+      {
+        "name": "refs.safe_label_types",
+        "owner": "refs",
+        "summary": "Per label type (`sec`, `eq`), how its labels are written; a type not\nlisted is `Safe`. Empty by default. A label\nwith no type belongs to none of these and is always written by its\nsafe label."
+      },
+      {
+        "name": "refs.protect",
+        "owner": "refs",
+        "summary": "Whether a reference is wrapped in `\\NoCaseChange{\\protect …}`, which\nkeeps it out of a command that changes the case of its argument\n(`\\MakeUppercase`). Off by default; when on, the style file requests\nthe `textcase` package, which supplies `\\NoCaseChange` on every LaTeX\nkernel."
+      },
+      {
+        "name": "headings.headings",
+        "owner": "headings",
+        "summary": "The heading kinds, in the order they were given."
+      },
+      {
+        "name": "headings.commands",
+        "owner": "headings",
+        "summary": "The heading commands, in the order they were given."
+      },
+      {
+        "name": "headings.numbering",
+        "owner": "headings",
+        "summary": "Which kinds are numbered: `HeadingNumbering::NothingNumbered` by\ndefault."
+      },
+      {
+        "name": "headings.latex_commands",
+        "owner": "headings",
+        "summary": "The LaTeX sectioning command, without the backslash, that each heading\nkind is written as, keyed by the kind's name. A kind the map does not list\nis written as the command of its own name. Empty by default."
+      },
+      {
+        "name": "lists.environments",
+        "owner": "lists",
+        "summary": "The list kinds, by environment name."
+      },
+      {
+        "name": "xnotes.kinds",
+        "owner": "xnotes",
+        "summary": "The xnote kinds, in the order in which their lists are placed."
+      },
+      {
+        "name": "defterm.lead_in",
+        "owner": "defterm",
+        "summary": "The lead-in template, or `None` for no lead-in. `DEFAULT_LEAD_IN`\nby default."
+      },
+      {
+        "name": "theorems.classes",
+        "owner": "theorems",
+        "summary": "The theorem classes, by name."
+      },
+      {
+        "name": "theorems.kinds",
+        "owner": "theorems",
+        "summary": "The theorem kinds, by environment name."
+      },
+      {
+        "name": "theorems.number_format",
+        "owner": "theorems",
+        "summary": "The number format every kind's number is written in, a number\ntemplate of the numbering feature, `#{arabic}` by default. To write\none kind's number otherwise, a host replaces that kind's counter style\n(`flm.theorems.style.<kind>`, see `numbers`) by name\nthrough the numbering feature's configuration."
+      },
+      {
+        "name": "theorems.label_types",
+        "owner": "theorems",
+        "summary": "The label types that every numbered kind accepts on a `\\label` written\non one of its theorems; `DEFAULT_LABEL_TYPES` by default. A theorem\nof an unnumbered kind accepts no label."
+      },
+      {
+        "name": "quote.environments",
+        "owner": "quote",
+        "summary": "The quote environments, by name."
+      },
+      {
+        "name": "annotations.annotators",
+        "owner": "annotations",
+        "summary": "The annotators, in order: the first is annotator 0. In settings, a map\nfrom each annotator's command name to its other fields."
+      },
+      {
+        "name": "annotations.hidden",
+        "owner": "annotations",
+        "summary": "Whether every annotation is left out of the output, each highlight\nshown as its passage alone and each comment not at all. `false` by\ndefault."
+      },
+      {
+        "name": "graphics.global",
+        "owner": "graphics",
+        "summary": "Whether `\\includegraphics` is also an ordinary command of the\ndocument, which can be written wherever text can, besides a command of\nits scoped package. `false` by default."
+      },
+      {
+        "name": "graphics.strategy",
+        "owner": "graphics",
+        "summary": "How each output publishes its images, by the output's name:\n`reference` (the address of the file where it is, the default), `copy`\n(a copy of the file beside the output) or `data-uri` (the file's\ncontent written into the address). `copy` and `data-uri` need a way to\nread image files, which the program must supply."
+      },
+      {
+        "name": "graphics.convert",
+        "owner": "graphics",
+        "summary": "The conversion rules of each output, by the output's name, applied\nunder `copy` and `data-uri` and never under `reference`. Each rule has\n`from` (a format or a list of formats among `png`, `jpeg`, `gif`,\n`webp`, `svg`, `pdf`), `to` (one format), `via` (the names of the\nconverters allowed; any converter where empty) and `options` (`dpi`,\n`transparent_bg`). For each image, the first rule whose `from` lists\nthe image's format applies. No rule by default."
+      },
+      {
+        "name": "graphics.magnification",
+        "owner": "graphics",
+        "summary": "The magnification of each output, by the output's name: `raster` and\n`vector`, each a number greater than zero (1 where not given), by\nwhich every dimension of a raster or a vector image shown on that\noutput is multiplied, including the `width` and `height` the author\ngave. An image whose type is not known uses `vector`. No\nmagnification by default."
+      },
+      {
+        "name": "floats.types",
+        "owner": "floats",
+        "summary": "The float types, in order; no two have the same name. In settings, a\nmap from each type's name to its fields."
+      },
+      {
+        "name": "cells.global",
+        "owner": "cells",
+        "summary": "Whether the `cells` environment is an ordinary environment of the\ndocument, in addition to its declaration in the scoped package\n`ENVIRONMENT_PACKAGE`. `false` by default."
+      },
+      {
+        "name": "citations.placement",
+        "owner": "citations",
+        "summary": "Where the citation entries are shown: listed after the content, the\ndefault, or in the citation marks in place of the numbers\n(`CitationPlacement`)."
+      },
+      {
+        "name": "citations.mark",
+        "owner": "citations",
+        "summary": "How a citation mark shows its numbers under the listed placement, and\nhow the list of cited works labels its entries: `MarkForm::Bracketed`\nby default. It has no effect under `CitationPlacement::InPlace`."
+      },
+      {
+        "name": "citations.style",
+        "owner": "citations",
+        "summary": "The citation counter style, a counter style\n(`CounterStyleDecl`): how a number is written, the delimiters, the\ntexts joining several numbers, whether consecutive numbers make a\nrange, and the words `\\R` writes before a citation mark. By default\n(`default_style`): arabic numbers, `[` and `]`, the compact join,\nranges on, the words `ref.~` and `refs.~`, and the variant `capital`\nwith the words `Ref.~` and `Refs.~`."
+      },
+      {
+        "name": "citations.heading_title",
+        "owner": "citations",
+        "summary": "The title of the heading above the list of cited works, as FLM text:\n`References` by default; `None` for a list with no heading above it\n(`without_heading`)."
+      },
+      {
+        "name": "citations.heading_level",
+        "owner": "citations",
+        "summary": "The level of the heading above the list of cited works, counted from\nzero like every heading level; 2 by default, the level of the heading\nabove a list of footnotes. The feature passes it to the heading\nunchanged, and accepts every value. It has no effect on a list with no\nheading."
+      },
+      {
+        "name": "citations.note_separator",
+        "owner": "citations",
+        "summary": "The text written between a group's numbers and its note, as FLM text:\n`; ` by default, as in `[1; Thm 4]`."
+      },
+      {
+        "name": "userdefs.macros",
+        "owner": "userdefs",
+        "summary": "The macros: a map from a macro's name, without the backslash, to its\ndefinition. The order written is kept."
+      },
+      {
+        "name": "userdefs.environments",
+        "owner": "userdefs",
+        "summary": "The environments: a map from an environment's name to its definition.\nThe order written is kept."
+      },
+      {
+        "name": "userdefs.specials",
+        "owner": "userdefs",
+        "summary": "The special character sequences: a map from the characters of a\nsequence to its definition. The order written is kept."
+      },
+      {
+        "name": "userdefs.recursion_limit",
+        "owner": "userdefs",
+        "summary": "The expansion depth limit: how many expansions one chain of use sites\nmay nest before a use site is reported with\n`flm.userdefs.recursion-limit`. The default is 32\n(`UserdefsConfig::recursion_limit`)."
+      },
+      {
+        "name": "toc.depth",
+        "owner": "toc",
+        "summary": "The deepest heading level listed: a heading is listed when its level is at\nmost this number. 3 by default (sections, subsections, subsubsections)."
+      },
+      {
+        "name": "pieces.include",
+        "owner": "pieces",
+        "summary": "Pieces placed although they are declared off by default."
+      },
+      {
+        "name": "pieces.exclude",
+        "owner": "pieces",
+        "summary": "Pieces declared on by default that the render request leaves out."
+      },
+      {
+        "name": "text.width",
+        "owner": "text",
+        "summary": "The line width in columns; `None` never wraps. The default is 80."
+      },
+      {
+        "name": "text.tab_width",
+        "owner": "text",
+        "summary": "The width of a tab in columns: how far a line indented by one\ntab (one `\\indent`\nin a lines section of a quotation) is indented. The default is 4. Every\nlength, in any unit, is converted to columns by\n`columns`."
+      },
+      {
+        "name": "text.run_in_stop",
+        "owner": "text",
+        "summary": "The stop written after the title of a run-in heading (a heading set at\nthe start of the paragraph it introduces), so that `\\paragraph{Note} Some\ncontent.` is printed as `Note. Some content.` The default is\n`DEFAULT_RUN_IN_STOP`,\na period; the empty text writes no stop."
+      },
+      {
+        "name": "text.link_addresses",
+        "owner": "text",
+        "summary": "Whether a link to an address outside the document prints that address\nafter its content, between angle brackets: `\\href{https://example.com}{Click\nhere}` prints `Click here <https://example.com>`. The default is `true`.\nOff, every link prints its content alone, which keeps a text holding\nmany links readable. A link to a place inside the document prints its\ncontent alone either way."
+      },
+      {
+        "name": "text.link_addresses_when_shown",
+        "owner": "text",
+        "summary": "Whether a link whose content already shows its address also prints the\naddress after it. A `\\url` or an `\\email` is such a link: its content\nis derived from the address by the lowering rule that produced the\nlink, which sets\n`LinkPayload::shows_target`.\nWith this option off (the default), `\\url{https://example.com}` prints\n`example.com`; on, it prints `example.com <https://example.com>`. It\nhas no effect when `link_addresses` is off."
+      },
+      {
+        "name": "text.root_heading_level",
+        "owner": "text",
+        "summary": "The heading level the text output writes as its first-level heading.\nA heading's level is a number counted from zero, smaller for an outer\nheading\n(`HeadingPayload::level`).\nA heading at this level is underlined with `=`, a heading one level\ndeeper with `-`, and every deeper heading is preceded by `#`\ncharacters, one\nmore than its depth below this level as\n`heading_depth` counts\nit from 0: three for a heading two levels below. The default is\n`DEFAULT_ROOT_HEADING_LEVEL`,\n1, the level of a section, the same as for the HTML backend's option of\nthe same name\n(`HtmlRenderOptions::root_heading_level`)."
+      },
+      {
+        "name": "latex-recomposed.unicode",
+        "owner": "latex-recomposed",
+        "summary": "What is written for a non-ASCII character of document text:\n`Declare`, the default, writes the character\nitself as UTF-8 and declares it once in the style file;\n`Replace` writes its LaTeX spelling in place\n(see `escape`). Mathematics\nand verbatim content are written byte for byte in either mode."
+      },
+      {
+        "name": "latex-recomposed.unicode_overrides",
+        "owner": "latex-recomposed",
+        "summary": "Per-character spellings that replace the spellings of the\nUnicode-to-LaTeX table of `untechxt` (the table that\ngives each character a LaTeX spelling and states what that spelling\nneeds), in either Unicode mode: for each character, the\nLaTeX to write in its place, or to declare it with. Empty by default."
+      },
+      {
+        "name": "latex-recomposed.drop_comments",
+        "owner": "latex-recomposed",
+        "summary": "Whether the document's source comments are left out of the recomposed\nLaTeX. Off by default: a comment is written with its comment prefix,\nits text and the whitespace that followed it."
+      },
+      {
+        "name": "latex-recomposed.skip_packages",
+        "owner": "latex-recomposed",
+        "summary": "LaTeX packages that this library never requests, each given by the\nname `\\usepackage` takes (`amsmath`), for a user whose document class\nloads them already. Empty by default."
+      },
+      {
+        "name": "latex-recomposed.extra_packages",
+        "owner": "latex-recomposed",
+        "summary": "LaTeX packages that the style file always requests, each a package name\nwith the options it is loaded with, as a `LatexPackageDef`. Empty by\ndefault."
+      },
+      {
+        "name": "latex-recomposed.extra_preamble",
+        "owner": "latex-recomposed",
+        "summary": "LaTeX text written into the style file exactly as given, in three\nparts (`ExtraPreamble`), all empty by default."
+      },
+      {
+        "name": "latex-recomposed.bare_names",
+        "owner": "latex-recomposed",
+        "summary": "The user-definition names (macro and environment names) that the\nrecomposed LaTeX writes exactly as the document spelled them, instead of\nunder the prefix that every recomposed user definition otherwise takes.\nEmpty by default; a name is given without a backslash, and one entry\napplies to a macro and an environment of that name alike."
+      },
+      {
+        "name": "latex-recomposed.robust_names",
+        "owner": "latex-recomposed",
+        "summary": "The user-definition names written as **robust** LaTeX commands rather\nthan as the plain expandable macros that every recomposed definition\notherwise becomes. Empty by default; a name is given without a\nbackslash, and one entry applies to every definition of that name: a\nmacro, an environment, and both per-mode definitions of a name declared\nonce for text mode and once for mathematics mode."
+      },
+      {
+        "name": "latex-recomposed.style_stem",
+        "owner": "latex-recomposed",
+        "summary": "The stem of the style file's name: the style file's own name is\n`<stem>.<hash>`, where the hash is computed from the file's content\n(`content_hash`).\nWithout a naming of files by the program, the file is\n`<stem>.<hash>.sty`; the program's naming of files may add to that\nname, for instance a prefix from the name of the document's file\n(`paper-flmrecomposed.1a2b3c4d.sty`).\nThe default is `DEFAULT_STYLE_STEM`, `flmrecomposed`."
+      },
+      {
+        "name": "latex-recomposed.style_file",
+        "owner": "latex-recomposed",
+        "summary": "When the style file is written: `WhenNeeded`,\nthe default, only where the document needs something in it, or\n`Always`. In both cases the file is written when\n`extra_packages` holds a request or any of the\nthree parts of `extra_preamble` is not empty,\nbecause the author asked for something to be in it."
+      },
+      {
+        "name": "latex-recomposed.heading_hook",
+        "owner": "latex-recomposed",
+        "summary": "Whether a heading is written through the LaTeX hook `\\flmHeading` (a\nmacro that the style file defines with a default and that a user may\nredefine; see `preamble`).\nOn by default."
+      },
+      {
+        "name": "latex-recomposed.label_hooks",
+        "owner": "latex-recomposed",
+        "summary": "Whether labels and references are written through the LaTeX hooks\n`\\flmLabels`, `\\flmLabelsWithDisplayText` and `\\flmRef` (macros that\nthe style file defines with a default and that a user may redefine;\nsee `preamble`). On by\ndefault."
+      },
+      {
+        "name": "latex-recomposed.drop_math_labels_without_refs",
+        "owner": "latex-recomposed",
+        "summary": "Whether the labels written on the lines of a display-math environment\nare left out of the recomposed LaTeX **in a registry that does not hold\nthe references feature**. Off by default."
+      },
+      {
+        "name": "latex-recomposed.resolved_proof_refs",
+        "owner": "latex-recomposed",
+        "summary": "Whether a proof's **back-reference** is resolved into LaTeX hooks (on)\nor written as the author wrote it over the `phfthm` package (off, the\ndefault); the choice also decides which LaTeX package declares the\ntheorem-like environments. The back-reference is the title\n`[*thm:x]`, which shows the statement that a proof proves, or\n`[**thm:x]`, which records the relation without showing it. Off by\ndefault."
+      },
+      {
+        "name": "latex-rendered.style_stem",
+        "owner": "latex-rendered",
+        "summary": "The stem of the style file's name, `flmx` by default. The file is\nnamed `<stem>.<hash>.sty`, `<hash>` being eight hexadecimal digits of\nits content's digest, to which the program's naming of files may add a\nprefix (`paper-flmx.1a2b3c4d.sty`)."
+      },
+      {
+        "name": "latex-rendered.run_in_stop",
+        "owner": "latex-rendered",
+        "summary": "The stop written after a run-in heading's title and a run-in\ndecoration's content, as the key `stop`, `.` by default; empty for\nnone. It is not written where the title already ends in sentence\npunctuation."
+      },
+      {
+        "name": "latex-rendered.skip_packages",
+        "owner": "latex-rendered",
+        "summary": "LaTeX packages this backend never requests, each given by the name\n`\\usepackage` takes, for a template that loads them itself. Empty by\ndefault. A package listed here is left out of the style file's\npackage block, whoever requested it; listing `hyperref` leaves out\nthe line that loads it at the end of the preamble. The author's own\nrequests (`extra_packages`) are not left out."
+      },
+      {
+        "name": "latex-rendered.extra_packages",
+        "owner": "latex-rendered",
+        "summary": "LaTeX packages the style file always requests, with their options,\nmerged after the requests the document's content causes into one\n`\\RequirePackage` line per package. Empty by default."
+      },
+      {
+        "name": "latex-rendered.extra_preamble",
+        "owner": "latex-rendered",
+        "summary": "Three parts of LaTeX text written byte for byte into the style file:\nafter the engine check, after the line loading `hyperref`, and at the\nend. Empty by default."
+      },
+      {
+        "name": "html.title",
+        "owner": "html",
+        "summary": "The page's title when the document states none: the words written into\n`<title>` (the output region `title`) when\nthe render places no title piece\n(`flm.meta.title`) or the title\npiece holds no words. The default is `DEFAULT_TITLE`."
+      },
+      {
+        "name": "html.lang",
+        "owner": "html",
+        "summary": "The page's language as a language tag (`en`, `de-CH`), written as the\n`lang` attribute of `<html>` (the output region\n`lang`). `None`, the default, writes no\nattribute, because a page that claims a language it is not written in is\nworse for a reader using a screen reader than one that claims none."
+      },
+      {
+        "name": "html.source_spans",
+        "owner": "html",
+        "summary": "Whether the emitter writes the attribute `data-flm-source-span`, which\nrecords where in the source a node was written, on the element it\nwrites for each node."
+      },
+      {
+        "name": "html.run_in_stop",
+        "owner": "html",
+        "summary": "The stop written after the title of a run-in heading, so that\n`\\paragraph{Note} Some content.` reads as `Note. Some content.` A\nrun-in heading is a heading set at the start of the paragraph it\nintroduces, on the paragraph's first line\n(`headings`). The default is\n`DEFAULT_RUN_IN_STOP`,\na period; the empty text writes none."
+      },
+      {
+        "name": "html.definitions",
+        "owner": "html",
+        "summary": "The deliveries the host gives in place of the declared content of\nstyle and script definitions, by definition identifier\n(`DefinitionOverride`). Empty by default: every definition is then\ndelivered as its declaration says."
+      },
+      {
+        "name": "html.required_definitions",
+        "owner": "html",
+        "summary": "The style and script definitions the host requires for the page as a\nwhole, by identifier, in addition to those the document's content\nrequires. Empty by default: a page then carries exactly what its content\nneeds."
+      },
+      {
+        "name": "html.heading_tags",
+        "owner": "html",
+        "summary": "The tag a block heading of each heading kind is written with, keyed by\nthe heading kind's name (`section`), the tag written without angle\nbrackets (`h2`). Empty by default. A heading kind the map does not\nlist is written `<h1>` to `<h6>` by its level\n(`root_heading_level`)."
+      },
+      {
+        "name": "html.root_heading_level",
+        "owner": "html",
+        "summary": "The heading level the page writes as its first-level heading, `<h1>`."
+      }
+    ]
+  },
+  {
+    "name": "argument-role",
+    "what": "An argument role is a registered name for what an argument of a command holds, such as a label or a file path.",
+    "entries": [
+      {
+        "name": "flm.refs.target",
+        "owner": "refs",
+        "summary": "The label, or several labels separated by commas, that a reference points to, each written `type:label` (`sec:intro`)."
+      },
+      {
+        "name": "flm.refs.defined-label",
+        "owner": "refs",
+        "summary": "A label attached to a construct, written `type:label` (`sec:intro`), by which references point to the construct."
+      },
+      {
+        "name": "flm.href.address",
+        "owner": "href",
+        "summary": "The address of a link: a URL, or an email address for `\\email`."
+      },
+      {
+        "name": "flm.defterm.defined-term",
+        "owner": "defterm",
+        "summary": "A term that a definition defines, by which term links point to the definition."
+      },
+      {
+        "name": "flm.defterm.target",
+        "owner": "defterm",
+        "summary": "The term that a term link points to."
+      },
+      {
+        "name": "flm.graphics.path",
+        "owner": "graphics",
+        "summary": "The path of an image file."
+      },
+      {
+        "name": "flm.citations.key",
+        "owner": "citations",
+        "summary": "Citation keys, each identifying a cited work, separated by commas."
+      },
+      {
+        "name": "flm.input.path",
+        "owner": "input",
+        "summary": "A reference to another file, usually its path, whose content is read in where the command is written."
+      }
+    ]
+  }
+]

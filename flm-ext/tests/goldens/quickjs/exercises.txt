@@ -1,0 +1,15 @@
+Exercise 1 (A title)
+
+Solve it. Hint: Think of the first case.
+
+Exercise 2 (Another title)
+
+Solve this one too.
+
+Exercise 3
+
+An exercise without a title.
+
+See Exercise 1 and 2.
+
+Outside: \hintnot here.

@@ -1,0 +1,31 @@
+---
+title: "The program's folders"
+flm:
+  use: [flmdoc]
+  math: false
+---
+The folders the program reads: the search path of extensions, the folder of the citation cache, the image folders.
+
+\section*{Search path}
+
+The folders in which an extension is looked for, in the order searched:
+
+\begin{itemize}
+\item \verbcode{ext} (-{}-extensions-dir)
+\item \verbcode{~/.flm/extensions} (the user's folder), which does not exist
+\end{itemize}
+
+\section*{Citation cache}
+
+The folder of the citation cache: \verbcode{_cache}, which does not exist.
+
+\section*{Image folders}
+
+The folders in which an image's file is looked for:
+
+\begin{itemize}
+\item \verbcode{.}
+\end{itemize}
+
+Each folder is relative to the folder of the file that writes the image, or absolute.
+

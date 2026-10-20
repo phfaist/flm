@@ -1,0 +1,25 @@
+{
+  "flm.refpoints": {
+    "flm.heading@1:1#0": {
+      "kind": "section",
+      "labels": [
+        "sec:intro"
+      ],
+      "anchor": "from-first-label",
+      "display": {
+        "content": "argument title"
+      }
+    },
+    "flm.heading@3:1#0": {
+      "kind": "section",
+      "labels": [
+        "sec:intro",
+        "sec:more"
+      ],
+      "anchor": "from-first-label",
+      "display": {
+        "content": "argument title"
+      }
+    }
+  }
+}

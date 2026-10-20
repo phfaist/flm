@@ -1,0 +1,12 @@
+The claim holds in every case.¹ The next sentence goes on.
+
+Two paragraphs.² And on.
+
+Footnotes
+---------
+
+¹ Except the empty one, which we exclude by convention.
+
+² First paragraph.
+
+  Second paragraph.

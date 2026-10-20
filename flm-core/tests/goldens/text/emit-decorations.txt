@@ -1,0 +1,2 @@
+Lemma. Text before the margin
+note [aside] and after it. □

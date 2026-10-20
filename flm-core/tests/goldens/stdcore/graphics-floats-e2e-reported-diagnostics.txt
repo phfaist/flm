@@ -1,0 +1,36 @@
+===== check =====
+===== text =====
+Error flm.graphics.unknown-key: \includegraphics accepts only the options `alt`, `width` and `height`, not `scale` — at `\includegraphics[alt=x, scale=2]{figures/x.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/x.png` must be known from its file or given with `width` or `height` — at `\includegraphics[alt=x, scale=2]{figures/x.png}`
+Error flm.graphics.empty-path: the path of an image must not be empty — at `\includegraphics{}`
+Error flm.floats.content-refused: a ‘figure’ must hold exactly one image — at `\begin{figure}Only text, no image.\end{figure}`
+Error flm.floats.caption-repeated: a ‘figure’ must hold at most one \caption — at `\caption{Two}`
+Warning flm.graphics.unknown-size: the size of the image `figures/y.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/y.png}`
+Note flm.floats.nonumber-without-effect: \nonumber has no effect here: a ‘diagram’ without a \label is not numbered — at `\nonumber`
+Error flm.floats.caption-unknown-key: the only option of \caption is alt=…, not ‘short’ — at `\caption[short=Z]{Zed}`
+Warning flm.graphics.unknown-size: the size of the image `figures/z.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/z.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/w.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/w.png}`
+Error flm.refs.nothing-to-show: the place labeled `figure:w` must have a number or a text for this reference to show, and has neither — at `\ref{figure:w}`
+===== html =====
+Error flm.graphics.unknown-key: \includegraphics accepts only the options `alt`, `width` and `height`, not `scale` — at `\includegraphics[alt=x, scale=2]{figures/x.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/x.png` must be known from its file or given with `width` or `height` — at `\includegraphics[alt=x, scale=2]{figures/x.png}`
+Error flm.graphics.empty-path: the path of an image must not be empty — at `\includegraphics{}`
+Error flm.floats.content-refused: a ‘figure’ must hold exactly one image — at `\begin{figure}Only text, no image.\end{figure}`
+Error flm.floats.caption-repeated: a ‘figure’ must hold at most one \caption — at `\caption{Two}`
+Warning flm.graphics.unknown-size: the size of the image `figures/y.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/y.png}`
+Note flm.floats.nonumber-without-effect: \nonumber has no effect here: a ‘diagram’ without a \label is not numbered — at `\nonumber`
+Error flm.floats.caption-unknown-key: the only option of \caption is alt=…, not ‘short’ — at `\caption[short=Z]{Zed}`
+Warning flm.graphics.unknown-size: the size of the image `figures/z.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/z.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/w.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/w.png}`
+Error flm.refs.nothing-to-show: the place labeled `figure:w` must have a number or a text for this reference to show, and has neither — at `\ref{figure:w}`
+===== latex-recomposed =====
+Error flm.graphics.unknown-key: \includegraphics accepts only the options `alt`, `width` and `height`, not `scale` — at `\includegraphics[alt=x, scale=2]{figures/x.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/x.png` must be known from its file or given with `width` or `height` — at `\includegraphics[alt=x, scale=2]{figures/x.png}`
+Error flm.graphics.empty-path: the path of an image must not be empty — at `\includegraphics{}`
+Error flm.floats.content-refused: a ‘figure’ must hold exactly one image — at `\begin{figure}Only text, no image.\end{figure}`
+Error flm.floats.caption-repeated: a ‘figure’ must hold at most one \caption — at `\caption{Two}`
+Warning flm.graphics.unknown-size: the size of the image `figures/y.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/y.png}`
+Note flm.floats.nonumber-without-effect: \nonumber has no effect here: a ‘diagram’ without a \label is not numbered — at `\nonumber`
+Error flm.floats.caption-unknown-key: the only option of \caption is alt=…, not ‘short’ — at `\caption[short=Z]{Zed}`
+Warning flm.graphics.unknown-size: the size of the image `figures/z.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/z.png}`
+Warning flm.graphics.unknown-size: the size of the image `figures/w.png` must be known from its file or given with `width` or `height` — at `\includegraphics{figures/w.png}`

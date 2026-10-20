@@ -1,0 +1,181 @@
+[
+  {
+    "elem": "flm.pres.block-heading",
+    "body": [
+      {
+        "chars": "Introduction"
+      }
+    ],
+    "payload": {
+      "name": "t.section",
+      "level": 1,
+      "in_toc": true
+    }
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "chars": "See "
+      },
+      {
+        "elem": "flm.pres.span",
+        "body": [
+          {
+            "chars": "this"
+          }
+        ],
+        "payload": {
+          "style": "emph"
+        }
+      },
+      {
+        "chars": " and "
+      },
+      {
+        "elem": "flm.pres.math-passthrough",
+        "body": [
+          {
+            "chars": "x_1"
+          }
+        ],
+        "payload": {
+          "display": "inline"
+        }
+      },
+      {
+        "chars": " and "
+      },
+      {
+        "elem": "flm.pres.verbatim",
+        "body": [
+          {
+            "chars": "a{b"
+          }
+        ],
+        "payload": {
+          "kind": "text",
+          "display": "inline"
+        }
+      },
+      {
+        "chars": "."
+      }
+    ],
+    "payload": {}
+  },
+  {
+    "elem": "flm.pres.par",
+    "body": [
+      {
+        "elem": "flm.pres.deco-mark",
+        "body": [],
+        "payload": {
+          "slot": 1
+        }
+      },
+      {
+        "chars": "Every finite thing is finite."
+      },
+      {
+        "elem": "flm.pres.deco-mark",
+        "body": [],
+        "payload": {
+          "slot": 2
+        }
+      }
+    ],
+    "slots": {
+      "flm.pres.deco.runin": [
+        {
+          "elem": "flm.pres.deco.runin",
+          "body": [
+            {
+              "chars": "Theorem"
+            }
+          ],
+          "payload": {}
+        }
+      ],
+      "flm.pres.deco.final": [
+        {
+          "elem": "flm.pres.deco.final",
+          "body": [
+            {
+              "chars": "□"
+            }
+          ],
+          "payload": {}
+        }
+      ]
+    },
+    "payload": {}
+  },
+  {
+    "elem": "flm.pres.block",
+    "body": [
+      {
+        "elem": "flm.pres.par",
+        "body": [
+          {
+            "chars": "Quoted "
+          },
+          {
+            "elem": "flm.pres.deco-mark",
+            "body": [],
+            "payload": {
+              "slot": 1
+            }
+          },
+          {
+            "chars": " text."
+          }
+        ],
+        "slots": {
+          "flm.pres.deco.margin": [
+            {
+              "elem": "flm.pres.deco.margin",
+              "body": [
+                {
+                  "chars": "aside"
+                }
+              ],
+              "payload": {}
+            }
+          ]
+        },
+        "payload": {}
+      }
+    ],
+    "payload": {
+      "role": "t.quote"
+    }
+  },
+  {
+    "elem": "flm.pres.verbatim",
+    "body": [
+      {
+        "chars": "let x = 1;\n"
+      }
+    ],
+    "payload": {
+      "kind": "text",
+      "display": "block"
+    }
+  },
+  {
+    "elem": "flm.pres.math-passthrough",
+    "body": [
+      {
+        "chars": "\n  a = b"
+      },
+      {
+        "chars": "\n"
+      }
+    ],
+    "payload": {
+      "display": "display",
+      "env": "equation"
+    }
+  }
+]

@@ -1,0 +1,2 @@
+:root { --c: {{ config.color }}; }
+{{ include_raw("../../../dist/x.css") }}

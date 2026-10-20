@@ -1,0 +1,57 @@
+% flm.latex.def.flmx.floats -- figures, tables and the other float types.
+%
+% The floats feature writes a float as a block of role flm.floats.float
+% whose kind tokens are the float type's name (figure, table, or a type the
+% document configures) and numbered or unnumbered. It holds the content in
+% a block of role flm.floats.float.content and, where the float is numbered
+% or has a caption, the line under the content in a block of role
+% flm.floats.float.caption (same kind tokens), its number in a span of role
+% flm.floats.float.number:
+%   \begin{flmxBlock}[role=flm.floats.float, kinds={figure numbered}, anchor=figure-1]
+%   \begin{flmxBlock}[role=flm.floats.float.content]
+%   \flmxImage[...]{...}
+%   \end{flmxBlock}
+%   \begin{flmxBlock}[role=flm.floats.float.caption, kinds={figure numbered}]
+%   \flmxSpan[role=flm.floats.float.number]{Figure 1}: A photo
+%   \end{flmxBlock}
+%   \end{flmxBlock}
+%
+% Defaults, the float registered under its type's kind token:
+%   figure, table  LaTeX's figure or table environment, placed [htbp], its
+%                  content centered, the target of its anchor first;
+%   the content    as it stands;
+%   the caption    a paragraph in \small, \abovecaptionskip below the
+%                  content;
+%   the number     in \bfseries.
+% A float of a type the document configures has no registration: it is
+% written with the block's default, where it stands. LaTeX's own \caption
+% is not used: FLM writes the number and the caption itself, and LaTeX's
+% list of figures does not see them.
+%
+% A template changes the look with
+%   \flmxDefineBlock{<type>}{<begin code>}{<end code>}  (a float type)
+%   \flmxDefineBlock{flm.floats.float}{<begin code>}{<end code>}
+%       (every float, in place of the registrations by type)
+%   \flmxDefineBlock{flm.floats.float.content}{<begin code>}{<end code>}
+%   \flmxDefineBlock{flm.floats.float.caption}{<begin code>}{<end code>}
+%   \flmxDefineSpan{flm.floats.float.number}{<code over #1>}
+% for instance \flmxDefineBlock{video}{\begin{figure}[htbp]\centering}%
+% {\end{figure}} for a configured type video.
+
+\flmxDefineBlock{figure}%
+  {\begin{figure}[htbp]\centering
+   \flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}}%
+  {\end{figure}}
+\flmxDefineBlock{table}%
+  {\begin{table}[htbp]\centering
+   \flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}}%
+  {\end{table}}
+\flmxDefineBlock{flm.floats.float.content}%
+  {\par\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}}%
+  {\par}
+\flmxDefineBlock{flm.floats.float.caption}%
+  {\par\vspace{\abovecaptionskip}\small
+   \flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}}%
+  {\par}
+\flmxDefineSpan{flm.floats.float.number}%
+  {\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}\textbf{#1}}

@@ -1,0 +1,8 @@
+# The compose template `iconic` for the page, which ships the folder `icons` (a file, and
+# a file in a subfolder) as one folder artifact.
+extension:
+  description: A page shipping a folder of icons.
+flm:
+  features:
+    compose:
+      template: iconic

@@ -1,0 +1,10 @@
+# The journal's LaTeX document: the class `article` in two columns, the style file, the
+# title and the authors, then the body.
+output: latex-recomposed
+engine: minijinja
+main: journal.tex
+accepts: [flm.meta.title, flm.meta.author, flm.meta.date]
+delimiters:
+  block: ["((*", "*))"]
+  variable: ["(((", ")))"]
+  comment: ["((=", "=))"]

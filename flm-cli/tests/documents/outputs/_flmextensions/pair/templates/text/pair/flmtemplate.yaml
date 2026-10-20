@@ -1,0 +1,6 @@
+output: text
+engine: minijinja
+main: pair.txt
+accepts: all
+artifacts:
+  shared: {file: ../../../shared.css}

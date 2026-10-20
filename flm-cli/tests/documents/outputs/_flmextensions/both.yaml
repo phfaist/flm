@@ -1,0 +1,16 @@
+# The workflow `both`, which delivers the outputs `html` and `text` in one command.
+extension:
+  description: The page and the text together.
+flm:
+  workflows:
+    both:
+      extends: html
+      outputs: [html, text]
+      docs: The page and the text.
+    named:
+      extends: html
+      outputs: [html, text]
+      docs: The page and the text, the text written as `notes.txt`.
+      settings:
+        write:
+          output_names: {text: notes.txt}

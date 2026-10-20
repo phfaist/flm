@@ -1,0 +1,8 @@
+===== check =====
+Warning flm.refs.unresolved: the reference points at the label `fn:nowhere`, which is not defined — at `\ref{fn:nowhere}`
+===== text =====
+Error flm.refs.unresolved: the reference points at the label `fn:nowhere`, which is not defined — at `\ref{fn:nowhere}`
+===== html =====
+Error flm.refs.unresolved: the reference points at the label `fn:nowhere`, which is not defined — at `\ref{fn:nowhere}`
+===== latex-recomposed =====
+Error flm.refs.unresolved: the reference points at the label `fn:nowhere`, which is not defined — at `\ref{fn:nowhere}`

@@ -1,0 +1,12 @@
+<<!-- flm latex-rendered: the article template -->>
+\documentclass<<* if config.classoptions *>>[<<< config.classoptions >>>]<<* endif *>>{<<< config.documentclass >>>}
+\usepackage{<<< regions["style-package"] >>>}
+\begin{document}
+<<* for name, piece in pieces|items if piece.place == "before-content" *>>
+<<< piece.text >>>
+<<* endfor *>>
+<<< regions.content >>>
+<<* for name, piece in pieces|items if piece.place == "after-content" *>>
+<<< piece.text >>>
+<<* endfor *>>
+\end{document}

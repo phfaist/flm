@@ -1,0 +1,18 @@
+# A data extension whose documentation texts are not valid FLM (each holds a `%` and a brace
+# that is not closed in its first paragraph), which `draft.flm` uses: the text of the
+# workflow `draft` and that of the user definition `\project`, each of two paragraphs. `flm
+# info` shows each as plain text, with a warning, and so the summary of each on the index
+# pages.
+extension:
+  description: A draft of the text output.
+flm:
+  workflows:
+    draft:
+      extends: text
+      docs: "The text output, 50% narrower, with {an unbalanced brace.\n\nIt extends `text`."
+  features:
+    userdefs:
+      macros:
+        project:
+          content: 'the project'
+          docs: "The project, 10% {done.\n\nIt is written as text."

@@ -1,0 +1,38 @@
+# The failing guest of the WebAssembly case: the extension `failing`, written against the
+# guest client `flm_ext::guest` and compiled to one WebAssembly module, whose one feature
+# has a hook answering an error, a hook that panics, a stage that loops and a stage that
+# grows its memory. A standalone crate of the shape of `../wordcount/` (its own empty
+# workspace), built by the gated test `flm-ext/tests/wasm_case1.rs` with
+#
+#     cargo build --manifest-path flm-ext/tests/wasm/failing/Cargo.toml \
+#         --target wasm32-unknown-unknown --release --locked
+#
+# The module is a build product and is not committed.
+# The lockfile `Cargo.lock` beside this file is committed, and the build is `--locked`: when
+# the version or the dependencies of `flm-core` or `flm-ext` change, regenerate it with
+#
+#     cargo generate-lockfile --manifest-path flm-ext/tests/wasm/failing/Cargo.toml --offline
+[package]
+name = "failing"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+flm-ext = { path = "../../..", default-features = false, features = ["guest"] }
+serde_json = "1"
+
+# The profile of `../wordcount/`, so that both crates share the built dependencies in one
+# target folder.
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+codegen-units = 1
+
+[workspace]

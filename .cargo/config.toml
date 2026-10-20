@@ -1,0 +1,17 @@
+# Workspace-local cargo configuration.
+
+[build]
+# Inject the documentation sidebar customization (pinned "Guide" section, the
+# reference grouped under a single "API" section, no "Crates" list) into every
+# rustdoc-generated page. Cargo spawns rustdoc from the workspace root, so the
+# relative path resolves from there no matter where cargo is invoked.
+# Note: a RUSTDOCFLAGS environment value REPLACES this setting; if you set the
+# variable, include the `--html-in-header` flag in it yourself.
+rustdocflags = ["--html-in-header", "docs/rustdoc-header.html"]
+
+[alias]
+# Build the workspace documentation. `--no-deps` keeps dependencies (techy,
+# serde, rayon, ...) out of the doc bundle and its search index; if `cargo doc`
+# was previously run without it, delete `target/doc` once to drop the stale
+# dependency pages (rustdoc merges new output into what is already there).
+docs = "doc --workspace --no-deps"

@@ -1,0 +1,13 @@
+{
+  "name": "flm-math-mathjax-bundle",
+  "private": true,
+  "description": "Builds the MathJax bundle of the FLM extension math-mathjax (extensions/js/math-mathjax/vendor/).",
+  "type": "module",
+  "scripts": {
+    "build": "node bundle.mjs"
+  },
+  "devDependencies": {
+    "@mathjax/src": "4.1.3",
+    "esbuild": "0.28.2"
+  }
+}

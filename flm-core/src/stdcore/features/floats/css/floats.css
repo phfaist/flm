@@ -1,0 +1,50 @@
+/* flm.floats.style */
+/* Floats: a figure, a table, or a float of any type that a host configures,
+   spaced apart from the text around it, with its content and the caption
+   line under the content centered.  An image inside a float stays within
+   the width of the text and keeps its proportions through the image rule of
+   flm.html.style.core, so this stylesheet needs no rule for that.  The
+   alignment applies to the text of the float; an image that is the float's
+   content is a block, which text alignment does not move, so it is
+   centered by its side margins.  The float's selector also carries the
+   block class (.flm-pres-block), so that it outweighs the rule of
+   flm.html.style.core that spaces every block; the rule of
+   flm.html.style.core that removes that space from a first and a last block
+   still wins, because it is as specific and the page writes it after this
+   stylesheet (a page writes the stylesheets in the order in which the
+   features registered them, and the standard package registers the HTML
+   backend after the content features). */
+@layer flm {
+  :root {
+    /* The space above and below a float, and the alignment of the text of
+       its content and of its caption line.  An image that is the float's
+       content is centered regardless of this alignment. */
+    --flm-floats-spacing: 1.5em;
+    --flm-floats-align: center;
+    /* The caption line under a float's content: the space above it and its
+       text size. */
+    --flm-floats-caption-spacing: 0.5em;
+    --flm-floats-caption-size: 0.9em;
+  }
+
+  /* Every float: spaced above and below, with no margin on its sides, and
+     the text of its content and of its caption line aligned by
+     --flm-floats-align (centered by default). */
+  .flm-pres-block.flm-floats-float {
+    margin: var(--flm-floats-spacing) 0;
+    text-align: var(--flm-floats-align);
+  }
+
+  /* An image that is a float's content: centered by its side margins,
+     because the float's text alignment moves inline content only. */
+  .flm-floats-float .flm-pres-block.flm-pres-image {
+    margin-inline: auto;
+  }
+
+  /* The caption line under a float's content: a little apart from the
+     content, and slightly smaller than the text. */
+  .flm-floats-float > .flm-pres-block.flm-floats-float-caption {
+    margin-top: var(--flm-floats-caption-spacing);
+    font-size: var(--flm-floats-caption-size);
+  }
+}

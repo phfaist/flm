@@ -1,0 +1,5 @@
+{
+  "knuth84": { "author": "D. E. Knuth", "title": "The TeXbook", "year": 1984 },
+  "lamport94": { "author": "L. Lamport", "title": "LaTeX: A Document Preparation System", "year": 1994 },
+  "shor95": { "author": "P. W. Shor", "title": "Scheme for reducing decoherence in quantum computer memory", "year": 1995 }
+}

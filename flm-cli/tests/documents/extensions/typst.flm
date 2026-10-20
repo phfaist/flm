@@ -1,0 +1,36 @@
+---
+title: A Typst document
+flm:
+  math: passthrough
+  use: [typst]
+---
+\section{Dashes and emphasis}
+
+A paragraph with \emph{emphasis}, \textbf{bold text}, \verbcode{code} and a link to
+\href{https://example.org}{the site}; inline mathematics \(x^2 + y^2\).
+
+\begin{itemize}
+\item one
+\item two, \emph{emphasized}
+\end{itemize}
+
+\begin{enumerate}
+\item first
+\item second
+\end{enumerate}
+
+\[ \int_0^1 f(x) \, dx \]
+
+\tcallout[warning]{A callout with \emph{content}.}
+
+\subsection{Verbatim and the rest}
+
+\begin{verbatimcode}
+raw   text
+\end{verbatimcode}
+
+\begin{defterm}{defined}
+A term and its definition.
+\end{defterm}
+
+A footnote\footnote{the note} and a term \term{defined}.

@@ -1,0 +1,12 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.af2f32a7.sty
+A\flmUDpar B \flmUDlabel{x} \(\flmUDpar\)%%
+% ===== latex-recomposed:style flmrecomposed.af2f32a7.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.af2f32a7}
+% --- user definitions ---
+% \flmUDpar (the document's \par): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDpar{[par]}
+% \flmUDlabel (the document's \label): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDlabel[1]{[label: #1]}
+\endinput

@@ -1,0 +1,10 @@
+% ===== latex-recomposed:document =====
+% flm: style file flmrecomposed.4e190210.sty
+\flmUDkw{a} and \(\flmUDkw{b} + 1\).%%
+% ===== latex-recomposed:style flmrecomposed.4e190210.sty =====
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{flmrecomposed.4e190210}
+% --- user definitions ---
+% \flmUDkw (the document's \kw): defined unless the name is already taken, so a definition of it made before this file is loaded wins; \renewcommand after loading this file changes it
+\providecommand\flmUDkw[1]{\textbf{#1}}
+\endinput

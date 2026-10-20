@@ -1,0 +1,50 @@
+Results [P. Shor, a code of length \(9\), 1995]
+===========================================
+
+A paragraph citing [D. Knuth, The Art of Computer Programming, 1984], then a
+chunk of several calls [L. Lamport, A Document Preparation System,
+online <https://example.org/latex>, 1994][D. Knuth, The Art of Computer
+Programming, 1984; Thm 4][P. Shor, a code of length \(9\), 1995][D. Gottesman,
+Stabilizer codes, 1997; Thm 4], and a work no provider
+knows [[dropped: bibliography entry]]. As shown in ref. [L. Lamport, A Document
+Preparation System, online <https://example.org/latex>, 1994], in Refs. [D.
+Knuth, The Art of Computer Programming, 1984][P. Shor, a code of length \(9\),
+1995] and in the works (see [L. Lamport, A Document Preparation System,
+online <https://example.org/latex>, 1994][P. Shor, a code of length \(9\),
+1995]), the claim holds. See Results [P. Shor, a code of length \(9\), 1995].¹
+
+Places
+------
+
+• An item citing [D. Knuth, The Art of Computer Programming, 1984].
+
+Theorem 1 (Main result [L. Lamport, A Document Preparation System, online, 1994]).
+A statement citing [P. Shor, a code of length \(9\), 1995; Lemma 2].
+
+Proof (Theorem 1). A proof citing [D. Gottesman, Stabilizer codes, 1997]. □
+
+A quotation citing [D. Knuth, The Art of Computer Programming, 1984].
+
+A line citing [L. Lamport, A Document Preparation System,
+online <https://example.org/latex>, 1994]
+a second line
+
+[image: figures/codes.png]
+
+Figure 1: A caption citing [D. Gottesman, Stabilizer codes, 1997]
+
+Tables
+------
+
+Work   Where
+-----  --------------------------------------------------
+Knuth   [D. Knuth, The Art of Computer Programming, 1984]
+Shor    [P. Shor, a code of length \(9\), 1995; Sec. 3]
+
+Table 1: A table citing [D. Aharonov and M. Ben-Or, 1997]
+
+Footnotes
+---------
+
+¹ A note citing [D. Aharonov and M. Ben-Or, 1997] and [D. Knuth, The Art of
+  Computer Programming, 1984; p. 2].

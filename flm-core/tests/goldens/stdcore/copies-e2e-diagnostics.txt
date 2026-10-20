@@ -1,0 +1,34 @@
+===== check =====
+Warning flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+Warning flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+Warning flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+===== text =====
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+Warning flm.graphics.assumed-resolution: the image file `bare.png` should state its resolution in dots per inch — at `\includegraphics[width=5cm]{bare.png}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}` — in `a copy of this content, shown here` at `\ref{sec:e}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}` — in `a copy of this content, shown here` at `\ref{sec:e}`
+Warning flm.graphics.resized: an image file should be prepared at the size it is shown at, rather than resized with `width=` — at `\includegraphics[width=5cm]{bare.png}`
+Warning flm.graphics.assumed-resolution: the image file `bare.png` should state its resolution in dots per inch — at `\includegraphics[width=5cm]{bare.png}` — in `a copy of this content, shown here` at `\ref{sec:c}`
+Warning flm.graphics.resized: an image file should be prepared at the size it is shown at, rather than resized with `width=` — at `\includegraphics[width=5cm]{bare.png}` — in `a copy of this content, shown here` at `\ref{sec:c}`
+Warning flm.graphics.assumed-resolution: the image file `bare.png` should state its resolution in dots per inch — at `\includegraphics[width=5cm]{bare.png}` — in `a copy of this content, shown here` at `\ref{sec:c}`
+Warning flm.graphics.resized: an image file should be prepared at the size it is shown at, rather than resized with `width=` — at `\includegraphics[width=5cm]{bare.png}` — in `a copy of this content, shown here` at `\ref{sec:c}`
+===== html =====
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+Warning flm.graphics.assumed-resolution: the image file `bare.png` should state its resolution in dots per inch — at `\includegraphics[width=5cm]{bare.png}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}` — in `a copy of this content, shown here` at `\ref{sec:e}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}` — in `a copy of this content, shown here` at `\ref{sec:e}`
+Warning flm.graphics.resized: an image file should be prepared at the size it is shown at, rather than resized with `width=` — at `\includegraphics[width=5cm]{bare.png}`
+Warning flm.graphics.assumed-resolution: the image file `bare.png` should state its resolution in dots per inch — at `\includegraphics[width=5cm]{bare.png}` — in `a copy of this content, shown here` at `\ref{sec:c}`
+Warning flm.graphics.resized: an image file should be prepared at the size it is shown at, rather than resized with `width=` — at `\includegraphics[width=5cm]{bare.png}` — in `a copy of this content, shown here` at `\ref{sec:c}`
+Warning flm.graphics.assumed-resolution: the image file `bare.png` should state its resolution in dots per inch — at `\includegraphics[width=5cm]{bare.png}` — in `a copy of this content, shown here` at `\ref{sec:c}`
+Warning flm.graphics.resized: an image file should be prepared at the size it is shown at, rather than resized with `width=` — at `\includegraphics[width=5cm]{bare.png}` — in `a copy of this content, shown here` at `\ref{sec:c}`
+===== latex-recomposed =====
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}`
+Warning flm.graphics.assumed-resolution: the image file `bare.png` should state its resolution in dots per inch — at `\includegraphics[width=5cm]{bare.png}`
+Warning flm.graphics.resized: an image file should be prepared at the size it is shown at, rather than resized with `width=` — at `\includegraphics[width=5cm]{bare.png}`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}` — in `a copy of this content, shown here` at `\seenowhere`
+Error flm.refs.unresolved: the reference points at the label `sec:nowhere`, which is not defined — at `\ref{sec:nowhere}` — in `a copy of this content, shown here` at `\seenowhere`

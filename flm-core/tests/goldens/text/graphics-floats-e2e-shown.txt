@@ -1,0 +1,79 @@
+Graphics and floats
+===================
+
+An image standing between paragraphs:
+
+[image: A plot]
+
+[image: figures/a.png]
+
+Figure 1: A photo with a note¹, a reference to Graphics and floats and a formula
+\(x^2\)
+
+[image: figures/b.png]
+
+Figure 2
+
+[image: figures/c.png]
+
+A photo of C
+
+[image: figures/d.png]
+
+[image: figures/t.png]
+
+Table 1: A table shown as an image
+
+Boxes and arrows.
+
+Diagram 1: Arrows
+
+More boxes.
+
+An unlabeled diagram
+
+[image: figures/s.png]
+
+A sketch
+
+• An item holding an image: [image: figures/item.png]
+
+• An item holding a figure:
+
+  [image: figures/item-figure.png]
+
+  Figure 3: In an item
+
+A footnote holding blocks.²
+
+A block section.
+
+[image: figures/quote.png]
+
+[image: figures/quote-figure.png]
+
+Figure 4: In a quotation
+
+A blockquote.
+
+[image: figures/blockquote.png]
+
+[image: figures/blockquote-figure.png]
+
+Figure 5: In a blockquote
+
+See Fig. 1, Figure 1, Figs. 1,2, Photo C, Tab. 1, Diagram 1, A sketch, Fig. 3,
+In a note and Fig. 4.
+
+Footnotes
+---------
+
+¹ Taken at noon.
+
+² Its first paragraph.
+
+  [image: figures/note.png]
+
+  [image: figures/note-figure.png]
+
+  In a note

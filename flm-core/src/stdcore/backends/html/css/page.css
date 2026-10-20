@@ -1,0 +1,72 @@
+/* flm.html.style.page */
+/* The page's own typography and the width of its content.  This is the
+   only stylesheet of the HTML backend with a rule whose selector does not
+   begin with a class of the HTML contract (the classes and attributes that
+   the backend promises to write), apart from the :root rule that declares
+   the custom properties: it styles the page's body, which a document does
+   not have.  No element requires it: the backend adds it to the style and
+   script definitions of every page that it renders (the definitions table
+   flm.html.definitions).  A host that places the HTML output in a page of
+   its own leaves this stylesheet out through the HTML backend's render
+   option definitions (DefinitionOverride::ProvidedByHost, or an empty list
+   of parts). */
+@layer flm {
+  :root {
+    /* The page's text: its font family, its size, its line height, and its
+       two colors. */
+    --flm-page-family: "Source Serif 4", "Times New Roman", Times, serif;
+    --flm-page-size: 100%;
+    --flm-page-line-height: 1.5;
+    --flm-page-color: #1a1a1a;
+    --flm-page-background: #ffffff;
+    /* How wide the content runs, and the space around it. */
+    --flm-page-measure: 42rem;
+    --flm-page-padding: 1.5rem;
+    /* The width of the column for the notes set beside the text, and the gap
+       before it: the same two values as in flm.html.style.core, declared here
+       as well because each stylesheet declares every property it uses.  A
+       host that changes them sets them once, outside the cascade layer flm,
+       and both stylesheets read the new values. */
+    --flm-margin-note-width: 8rem;
+    --flm-margin-note-gap: 1rem;
+  }
+
+  /* The page itself.  Apart from the :root rules that declare custom
+     properties, this is the only rule of the backend's stylesheets that does
+     not begin with a class of the HTML contract.  It styles the body of the
+     page, which is why a host that places the HTML output in a page of its
+     own leaves this stylesheet out (see the top of this stylesheet). */
+  body {
+    margin: 0;
+    background: var(--flm-page-background);
+    color: var(--flm-page-color);
+    font-family: var(--flm-page-family);
+    font-size: var(--flm-page-size);
+    line-height: var(--flm-page-line-height);
+  }
+
+  /* The element that holds the document's content.  When the window is wide
+     enough for a column of notes to the right of the text (see
+     flm.html.style.core, --flm-margin-note-width and --flm-margin-note-gap),
+     this element leaves room for that column: its maximum width and its
+     right padding both grow by the column and the gap, so the text keeps
+     the width it has without the column; and it turns on the switch
+     --flm-margin-note-column of flm.html.style.core, so that the notes
+     inside it are placed in the column.  52rem is the content's width with
+     the column (42rem + 8rem + 1rem) plus a little room; it is written as a
+     number because a media condition cannot read a custom property, so a
+     page that widens the text or the column writes its own condition. */
+  .flm-content {
+    box-sizing: border-box;
+    max-width: var(--flm-page-measure);
+    margin: 0 auto;
+    padding: var(--flm-page-padding);
+  }
+  @media (min-width: 52rem) {
+    .flm-content {
+      --flm-margin-note-column: ;
+      max-width: calc(var(--flm-page-measure) + var(--flm-margin-note-width) + var(--flm-margin-note-gap));
+      padding-right: calc(var(--flm-page-padding) + var(--flm-margin-note-width) + var(--flm-margin-note-gap));
+    }
+  }
+}
