@@ -62,12 +62,14 @@
 //!   another tree of the document, such as the tree of a file included with a
 //!   heading of its own; the recomposed LaTeX of that tree is written at that
 //!   place.
-//! - Four structural elements
+//! - Five structural elements
 //!   ([`StructuralElements`](crate::lang::structural::StructuralElements))
 //!   whose meaning LaTeX needs no translation for ([`FLOW_THROUGH`]):
 //!   `flm.text` (document text, which the emitter escapes; it must be native
 //!   rather than lowered because escaping happens where the bytes are
-//!   written), `flm.group` (a brace group), `flm.comment` and `flm.container`.
+//!   written), `flm.group` (a brace group), `flm.opaque-wrapper` (its
+//!   children, since it has no delimiters), `flm.comment` and
+//!   `flm.container`.
 //!
 //! The rest of the shared presentation elements (`par`, `span`,
 //! `block-heading`, `runin-heading`, `link`, `list`, `lines`, `image`, the
@@ -184,11 +186,16 @@ pub const BACKEND: &str = "latex-recomposed";
 pub const DEFAULT_STYLE_STEM: &str = "flmrecomposed";
 
 /// The structural elements that this backend's emitter writes natively,
-/// without a lowering rule: `flm.text`, `flm.group`, `flm.comment` and
-/// `flm.container` (see the module documentation and
+/// without a lowering rule: `flm.text`, `flm.group`, `flm.opaque-wrapper`,
+/// `flm.comment` and `flm.container` (see the module documentation and
 /// [structural elements](crate::guide::concepts_overview#structural-elements)).
-pub const FLOW_THROUGH: [&str; 4] =
-    [structural::TEXT, structural::GROUP, structural::COMMENT, structural::CONTAINER];
+pub const FLOW_THROUGH: [&str; 5] = [
+    structural::TEXT,
+    structural::GROUP,
+    structural::OPAQUE_WRAPPER,
+    structural::COMMENT,
+    structural::CONTAINER,
+];
 
 /// The shared presentation elements ([`pres`]) that this backend's emitter
 /// writes natively: `flm.pres.math-passthrough`, `flm.pres.verbatim`,
@@ -221,7 +228,7 @@ pub const SHARED_NATIVE: [&str; 7] = [
 /// use flm_core::stdcore::backends::latex_recomposed::native_elements;
 ///
 /// let native = native_elements();
-/// assert_eq!(native.len(), 15);
+/// assert_eq!(native.len(), 16);
 /// assert!(native.iter().any(|element| element.as_str() == "flm.pres.latex.macro"));
 /// assert!(native.iter().all(|element| element.as_str() != "flm.pres.par"));
 /// ```
@@ -897,7 +904,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_native_set_is_exactly_the_fifteen_elements_of_the_design() {
+    fn the_native_set_is_exactly_the_sixteen_elements_of_the_design() {
         let native = native_elements();
         let names: Vec<&str> = native.iter().map(|element| element.as_str()).collect();
         assert_eq!(
@@ -916,6 +923,7 @@ mod tests {
                 "flm.pres.span",
                 "flm.text",
                 "flm.group",
+                "flm.opaque-wrapper",
                 "flm.comment",
                 "flm.container",
             ]

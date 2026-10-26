@@ -14,12 +14,15 @@ use techy::error::DiagnosticInfo;
 
 /// Condition `flm.defterm.empty-term`, an Error: a term definition or a term
 /// link whose term is empty or only whitespace (`\begin{defterm}{}`,
-/// `\term{ }`), so that it refers to no term. Reported at the node, by the
-/// lowering rules of every backend. Recovery: a term definition is written
-/// with an empty term in its lead-in and has no label computed from its term,
-/// so no term link finds it (its `\label`s and aliases still label it); a
-/// term link shows its text marked as an unresolved reference (on the
-/// recomposed LaTeX, `\flmTerm` with an empty label).
+/// `\term{ }`), so that it refers to no term. `~` and `\ ` are part of a term
+/// as written ([the identity of a
+/// term](crate::stdcore::features::defterm::elements#the-identity-of-a-term)):
+/// `\term{~}` is not empty. Reported at the node, by the lowering rules of
+/// every backend. Recovery: a term definition is written with an empty term
+/// in its lead-in and has no label computed from its term, so no term link
+/// finds it (its `\label`s and aliases still label it); a term link shows its
+/// text marked as an unresolved reference (on the recomposed LaTeX,
+/// `\flmTerm` with an empty label).
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(id = "flm.defterm.empty-term", message = "the term of this {what} must not be empty or blank")]
 pub struct EmptyTerm {

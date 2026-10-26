@@ -152,6 +152,7 @@ pub(crate) fn mode_name(mode: flm_core::techy::latexlike::Mode) -> String {
 fn argument_view(arg: &ArgDef) -> ArgumentView {
     ArgumentView {
         form: arg.code().map(str::to_string).unwrap_or_else(|| arg.kind.description()),
+        syntax: arg.kind.std_kind().cloned(),
         written: written_form(arg),
         name: arg.name.clone(),
         layout: arg.layout,
@@ -160,7 +161,7 @@ fn argument_view(arg: &ArgDef) -> ArgumentView {
         docs: arg.docs.clone(),
         summary: summary_of(&arg.docs).to_string(),
         role: arg.role.as_ref().map(ToString::to_string),
-        holds_content: arg.kind.holds_content(),
+        opaque_wrapper: arg.opaque_wrapper,
         fields: arg.kind.tack_on_fields().unwrap_or_default().iter().map(field_view).collect(),
     }
 }
@@ -271,7 +272,7 @@ fn body_view(body: &BodyDef) -> BodyView {
         layout: body.layout,
         mode: body.mode.map(mode_name),
         scoped: body.scoped.iter().map(ToString::to_string).collect(),
-        raw: !body.holds_content(),
+        opaque_wrapper: body.opaque_wrapper,
         reader: body.parser.as_ref().map(|parser| parser.description()),
     }
 }
@@ -356,9 +357,17 @@ pub struct CommandView {
 #[derive(Debug, Clone, PartialEq, Serialize, schemars::JsonSchema)]
 pub struct ArgumentView {
     /// How the argument is written: the argument code it was declared with (`m`, `[`), or,
-    /// for an argument declared with a parser, the parser's description (`a mandatory
-    /// {…} group`).
+    /// for an argument declared otherwise (with a structured syntax or a parser), the
+    /// parser's description (`a mandatory {…} group`).
     pub form: String,
+    /// The argument's structured syntax: its standard kind written as data, in the form
+    /// settings declare an argument with (`{"syntax": "delimited-group", "delimiters":
+    /// ["(", ")"]}`; see [`ArgStdKind`](ArgStdKind#the-kind-as-data)), whatever form the
+    /// argument was declared in, a tack-on argument included (its kind with its fields,
+    /// which settings cannot declare). Absent for an argument whose parser is a feature's
+    /// own.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub syntax: Option<ArgStdKind>,
     /// How the argument is written at a use site, with its name standing for its content:
     /// `{title}`, `[options]`, `*`, or, for a tack-on argument, its fields (`\label{target}`).
     /// `…` stands for the content of an argument without a name. The form of an argument of
@@ -389,10 +398,12 @@ pub struct ArgumentView {
     /// Its argument role: the registered name of what it holds (a label, a file path).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<String>,
-    /// Whether it holds document content (text and commands), rather than characters read
-    /// for their own sake, a marker, or data.
+    /// Whether the declaration places its content under an opaque wrapper, which keeps the
+    /// content as written: no whitespace is collapsed and no typographic substitution is
+    /// made in it. A characters-only group is kept as written whatever the declaration
+    /// says, as its [`form`](ArgumentView::form) states.
     #[serde(skip_serializing_if = "is_false")]
-    pub holds_content: bool,
+    pub opaque_wrapper: bool,
     /// For a tack-on argument, the fields that may be written after the command.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub fields: Vec<FieldView>,
@@ -429,10 +440,11 @@ pub struct BodyView {
     /// The scoped packages available inside it.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub scoped: Vec<String>,
-    /// Whether the body is raw text rather than document content: its reader does not hold
-    /// content (FLM's verbatim reader, for example).
+    /// Whether the declaration places the body's content under an opaque wrapper, which
+    /// keeps the content as written: no whitespace is collapsed and no typographic
+    /// substitution is made in it.
     #[serde(skip_serializing_if = "is_false")]
-    pub raw: bool,
+    pub opaque_wrapper: bool,
     /// The description of the body's reader, for a body not read the ordinary way.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reader: Option<String>,

@@ -8,25 +8,36 @@ export { CallableKind } from "flm:core/registry";
 
 const MODULE = module("lang/mint");
 
-// An argument: `ArgDef.mandatory(name)`, `ArgDef.optional(name)`, or
-// `arg_def_from_code(code)`; written as the map `{ code, name, layout, docs,
-// mode, scoped, role }`. `new ArgDef(code)` takes an argument code where Rust's
-// `ArgDef::new` takes a parser, which data cannot carry.
+// An argument: `ArgDef.mandatory(name)`, `ArgDef.optional(name)`,
+// `arg_def_from_code(code)`, or `new ArgDef(syntax)` and
+// `ArgDef.named(name, syntax)`, where `syntax` is an argument code (`"r()"`)
+// or a structured syntax, a standard kind written as data (`{ syntax:
+// "delimited-group", delimiters: ["(", ")"] }`); Rust's `ArgDef::new` takes
+// the standard kind itself, or a parser of a feature's own, which data
+// cannot carry. Written as the map `{ code, name, layout, opaque_wrapper,
+// docs, mode, scoped, role }`, with the keys of the structured syntax in
+// place of `code` for an argument declared by one.
 export class ArgDef {
-  constructor(code) {
-    this.code = code;
+  constructor(syntax) {
+    const code = typeof syntax === "string";
+    this.code = code ? syntax : null;
+    this.syntax_ = code ? null : syntax;
     this.name = null;
     this.layout_ = ArgLayout.Inline;
+    this.opaque_wrapper_ = false;
     this.docs_ = "";
     this.mode_ = null;
     this.scoped_ = [];
     this.role_ = null;
   }
-  static named(name, code) { const arg = new ArgDef(code); arg.name = name; return arg; }
+  static named(name, syntax) { const arg = new ArgDef(syntax); arg.name = name; return arg; }
   static mandatory(name) { return ArgDef.named(name, "{"); }
   static optional(name) { return ArgDef.named(name, "["); }
   layout(layout) { this.layout_ = layout; return this; }
   blocks() { return this.layout(ArgLayout.Blocks); }
+  // Mirrors `ArgDef::with_opaque_wrapper`: the argument's content is placed
+  // under an opaque wrapper, which keeps its text as typed.
+  with_opaque_wrapper() { this.opaque_wrapper_ = true; return this; }
   docs(text) { this.docs_ = text; return this; }
   // Mirrors `ArgDef::mode`: the argument is parsed in the mode `mode`.
   mode(mode) { this.mode_ = mode; return this; }
@@ -37,7 +48,8 @@ export class ArgDef {
   // it holds (`flm.refs.target`).
   role(name) { this.role_ = name; return this; }
   toJSON() {
-    return { code: this.code, name: this.name, layout: this.layout_, docs: this.docs_, mode: this.mode_, scoped: this.scoped_, role: this.role_ };
+    const syntax = this.code === null ? this.syntax_ : { code: this.code };
+    return { ...syntax, name: this.name, layout: this.layout_, opaque_wrapper: this.opaque_wrapper_, docs: this.docs_, mode: this.mode_, scoped: this.scoped_, role: this.role_ };
   }
 }
 
@@ -45,15 +57,18 @@ export const ArgLayout = Object.freeze({ Inline: "inline", Blocks: "blocks", Inl
 
 // An environment's body: `new BodyDef()` and the builder methods.
 export class BodyDef {
-  constructor() { this.layout_ = BodyLayout.FromRole; this.verbatim_ = false; this.mode_ = null; this.scoped_ = []; }
+  constructor() { this.layout_ = BodyLayout.FromRole; this.opaque_wrapper_ = false; this.verbatim_ = false; this.mode_ = null; this.scoped_ = []; }
   layout(layout) { this.layout_ = layout; return this; }
   blocks() { return this.layout(BodyLayout.Blocks); }
+  // Mirrors `BodyDef::with_opaque_wrapper`: the body's content is placed
+  // under an opaque wrapper, which keeps its text as typed.
+  with_opaque_wrapper() { this.opaque_wrapper_ = true; return this; }
   verbatim() { this.verbatim_ = true; return this; }
   mode(mode) { this.mode_ = mode; return this; }
   // Mirrors `BodyDef::scoped`: the commands of the scoped package `name` are
   // legal inside the body.
   scoped(name) { this.scoped_.push(name); return this; }
-  toJSON() { return { layout: this.layout_, verbatim: this.verbatim_, mode: this.mode_, scoped: this.scoped_ }; }
+  toJSON() { return { layout: this.layout_, opaque_wrapper: this.opaque_wrapper_, verbatim: this.verbatim_, mode: this.mode_, scoped: this.scoped_ }; }
 }
 
 export const BodyLayout = Object.freeze({ Inline: "inline", Blocks: "blocks", FromRole: "from-role" });
@@ -120,6 +135,7 @@ export function arg_def_from_code(code) {
   const data = call(MODULE, "arg_def_from_code", [code]);
   const arg = new ArgDef(data.code).layout(data.layout).docs(data.docs);
   arg.name = data.name;
+  arg.opaque_wrapper_ = data.opaque_wrapper ?? false;
   arg.mode_ = data.mode ?? null;
   arg.scoped_ = data.scoped ?? [];
   arg.role_ = data.role ?? null;

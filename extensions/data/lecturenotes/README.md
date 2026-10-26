@@ -434,46 +434,22 @@ sample document (`flm-cli/tests/documents/lecturenotes/notes.flm`) and the docum
 sidebar, the navigation and the previews through the page itself; the file's opening
 comment says how to run it. It is run by hand.
 
-## Differences from the template of the Python FLM
+## Missing, to be implemented from the template of the Python FLM
 
-This template replaces the lecture-notes template written for the Python FLM (one Jinja
-page with a stylesheet in Sass and a script in TypeScript, compiled with Parcel and
-written inline into the page).
+This template is an adaptation of a similar internal template I had earlier.  In the
+conversion to the new template format, Claude made some choices that were
+misguided. A short TODO list of things we need to fix:
 
-**Kept.** The typography: the colors (maroon text, teal links, rose bands and warm rules),
-the heading sizes by level, the part and chapter bands, theorem statements in italic with
-the theorem's name upright, proofs in the muted color behind a thin rule, defined-term
-links dotted, captions muted. The previews of references, terms and citations. The return
-to the reading position on back and forward. The discreet heading anchors.
+**Changed. NEEDS TO BE RESET**
 
-**Changed.**
+- The old template lowered the opacity of figures and set a smaller text size on
+  phones; Claude failed to carry both over.
+- No/insufficient text context in popups when hovering an equation number
+  reference.
 
-- The layout: a sticky bar with the chapter arrows, and a sidebar on the right holding the
-  table of contents that FLM builds (the old page built its table of contents in the
-  browser).
-- The page's stylesheet and script are two files beside the page, rather than written
-  inline into it.
-- The default font is a list of installed serif fonts starting with Georgia; another
-  family, and the stylesheet that loads it, are settings.
-- A citation's popup lists exactly the works its mark covers: `[1–3, 56]` shows the works
-  1, 2, 3 and 56 (the old popup also listed every work between the first and the last
-  number).
-- A long press on a touch screen, and the keyboard's focus, show a popup.
-- The reading position is also kept across visits, per page address.
+**Planned enhancements:**
 
-**Left out on purpose.** The old template lowered the opacity of figures and set a smaller
-text size on phones; neither is carried over. There is no dark mode. The design record's ruling
-R9 (`dev-docs/buildlecturenotestemplate/design.md`) records the dark mode; section 0 of
-`dev-docs/buildlecturenotestemplate/plan.md` decided the other two.
-
-**Planned for later.** These parts are not built and each is recorded with its ruling in
-`dev-docs/buildlecturenotestemplate/design.md`:
-
-- a banner image above the title, which waits for a template engine in JavaScript that can
-  choose the files it ships from the settings (rulings R9, R13);
-- that template engine itself, with the shape of the module the template would export, and
-  the move of the extension to `extensions/js/` (rulings R5, R14);
-- a companion for the Astro site builder, which would read the fragment (ruling R1);
-- a display of one chapter at a time, and a split of the document into one page per
-  chapter (ruling R2);
-- a dark mode (ruling R9).
+- a banner image above the title
+- a companion for the Astro site builder, which would read the fragment
+- a display of one chapter at a time, and a split of the document into one page
+  per chapter

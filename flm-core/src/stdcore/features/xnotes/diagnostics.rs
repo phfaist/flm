@@ -27,9 +27,9 @@
 use techy::error::DiagnosticInfo;
 
 /// Condition `flm.xnotes.bad-label-argument`: the optional argument of an
-/// xnote holds something other than `\label{…}` commands, whitespace and
-/// comments, such as text, a group, `\textbf{…}`, or a command that no
-/// feature defines there.
+/// xnote holds something other than `\label{…}` commands, whitespace (`~` and
+/// `\ ` included) and comments, such as text, a group, `\textbf{…}`, or a
+/// command that no feature defines there.
 ///
 /// The lowering rule of the xnote reports it once per xnote, at the xnote,
 /// with the first such thing ([`labels_of`](super::labels_of) finds them).
@@ -72,9 +72,9 @@ pub struct NoNumbering {
 }
 
 /// Condition `flm.xnotes.empty`: an xnote with no content (nothing but
-/// whitespace and comments). Reported as a Warning, at the xnote, by the
-/// lowering rule that writes it. Recovery: the mark is written, and the xnote
-/// is listed with an empty entry.
+/// whitespace, `~` and `\ ` included, and comments). Reported as a Warning,
+/// at the xnote, by the lowering rule that writes it. Recovery: the mark is
+/// written, and the xnote is listed with an empty entry.
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(id = "flm.xnotes.empty", message = "this {kind} is empty")]
 pub struct Empty {

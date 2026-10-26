@@ -14,7 +14,7 @@
         "name": "flm.heading",
         "values": [
           {
-            "number": 48,
+            "number": 49,
             "docs": "`section`: A heading of level 1.",
             "summary": "`section`: A heading of level 1.",
             "commands": [
@@ -26,7 +26,7 @@
             ]
           },
           {
-            "number": 50,
+            "number": 51,
             "docs": "`subsection`: A heading of level 2.",
             "summary": "`subsection`: A heading of level 2.",
             "commands": [
@@ -38,7 +38,7 @@
             ]
           },
           {
-            "number": 52,
+            "number": 53,
             "docs": "`subsubsection`: A heading of level 3.",
             "summary": "`subsubsection`: A heading of level 3.",
             "commands": [
@@ -50,7 +50,7 @@
             ]
           },
           {
-            "number": 54,
+            "number": 55,
             "docs": "`paragraph`: A heading of level 4.",
             "summary": "`paragraph`: A heading of level 4.",
             "commands": [
@@ -62,7 +62,7 @@
             ]
           },
           {
-            "number": 56,
+            "number": 57,
             "docs": "`subparagraph`: A heading of level 5.",
             "summary": "`subparagraph`: A heading of level 5.",
             "commands": [
@@ -79,7 +79,7 @@
         "name": "flm.field",
         "values": [
           {
-            "number": 49,
+            "number": 50,
             "docs": "The field `\\label`, which the construct it is written after reads as data.",
             "summary": "The field `\\label`, which the construct it is written after reads as data.",
             "commands": [
@@ -95,7 +95,7 @@
             ]
           },
           {
-            "number": 51,
+            "number": 52,
             "docs": "The field `\\label`, which the construct it is written after reads as data.",
             "summary": "The field `\\label`, which the construct it is written after reads as data.",
             "commands": [
@@ -111,7 +111,7 @@
             ]
           },
           {
-            "number": 53,
+            "number": 54,
             "docs": "The field `\\label`, which the construct it is written after reads as data.",
             "summary": "The field `\\label`, which the construct it is written after reads as data.",
             "commands": [
@@ -127,7 +127,7 @@
             ]
           },
           {
-            "number": 55,
+            "number": 56,
             "docs": "The field `\\label`, which the construct it is written after reads as data.",
             "summary": "The field `\\label`, which the construct it is written after reads as data.",
             "commands": [
@@ -143,7 +143,7 @@
             ]
           },
           {
-            "number": 57,
+            "number": 58,
             "docs": "The field `\\label`, which the construct it is written after reads as data.",
             "summary": "The field `\\label`, which the construct it is written after reads as data.",
             "commands": [
@@ -164,7 +164,7 @@
         "name": "flm.heading.number",
         "values": [
           {
-            "number": 58,
+            "number": 59,
             "docs": "The number of a numbered heading, where the kind's heading title template writes `#{number}`. No document can write it.",
             "summary": "The number of a numbered heading, where the kind's heading title template writes `#{number}`. No document can write it.",
             "commands": []

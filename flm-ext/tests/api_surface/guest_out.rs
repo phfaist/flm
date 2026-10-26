@@ -12,7 +12,8 @@
 //! imports of the types its signatures name from other modules, then its
 //! re-exports (`pub use crate::api::a::b::{…}` for every data type, unit enum
 //! and constant it defines; `pub use crate::guest::hand::a_b::{…}` for every
-//! type of `GUEST_OWN` and every extension trait it defines; `pub use
+//! type of `GUEST_OWN` and every extension trait it defines, and every type
+//! `GUEST_ADDED` adds to it; `pub use
 //! crate::guest::<home>::X;` for an item it re-exports from another module),
 //! then its items in source order: one struct per handle kind whose row names
 //! a façade trait or an opaque type of the module (an extension trait is the
@@ -653,6 +654,13 @@ fn emit_module(surface: &Surface<'_>, module: &Module, indent: &str) -> String {
     for row in mapping::GUEST_OWN {
         let name = own_name(row);
         if surface.homes.get(name).is_some_and(|home| *home == module.path) && !local.contains(name) && !hand.iter().any(|other| other == name) {
+            hand.push(name.to_string());
+            local.insert(name.to_string());
+        }
+    }
+    // The types the guest adds to the module.
+    for (path, name) in mapping::GUEST_ADDED {
+        if *path == module.path {
             hand.push(name.to_string());
             local.insert(name.to_string());
         }

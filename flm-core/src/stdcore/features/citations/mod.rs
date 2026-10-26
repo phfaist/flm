@@ -18,10 +18,15 @@
 //! # Citation keys and notes
 //!
 //! A **citation key** refers to a cited work: it is the FLM code written for it
-//! between the braces of `\cite`, recomposed from the parsed nodes, with
-//! every run of whitespace made one space and the ends trimmed
+//! between the braces of `\cite`, kept as typed. The whitespace handling and
+//! the typographic substitutions of the document's text do not apply between
+//! those braces, because the keys argument is declared with an opaque wrapper
+//! ([`ArgDef::with_opaque_wrapper`](crate::lang::mint::ArgDef::with_opaque_wrapper)):
+//! the quotes and the dashes of a citation key stay as written. When the
+//! citation key is read, it is recomposed from the parsed nodes, with every run
+//! of whitespace made one space and the ends trimmed
 //! ([`spelling_identity`](crate::stdcore::backends::pres::spelling_identity)):
-//! `arxiv:1234.5678`, `knuth84`, `manual:{A. Author, Some title (2024)}`. A
+//! `arxiv:1234.5678`, `knuth84`, `manual:{A. Author, "Some title" -- 2024}`. A
 //! comma inside a group, a command's argument or a formula belongs to the
 //! citation key, and a citation key may hold a command. The feature reads no
 //! meaning into a citation key: the citation providers decide what it refers to
@@ -33,20 +38,20 @@
 //! # Citation chunks
 //!
 //! `\cite` calls written directly one after the other, with nothing between
-//! them but whitespace, a single line break and comments, are one **citation
+//! them but spaces, a single line break and comments, are one **citation
 //! chunk**, shown as one citation mark. A citation chunk is one `\cite` node
 //! ([`CITE`], `flm.citations.cite`) whose last argument, a tack-on argument
 //! (the trailing argument that absorbs field macros written after a
 //! construct; see [fields](crate::guide::concepts_overview#fields-data-a-construct-reads))
 //! named [`MORE_ARG`], holds the further calls as fields named `cite`
-//! ([`CITE_FIELD`]). A paragraph break or any other content ends the citation
-//! chunk.
+//! ([`CITE_FIELD`]). A paragraph break, a `~` or a `\ `, or any other
+//! content ends the citation chunk.
 //!
 //! [`read_chunk`] reads a citation chunk as a list of **items**, each a
 //! citation key and the note of its call, in the order written:
 //! `\cite{b}\cite[Thm 4]{a,c}` gives `(b)`, `(a, Thm 4)`, `(c, Thm 4)`. The
-//! keys argument of a call is content, split at the commas that are outside
-//! every group (`\cite{a,{b,c},d}` gives `a`, `{b,c}`, `d`); each part is
+//! keys argument of a call is parsed FLM code, split at the commas that are
+//! outside every group (`\cite{a,{b,c},d}` gives `a`, `{b,c}`, `d`); each part is
 //! recomposed into its citation key, and an empty part is skipped. Because a
 //! citation key is recomposed from the nodes rather than copied from the
 //! source text, a citation key that a user definition writes into a `\cite`
@@ -114,11 +119,13 @@
 //!
 //! The citation mark of a `\cite` is **attached** to the content before it
 //! (kind token [`ATTACHED`]): the whitespace written before `\cite` is
-//! removed, and a no-break space is written before the citation mark
-//! ([`space_before`]), as a character in a span of role [`SPACE_ROLE`], under
-//! the bracketed form of the citation mark and under the in-place placement;
-//! under the superscript form nothing is written (the form and the placement
-//! are settings of the configuration; see "The configuration" below). The
+//! removed, the spaces `~` and `\ ` included (`word~\cite{a}`, `word ~ \cite{a}`
+//! and `word \cite{a}` read alike), and a no-break space is written before the
+//! citation mark ([`space_before`]), as a character in a span of role
+//! [`SPACE_ROLE`], under the bracketed form of the citation mark and under the
+//! in-place placement; under the superscript form nothing is written (the form
+//! and the placement are settings of the configuration; see "The
+//! configuration" below). The
 //! content around a citation mark is not read: a `\cite` at the start of a
 //! paragraph or after `(` also has its space written, and an author writes
 //! `\R[I]\cite{a}` there instead. The citation mark of an `\R` is

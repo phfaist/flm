@@ -259,16 +259,41 @@ and inside a label or a reference target.
 ## Opaque regions
 
 An opaque region is a part of a tree that the rewrite passes carry over untouched
-and the lowering copies unchanged (mathematics and verbatim content, any run parsed
-in math mode); a verbatim region is a run of raw text in which no markup character
-means anything, always inside a group of the verbatim class ([verbatim
-regions](#verbatim-regions)).
+(mathematics and verbatim content, any run parsed in math mode, the content of an
+opaque wrapper); the lowering copies mathematics and verbatim content unchanged and
+writes an opaque wrapper through its children. A verbatim region is a run of raw text
+in which no markup character means anything, always inside a group of the verbatim
+class ([verbatim regions](#verbatim-regions)).
 
 "Untouched" means: no text resolution, no paragraph building, no block-structure hook
 ([`BlockStructure`](crate::lang::rewrites::blocks::BlockStructure)) consulted, no
-paragraph-break marker removed or reported. The content of a mathematics group, the
-content of a verbatim group, a verbatim body, and any run parsed in mathematics mode are
-the opaque regions there are.
+paragraph-break marker removed or reported. Text resolution is the step that merges
+adjacent text, makes each run of whitespace one space and applies the typographic
+substitutions (`--` to a dash, `"` to a curly quote). The opaque regions there are:
+
+- the content of a mathematics group;
+- the content of a verbatim group, and a verbatim body;
+- the content of an opaque wrapper: an argument or a body whose declaration asks for
+  one, every characters-only group, such as the argument of `\label{…}`, and a proof
+  title that begins with a star;
+- any run parsed in mathematics mode.
+
+An **opaque wrapper** is a group of its own class with no delimiters, which the parser
+places around the content of an argument declared with
+[`ArgDef::with_opaque_wrapper`](crate::lang::mint::ArgDef::with_opaque_wrapper), of a
+body declared with
+[`BodyDef::with_opaque_wrapper`](crate::lang::mint::BodyDef::with_opaque_wrapper), and of
+every characters-only group
+([`ArgStdKind::CharsGroup`](crate::lang::mint::ArgStdKind::CharsGroup)); the reader of a
+proof's title places one around a title that begins with a star (see
+[`theorems`](crate::stdcore::features::theorems::elements#a-starred-title-is-kept-as-typed)).
+The content is parsed as usual, commands included; the wrapper only keeps it as written. It
+serves an argument whose text an element reads as typed: the keys of `\cite`, the label
+written in `\label` and in `\ref`, the target of `\hyperref`, a proof's back-reference. Two
+places that spell such a text alike then hold the same characters, and a quote or a dash in
+it is not turned into a typographic character. A group of `key=value` options is ordinary content unless its
+declaration asks for a wrapper, because the value of a key may be text the document
+shows, such as a heading's `alt=`.
 
 Opacity belongs to the opaque *region*, not to the command that opened it. `\(x^2\)` and
 `\begin{equation}…\end{equation}` are two ways of writing mathematics; a rule
@@ -284,9 +309,11 @@ command of mathematics mode, such as `\text{…}`, `\textbf{…}` or `\mbox{…}
 the mathematics feature declares for mathematics mode with an argument read in text
 mode. Such an argument is laid out like any other inline content — its whitespace
 resolved, typographic substitution applied, a paragraph break in it reported —
-while the mathematics around it stays byte for byte what the author wrote. A
-verbatim region is opaque in every parsing mode, because reading verbatim content
-changes no mode.
+while the mathematics around it stays byte for byte what the author wrote. The
+content of a verbatim group or of an opaque wrapper is opaque in every parsing mode,
+and the exception for text inside mathematics does not reach inside it: in
+`\cite{manual:{$\text{x}$}}`, the argument of `\text` stands under the opaque wrapper
+of the keys, and is carried over as written.
 
 The concept is used in two other places of the library. The checker that verifies
 a structured tree applies its content rules only to the content *outside* opaque
@@ -299,14 +326,21 @@ therefore reproduce the opaque region from its source, byte for byte. A backend 
 instead select a lowering rule of its own for the element of an opaque region and
 write the region from its nodes, still lowering nothing inside it: the recomposed
 LaTeX does so for mathematics, so that a user definition used inside it is written as
-a call of that definition.
+a call of that definition. An opaque wrapper carries no such aspect: its element,
+[`OPAQUE_WRAPPER`](crate::lang::structural::OPAQUE_WRAPPER), is written natively by
+every backend through its children, like a group, so its text comes out as typed. An
+element that declares a wrapper usually reads the argument itself, as `\cite` reads its
+keys to write a citation mark.
 
 - [`crate::lang::rewrites::blocks::pass`] — the pass that lays a content region out
   as blocks or as inline content, or leaves it opaque, and
   [`check_block_contract`](crate::lang::rewrites::blocks::check_block_contract),
   whose rules apply to the content outside opaque regions.
-- [`FlmGroupType`](crate::lang::FlmGroupType) — the group classes; the mathematics
-  and verbatim classes open an opaque region.
+- [`FlmGroupType`](crate::lang::FlmGroupType) — the group classes; the mathematics,
+  verbatim and opaque-wrapper classes open an opaque region.
+- [`ArgDef::with_opaque_wrapper`](crate::lang::mint::ArgDef::with_opaque_wrapper) and
+  [`BodyDef::with_opaque_wrapper`](crate::lang::mint::BodyDef::with_opaque_wrapper) —
+  how a feature declares that an argument's or a body's content is kept as written.
 - [`OpaqueContent`](crate::stdcore::backends::pres::OpaqueContent) — the aspect by
   which lowering copies such a subtree unchanged, and
   [`ContentInOpaque`](crate::stdcore::backends::pres::ContentInOpaque) — the

@@ -7,10 +7,11 @@
 //! so the rules and the reference points always agree on what an item is.
 //! The functions here report nothing and never change the tree.
 
-use techy::core::node::{NodeKind, NodeRef};
+use techy::core::node::NodeRef;
 
 use crate::lang::Flm;
 use crate::lang::structural;
+use crate::lang::text::is_blank;
 use crate::model::element::element_value;
 use crate::stdcore::features::refs::{self, LabelUse};
 
@@ -72,15 +73,10 @@ pub fn is_item(node: &NodeRef<'_, Flm>) -> bool {
 }
 
 /// Whether `node`, a child of a list's body, holds nothing but layout:
-/// whitespace, a comment, or a blank line.
-fn is_blank(node: &NodeRef<'_, Flm>) -> bool {
-    if node.ext().element.name.as_str() == structural::PARBREAK {
-        return true;
-    }
-    match node.kind() {
-        NodeKind::Comment(_) => true,
-        _ => node.chars().is_some_and(|text| text.trim().is_empty()),
-    }
+/// whitespace ([`is_blank`]: text made of whitespace alone, or a node that is
+/// whitespace, such as `~` and `\ `), a comment, or a blank line.
+fn is_layout(node: &NodeRef<'_, Flm>) -> bool {
+    node.is_comment() || is_blank(node) || node.ext().element.name.as_str() == structural::PARBREAK
 }
 
 /// The list in which the `\item` node `node` begins an item: the list
@@ -193,10 +189,10 @@ pub fn item_of<'t>(node: &NodeRef<'t, Flm>) -> Option<ListItem<'t>> {
 ///
 /// Every direct child of the body after an `\item`, up to the next `\item`
 /// or the end of the body, is that item's content. The content before the
-/// first `\item` is skipped when it is only whitespace, blank lines and
-/// comments, and is returned whole as [`before`](ListBody::before)
-/// otherwise. For a node that is not a list, the result has no items and
-/// depth 0.
+/// first `\item` is skipped when it is only whitespace (`~` and `\ `
+/// included), blank lines and comments, and is returned whole as
+/// [`before`](ListBody::before) otherwise. For a node that is not a list, the
+/// result has no items and depth 0.
 ///
 /// Every rule that lowers a list calls this function, and nothing stores its
 /// result.
@@ -230,7 +226,7 @@ pub fn list_items<'t>(node: &NodeRef<'t, Flm>) -> ListBody<'t> {
             before.push(child);
         }
     }
-    if !before.iter().all(is_blank) {
+    if !before.iter().all(is_layout) {
         body.before = before;
     }
     body

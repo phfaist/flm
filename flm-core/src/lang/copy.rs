@@ -88,6 +88,7 @@ use crate::lang::guard::{self, GuardPolicy};
 use crate::lang::mint::specs::element_of_spec;
 use crate::lang::mint::FlmSynthesizedSpec;
 use crate::lang::structural::UNKNOWN_MACRO;
+use crate::lang::text::{is_blank, is_blank_text, is_space};
 use crate::lang::{Flm, FlmCallableType, FlmSpan, PresPayload};
 use crate::model::aspects::{CopiedAs, copied_as};
 
@@ -387,7 +388,8 @@ impl<'t> WrittenPiece<'t> {
 /// they were read from. A group or a callable of the value is returned as the
 /// node of the document it was read from, found in `content` by its span;
 /// characters split off a text node that also holds the key are returned as
-/// text. Whitespace at either end is dropped.
+/// text. Whitespace at either end is dropped, a node that is whitespace (such
+/// as `~`) included.
 ///
 /// The features whose brackets hold such values (lists, floats) all read them
 /// through this function.
@@ -412,13 +414,15 @@ pub fn key_value_pieces<'t>(
 }
 
 /// Returns `pieces` (value pieces, [`ValuePiece`]) with the whitespace at
-/// either end dropped: the blank pieces at each end (text, or a text node,
-/// holding only whitespace), and the whitespace a text piece at either end
-/// begins or ends with.
+/// either end dropped: the blank pieces at each end (text holding only
+/// whitespace, [`is_blank_text`], and a blank node, [`is_blank`]: a text node
+/// holding only whitespace, or a node that is whitespace, such as `~` and
+/// `\ `), and the whitespace ([`is_space`]) a text piece at either end begins
+/// or ends with.
 pub(crate) fn trim_pieces(mut pieces: Vec<WrittenPiece<'_>>) -> Vec<WrittenPiece<'_>> {
     let blank = |piece: &WrittenPiece<'_>| match piece {
-        WrittenPiece::Text(text) => text.trim().is_empty(),
-        WrittenPiece::Node(node) => node.chars().is_some_and(|text| text.trim().is_empty()),
+        WrittenPiece::Text(text) => is_blank_text(text),
+        WrittenPiece::Node(node) => is_blank(node),
     };
     while pieces.first().is_some_and(blank) {
         pieces.remove(0);
@@ -427,10 +431,10 @@ pub(crate) fn trim_pieces(mut pieces: Vec<WrittenPiece<'_>>) -> Vec<WrittenPiece
         pieces.pop();
     }
     if let Some(WrittenPiece::Text(text)) = pieces.first_mut() {
-        *text = text.trim_start().to_string();
+        *text = text.trim_start_matches(is_space).to_string();
     }
     if let Some(WrittenPiece::Text(text)) = pieces.last_mut() {
-        *text = text.trim_end().to_string();
+        *text = text.trim_end_matches(is_space).to_string();
     }
     pieces
 }

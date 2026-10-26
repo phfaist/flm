@@ -397,10 +397,6 @@ impl ArgumentParser<Flm> for SizeToken {
 }
 
 impl FlmArgumentParser for SizeToken {
-    fn holds_content(&self) -> bool {
-        false
-    }
-
     fn identity(&self) -> Vec<u8> {
         match self.after_backtick {
             false => b"phfqit.size-token".to_vec(),

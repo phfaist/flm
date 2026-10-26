@@ -34,9 +34,10 @@ use std::sync::Arc;
 use techy::source::SourceSpan;
 
 use super::config::BlocksConfig;
-use super::typography::{is_ascii_space, substitution_at};
+use super::typography::substitution_at;
 use crate::lang::ext::{TextSourceMap, TextSourcePiece};
 use crate::lang::origin::{FlmSource, FlmSpan};
+use crate::lang::text::is_space_byte;
 
 /// One text chunk of the tape: a stretch of text with the source bytes it
 /// comes from.
@@ -162,9 +163,10 @@ pub(crate) struct Edges {
     pub(crate) drop_leading: bool,
     /// Drop the run's trailing whitespace outright.
     pub(crate) drop_trailing: bool,
-    /// Whether a content sibling — anything but a comment — precedes the run.
-    /// The position test for straight quotes reads this field, so that
-    /// `\(A_j\)'s` closes rather than opens.
+    /// Whether a content sibling — a node other than a comment or a
+    /// whitespace node — precedes the run, comments looked through. The
+    /// position test for straight quotes reads this field, so that
+    /// `\(A_j\)'s` closes rather than opens, and `a~"x"` opens.
     pub(crate) prev_is_content: bool,
 }
 
@@ -325,9 +327,9 @@ impl<'a> Writer<'a> {
         let mut plain = 0usize;
 
         while i < len {
-            if is_ascii_space(bytes[i]) {
+            if is_space_byte(bytes[i]) {
                 let mut j = i;
-                while j < len && is_ascii_space(bytes[j]) {
+                while j < len && is_space_byte(bytes[j]) {
                     j += 1;
                 }
                 if plain < i {

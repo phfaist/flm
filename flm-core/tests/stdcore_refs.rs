@@ -489,6 +489,25 @@ fn a_reference_site_reads_its_display_options_from_the_keyval_argument() {
 }
 
 #[test]
+fn a_label_and_a_reference_holding_a_quote_meet_as_typed() {
+    // The second label's doubled space meets the reference's one space: a run
+    // of whitespace in a label counts as one space.
+    let document = "\\section{Intro}\\label{sec:a \"b}\n\n\\section{Next}\\label{sec:c  d}\n\n\
+        See \\ref{sec:a \"b} and \\ref{sec:c d}.\n";
+    let run = run_workflow(&registry(), text::WORKFLOW, &[document], &Overrides::none());
+    assert_eq!(identifiers(&run), Vec::<String>::new());
+    let labels = run.table(&LABELS).expect("declared").expect("written");
+    assert_eq!(
+        labels.by_label.keys().cloned().collect::<Vec<_>>(),
+        [Label::new("sec", "a \"b"), Label::new("sec", "c d")]
+    );
+    let resolutions = run.table(&REF_RESOLUTIONS).expect("declared").expect("written");
+    let resolved: Vec<bool> =
+        resolutions.sites.values().map(|resolution| matches!(resolution, Resolution::Resolved { .. })).collect();
+    assert_eq!(resolved, [true, true]);
+}
+
+#[test]
 fn a_malformed_label_is_reported_at_its_field_and_ignored() {
     // The heading's own reader parses the spelling as it reads the field, so
     // the report stands at the field, not at the heading.

@@ -5,7 +5,7 @@
     "properties": {
       "auto_unicode_quotes": {
         "type": "boolean",
-        "description": "Whether the straight double quote `\"` and the straight single quote `'`\nbecome curly quotes, opening (`“`, `‘`) or closing (`”`, `’`) according\nto their position. When\n`ligature_unicode_quotes` is\nalso on, the two-character ligature `''` is that family's, and this test\napplies to a single `'`.\n\nA quote opens at the start of a text run that no content precedes (a\ncomment does not count), and after whitespace, an opening bracket\n(`(`, `[`, `{`) or a dash (`-`, `–`, `—`). A single quote also opens\nbefore a digit (`x'9` becomes `x‘9`), except in a decade abbreviation:\nafter a letter, a digit or an underscore, and before two digits and an\n`s` (`x'90s` becomes\n`x’90s`). A quote closes everywhere else: `don't` becomes `don’t`. The\ntest looks at the node before the text run, so in `\\(A_j\\)'s` the quote\nafter the formula closes.",
+        "description": "Whether the straight double quote `\"` and the straight single quote `'`\nbecome curly quotes, opening (`“`, `‘`) or closing (`”`, `’`) according\nto their position. When\n`ligature_unicode_quotes` is\nalso on, the two-character ligature `''` is that family's, and this test\napplies to a single `'`.\n\nA quote opens at the start of a text run that no content precedes (a\ncomment does not count, nor the spaces `~` and `\\ `), and after\nwhitespace, an opening bracket\n(`(`, `[`, `{`) or a dash (`-`, `–`, `—`). A single quote also opens\nbefore a digit (`x'9` becomes `x‘9`), except in a decade abbreviation:\nafter a letter, a digit or an underscore, and before two digits and an\n`s` (`x'90s` becomes\n`x’90s`). A quote closes everywhere else: `don't` becomes `don’t`. The\ntest looks at the node before the text run, so in `\\(A_j\\)'s` the quote\nafter the formula closes.",
         "default": true,
         "x-flm-bind": "registry"
       },
@@ -36,7 +36,7 @@
         "properties": {
           "auto_unicode_quotes": {
             "type": "boolean",
-            "description": "Whether the straight double quote `\"` and the straight single quote `'`\nbecome curly quotes, opening (`“`, `‘`) or closing (`”`, `’`) according\nto their position. When\n`ligature_unicode_quotes` is\nalso on, the two-character ligature `''` is that family's, and this test\napplies to a single `'`.\n\nA quote opens at the start of a text run that no content precedes (a\ncomment does not count), and after whitespace, an opening bracket\n(`(`, `[`, `{`) or a dash (`-`, `–`, `—`). A single quote also opens\nbefore a digit (`x'9` becomes `x‘9`), except in a decade abbreviation:\nafter a letter, a digit or an underscore, and before two digits and an\n`s` (`x'90s` becomes\n`x’90s`). A quote closes everywhere else: `don't` becomes `don’t`. The\ntest looks at the node before the text run, so in `\\(A_j\\)'s` the quote\nafter the formula closes.",
+            "description": "Whether the straight double quote `\"` and the straight single quote `'`\nbecome curly quotes, opening (`“`, `‘`) or closing (`”`, `’`) according\nto their position. When\n`ligature_unicode_quotes` is\nalso on, the two-character ligature `''` is that family's, and this test\napplies to a single `'`.\n\nA quote opens at the start of a text run that no content precedes (a\ncomment does not count, nor the spaces `~` and `\\ `), and after\nwhitespace, an opening bracket\n(`(`, `[`, `{`) or a dash (`-`, `–`, `—`). A single quote also opens\nbefore a digit (`x'9` becomes `x‘9`), except in a decade abbreviation:\nafter a letter, a digit or an underscore, and before two digits and an\n`s` (`x'90s` becomes\n`x’90s`). A quote closes everywhere else: `don't` becomes `don’t`. The\ntest looks at the node before the text run, so in `\\(A_j\\)'s` the quote\nafter the formula closes.",
             "default": true
           },
           "ligature_unicode_quotes": {
@@ -2175,7 +2175,7 @@
             "description": "Inferred from the content: a region of blocks when the content holds a\nblank line (a paragraph break) or a block-level construct such as a\nlist, inline content otherwise. This is the rule a fragment laid out\n`InlineOrBlocks`\napplies to its top level."
           }
         ],
-        "description": "How the block-structure pass lays out an\nargument's content: as inline\ncontent, as a region of blocks, or as whichever of the two the content\ncalls for.\n\nInline content is running text (words, formulas, commands such as\n`\\emph{…}`) with no paragraph inside it. A region of blocks holds\nparagraphs and block-level constructs such as lists. The layout belongs to\nthe command's declaration (`ArgDef::layout`); an author cannot choose it\nwhere the command is written.\n\nOnly an argument that holds document content\n(`FlmArgumentParser::holds_content`; among the standard kinds, every\ngroup of content, mandatory or optional, and embellishments) may take a\nlayout other than `Inline`. An argument read in\nmathematics mode is an opaque\nregion, which the\nblock-structure pass carries over untouched, so it may not be declared\n`Blocks`. Minting reports a declaration that breaks\neither rule as\n`MintError::LayoutOnNonContentArgument`.\n\n`arg_layout_of` returns the declared layout of an\nargument of a parsed node;\n`argument_holds_blocks`\nreturns whether an argument holds blocks, before and after the\nblock-structure pass alike."
+        "description": "How the block-structure pass lays out an\nargument's content: as inline\ncontent, as a region of blocks, or as whichever of the two the content\ncalls for.\n\nInline content is running text (words, formulas, commands such as\n`\\emph{…}`) with no paragraph inside it. A region of blocks holds\nparagraphs and block-level constructs such as lists. The layout belongs to\nthe command's declaration (`ArgDef::layout`); an author cannot choose it\nwhere the command is written.\n\nAn argument declared with an opaque wrapper (`ArgDef::opaque_wrapper`)\ntakes only `Inline`: the block-structure pass carries\nits content over as written, so no other layout could take effect. An\nargument read in mathematics mode is an opaque\nregion, which the\nblock-structure pass carries over untouched, so it may not be declared\n`Blocks`. Minting reports a declaration that breaks\neither rule\n(`MintError::LayoutOnOpaqueWrappedArgument`,\n`MintError::BlocksOnMathArgument`).\nA layout declared on an argument whose reader yields raw text or places\nits content under an opaque wrapper by construction (a verbatim argument, a\ncharacters-only group) is not reported; it has no effect, since the\nargument's content is an opaque region.\n\n`arg_layout_of` returns the declared layout of an\nargument of a parsed node;\n`argument_holds_blocks`\nreturns whether an argument holds blocks, before and after the\nblock-structure pass alike."
       }
     }
   },
@@ -4315,7 +4315,7 @@
         "properties": {
           "args": {
             "$ref": "#/$defs/ArgListData",
-            "description": "The arguments, in the order they are written at a use site, given in\none of three forms: one text in which each character is one argument code\n(`\"[{\"`); a list of codes (`[\"[\", \"r()\"]`); or a list whose entries are\neach a code or a map giving the code with the argument's name, layout\nand documentation. The codes are listed in the table of argument\ncodes."
+            "description": "The arguments, in the order they are written at a use site. Each\nargument gives its syntax as a structured syntax: a map whose key\n`syntax` holds the name of a standard kind of argument and whose other\nkeys hold the kind's parameters, beside the argument's own keys\n(`name`, `mode`, `layout`, `opaque_wrapper`, `scoped`, `docs`, `role`),\nas in `{syntax: delimited-group, delimiters: [\"(\", \")\"], name: size}`\nfor a group in parentheses named `size`. An argument code is a\nshorthand for a structured syntax: in a map, the key `code` holds it in\nplace of `syntax`, so `{code: \"r()\", name: size}` declares the same\nargument; a code alone (`\"{\"`) declares an argument with no other key.\nThe list is written in one of three shapes: one text in which each\ncharacter is one code (`\"[{\"`); a list of codes (`[\"[\", \"r()\"]`); or a\nlist whose entries are each a code or a map. The kinds and their\nparameters are listed in the documentation of the standard\nkinds, and the codes\nin the table of argument codes."
           },
           "content": {
             "anyOf": [
@@ -4379,7 +4379,7 @@
             "description": "A list of arguments, each an argument code or a map."
           }
         ],
-        "description": "The argument list of a macro or environment declared in settings given as\ndata, written either as one text in which each character is one argument\ncode (`\"[{\"`), or as a list whose entries are each a code or a map\n(`ArgData`).\n\n`arg_defs` converts it into argument declarations;\n`deserialize_arg_list` reads a settings field of type `Vec<ArgDef>` in any\nof the shapes. The module documentation lists the codes."
+        "description": "The argument list of a macro or environment declared in settings given as\ndata, written either as one text in which each character is one argument\ncode (`\"[{\"`), or as a list whose entries are each a code or an argument's\nmap (`ArgData`).\n\n`arg_defs` converts it into argument declarations;\n`deserialize_arg_list` reads a settings field of type `Vec<ArgDef>` in any\nof the shapes. The module documentation describes the shapes and\nthe forms of an argument's syntax."
       },
       "ArgData": {
         "anyOf": [
@@ -4475,153 +4475,1109 @@
           },
           {
             "$ref": "#/$defs/ArgDataFields",
-            "description": "The argument code with the argument's name, parsing mode, layout,\nscoped packages, documentation and role."
+            "description": "The argument's syntax with the argument's name, parsing mode, layout,\nopaque wrapper, scoped packages, documentation and role."
           }
         ],
-        "description": "One argument of a macro or environment declared in settings given as data:\neither its argument code alone (`\"{\"`), or a map giving the code with the\nargument's name, parsing mode, layout, scoped packages, documentation and\nrole.\n\nIt converts into an argument declaration (`ArgDef`) through `TryFrom`,\nwhich reads its code with `arg_def_from_code`; the codes are listed in\nthe module documentation."
+        "description": "One argument of a macro or environment declared in settings given as data:\neither its argument code alone (`\"{\"`), or an argument's map, which gives\nits syntax (a structured syntax or a code) with the argument's name,\nparsing mode, layout, opaque wrapper, scoped packages, documentation and\nrole.\n\nIt converts into an argument declaration (`ArgDef`) through `TryFrom`,\nwhich reads a code with `arg_def_from_code`; the module\ndocumentation describes both forms of a syntax."
       },
       "ArgDataFields": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "code": {
-            "description": "The argument code, which says what form the argument takes (the codes\nare those `arg_def_from_code` reads).",
-            "anyOf": [
-              {
-                "const": "{",
-                "description": "a mandatory `{…}` group"
+        "description": "An argument written as a map in settings given as data: its syntax, given\nas a code or as a structured syntax, exactly one of the two, and its name,\nparsing mode, layout, opaque wrapper, scoped packages, documentation and\nrole (see `ArgData`).",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "description": "The argument code, which says what form the argument takes in one\nshort text (the codes are those `arg_def_from_code` reads). A map\ngives either a code or a structured syntax.",
+                "anyOf": [
+                  {
+                    "const": "{",
+                    "description": "a mandatory `{…}` group"
+                  },
+                  {
+                    "const": "m",
+                    "description": "a mandatory `{…}` group"
+                  },
+                  {
+                    "const": "[",
+                    "description": "an optional `[…]` group"
+                  },
+                  {
+                    "const": "o",
+                    "description": "an optional `[…]` group"
+                  },
+                  {
+                    "const": "*",
+                    "description": "an optional `*` marker"
+                  },
+                  {
+                    "const": "s",
+                    "description": "an optional `*` marker"
+                  },
+                  {
+                    "const": "v",
+                    "description": "verbatim text between a pair of delimiters"
+                  },
+                  {
+                    "const": "AnyDelimited",
+                    "description": "a mandatory group in `{…}`, `[…]`, `(…)` or `<…>`"
+                  },
+                  {
+                    "const": "AnyDelimitedOptional",
+                    "description": "an optional group in `{…}`, `[…]`, `(…)` or `<…>`"
+                  },
+                  {
+                    "const": "BracedOnly",
+                    "description": "a mandatory `{…}` group, never a single token"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^t\\S$",
+                    "description": "`t<c>`: an optional marker made of the one character after `t`"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^r\\S\\S$",
+                    "description": "`r<c1><c2>`: a mandatory group between the two characters after `r`"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^d\\S\\S$",
+                    "description": "`d<c1><c2>`: an optional group between the two characters after `d`"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^v\\S\\S$",
+                    "description": "`v<c1><c2>`: verbatim text between the two characters after `v`"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^e\\{[^\\s}]+\\}$",
+                    "description": "`e{<chars>}`: embellishments: each character between the braces is a marker that is followed by one expression; the markers may be written in any order, each at most once"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^u\\S+$",
+                    "description": "`u<terminator>`: document content up to the characters after `u`, its terminator"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^U\\S+$",
+                    "description": "`U<terminator>`: raw text up to the characters after `U`, its terminator"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^f\\S+$",
+                    "description": "`f<c><terminator>`: document content after a run of the character after `f`, up to the same run followed by the characters after that character"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^F\\S+$",
+                    "description": "`F<c><terminator>`: raw text after a run of the character after `F`, up to the same run followed by the characters after that character"
+                  }
+                ]
               },
-              {
-                "const": "m",
-                "description": "a mandatory `{…}` group"
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
               },
-              {
-                "const": "[",
-                "description": "an optional `[…]` group"
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
               },
-              {
-                "const": "o",
-                "description": "an optional `[…]` group"
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
               },
-              {
-                "const": "*",
-                "description": "an optional `*` marker"
-              },
-              {
-                "const": "s",
-                "description": "an optional `*` marker"
-              },
-              {
-                "const": "v",
-                "description": "verbatim text between a pair of delimiters"
-              },
-              {
-                "const": "AnyDelimited",
-                "description": "a mandatory group in `{…}`, `[…]`, `(…)` or `<…>`"
-              },
-              {
-                "const": "AnyDelimitedOptional",
-                "description": "an optional group in `{…}`, `[…]`, `(…)` or `<…>`"
-              },
-              {
-                "const": "BracedOnly",
-                "description": "a mandatory `{…}` group, never a single token"
-              },
-              {
+              "docs": {
                 "type": "string",
-                "pattern": "^t\\S$",
-                "description": "`t<c>`: an optional marker made of the one character after `t`"
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
               },
-              {
-                "type": "string",
-                "pattern": "^r\\S\\S$",
-                "description": "`r<c1><c2>`: a mandatory group between the two characters after `r`"
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
               },
-              {
-                "type": "string",
-                "pattern": "^d\\S\\S$",
-                "description": "`d<c1><c2>`: an optional group between the two characters after `d`"
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
               },
-              {
-                "type": "string",
-                "pattern": "^v\\S\\S$",
-                "description": "`v<c1><c2>`: verbatim text between the two characters after `v`"
-              },
-              {
-                "type": "string",
-                "pattern": "^e\\{[^\\s}]+\\}$",
-                "description": "`e{<chars>}`: embellishments: each character between the braces is a marker that is followed by one expression; the markers may be written in any order, each at most once"
-              },
-              {
-                "type": "string",
-                "pattern": "^u\\S+$",
-                "description": "`u<terminator>`: document content up to the characters after `u`, its terminator"
-              },
-              {
-                "type": "string",
-                "pattern": "^U\\S+$",
-                "description": "`U<terminator>`: raw text up to the characters after `U`, its terminator"
-              },
-              {
-                "type": "string",
-                "pattern": "^f\\S+$",
-                "description": "`f<c><terminator>`: document content after a run of the character after `f`, up to the same run followed by the characters after that character"
-              },
-              {
-                "type": "string",
-                "pattern": "^F\\S+$",
-                "description": "`F<c><terminator>`: raw text after a run of the character after `F`, up to the same run followed by the characters after that character"
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
               }
-            ]
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
-            "default": null
-          },
-          "layout": {
-            "$ref": "#/$defs/ArgLayout",
-            "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
-            "default": "inline"
-          },
-          "docs": {
-            "type": "string",
-            "description": "Documentation of the argument. Empty by default.",
-            "default": ""
-          },
-          "mode": {
-            "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
-            "enum": [
-              "text",
-              "math",
-              null
-            ],
-            "default": null
-          },
-          "scoped": {
-            "type": "array",
-            "items": {
-              "type": "string"
             },
-            "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
-            "default": []
-          },
-          "role": {
-            "type": [
-              "string",
-              "null"
+            "required": [
+              "code"
             ],
-            "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
-            "default": null
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "A mandatory `{…}` group; a single token also counts.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "mandatory"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "An optional `[…]` group.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "optional"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "An optional `*` marker.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "star"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "An optional marker made of one character.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "marker"
+              },
+              "marker": {
+                "type": "string",
+                "description": "The marker's character.",
+                "pattern": "^\\S$"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax",
+              "marker"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "A mandatory group between a pair of characters.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "delimited-group"
+              },
+              "delimiters": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^\\S$"
+                },
+                "description": "The opening and the closing character.",
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax",
+              "delimiters"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "An optional group between a pair of characters.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "optional-delimited-group"
+              },
+              "delimiters": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^\\S$"
+                },
+                "description": "The opening and the closing character.",
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax",
+              "delimiters"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "A mandatory group in `{…}`, `[…]`, `(…)` or `<…>`.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "any-delimited-group"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "An optional group in `{…}`, `[…]`, `(…)` or `<…>`.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "optional-any-delimited-group"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "A mandatory `{…}` group, never a single token.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "braced-only"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Embellishments: each marker character is followed by one expression;\nthe markers may be written in any order, each at most once.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "embellishments"
+              },
+              "markers": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^\\S$"
+                },
+                "description": "The marker characters, at least one.",
+                "minItems": 1
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax",
+              "markers"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "An optional `[key=value,…]` group.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "key-vals"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "A `{…}` group read as plain characters, kept as written.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "chars-group"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Verbatim text between a pair of delimiters.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "verbatim"
+              },
+              "delimiters": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string",
+                  "pattern": "^\\S$"
+                },
+                "description": "The opening and the closing delimiter. Without it, the closing\ndelimiter matches whichever opening one is found: `}` for `{`, `]`\nfor `[`, `)` for `(`, `>` for `<`, and any other character for\nitself.",
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "An argument that runs up to a terminator: an optional run of a\nrepeated character and an opener, the content, then the terminator,\nwhich is the head, as many copies of the repeated character as the\nrun had, and the rest of the terminator.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "terminated"
+              },
+              "terminator": {
+                "type": "string",
+                "description": "The end of the terminator, after the repeated characters."
+              },
+              "repeat_char": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The character whose run starts the argument and is repeated in\nthe terminator. None by default.",
+                "pattern": "^\\S$"
+              },
+              "opener": {
+                "type": "string",
+                "description": "The text that follows the run of the repeated character. Empty by\ndefault.",
+                "default": ""
+              },
+              "head": {
+                "type": "string",
+                "description": "The text that begins the terminator, before the repeated\ncharacters. Empty by default.",
+                "default": ""
+              },
+              "raw": {
+                "type": "boolean",
+                "description": "Whether the content is raw text (`true`) or parsed document\ncontent (`false`, the default).",
+                "default": false
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax",
+              "terminator"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": [
-          "code"
-        ],
-        "description": "An argument written as a map in settings given as data: its code, name,\nparsing mode, layout, scoped packages, documentation and role (see\n`ArgData`)."
+        ]
       },
       "ArgLayout": {
         "oneOf": [
@@ -4641,7 +5597,7 @@
             "description": "Inferred from the content: a region of blocks when the content holds a\nblank line (a paragraph break) or a block-level construct such as a\nlist, inline content otherwise. This is the rule a fragment laid out\n`InlineOrBlocks`\napplies to its top level."
           }
         ],
-        "description": "How the block-structure pass lays out an\nargument's content: as inline\ncontent, as a region of blocks, or as whichever of the two the content\ncalls for.\n\nInline content is running text (words, formulas, commands such as\n`\\emph{…}`) with no paragraph inside it. A region of blocks holds\nparagraphs and block-level constructs such as lists. The layout belongs to\nthe command's declaration (`ArgDef::layout`); an author cannot choose it\nwhere the command is written.\n\nOnly an argument that holds document content\n(`FlmArgumentParser::holds_content`; among the standard kinds, every\ngroup of content, mandatory or optional, and embellishments) may take a\nlayout other than `Inline`. An argument read in\nmathematics mode is an opaque\nregion, which the\nblock-structure pass carries over untouched, so it may not be declared\n`Blocks`. Minting reports a declaration that breaks\neither rule as\n`MintError::LayoutOnNonContentArgument`.\n\n`arg_layout_of` returns the declared layout of an\nargument of a parsed node;\n`argument_holds_blocks`\nreturns whether an argument holds blocks, before and after the\nblock-structure pass alike."
+        "description": "How the block-structure pass lays out an\nargument's content: as inline\ncontent, as a region of blocks, or as whichever of the two the content\ncalls for.\n\nInline content is running text (words, formulas, commands such as\n`\\emph{…}`) with no paragraph inside it. A region of blocks holds\nparagraphs and block-level constructs such as lists. The layout belongs to\nthe command's declaration (`ArgDef::layout`); an author cannot choose it\nwhere the command is written.\n\nAn argument declared with an opaque wrapper (`ArgDef::opaque_wrapper`)\ntakes only `Inline`: the block-structure pass carries\nits content over as written, so no other layout could take effect. An\nargument read in mathematics mode is an opaque\nregion, which the\nblock-structure pass carries over untouched, so it may not be declared\n`Blocks`. Minting reports a declaration that breaks\neither rule\n(`MintError::LayoutOnOpaqueWrappedArgument`,\n`MintError::BlocksOnMathArgument`).\nA layout declared on an argument whose reader yields raw text or places\nits content under an opaque wrapper by construction (a verbatim argument, a\ncharacters-only group) is not reported; it has no effect, since the\nargument's content is an opaque region.\n\n`arg_layout_of` returns the declared layout of an\nargument of a parsed node;\n`argument_holds_blocks`\nreturns whether an argument holds blocks, before and after the\nblock-structure pass alike."
       },
       "DefinitionContent": {
         "anyOf": [
@@ -4727,7 +5683,7 @@
           "absorb_before",
           "absorb_after"
         ],
-        "description": "How an inline element treats the whitespace immediately before and after\nit: the data of `BlockRole::Inline`.\n\nSetting either field removes the whitespace on that side entirely, so that\nan element such as a citation mark can control its own spacing. Source\ncomments between the whitespace and the element do not prevent the\nremoval: in `word %% note` followed on the next line by the element, the\nspace after `word` is removed too. Ordinary inline content keeps the spaces\naround it: `InlineSpacing::CONTENT`."
+        "description": "How an inline element treats the whitespace immediately before and after\nit: the data of `BlockRole::Inline`.\n\nSetting either field removes the whitespace on that side entirely, so that\nan element such as a citation mark can control its own spacing. The\nwhitespace removed is every piece of whitespace between the element and the\nnearest content on that side, the nodes that are whitespace\n(`Whitespace`, such as `~` and `\\ `) included: before an element that\nabsorbs the whitespace before it, `word~`, `word ~ ` and `word~~` all leave\n`word` alone. Source comments between the whitespace and the element do not\nprevent the removal, and are kept: in `word %% note` followed on the next\nline by the element, the space after `word` is removed too. Ordinary inline\ncontent keeps the spaces around it: `InlineSpacing::CONTENT`."
       },
       "Placement": {
         "oneOf": [

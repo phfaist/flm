@@ -32,6 +32,7 @@ use crate::core::lowering::{
 };
 use crate::core::registry::{LateInit, LateInitError};
 use crate::lang::rewrites::userdefs::template::{PlaceholderVocabulary, TemplateLanguage};
+use crate::lang::text::is_space;
 use crate::lang::{BuiltLang, Flm, FlmDiagnostics, FlmSpan};
 use crate::model::names::{ElementName, Name};
 use crate::stdcore::backends::lowering::stage_trimmed;
@@ -583,7 +584,7 @@ pub(super) fn read_flags(node: &NodeRef<'_, Flm>, lw: &mut dyn Lowerer) -> Resul
             return Ok(flags);
         }
     };
-    for flag in text.chars().filter(|flag| !flag.is_whitespace()) {
+    for flag in text.chars().filter(|flag| !is_space(*flag)) {
         match flag {
             CAPITAL_FLAG => flags.capital = true,
             INLINE_FLAG => flags.word = false,

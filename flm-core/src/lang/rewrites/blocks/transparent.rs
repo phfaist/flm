@@ -129,12 +129,14 @@ pub enum Cutting {
 pub enum CutItem {
     /// Inline content: a node that goes in a paragraph.
     Inline(BuildId),
-    /// A comment, or text that is only whitespace: a node that goes inline but
-    /// is not content, so a run of such nodes alone makes no paragraph. An
-    /// aspect that groups items into cut parts makes no cut part of a stretch
-    /// of such items alone and passes them through as they are: the layout step
-    /// keeps the comments, and removes or collapses the whitespace as it does
-    /// in the content around the node.
+    /// A comment, text that is only whitespace, or a node whose element
+    /// carries the [`Whitespace`](crate::model::aspects::Whitespace) aspect
+    /// (such as `~`): a node that goes inline but is not content, so a run of
+    /// such nodes alone makes no paragraph. An aspect that groups items into
+    /// cut parts makes no cut part of a stretch of such items alone and passes
+    /// them through as they are: the layout step keeps the comments, and
+    /// removes, collapses or keeps the whitespace as it does in the content
+    /// around the node.
     Blank(BuildId),
     /// A paragraph-break marker: the node a blank line leaves in the parsed
     /// tree. Two inline items with a marker between them go in two
@@ -284,8 +286,10 @@ pub trait BlockCutter {
     ///   block-transparent node deeper inside it is cut as usual) and
     ///   classified by the block role of its *input* node: a node whose role
     ///   is [`Block`](crate::model::aspects::BlockRole::Block) is a
-    ///   [`Block`](CutItem::Block), a comment or text that is only whitespace a
-    ///   [`Blank`](CutItem::Blank), anything else [`Inline`](CutItem::Inline).
+    ///   [`Block`](CutItem::Block); a comment, text that is only whitespace or
+    ///   a node whose element carries the
+    ///   [`Whitespace`](crate::model::aspects::Whitespace) aspect a
+    ///   [`Blank`](CutItem::Blank); anything else an [`Inline`](CutItem::Inline).
     ///
     /// A run parsed in mathematics mode is an [opaque
     /// region](crate::guide::concepts_overview#opaque-regions): its nodes are
@@ -293,7 +297,11 @@ pub trait BlockCutter {
     /// and no aspect is called on them. The run is copied unchanged, except an
     /// argument or a body that a construct of mathematics reads in text mode
     /// (such as `\text{…}`): the cut step walks that content like any other
-    /// content, and cuts the block-transparent nodes inside it.
+    /// content, and cuts the block-transparent nodes inside it. A run that
+    /// stands in a verbatim group or an opaque wrapper (the content of an
+    /// argument placed under one), or begins with one, is an opaque region
+    /// too, and is copied unchanged with no exception, whatever its parsing
+    /// mode.
     ///
     /// The markers and blocks returned are the cut points: the layout step
     /// treats them as paragraph boundaries and blocks, by the same tests.

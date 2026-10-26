@@ -33,7 +33,7 @@
 //! # The stages
 //!
 //! The text backend writes natively every element of the [presentation
-//! vocabulary](crate::stdcore::backends::pres) and the five [structural
+//! vocabulary](crate::stdcore::backends::pres) and the six [structural
 //! elements](crate::lang::structural::StructuralElements) of [`FLOW_THROUGH`]
 //! (see [`native_elements`]). A plan of the `text`
 //! workflow runs, in order:

@@ -434,6 +434,7 @@ use crate::lang::copy::{
 };
 use crate::lang::guard::{GuardPolicy, on_worker_thread};
 use crate::lang::mint::{ArgDef, ArgStdKind, ElementDef, SyntaxDef};
+use crate::lang::text::is_space;
 use crate::stdcore::backends::lowering::{lower_arg_named_or_nothing, lower_written_pieces};
 use crate::stdcore::backends::pres::{self, DecorationPayload, HeadingPayload};
 use crate::stdcore::features::numbering::{
@@ -1476,7 +1477,7 @@ fn read_options(
         let text = match entry.value_content() {
             None => Some(String::from("true")),
             Some(value) => match chars_at_lowering(value.iter()) {
-                Ok(read) => read.ok().map(|text| text.trim().to_string()),
+                Ok(read) => read.ok().map(|text| text.trim_matches(is_space).to_string()),
                 Err(_) => {
                     problems.push(OptionProblem::Placeholder);
                     continue;

@@ -160,6 +160,26 @@ fn the_mathematics_around_a_text_region_stays_exempt() {
 }
 
 #[test]
+fn an_opaque_wrapper_holding_a_text_mode_command_satisfies_both_parts() {
+    // The content under the wrapper, the command's argument included, is kept
+    // as written, and the checker exempts it from the text rules.
+    let lang = toy_lang();
+    let laid = run(&lang, "x \\keep{a  \\emph{b  \"c\"}} y", FragmentLayout::Blocks);
+    assert_eq!(
+        kinds(&check_parse_contract(&laid.tree)),
+        Vec::<&str>::new(),
+        "{}",
+        laid.dump()
+    );
+    assert_eq!(
+        kinds(&check_block_contract(&laid.tree)),
+        Vec::<&str>::new(),
+        "{}",
+        laid.dump()
+    );
+}
+
+#[test]
 fn a_parsed_tree_satisfies_the_parse_level_part() {
     let lang = toy_lang();
     let fragment = common::parse(

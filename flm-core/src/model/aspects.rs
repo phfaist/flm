@@ -1,6 +1,7 @@
 //! The aspects that the standard features implement and read: block roles,
 //! reference points, reference sites, headings, content outside the
-//! surrounding text, and what replaces a node in a copy of content.
+//! surrounding text, what replaces a node in a copy of content, and whether a
+//! node is whitespace.
 //!
 //! An aspect is a piece of behavior attached to an element when a feature
 //! registers the element and read back through a trait object; it is evaluated per
@@ -47,13 +48,20 @@
 //!   second time, away from where it is written ([`CopiedAs`]): the occurrence
 //!   as written, nothing, or a new node of the element's own; read with
 //!   [`copied_as`].
+//! - [`Whitespace`] — that every occurrence is whitespace, such as the
+//!   non-breaking space `~`: a marker with no method and no data, which the
+//!   block-structure pass, the trimming of paragraphs at lowering and the
+//!   features' tests for blank content read; read with [`is_whitespace_of`].
 //!
-//! The functions [`block_role_of`], [`apart_from_text_of`] and [`copied_as`]
-//! supply the result for an element that does not declare the aspect, so a
-//! caller reads those aspects through them rather than through the aspect map.
+//! The functions [`block_role_of`], [`apart_from_text_of`], [`copied_as`] and
+//! [`is_whitespace_of`] supply the result for an element that does not declare
+//! the aspect, so a caller reads those aspects through them rather than
+//! through the aspect map.
 //!
-//! This module holds the aspects that many features implement. An aspect that
-//! only one rewrite pass reads is declared beside that pass instead
+//! This module holds the aspects that many features implement, and the
+//! aspects that state what an element is ([`Whitespace`]). An aspect that only
+//! one rewrite pass reads and that describes what that pass does with a node
+//! is declared beside that pass instead
 //! ([`Expand`](crate::lang::rewrites::userdefs::Expand),
 //! [`BlockStructure`](crate::lang::rewrites::blocks::BlockStructure)), since it
 //! has no meaning apart from that pass.
@@ -89,6 +97,7 @@ use crate::model::addr::NodeAddr;
 use crate::model::names::{Name, RefKind};
 use crate::lang::copy::ValueContent;
 use crate::lang::mint::FlmSynthesizedSpec;
+use crate::lang::text::collapse_whitespace;
 use crate::lang::{Flm, FlmSpan, PresPayload};
 
 // --- block roles --------------------------------------------------------------------
@@ -97,11 +106,15 @@ use crate::lang::{Flm, FlmSpan, PresPayload};
 /// it: the data of [`BlockRole::Inline`].
 ///
 /// Setting either field removes the whitespace on that side entirely, so that
-/// an element such as a citation mark can control its own spacing. Source
-/// comments between the whitespace and the element do not prevent the
-/// removal: in `word %% note` followed on the next line by the element, the
-/// space after `word` is removed too. Ordinary inline content keeps the spaces
-/// around it: [`InlineSpacing::CONTENT`].
+/// an element such as a citation mark can control its own spacing. The
+/// whitespace removed is every piece of whitespace between the element and the
+/// nearest content on that side, the nodes that are whitespace
+/// ([`Whitespace`], such as `~` and `\ `) included: before an element that
+/// absorbs the whitespace before it, `word~`, `word ~ ` and `word~~` all leave
+/// `word` alone. Source comments between the whitespace and the element do not
+/// prevent the removal, and are kept: in `word %% note` followed on the next
+/// line by the element, the space after `word` is removed too. Ordinary inline
+/// content keeps the spaces around it: [`InlineSpacing::CONTENT`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Deserialize)]
 #[derive(schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -224,6 +237,107 @@ pub fn block_role_of(node: &NodeRef<'_, Flm>) -> BlockRole {
         Some(aspect) => aspect.block_role(node),
         None => BlockRole::DEFAULT,
     }
+}
+
+/// The aspect of an element each of whose nodes is whitespace, such as the
+/// non-breaking space `~` and the space `\ `; read with [`is_whitespace_of`].
+///
+/// Such a node is whitespace to the layout of paragraphs, and to the readers
+/// listed below, which ignore whitespace. The block-structure pass
+/// ([`crate::lang::rewrites::blocks`]) treats such a node as it treats text
+/// that is only whitespace, wherever it removes whitespace:
+///
+/// - beside an inline element that absorbs the whitespace on that side
+///   ([`InlineSpacing`]), the node is removed with the rest of the whitespace
+///   between the element and the nearest content;
+/// - at the start and at the end of a paragraph, the node is removed with the
+///   rest of the whitespace there;
+/// - the node is not paragraph content: a stretch holding only whitespace,
+///   such nodes and comments starts no paragraph, and between blocks it is
+///   removed;
+/// - a straight quote right after the node opens, as it does after a space
+///   (in `a~"x"`, the quote before `x` opens).
+///
+/// Everywhere else the pass keeps the node where it is written, as a node of
+/// its own: it is never merged into the text beside it and never collapsed
+/// with the whitespace around it (`a~~b` keeps its two nodes, `a~ b` the node
+/// and the space). A node that stays is lowered by its element's own lowering
+/// rule.
+///
+/// The other readers of the aspect treat such a node as they treat text that
+/// is only whitespace, and each makes the blank test of the first item below:
+///
+/// - the lowering helpers' blank test
+///   ([`is_blank`](crate::stdcore::backends::lowering::is_blank)), through
+///   which the helper that trims a paragraph a rule writes over content it
+///   cuts out itself
+///   ([`stage_trimmed`](crate::stdcore::backends::lowering::stage_trimmed):
+///   a quotation's passage, attribution and lines, a `\celldata` entry)
+///   removes the node at that paragraph's edges, and the quotation's and the
+///   `\celldata` reader's tests find a section or an entry holding only such
+///   nodes empty;
+/// - the readers of a list's body and of a float's body
+///   ([`list_items`](crate::stdcore::features::lists::list_items),
+///   [`float_body`](crate::stdcore::features::floats::float_body)), and the
+///   recomposed LaTeX of a list and of a quotation, which leaves the node out
+///   where it writes the layout itself;
+/// - an xnote's test for empty content
+///   ([`Empty`](crate::stdcore::features::xnotes::Empty): `\footnote{~}` is
+///   reported empty) and the reader of an xnote's labels argument
+///   ([`labels_of`](crate::stdcore::features::xnotes::labels_of));
+/// - the readers of a list's, an item's and a caption's bracket
+///   ([`list_options`](crate::stdcore::features::lists::list_options),
+///   [`item_options`](crate::stdcore::features::lists::item_options),
+///   [`read_caption`](crate::stdcore::features::floats::read_caption)): a
+///   bracket holding only whitespace is as if it were not written;
+/// - the trimming of a key-value entry's value
+///   ([`key_value_pieces`](crate::lang::copy::key_value_pieces): `tag=~x~`
+///   gives `x`);
+/// - the value tests of a user definition's template, which read the one
+///   placeholder of their test argument, whitespace aside
+///   ([`userdefs`](crate::lang::rewrites::userdefs));
+/// - the test for a star of a theorem's title that is not one run of
+///   characters
+///   ([`title_reading`](crate::stdcore::features::theorems::title_reading)),
+///   and its copy in the title's reader: `[~*\emph{x}]` begins with a star,
+///   as `[ *\emph{x}]` does.
+///
+/// A reader of text taken as typed or with its markup keeps such a node as
+/// part of the text, even where it removes the whitespace at the text's ends:
+/// a citation key, a term (`\term{~}` is not empty) and a theorem's
+/// back-reference (`[~*lem:a]` is malformed, while `[ *lem:a]` refers to
+/// `lem:a`). A label holds no such node: it is read from a characters-only
+/// group ([`crate::lang::chars_group`]), in which `~` and the backslash of
+/// `\ ` are ordinary characters.
+///
+/// The no-break space U+00A0 typed directly in the text is no such node: it is
+/// a character of the text, and the pass and every reader above count it as
+/// content, as they count every character other than the space, the tab, the
+/// carriage return and the line feed ([the whitespace of FLM
+/// text](crate::lang::text#whitespace)). The one exception is the key of a
+/// `key=value` entry, whose ends techy's key-value reader trims of every
+/// Unicode whitespace character, U+00A0 included.
+///
+/// The aspect has no method: its presence is the whole statement, the same
+/// for every node of the element. It is meant for an inline element, of the
+/// block role [`BlockRole::Inline`]. Attach it by its trait-object type, with
+/// its implementation [`IsWhitespace`]:
+/// `.with::<dyn Whitespace>(Arc::new(IsWhitespace))` on an
+/// [`ElementSpec`](crate::model::element::ElementSpec).
+pub trait Whitespace: Send + Sync {}
+
+/// The implementation of [`Whitespace`]. It carries no data: the presence of
+/// the aspect is the whole statement.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct IsWhitespace;
+
+impl Whitespace for IsWhitespace {}
+
+/// Whether the node `node` is whitespace: whether its element carries the
+/// [`Whitespace`] aspect. `false` for an element that does not declare that
+/// aspect.
+pub fn is_whitespace_of(node: &NodeRef<'_, Flm>) -> bool {
+    node.ext().element.has_aspect::<dyn Whitespace>()
 }
 
 // --- content references ---------------------------------------------------------------
@@ -521,7 +635,19 @@ impl Label {
 
     /// Reads a label from its written form `type:label`: the text before the
     /// first colon is the label type, everything after it (further colons
-    /// included) is the label proper. Whitespace around each part is removed.
+    /// included) is the label proper. In each part, every run of whitespace
+    /// (the space, the tab, the carriage return and the line feed: [the
+    /// whitespace of FLM text](crate::lang::text#whitespace)) is made one space
+    /// and the whitespace at both ends is removed, as in a citation key
+    /// ([`spelling_identity`](crate::stdcore::backends::pres::spelling_identity));
+    /// every other character counts as written, quotes, dashes and the no-break
+    /// space U+00A0 included. A label written with a doubled space, or broken
+    /// over two lines, is therefore the label written with one space.
+    ///
+    /// The standard features read every label a document writes with this
+    /// function (a `\label`, the target of a `\ref`, a `\hyperref` or an
+    /// `\eqref`, a proof's back-reference), so that a label and a reference to
+    /// it agree.
     ///
     /// Returns `None` when the text holds no colon, or when either part is
     /// empty after the whitespace is removed. A caller that reads a label from
@@ -537,11 +663,12 @@ impl Label {
     /// assert_eq!(label.ref_type, "sec");
     /// assert_eq!(label.ref_label, "intro");
     /// assert_eq!(label.to_string(), "sec:intro");
+    /// assert_eq!(Label::parse(" sec : a \n  b "), Some(Label::new("sec", "a b")));
     /// assert!(Label::parse("no-colon-here").is_none());
     /// ```
     pub fn parse(text: &str) -> Option<Label> {
         let (ref_type, ref_label) = text.split_once(':')?;
-        let (ref_type, ref_label) = (ref_type.trim(), ref_label.trim());
+        let (ref_type, ref_label) = (collapse_whitespace(ref_type), collapse_whitespace(ref_label));
         if ref_type.is_empty() || ref_label.is_empty() {
             return None;
         }

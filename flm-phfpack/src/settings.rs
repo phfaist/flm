@@ -45,10 +45,12 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use flm_core::lang::mint::{ArgData, ArgDef, ArgListData};
+use flm_core::lang::mint::{ArgData, ArgDef, ArgListData, ArgListError};
 use flm_core::lang::rewrites::userdefs::DefinitionKind;
 use flm_core::stdcore::features::userdefs::{DefinitionContent, UserdefsConfig};
-use serde::Deserialize;
+use serde::de::value::{MapAccessDeserializer, StrDeserializer};
+use serde::de::{MapAccess, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer};
 
 use crate::macros::{Macro, MacroArg};
 use crate::sizing::SlotKind;
@@ -133,8 +135,8 @@ pub(crate) fn default_values(key: &str) -> serde_json::Value {
 }
 
 /// One macro declaration under `macro_definitions`: a text, or a map.
-#[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
-#[serde(untagged)]
+#[derive(Debug, Clone, schemars::JsonSchema)]
+#[schemars(untagged)]
 pub enum MacroData {
     /// A text: the template of a macro that takes no argument. The macro is
     /// declared for running text and for formulas, and is available in each of
@@ -142,6 +144,32 @@ pub enum MacroData {
     Template(String),
     /// A map that declares the macro's template and arguments.
     Declared(MacroFields),
+}
+
+// A declaration is a text or a map, and is read as the one or the other, so
+// that a problem inside the map is reported with its own message.
+impl<'de> Deserialize<'de> for MacroData {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<MacroData, D::Error> {
+        struct Declaration;
+
+        impl<'de> Visitor<'de> for Declaration {
+            type Value = MacroData;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a template or a map")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, template: &str) -> Result<MacroData, E> {
+                Ok(MacroData::Template(template.to_string()))
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<MacroData, A::Error> {
+                MacroFields::deserialize(MapAccessDeserializer::new(map)).map(MacroData::Declared)
+            }
+        }
+
+        deserializer.deserialize_any(Declaration)
+    }
 }
 
 /// A macro declaration under `macro_definitions`, written as a map.
@@ -158,10 +186,12 @@ pub struct MacroFields {
     /// The arguments, in the order a use writes them: one text whose characters
     /// are argument codes (the argument codes of the `userdefs` feature's
     /// `args`, such as `{` for an argument in braces and `[` for an optional
-    /// argument in brackets), or a list whose entries are each an argument code, a
-    /// map giving the code with the argument's name, or one of the three ways
-    /// of giving a size, `SizeArgBacktick` (a size after a backtick),
-    /// `SizeArgStar` (a star) and `SizeArgOptArg` (a size in brackets).
+    /// argument in brackets), or a list whose entries are each an argument code,
+    /// an argument's map as in the `userdefs` feature's `args` (the argument's
+    /// syntax, as a structured syntax or a code, with its name and its other
+    /// keys), or one of the three ways of giving a size, `SizeArgBacktick` (a
+    /// size after a backtick), `SizeArgStar` (a star) and `SizeArgOptArg` (a
+    /// size in brackets).
     pub args: Option<MacroArgList>,
     /// How many leading arguments the numbered placeholders skip: with an
     /// offset of 1, `#1` is the second argument. For a delimited macro the
@@ -183,8 +213,8 @@ pub struct MacroFields {
 
 /// The arguments of a macro declaration's `args`: one text of argument codes,
 /// or a list.
-#[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
-#[serde(untagged)]
+#[derive(Debug, Clone, schemars::JsonSchema)]
+#[schemars(untagged)]
 pub enum MacroArgList {
     /// One text in which each character is one argument code.
     Codes(String),
@@ -192,15 +222,77 @@ pub enum MacroArgList {
     List(Vec<MacroArgEntry>),
 }
 
+// A list is a text or a list, and is read as the one or the other, so that a
+// problem in one of its entries is reported with its own message, at the
+// entry's position.
+impl<'de> Deserialize<'de> for MacroArgList {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<MacroArgList, D::Error> {
+        struct List;
+
+        impl<'de> Visitor<'de> for List {
+            type Value = MacroArgList;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a text of argument codes or a list of arguments")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, codes: &str) -> Result<MacroArgList, E> {
+                Ok(MacroArgList::Codes(codes.to_string()))
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<MacroArgList, A::Error> {
+                let mut entries = Vec::new();
+                while let Some(entry) = seq.next_element()? {
+                    entries.push(entry);
+                }
+                Ok(MacroArgList::List(entries))
+            }
+        }
+
+        deserializer.deserialize_any(List)
+    }
+}
+
 /// One entry of a list of arguments under `args`: a way of giving a size, or an
 /// ordinary argument.
-#[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
-#[serde(untagged)]
+#[derive(Debug, Clone, schemars::JsonSchema)]
+#[schemars(untagged)]
 pub enum MacroArgEntry {
     /// One of the three ways of giving a size.
     Slot(SlotName),
-    /// An argument code, or a map with the code and the argument's name.
+    /// An argument code, or an argument's map: the argument's syntax, as a
+    /// structured syntax or a code, with its name and its other keys.
     Arg(ArgData),
+}
+
+// An entry is a text, the name of a way of giving a size or else an argument
+// code, or an argument's map, and is read as the one or the other, so that a
+// problem inside the map is reported with its own message.
+impl<'de> Deserialize<'de> for MacroArgEntry {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<MacroArgEntry, D::Error> {
+        struct Entry;
+
+        impl<'de> Visitor<'de> for Entry {
+            type Value = MacroArgEntry;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a way of giving a size, an argument code or a map")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<MacroArgEntry, E> {
+                Ok(match SlotName::deserialize(StrDeserializer::<E>::new(text)) {
+                    Ok(slot) => MacroArgEntry::Slot(slot),
+                    Err(_) => MacroArgEntry::Arg(ArgData::Code(text.to_string())),
+                })
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<MacroArgEntry, A::Error> {
+                ArgData::deserialize(MapAccessDeserializer::new(map)).map(MacroArgEntry::Arg)
+            }
+        }
+
+        deserializer.deserialize_any(Entry)
+    }
 }
 
 /// The three ways of giving a size, as an entry of a list of arguments under
@@ -354,7 +446,9 @@ impl TryFrom<PhfqitData> for PhfqitConfig {
 /// # Errors
 ///
 /// A message for a person when the declaration gives both `delimited_args`
-/// and `args`, or when an argument code is invalid.
+/// and `args`, or when an argument cannot be read: an argument code is
+/// invalid, or an argument's map gives both a code and a structured syntax,
+/// or neither.
 fn declaration_macros(name: &str, declaration: MacroData) -> Result<Vec<Macro>, String> {
     let fields = match declaration {
         MacroData::Template(template) => MacroFields {
@@ -398,13 +492,15 @@ fn declaration_macros(name: &str, declaration: MacroData) -> Result<Vec<Macro>, 
 }
 
 /// Returns the arguments of an `args` list: each of the three ways of giving a
-/// size by its name, and every other entry read as an argument code
-/// (the `TryFrom<ArgData>` implementation of [`ArgDef`], and
-/// [`ArgListData::arg_defs`]).
+/// size by its name, and every other entry read as an argument, from its code
+/// or its argument's map (the `TryFrom<ArgData>` implementation of
+/// [`ArgDef`], and [`ArgListData::arg_defs`]).
 ///
 /// # Errors
 ///
-/// A message for a person when an entry is not an argument code.
+/// A message for a person, naming the entry's position, when an entry is not
+/// an argument code or is a map that gives both a code and a structured
+/// syntax, or neither.
 fn read_args(list: MacroArgList) -> Result<Vec<MacroArg>, String> {
     match list {
         MacroArgList::Codes(codes) => Ok(ArgListData::Codes(codes)
@@ -415,11 +511,12 @@ fn read_args(list: MacroArgList) -> Result<Vec<MacroArg>, String> {
             .collect()),
         MacroArgList::List(entries) => entries
             .into_iter()
-            .map(|entry| match entry {
+            .enumerate()
+            .map(|(index, entry)| match entry {
                 MacroArgEntry::Slot(name) => Ok(MacroArg::Size(name.into())),
-                MacroArgEntry::Arg(data) => {
-                    ArgDef::try_from(data).map(MacroArg::Arg).map_err(|error| error.to_string())
-                }
+                MacroArgEntry::Arg(data) => ArgDef::try_from(data)
+                    .map(MacroArg::Arg)
+                    .map_err(|error| ArgListError { index, error }.to_string()),
             })
             .collect(),
     }

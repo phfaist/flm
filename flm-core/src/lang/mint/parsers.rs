@@ -16,10 +16,9 @@
 //! techy, the parser toolkit FLM is built on, defines the traits that read the
 //! source ([`ArgumentParser`], [`EnvironmentBehavior`]). The two traits here
 //! extend them with what FLM needs to know about an argument or a body beyond
-//! reading it: whether it holds document content, what identifies the parser
-//! in the [registry digest](crate::model::digest) (the hash of everything
-//! about a registry that can change what processing produces), and a short
-//! description. For an argument, they also return which tack-on fields it
+//! reading it: what identifies the parser in the [registry
+//! digest](crate::model::digest) (the hash of everything about a registry that
+//! can change what processing produces), and a short description. For an argument, they also return which tack-on fields it
 //! declares, and how the [recomposed LaTeX
 //! backend](crate::stdcore::backends::latex_recomposed) takes the argument
 //! when it keeps a [user definition](crate::lang::rewrites::userdefs::Definition)
@@ -42,6 +41,7 @@ use techy::latexlike::{argument_specs, EnvironmentBehavior};
 use crate::lang::chars_group::FlmCharsGroupArgumentParser;
 use crate::lang::flm::{Flm, FlmCallableType, FlmGroupType};
 use crate::lang::mint::decl::{ArgDef, TackOnField};
+use crate::lang::mint::opaque::OpaqueWrapperReader;
 use crate::lang::verbatim::{
     FlmRawTerminatedArgumentParser, FlmVerbatimArgumentParser, FlmVerbatimBehavior,
 };
@@ -56,10 +56,11 @@ use crate::lang::verbatim::{
 /// (builds into the parsed tree) the argument's nodes and says which of them
 /// are its content, or reports the argument absent. This trait adds the
 /// questions that minting, the registry build, the JSON schema of the
-/// settings and the `userdefs` feature ask of an argument, one method each.
-/// The standard kinds ([`ArgStdKind`]) implement them; a feature whose syntax
-/// the standard kinds cannot express writes a parser of its own and
-/// implements them itself.
+/// settings and the `userdefs` feature ask of an argument, one method each:
+/// its identity, its tack-on fields, the shape of a definition written back,
+/// and its description. The standard kinds ([`ArgStdKind`]) implement them; a
+/// feature whose syntax the standard kinds cannot express writes a parser of
+/// its own and implements them itself.
 ///
 /// An argument declaration ([`ArgDef`]) holds the parser as a shared object,
 /// `Arc<dyn FlmArgumentParser>`. Minting applies what the declaration holds
@@ -67,6 +68,9 @@ use crate::lang::verbatim::{
 /// ([`ArgDef::scoped`]), as a change of parsing state over the whole argument,
 /// before [`parse_argument`](ArgumentParser::parse_argument) is called: the
 /// parser finds them already in `cx.state` and does nothing to obtain them.
+/// Whether the content is kept as written is the declaration's choice too
+/// ([`ArgDef::opaque_wrapper`]): where the declaration asks for it, minting
+/// places what the parser read under an opaque wrapper, whatever the parser.
 ///
 /// techy's own trait has one more method that matters here:
 /// [`can_match_empty`](ArgumentParser::can_match_empty) returns whether a use
@@ -98,7 +102,7 @@ use crate::lang::verbatim::{
 /// use flm_core::lang::FlmGroupType;
 /// use std::sync::Arc;
 ///
-/// /// An optional `<…>` group holding document content.
+/// /// An optional `<…>` group.
 /// #[derive(Debug)]
 /// struct Angles(OptionalGroupArgumentParser<Flm>);
 ///
@@ -124,9 +128,6 @@ use crate::lang::verbatim::{
 /// }
 ///
 /// impl FlmArgumentParser for Angles {
-///     fn holds_content(&self) -> bool {
-///         true
-///     }
 ///     fn identity(&self) -> Vec<u8> {
 ///         b"example.angles".to_vec()
 ///     }
@@ -139,25 +140,9 @@ use crate::lang::verbatim::{
 /// }
 ///
 /// let arg = flm_core::lang::mint::ArgDef::named("extra", Angles::new());
-/// assert!(arg.kind.holds_content());
+/// assert_eq!(arg.kind.description(), "an optional `<…>` group");
 /// ```
 pub trait FlmArgumentParser: ArgumentParser<Flm> + Send + Sync {
-    /// Returns whether the argument holds **document content**: text,
-    /// commands and groups that the rest of the pipeline reads as part of the
-    /// document, rather than characters read for their own sake (a label, a
-    /// verbatim run), a marker, or data the command reads separately.
-    ///
-    /// Only an argument that holds content may take a layout other than
-    /// inline ([`ArgDef::layout`]) or use a scoped package
-    /// ([`ArgDef::scoped`]); on any other argument, minting reports either
-    /// declaration
-    /// ([`MintError::LayoutOnNonContentArgument`](super::MintError::LayoutOnNonContentArgument),
-    /// [`MintError::ScopeOnNonContentArgument`](super::MintError::ScopeOnNonContentArgument))
-    /// and the argument keeps the inline layout. The [block-structure
-    /// pass](crate::lang::rewrites::blocks) therefore lays out by a declared
-    /// layout only an argument that holds content.
-    fn holds_content(&self) -> bool;
-
     /// Returns the bytes that identify this parser in the [registry
     /// digest](crate::model::digest) (the hash of everything about a registry
     /// that can change what processing produces) and in the digest that the
@@ -289,14 +274,69 @@ impl IntoFlmArgumentParser for Arc<dyn FlmArgumentParser> {
 /// An argument declaration takes a kind as its parser
 /// (`ArgDef::named("title", ArgStdKind::Mandatory)`, see [`ArgDef::named`]);
 /// each kind is read by a parser of techy's or of FLM's own and implements
-/// [`FlmArgumentParser`]. Settings given as data write every kind except
-/// three ([`KeyVals`](ArgStdKind::KeyVals),
-/// [`CharsGroup`](ArgStdKind::CharsGroup), [`TackOn`](ArgStdKind::TackOn))
-/// by its argument code ([`crate::lang::mint::codes`]); the codes of
-/// [`Terminated`](ArgStdKind::Terminated) set neither its opener nor its
-/// terminator head. An argument that no standard kind expresses holds a
+/// [`FlmArgumentParser`]. An argument that no standard kind expresses holds a
 /// parser of its own instead.
-#[derive(Debug, Clone)]
+///
+/// # The kind as data
+///
+/// A kind is written to data and read from it (`serde::Serialize`,
+/// `serde::Deserialize`) as a map: the key `syntax` holds the kind's name, in
+/// lowercase with hyphens, and the kind's parameters stand beside it, as in
+/// `{"syntax": "delimited-group", "delimiters": ["(", ")"]}`. This map is the
+/// **structured syntax** of an argument in settings given as data, which the
+/// [`codes`](crate::lang::mint::codes) module reads together with the
+/// argument codes, the shorthands that stand for the same kinds. The names
+/// and the parameters:
+///
+/// | kind | `syntax` | parameters |
+/// |---|---|---|
+/// | [`Mandatory`](ArgStdKind::Mandatory) | `mandatory` | none |
+/// | [`Optional`](ArgStdKind::Optional) | `optional` | none |
+/// | [`Star`](ArgStdKind::Star) | `star` | none |
+/// | [`Marker`](ArgStdKind::Marker) | `marker` | `marker`: the marker's character (`*` reads as `star`) |
+/// | [`DelimitedGroup`](ArgStdKind::DelimitedGroup) | `delimited-group` | `delimiters`: the opening and the closing character, as a list of two (`["(", ")"]`) |
+/// | [`OptionalDelimitedGroup`](ArgStdKind::OptionalDelimitedGroup) | `optional-delimited-group` | `delimiters`, as for `delimited-group` |
+/// | [`AnyDelimitedGroup`](ArgStdKind::AnyDelimitedGroup) | `any-delimited-group` | none |
+/// | [`OptionalAnyDelimitedGroup`](ArgStdKind::OptionalAnyDelimitedGroup) | `optional-any-delimited-group` | none |
+/// | [`BracedOnly`](ArgStdKind::BracedOnly) | `braced-only` | none |
+/// | [`Embellishments`](ArgStdKind::Embellishments) | `embellishments` | `markers`: the marker characters, a list of at least one (`["^", "_"]`) |
+/// | [`KeyVals`](ArgStdKind::KeyVals) | `key-vals` | none |
+/// | [`CharsGroup`](ArgStdKind::CharsGroup) | `chars-group` | none |
+/// | [`Verbatim`](ArgStdKind::Verbatim) | `verbatim` | `delimiters`: the prescribed pair, as for `delimited-group`; absent for a closing delimiter matched to whichever opening one is found |
+/// | [`TackOn`](ArgStdKind::TackOn) | `tack-on` | `fields`: a list of maps `{"name", "args", "repeatable", "docs"}`, one per field, each field's `args` a list of maps of its arguments ([`ArgDataFields`](crate::lang::mint::ArgDataFields)) |
+/// | [`Terminated`](ArgStdKind::Terminated) | `terminated` | `terminator`: text; `repeat_char`: one character, absent for none; `opener`: text, empty by default; `head`: text, empty by default; `raw`: `true` or `false`, `false` by default |
+///
+/// Each character is written as a text of one character, which must not be
+/// whitespace, as in the argument codes. A parameter that has no default must
+/// be written. Reading a kind refuses, with a message that states the
+/// condition broken:
+///
+/// - a key that is not one of the kind's parameters, and a name that is no
+///   kind's;
+/// - a character written as a text of another length, or as whitespace;
+/// - `delimiters` that are not two, and an empty list of `markers`;
+/// - the two configurations of `terminated` that can never work (see
+///   [`Terminated`](ArgStdKind::Terminated)): a terminator that is always
+///   empty, and an `opener` that begins with `repeat_char`;
+/// - every `tack-on` kind: its fields are declarations a feature makes in
+///   Rust, each with an element of its own ([`TackOnField`]), so a tack-on
+///   argument is declared by a feature, never in settings.
+///
+/// Three kinds have no argument code ([`KeyVals`](ArgStdKind::KeyVals),
+/// [`CharsGroup`](ArgStdKind::CharsGroup), [`TackOn`](ArgStdKind::TackOn)),
+/// and the codes of [`Terminated`](ArgStdKind::Terminated) set neither its
+/// opener nor its terminator head: settings write those with the structured
+/// syntax, a tack-on argument excepted.
+///
+/// Two kinds are equal (`PartialEq`) when they are the same kind with equal
+/// parameters; the fields of two tack-on kinds are compared as
+/// [`TackOnField`]'s `PartialEq` states.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(schemars::JsonSchema)]
+#[serde(
+    into = "crate::lang::mint::codes::ArgStdKindData",
+    try_from = "crate::lang::mint::codes::ArgStdKindData"
+)]
 pub enum ArgStdKind {
     /// A mandatory `{…}` group. A single token also counts, as in TeX:
     /// `\frac12` is `\frac{1}{2}`.
@@ -359,23 +399,31 @@ pub enum ArgStdKind {
     },
     /// An optional `[key=value,…]` group.
     ///
-    /// Parsed exactly like [`ArgStdKind::Optional`]; the element that declares
-    /// the argument reads the keys and values out of it. Declaring this kind
+    /// Parsed like [`ArgStdKind::Optional`]; the element that declares the
+    /// argument reads the keys and values out of it. Declaring this kind
     /// rather than [`ArgStdKind::Optional`] records what the argument is for.
-    /// It holds no document content ([`FlmArgumentParser::holds_content`]).
+    /// The values are FLM markup. A group whose values the document shows (an
+    /// item's tag, a heading's `alt=`) is laid out by the [block-structure
+    /// pass](crate::lang::rewrites::blocks) as any content. An element that
+    /// reads the values as data declares the argument with
+    /// [`ArgDef::with_opaque_wrapper`], so that they are kept as written.
     KeyVals,
     /// A mandatory `{…}` group read as plain characters, as in
     /// `\label{sec:intro}`. An escape character and a special character
     /// sequence are ordinary characters inside it; comments and nested groups
     /// are still recognized, and when a user definition's template is parsed,
     /// its placeholders (`#1`, `#{name}`) are still recognized inside it
-    /// ([`crate::lang::chars_group`]).
+    /// ([`crate::lang::chars_group`]). The reader places the group under an
+    /// opaque wrapper ([`FlmGroupType::OpaqueWrapper`]), so the
+    /// [block-structure pass](crate::lang::rewrites::blocks) carries the
+    /// characters over as written.
     CharsGroup,
     /// A verbatim argument delimited by a pair of characters
     /// (`\verbcode|…|`, `\verbcode{…}`): raw text up to the closing delimiter,
     /// wrapped in a group of the verbatim class like every other verbatim run
     /// ([`crate::lang::verbatim`], which also states how this shape differs
-    /// from [`ArgStdKind::CharsGroup`]).
+    /// from [`ArgStdKind::CharsGroup`]). The [block-structure
+    /// pass](crate::lang::rewrites::blocks) carries the text over as written.
     Verbatim {
         /// `None` matches the closing delimiter to whichever opening character
         /// is found (`{}`, `[]`, `<>`, `()`, and otherwise the same character
@@ -430,8 +478,8 @@ pub enum ArgStdKind {
     /// not recognized inside a nested `{…}` group. With `raw: true`, the
     /// content is raw text, read under the same parsing state as a verbatim
     /// argument's interior and held by a group of the verbatim class, like
-    /// every verbatim run ([`crate::lang::verbatim`]); it holds no document
-    /// content ([`FlmArgumentParser::holds_content`]).
+    /// every verbatim run ([`crate::lang::verbatim`]); the [block-structure
+    /// pass](crate::lang::rewrites::blocks) carries it over as written.
     ///
     /// When the terminator never appears, the argument keeps the content read
     /// up to the end of the input (or up to a closing delimiter that nothing
@@ -447,10 +495,11 @@ pub enum ArgStdKind {
     /// that reaches such an argument with an implementation error: a
     /// terminator that is always empty (`repeat_char`, `head` and
     /// `terminator` all empty), and an `opener` that begins with
-    /// `repeat_char`.
+    /// `repeat_char`. Reading the kind from data refuses both.
     ///
-    /// Settings given as data write this kind with the codes `u`, `U`, `f`
-    /// and `F`, which set neither `opener` nor `head`
+    /// Settings given as data write this kind with the structured syntax
+    /// `terminated`, which sets each of the five fields, or with the codes
+    /// `u`, `U`, `f` and `F`, which set neither `opener` nor `head`
     /// ([`crate::lang::mint::codes`]). The recomposed LaTeX backend cannot
     /// keep a user definition that declares such an argument
     /// ([`DefinitionShape::NoShape`]).
@@ -483,7 +532,9 @@ impl ArgStdKind {
     /// ([`FlmRawTerminatedArgumentParser`]); or, for a tack-on argument,
     /// techy's tack-on reader with no field, which absorbs nothing. The specifications of the fields exist only once minting has
     /// built them, and minting then builds the reader of a tack-on argument
-    /// itself ([`FlmArgumentParser::tack_on_fields`]).
+    /// itself ([`FlmArgumentParser::tack_on_fields`]). The reader of a
+    /// characters-only group places what it reads under an opaque wrapper
+    /// ([`OpaqueWrapperReader`]).
     fn reader(&self) -> Arc<dyn ArgumentParser<Flm>> {
         match self {
             ArgStdKind::Mandatory => preset("m"),
@@ -508,7 +559,9 @@ impl ArgStdKind {
             ArgStdKind::Embellishments { markers } => {
                 Arc::new(EmbellishmentsArgumentParser::new(markers.iter().map(|marker| String::from(*marker))))
             }
-            ArgStdKind::CharsGroup => Arc::new(FlmCharsGroupArgumentParser::new()),
+            ArgStdKind::CharsGroup => {
+                Arc::new(OpaqueWrapperReader::new(Arc::new(FlmCharsGroupArgumentParser::new())))
+            }
             ArgStdKind::Verbatim { delimiters: Some((open, close)) } => {
                 Arc::new(FlmVerbatimArgumentParser::new().with_delimiters(*open, *close))
             }
@@ -627,7 +680,9 @@ impl ArgStdKind {
                 )
             }
             ArgStdKind::KeyVals => String::from("an optional `[key=value,…]` group"),
-            ArgStdKind::CharsGroup => String::from("a `{…}` group read as plain characters"),
+            ArgStdKind::CharsGroup => {
+                String::from("a `{…}` group read as plain characters, kept as written")
+            }
             ArgStdKind::Verbatim { delimiters: None } => {
                 String::from("verbatim text between a pair of delimiters")
             }
@@ -728,26 +783,6 @@ impl ArgumentParser<Flm> for StdArgumentParser {
 }
 
 impl FlmArgumentParser for StdArgumentParser {
-    /// A group of content, mandatory or optional, with any delimiters, holds
-    /// content, and so do embellishments, whose expressions are content, and a
-    /// terminated argument whose content is parsed. No other kind does: the
-    /// element reads a key-value group separately, and the other kinds read
-    /// characters, raw text, a marker or fields.
-    fn holds_content(&self) -> bool {
-        matches!(
-            self.kind,
-            ArgStdKind::Mandatory
-                | ArgStdKind::Optional
-                | ArgStdKind::DelimitedGroup { .. }
-                | ArgStdKind::OptionalDelimitedGroup { .. }
-                | ArgStdKind::AnyDelimitedGroup
-                | ArgStdKind::OptionalAnyDelimitedGroup
-                | ArgStdKind::BracedOnly
-                | ArgStdKind::Embellishments { .. }
-                | ArgStdKind::Terminated { raw: false, .. }
-        )
-    }
-
     fn identity(&self) -> Vec<u8> {
         self.kind.identity()
     }
@@ -868,15 +903,6 @@ fn put_arg_identity(out: &mut Vec<u8>, arg: &ArgDef) {
 /// must never panic or loop: the end of the input reached before `\end{name}`
 /// is an ordinary input.
 pub trait FlmBodyParser: EnvironmentBehavior<Flm> + Send + Sync {
-    /// Returns whether the body holds **document content** that the rest of
-    /// the pipeline reads as part of the document. A verbatim body does not:
-    /// the [block-structure pass](crate::lang::rewrites::blocks) carries it
-    /// over untouched as an opaque region, and minting reports a declared layout or a
-    /// scoped package on it
-    /// ([`MintError::LayoutOnNonContentBody`](super::MintError::LayoutOnNonContentBody),
-    /// [`MintError::ScopeOnNonContentBody`](super::MintError::ScopeOnNonContentBody)).
-    fn holds_content(&self) -> bool;
-
     /// Returns the bytes that identify this body parser in the [registry
     /// digest](crate::model::digest), under the same rules as
     /// [`FlmArgumentParser::identity`].
@@ -917,11 +943,6 @@ impl IntoFlmBodyParser for Arc<dyn FlmBodyParser> {
 }
 
 impl FlmBodyParser for FlmVerbatimBehavior {
-    /// A verbatim body is raw text, not document content.
-    fn holds_content(&self) -> bool {
-        false
-    }
-
     fn identity(&self) -> Vec<u8> {
         let mut out = Vec::new();
         put(&mut out, "verbatim");
@@ -1030,26 +1051,6 @@ mod tests {
     }
 
     #[test]
-    fn only_a_group_of_content_or_embellishments_hold_content() {
-        assert!(object(ArgStdKind::Mandatory).holds_content());
-        assert!(object(ArgStdKind::Optional).holds_content());
-        assert!(object(ArgStdKind::DelimitedGroup { open: '(', close: ')' }).holds_content());
-        assert!(object(ArgStdKind::OptionalDelimitedGroup { open: '(', close: ')' }).holds_content());
-        assert!(object(ArgStdKind::AnyDelimitedGroup).holds_content());
-        assert!(object(ArgStdKind::OptionalAnyDelimitedGroup).holds_content());
-        assert!(object(ArgStdKind::BracedOnly).holds_content());
-        assert!(object(ArgStdKind::Embellishments { markers: vec!['^'] }).holds_content());
-        assert!(!object(ArgStdKind::Marker { marker: '!' }).holds_content());
-        assert!(!object(ArgStdKind::KeyVals).holds_content());
-        assert!(!object(ArgStdKind::Star).holds_content());
-        assert!(!object(ArgStdKind::CharsGroup).holds_content());
-        assert!(!object(ArgStdKind::Verbatim { delimiters: None }).holds_content());
-        assert!(!object(ArgStdKind::TackOn { fields: Vec::new() }).holds_content());
-        assert!(object(terminated("\\endphf", None, false)).holds_content());
-        assert!(!object(terminated("`", Some('`'), true)).holds_content());
-    }
-
-    #[test]
     fn a_use_site_may_leave_out_exactly_the_optional_shapes() {
         assert!(object(ArgStdKind::Optional).can_match_empty());
         assert!(object(ArgStdKind::KeyVals).can_match_empty());
@@ -1106,9 +1107,6 @@ mod tests {
     }
 
     impl FlmArgumentParser for Bang {
-        fn holds_content(&self) -> bool {
-            false
-        }
         fn identity(&self) -> Vec<u8> {
             b"test.bang".to_vec()
         }
@@ -1169,9 +1167,8 @@ mod tests {
     }
 
     #[test]
-    fn the_verbatim_body_holds_no_content() {
+    fn the_verbatim_body_has_an_identity_of_its_own() {
         let body = FlmVerbatimBehavior::new();
-        assert!(!body.holds_content());
         assert_ne!(body.identity(), object(ArgStdKind::Verbatim { delimiters: None }).identity());
     }
 }

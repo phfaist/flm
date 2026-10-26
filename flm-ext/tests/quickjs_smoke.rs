@@ -210,7 +210,7 @@ fn the_api_modules_items_run_from_a_script() {
     );
     let content = json!({ "inline": { "absorb_before": false, "absorb_after": false } });
     let arg = |code: &str, name: Value, docs: &str| {
-        json!({ "code": code, "name": name, "layout": "inline", "docs": docs, "mode": null, "scoped": [], "role": null })
+        json!({ "code": code, "name": name, "layout": "inline", "opaque_wrapper": false, "docs": docs, "mode": null, "scoped": [], "role": null })
     };
     let definition = |kind: &str, name: &str, args: Vec<Value>, content_: &str, modes: &str| {
         json!({
@@ -234,6 +234,6 @@ fn the_api_modules_items_run_from_a_script() {
     // role.
     assert_eq!(
         items[3],
-        json!({ "star": { "code": "*", "name": null, "layout": "inline", "docs": "", "mode": null, "scoped": [], "role": null } })
+        json!({ "star": { "code": "*", "name": null, "layout": "inline", "opaque_wrapper": false, "docs": "", "mode": null, "scoped": [], "role": null } })
     );
 }

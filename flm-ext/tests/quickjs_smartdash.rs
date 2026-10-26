@@ -252,8 +252,8 @@ import { StandardTable } from "flm:core/registry";
 import { Restage } from "flm:techy/transform";
 export function names() {
   const structural = {};
-  for (const key of ["TEXT", "COMMENT", "CONTAINER", "GROUP", "MATH", "VERBATIM", "PARAGRAPH", "PARBREAK", "PLACEHOLDER",
-                     "UNKNOWN_MACRO", "UNKNOWN_ENVIRONMENT", "NAMES"])
+  for (const key of ["TEXT", "COMMENT", "CONTAINER", "GROUP", "MATH", "VERBATIM", "OPAQUE_WRAPPER", "PARAGRAPH", "PARBREAK",
+                     "PLACEHOLDER", "UNKNOWN_MACRO", "UNKNOWN_ENVIRONMENT", "NAMES"])
     structural[key] = STRUCTURAL[key];
   return JSON.stringify({
     structural,
@@ -270,7 +270,7 @@ export function names() {
         names["structural"],
         json!({
             "TEXT": s::TEXT, "COMMENT": s::COMMENT, "CONTAINER": s::CONTAINER, "GROUP": s::GROUP, "MATH": s::MATH,
-            "VERBATIM": s::VERBATIM, "PARAGRAPH": s::PARAGRAPH, "PARBREAK": s::PARBREAK, "PLACEHOLDER": s::PLACEHOLDER,
+            "VERBATIM": s::VERBATIM, "OPAQUE_WRAPPER": s::OPAQUE_WRAPPER, "PARAGRAPH": s::PARAGRAPH, "PARBREAK": s::PARBREAK, "PLACEHOLDER": s::PLACEHOLDER,
             "UNKNOWN_MACRO": s::UNKNOWN_MACRO, "UNKNOWN_ENVIRONMENT": s::UNKNOWN_ENVIRONMENT, "NAMES": s::NAMES,
         })
     );
@@ -340,7 +340,7 @@ import { BackendDef, OutputDef, StandardTable } from "flm:core/registry";
 import { LoweringStage, lowered_table_name } from "flm:stdcore/backends/lowering";
 import { Artifact, ArtifactId } from "flm:core/artifact";
 import { ALL } from "flm:stdcore/backends/pres";
-import { COMMENT, CONTAINER, GROUP, PARBREAK, TEXT } from "flm:lang/structural";
+import { COMMENT, CONTAINER, GROUP, OPAQUE_WRAPPER, PARBREAK, TEXT } from "flm:lang/structural";
 
 // The lowered trees' table, as `lowered_table_name("bk")` answers it in
 // `register` (a function of the extension API is called from a handler,
@@ -368,7 +368,7 @@ const final_stage = {
   },
 };
 
-// The native set: the presentation vocabulary, the five structural elements
+// The native set: the presentation vocabulary, the six structural elements
 // plain text writes, and the one element of the standard package with no
 // rule for a backend of an extension (ruling S12), which this emitter skips.
 export default function (ext) {
@@ -380,7 +380,7 @@ export default function (ext) {
           b.table_named(lowered_table_name("bk"), StandardTable.LoweredTrees, "The lowered trees.");
           b.table("bk.output", "The emitted text.");
           b.table_named("bk.document", StandardTable.ArtifactSet, "The document.");
-          b.backend(new BackendDef("bk", [...ALL, TEXT, GROUP, COMMENT, CONTAINER, PARBREAK, "flm.graphics.image"], new LoweringStage("bk"), emit, final_stage)
+          b.backend(new BackendDef("bk", [...ALL, TEXT, GROUP, OPAQUE_WRAPPER, COMMENT, CONTAINER, PARBREAK, "flm.graphics.image"], new LoweringStage("bk"), emit, final_stage)
             .docs("A test backend."));
           b.output(new OutputDef("bk", "bk.document", "bk.document", "text/plain", "txt").docs("A test output."));
         },

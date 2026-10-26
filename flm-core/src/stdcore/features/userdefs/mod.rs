@@ -17,7 +17,16 @@
 //! feature's configuration ([`UserdefsConfig`]), which an author writes as
 //! settings (the keys `macros`, `environments` and `specials`,
 //! [`UserdefsData`]), for example in a document's front matter when the `flm`
-//! program reads it. The language guide describes definitions for authors:
+//! program reads it. In settings, a definition gives its arguments under the
+//! key `args` ([`DefinitionData::args`]), each argument's syntax in one of two
+//! forms. The structured syntax is a map whose key `syntax` holds the name of
+//! a standard kind of argument and whose other keys hold the kind's
+//! parameters, beside the argument's own keys: `{syntax: delimited-group,
+//! delimiters: ["(", ")"], name: size}` declares a group in parentheses named
+//! `size`. An argument code is a shorthand for a structured syntax, written
+//! under the key `code` of the map or alone: `{code: "r()", name: size}`
+//! declares the same argument, and `"{"` a mandatory group. The language
+//! guide describes definitions for authors:
 //! [author definitions](crate::guide::language_syntax#author-definitions) and
 //! [when a definition is
 //! expanded](crate::guide::language_syntax#when-a-definition-is-expanded).

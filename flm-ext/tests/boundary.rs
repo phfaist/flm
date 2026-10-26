@@ -642,7 +642,7 @@ fn a_user_definition_answers_its_methods_by_name() {
         written,
         json!({
             "kind": "macro", "name": "shout",
-            "args": [{ "code": "{", "name": "text", "layout": "inline", "docs": "", "mode": null, "scoped": [], "role": null }],
+            "args": [{ "code": "{", "name": "text", "layout": "inline", "opaque_wrapper": false, "docs": "", "mode": null, "scoped": [], "role": null }],
             "content": "<#1>", "modes": "text", "defaults": { "1": "x" }, "argument_number_offset": 0,
             "block_role": "block", "expand": "always", "overrides": false, "docs": "Shouts.", "extra_placeholders": [],
         })

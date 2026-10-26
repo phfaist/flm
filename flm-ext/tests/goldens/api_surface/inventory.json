@@ -1901,6 +1901,12 @@
         "type": "&str"
       },
       {
+        "name": "OPAQUE_WRAPPER",
+        "class": "constant",
+        "doc": "Mirrors [`OPAQUE_WRAPPER`](names::OPAQUE_WRAPPER): `flm.opaque-wrapper`, the element of a group with no delimiters that holds content kept as written.",
+        "type": "&str"
+      },
+      {
         "name": "PARAGRAPH",
         "class": "constant",
         "doc": "Mirrors [`PARAGRAPH`](names::PARAGRAPH): `flm.paragraph`, the element of a paragraph.",
@@ -1934,7 +1940,7 @@
         "name": "NAMES",
         "class": "constant",
         "doc": "Mirrors [`NAMES`](names::NAMES): every structural element name, in the fixed order of the set.",
-        "type": "[&str; 11]"
+        "type": "[&str; 12]"
       }
     ]
   },

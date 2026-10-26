@@ -152,7 +152,12 @@
 //!    `Restage`, `PresTree`, `RefPoint`, `ContentRef`, `CitationAnswer`, ….
 //!    A declaration a helper made (`ud.element_def(owner, name)`) is an
 //!    `ElementDef` holding the host's object: its accessors `owner()`,
-//!    `names()`, `syntax()` and `element()` answer `None`.
+//!    `names()`, `syntax()` and `element()` answer `None`. `ArgDef::new` and
+//!    `ArgDef::named` take an [`ArgSyntax`](lang::mint::ArgSyntax), an
+//!    argument code (`"r()"`) or a standard kind
+//!    (`ArgStdKind::CharsGroup`), where the api's take a parser: a standard
+//!    kind is passed as in the api, and a parser of a feature's own does not
+//!    cross.
 //! 3. **An enum of unit variants** is the api's, re-exported.
 //! 4. **A reference to an object with methods** (`&dyn FeatureBuilder`,
 //!    `&dyn StageCx`, `&mut dyn StageOut`, `&dyn Node<'_>`, `Box<dyn

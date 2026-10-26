@@ -108,9 +108,10 @@ fn call_args() -> Vec<ArgDef> {
             .docs("A note shown after the numbers, `[1; Thm 4]`; it belongs to every citation key of the call."),
         ArgDef::named(KEYS_ARG, ArgStdKind::Mandatory)
             .docs(
-                "The citation keys of the cited works, separated by commas; a citation key is FLM code, and a comma inside braces belongs to it.",
+                "The citation keys of the cited works, separated by commas; a citation key is FLM code, kept as typed, and a comma inside braces belongs to it.",
             )
-            .role(KEY_ARG_ROLE),
+            .role(KEY_ARG_ROLE)
+            .with_opaque_wrapper(),
     ]
 }
 
@@ -151,7 +152,8 @@ pub fn refcite_args() -> Vec<ArgDef> {
         .docs("The citation that `\\R` writes as a noun: `\\cite[note]{keys}`, with its further calls.");
     vec![
         ArgDef::named(FLAGS_ARG, ArgStdKind::Optional)
-            .docs("Flags: `S` writes the capitalized word before the citation mark (`Refs.~`), `I` writes no word."),
+            .docs("Flags: `S` writes the capitalized word before the citation mark (`Refs.~`), `I` writes no word.")
+            .with_opaque_wrapper(),
         ArgDef::named(CITATION_ARG, ArgStdKind::TackOn { fields: vec![field] })
             .docs("The citation written directly after `\\R`."),
     ]

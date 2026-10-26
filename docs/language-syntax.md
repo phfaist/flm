@@ -164,12 +164,37 @@ definition](#author-definitions); `$` is special only where the program switched
 on `dollar_math`; a lone `%` is refused, as described above. The escaped
 spelling works wherever it is written.
 
-`\ ` is not the same as a typed space. A run of ordinary spaces in the source
-becomes one space in the output (see [paragraphs, blocks and
-typography](#paragraphs-blocks-and-typography)), whereas the space that `\ `
-stands for is added after that step, so the spaces around it do not absorb it.
-`~` is a non-breaking space: an output that wraps lines does not break a line
-there.
+`\ ` and `~` are whitespace to the layout of paragraphs (see [paragraphs, blocks
+and typography](#paragraphs-blocks-and-typography)): where that layout removes
+whitespace, it removes them too. They are removed:
+
+- at the start and at the end of a paragraph, and of a line of a quotation's
+  [lines section](#quotations);
+- where nothing else stands between two blank lines or between two blocks: a
+  `~` written alone there makes no paragraph;
+- before a command that removes the whitespace written before it, such as
+  [`\cite`](#citations) and [`\footnote`](#xnotes): `word~\cite{a}` reads the
+  same as `word \cite{a}` and `word\cite{a}`.
+
+A command that ignores whitespace in what it reads ignores them too:
+`\footnote{~}` is an empty footnote, as `\footnote{ }` is; `\item[~]` reads as
+`\item[]`; and `tag=~x~` gives the tag `x`. The exception is text that a command
+reads as typed, such as a citation key, a label or a proof's back-reference, or
+with its markup, as a [term](#defined-terms): there `\ ` and `~` are part of the
+text, even where the whitespace at its ends is removed. `\cite{ a}` cites the
+key `a`, but `\cite{~a}` the key `~a`; `\term{~}` is a term, not an empty one;
+and `[ *lem:a]` refers to `lem:a`, while `[~*lem:a]` is a malformed
+back-reference.
+
+Everywhere else each is kept as a space of its own. A run of ordinary spaces in
+the source becomes one space, but `\ ` and `~` are never merged with the spaces
+around them: `a\ \ b` keeps two spaces, `a~~b` two non-breaking spaces, and
+`a~ b` a non-breaking space followed by a space. `~` is a non-breaking space: an
+output that wraps lines does not break a line there. The non-breaking space
+character (U+00A0) typed directly in the source is text, unlike `~` and `\ `: it
+is kept wherever it is written, and no command ignores it as whitespace, with
+one exception: at either end of a key in a key-value argument (such as `tag` in
+`\item[tag=…]`), it is removed as a space is.
 
 A long stretch of characters that would otherwise be read specially is easier to
 write as [verbatim content](#verbatim-content), which also accepts an unbalanced
@@ -356,7 +381,9 @@ trees](crate::guide::concepts_overview#frozen-trees-and-computed-data)).
 
 A blank line separates paragraphs. Inside a paragraph, a single line break is
 ordinary whitespace, every run of spaces, tabs and line breaks becomes one
-space, and the whitespace at the two ends of the paragraph is removed:
+space, and the whitespace at the two ends of the paragraph is removed, `~` and
+`\ ` included (see [writing a character that means something
+else](#writing-a-character-that-means-something-else)):
 
 ```text
 Two   words   with   extra spaces,
@@ -412,8 +439,8 @@ don’t forget the apostrophe.
 ```
 
 A straight quote opens at the start of a text that nothing precedes, and after
-whitespace, an opening bracket or a dash; a single quote also opens before a
-digit (`x'9` becomes `x‘9`), except directly after a letter, a digit or an
+whitespace (`~` and `\ ` included), an opening bracket or a dash; a single quote
+also opens before a digit (`x'9` becomes `x‘9`), except directly after a letter, a digit or an
 underscore and before two digits and an `s`, a decade abbreviation (`x'90s`
 becomes `x’90s`); after a space, `the '90s` becomes `the ‘90s`. A straight quote closes everywhere
 else, so `don't` becomes `don’t` and `'hi'` becomes `‘hi’`. Text already written
@@ -423,7 +450,9 @@ The program chooses which families apply when it builds its registry
 ([`BlocksConfig`](crate::lang::rewrites::blocks::BlocksConfig), passed through
 [`StdcoreConfig::blocks`](crate::stdcore::StdcoreConfig::blocks)); a document
 cannot switch them. Collapsing whitespace is not one of the families and always
-happens. Mathematics and verbatim content are exempt from all of it: they are
+happens. Mathematics and verbatim content are exempt from all of it, and so is the
+text that a command reads as typed, such as the keys of `\cite`, a label in
+`\label`, `\ref` or `\hyperref`, and a proof's back-reference: they are
 [opaque regions](crate::guide::concepts_overview#opaque-regions), carried
 through exactly as written.
 
@@ -769,7 +798,13 @@ such a field defines no label of the document.
 A construct may carry several labels, each written as a `\label` field, and each
 label's text must be spelled `type:label`: the *label type*, which says what sort of construct is
 labeled, a colon, and the label itself. A text not spelled that way defines no
-label and is reported where it is written (`flm.refs.bad-label`).
+label and is reported where it is written (`flm.refs.bad-label`). The content of the
+braces is taken as typed: a quote or a dash in it is not turned into a typographic
+character. Every run of whitespace in it, a line break included, counts as one space,
+and the whitespace around the label type and around the label is ignored, so
+`\ref{sec:a b}` refers to `\label{sec:a  b}` and to the same label broken over two
+lines between `a` and `b`. In every other respect a reference must spell a label
+exactly as its `\label` does.
 
 Each construct states which label types may be written for it. A heading accepts
 `sec` and `topic`
@@ -1284,7 +1319,10 @@ list is not counted, as in LaTeX:
 
 reads `Custom`, `1.`, `2.`. Every item of a `description` needs a tag, since the
 list writes no label of its own; an item without one is the Error
-`flm.lists.missing-tag` and is shown without a label.
+`flm.lists.missing-tag` and is shown without a label. `\item[tag={}]` gives an
+item an empty tag, while `\item[{}]`, whose braces only enclose the bracket's
+content, and a bracket holding nothing but whitespace, such as `\item[~]`, give it
+none.
 
 ### Labels and references to items
 
@@ -1474,11 +1512,12 @@ See \ref{fn:appendix}, or \ref[noprefix]{fn:appendix}.
 - The content is inline content when it is written as one run of text, and
   paragraphs when it holds a blank line or a block such as a list or a displayed
   formula. An xnote kind may be configured to take inline content only, where a
-  blank line is an error, or paragraphs always. An xnote with no content is
-  still written, and reported as the Warning `flm.xnotes.empty`.
-- A space written before `\footnote` is not kept: the xnote mark (the mark in
-  the running text that shows where the xnote belongs) is attached to the word
-  before it.
+  blank line is an error, or paragraphs always. An xnote with no content
+  (nothing but whitespace, `~` and `\ ` included, and comments) is still
+  written, and reported as the Warning `flm.xnotes.empty`.
+- A space written before `\footnote`, `~` and `\ ` included, is not kept: the
+  xnote mark (the mark in the running text that shows where the xnote belongs)
+  is attached to the word before it.
 - `\ref{fn:x}` to an xnote of a numbered xnote kind shows the xnote kind's word and the
   xnote's number, `Footnote 1`; `\ref[noprefix]{fn:x}` shows `1`; several
   targets read `Footnotes 1,2`. To an xnote of an unnumbered xnote kind, a reference
@@ -1591,7 +1630,10 @@ one written before `\R[I]`.
   skipped (`\cite{a,,b}` cites `a` and `b`), and a call holding no key at all
   (`\cite{}`) is the Error `flm.citations.no-key`. A **citation key** is the FLM code
   written for it, every run of whitespace counting as one space: `knuth84`,
-  `arxiv:1234.5678`, `manual:{A. Author, Some title (2024)}`. A comma inside a
+  `arxiv:1234.5678`, `manual:{A. Author, Some title (2024)}`. The content of the
+  braces is taken as typed: a quote or a dash in a key is not turned into a
+  typographic character, so `manual:{A. Author, "Some title" -- 2024}` is the key as
+  written. A comma inside a
   group, inside a command's argument or inside a formula belongs to the key,
   and a key may hold a command. The library reads no meaning into a key:
   whether two keys, such as `arXiv:1211.1037` and `arxiv:1211.1037`, cite the
@@ -1609,12 +1651,13 @@ one written before `\R[I]`.
   `e` cited in that order earlier,
   `\cite{c,b}\cite[Thm 4]{a}\cite{d}\cite[Thm 4]{e}` reads `[2–4][1,5; Thm 4]`.
   A work cited twice in a group (one key written twice, or two keys of one
-  work) shows its number once. A paragraph break, or anything else written
-  between two calls, makes two chunks.
+  work) shows its number once. A paragraph break, a `~` or a `\ `, or anything
+  else written between two calls, makes two chunks.
 - **The space before a `\cite`.** A `\cite` is attached to the text before it:
-  it removes the space written before it and always writes its own, a no-break
-  space before a bracketed mark and nothing before a raised one, so
-  `text \cite{a}` and `text\cite{a}` read the same. Nothing about the text
+  it removes the whitespace written before it, `~` and `\ ` included, and always
+  writes its own space, a no-break space before a bracketed mark and nothing
+  before a raised one, so `text \cite{a}`, `text\cite{a}` and `text~\cite{a}`
+  read the same. Nothing about the text
   around it is examined: a `\cite` at the start of a paragraph, of a cell or of
   a line, or after an opening parenthesis, also writes its space. Where a
   citation is a word of its own sentence rather than attached to the text before
@@ -1818,9 +1861,18 @@ By Theorem 1, no fraction squares to two.
   A label no construct declares is a reference that resolves to nothing
   (`flm.refs.unresolved`), shown as its text. A proof title that begins with a
   star but is not a star followed by a label written as plain characters, such
-  as `[*\emph{x}]` or `[*nolabel]`, is the Error
+  as `[*\emph{x}]`, `[~*lem:x]` or `[*nolabel]`, is the Error
   `flm.theorems.bad-relation-ref` and is shown as written. For the other theorem
   kinds, a star is part of the title.
+- A proof title that begins with a star is taken as typed, as the label of a
+  `\label` is: `\begin{proof}[*lem:a--b]` refers to `\label{lem:a--b}`. Any
+  other proof title is ordinary content. The star must be written in the proof
+  itself, or in the template of a [user definition](#author-definitions) (a
+  template that writes `\begin{proof}[*#1]`). A star that the use site of a user
+  definition passes as an argument is not seen: with a definition `\pf` whose
+  template writes `\begin{proof}[#1]`, the title of `\pf{*lem:a--b}` is laid out
+  as ordinary content, and a label holding `--`, quotes, an apostrophe or `...`
+  does not resolve through it.
 - A theorem is a block, written where blocks are written; its body holds
   blocks.
 
@@ -1873,9 +1925,9 @@ City, ST 12345
 - **The lines of a lines section.** Inside `\lines{…}`, and in the body of
   `address`, each `\\` ends a line, and each `\indent` written at the start of a
   line indents that line by one tab, a width each output sets (four columns in
-  plain text), and `\indent\indent` by two. The whitespace at
-  both ends of a line is not part of it, and a line with nothing in it, between
-  two `\\` or after the last one, is an empty line. `\\` and `\indent` are
+  plain text), and `\indent\indent` by two. The whitespace at both ends of a
+  line, `~` and `\ ` included, is not part of it, and a line with nothing in
+  it, between two `\\` or after the last one, is an empty line. `\\` and `\indent` are
   available only in a lines section. An indent of a written amount, such as
   `\indent[1.5em]`, is not available yet.
 - **The section commands are available only in a quotation**, and only outside

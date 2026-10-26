@@ -11,7 +11,11 @@
 //!
 //! A feature declares an argument of this shape with
 //! [`ArgStdKind::CharsGroup`](crate::lang::mint::ArgStdKind::CharsGroup); it does
-//! not construct the parser itself.
+//! not construct the parser itself. The reader of that kind places the group
+//! under an opaque wrapper ([`FlmGroupType::OpaqueWrapper`]), so the
+//! [block-structure pass](crate::lang::rewrites::blocks) carries the
+//! characters over as written; the argument's content is the group's
+//! children, as this parser designates them.
 //!
 //! # What the interior recognizes
 //!

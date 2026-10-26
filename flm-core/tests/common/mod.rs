@@ -593,6 +593,7 @@ pub mod blocks {
     ///   absorbing the whitespace after it;
     /// - `emph`: ordinary inline content with one argument;
     /// - `verb`: a verbatim argument; `verbatimcode`: a verbatim environment;
+    ///   `keep`: one argument placed under an opaque wrapper;
     /// - `inlineenv`: an inline environment with the default body (its role's:
     ///   inline); `blockenv`: a block environment with the default body (its
     ///   role's: blocks); `blockinline`: a block environment with an explicitly
@@ -640,6 +641,14 @@ pub mod blocks {
                 inline("t.verb"),
             ),
             env_of("verbatimcode", BodyDef::new().verbatim(), inline("t.verbatimcode")),
+            ElementDef::new(
+                "t",
+                ["keep"],
+                SyntaxDef::Macro {
+                    args: vec![ArgDef::new(ArgStdKind::Mandatory).with_opaque_wrapper()],
+                },
+                inline("t.keep"),
+            ),
             env_of("inlineenv", BodyDef::new(), inline("t.inlineenv")),
             env_of(
                 "blockenv",

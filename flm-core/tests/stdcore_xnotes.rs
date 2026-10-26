@@ -1358,9 +1358,9 @@ fn an_xnote_in_a_heading_title_is_marked_there_and_in_a_reference_to_the_heading
 
 #[test]
 fn an_empty_xnote_is_reported_and_marked() {
-    let run = render_with(&std(), "A\\footnote{} B\\footnote[]{ } C\\footnote{%%\n}");
-    assert_eq!(reports(&run), vec![("flm.xnotes.empty".to_string(), Severity::Warning); 3]);
-    assert_eq!(printed(&run), "A\u{b9} B\u{b2} C\u{b3}\n");
+    let run = render_with(&std(), "A\\footnote{} B\\footnote[]{ } C\\footnote{%%\n} D\\footnote{~}");
+    assert_eq!(reports(&run), vec![("flm.xnotes.empty".to_string(), Severity::Warning); 4]);
+    assert_eq!(printed(&run), "A\u{b9} B\u{b2} C\u{b3} D\u{2074}\n");
     let placed = render_with(&in_place(), "A \\footnote{} B");
     assert_eq!(identifiers(&placed), ["flm.xnotes.empty"]);
     assert_eq!(printed(&placed), "A [\u{b9}] B\n");

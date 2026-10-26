@@ -33,7 +33,8 @@
 //!   packages, the features and the commands they declare, the settings, the workflows, the
 //!   names the registry holds and the program itself, as pages of documentation, each with
 //!   a path (`features/headings`); a name that is no page's path is looked up
-//!   (`flm info '\section'`). It prints the pages as text, or as JSON with `--json`
+//!   (`flm info '\section'`). It prints the pages as text, or as JSON with `--json`; with
+//!   `--write-flm FILE`, it writes one page as an FLM document, which `flm render` renders
 //!   ([`InfoArgs`]).
 //! - `flm dump FILE` prints, as JSON, what one run of the library holds over one file, for
 //!   inspection; its arguments and exit statuses are its own ([`dump`]).
@@ -96,13 +97,14 @@
 //! with `-o` cannot be written, 2 when the document given cannot be read or the packages
 //! it uses cannot be found, and 3 on a failure of the program itself.
 //!
-//! `flm info` exits with 0 when every page asked for was shown, with or without warnings (a
-//! documentation text that does not parse, shown as plain text, is one); 2 when the
+//! `flm info` exits with 0 when every page asked for was shown, or written with
+//! `--write-flm`, with or without warnings (a documentation text that does not parse, shown
+//! as plain text, is one); 1 when the file of `--write-flm` cannot be written; 2 when the
 //! arguments are wrong, the document given with `-d` cannot be read or prepared, the
-//! environment cannot be prepared, or a path is no page's path and no name it looks up; and
-//! 3 on a failure of the program itself, such as a page that does not render. `flm --help` and
-//! `flm --version` exit with 0; a command line that the parser rejects, an empty one
-//! included, exits with 2.
+//! environment cannot be prepared, a path is no page's path and no name it looks up, or the
+//! paths given with `--write-flm` do not choose exactly one page; and 3 on a failure of the
+//! program itself, such as a page that does not render. `flm --help` and `flm --version`
+//! exit with 0; a command line that the parser rejects, an empty one included, exits with 2.
 
 mod args;
 pub mod dump;

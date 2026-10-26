@@ -314,9 +314,10 @@ pub struct WatchArgs {
     pub view: bool,
 }
 
-/// The arguments of `flm info`: the pages to show, how to show them, and the environment
-/// they describe: the program's default environment, or that of the document of `-d`,
-/// shaped by the same build options as `flm render` takes ([`InfoArgs::build_args`]).
+/// The arguments of `flm info`: the pages to show, how to show them (as text, as JSON, or
+/// written as an FLM document), and the environment they describe: the program's default
+/// environment, or that of the document of `-d`, shaped by the same build options as `flm
+/// render` takes ([`InfoArgs::build_args`]).
 #[derive(Debug, Clone, Args)]
 pub struct InfoArgs {
     /// The pages to show, each a page's path (`features/headings`,
@@ -336,6 +337,11 @@ pub struct InfoArgs {
     /// pages; as text, the pages below follow each page.
     #[arg(short = 'r', long = "recursive")]
     pub recursive: bool,
+    /// Write the page as an FLM document to FILE, in place of printing it: the source that
+    /// is otherwise rendered as text, which `flm render FILE` renders. `-` prints it on
+    /// standard output. The paths given must choose exactly one page.
+    #[arg(long = "write-flm", value_name = "FILE", conflicts_with_all = ["json", "recursive"])]
+    pub write_flm: Option<String>,
     /// The document whose environment is described: its front matter decides the packages
     /// it uses and the settings in effect. Default: the environment of a document that
     /// specifies nothing.

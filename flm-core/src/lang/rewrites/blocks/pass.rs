@@ -38,7 +38,8 @@
 //! - a comment stays where it is: inside a paragraph when it is among the
 //!   paragraph's content, and between the blocks otherwise; a comment never
 //!   starts a paragraph;
-//! - text that is only whitespace between blocks is removed;
+//! - whitespace between blocks, text that is only whitespace and
+//!   [whitespace nodes](#whitespace-nodes) alike, is removed;
 //! - a block decorator declared [`Placement::Leads`] starts a new paragraph, and
 //!   one declared [`Placement::Trails`] ends the paragraph it is in.
 //!
@@ -50,11 +51,14 @@
 //!
 //! **Opaque.** An [opaque
 //! region](crate::guide::concepts_overview#opaque-regions) is copied unchanged,
-//! node for node: the content of a mathematics group or of a verbatim group, a
-//! verbatim body, and any run whose nodes were parsed in math mode (the body of
-//! a math-mode environment, the root of a mathematics snippet). Opacity is a
-//! property of the content region, not of the command that opened it, so the
-//! different ways of writing mathematics behave alike. Inside an opaque region,
+//! node for node: the content of a mathematics group, of a verbatim group or
+//! of an opaque wrapper (the group without delimiters that minting places
+//! around the content of an argument or a body declared with one, and of every
+//! characters-only group), a verbatim body, and any run whose nodes were
+//! parsed in math mode (the body of a math-mode environment, the root of a
+//! mathematics snippet). Opacity is a property of the content region, not of
+//! the command that opened it, so the different ways of writing mathematics
+//! behave alike. Inside an opaque region,
 //! no text is resolved, no paragraph-break marker is removed or reported (what
 //! a blank line inside mathematics means is checked by the mathematics feature)
 //! and no block-structure hook is called.
@@ -69,9 +73,12 @@
 //! inline. Everything else in the mathematics around it stays byte for byte
 //! what the author wrote. The parsing mode of a run decides, in both
 //! directions: a run parsed in math mode is opaque wherever it is, and a run
-//! parsed in text mode inside mathematics is content wherever it is. Inside a
-//! *verbatim* region nothing is laid out, in any parsing mode, because reading
-//! verbatim content changes no mode.
+//! parsed in text mode inside mathematics is content wherever it is. The
+//! exception does not reach inside a verbatim group or an opaque wrapper:
+//! there nothing is laid out, in any parsing mode. Reading verbatim content
+//! changes no mode, and an opaque wrapper keeps everything under it as
+//! written, a formula included: in an argument placed under an opaque wrapper
+//! that holds `$\text{x}$`, the argument of `\text` stays as typed.
 //!
 //! # Which layout each content region gets
 //!
@@ -85,9 +92,10 @@
 //!   declaration says so; where the declaration follows the element's block
 //!   role ([`BodyLayout::FromRole`](crate::lang::mint::BodyLayout), the
 //!   default), as blocks for an element whose role is `Block` and inline
-//!   otherwise; and opaque when the body is verbatim or read in math mode. A
-//!   callable with no FLM body declaration follows its block role in the same
-//!   way.
+//!   otherwise; and opaque when its content stands in a verbatim group or an
+//!   opaque wrapper (a verbatim body, a body declared with an opaque wrapper)
+//!   or the body is read in math mode. A callable with no FLM body declaration
+//!   follows its block role in the same way.
 //! - An argument is laid out by its declared layout
 //!   ([`ArgLayout`](crate::lang::mint::ArgLayout), read with
 //!   [`arg_layout_of`](crate::lang::mint::arg_layout_of)): inline by default;
@@ -98,7 +106,10 @@
 //!   of [`argument_holds_blocks`](super::argument_holds_blocks). A
 //!   [`BlockStructure`] hook takes precedence over this default, as it does
 //!   for a body. In an argument laid out inline, a paragraph break and a
-//!   block-level node are reported with the context `argument`.
+//!   block-level node are reported with the context `argument`. An argument
+//!   whose content stands in a verbatim group or an opaque wrapper (a verbatim
+//!   argument, an argument placed under an opaque wrapper) is opaque, whatever
+//!   its declared layout.
 //! - The content of a `{…}` group is laid out inline.
 //!
 //! In every case, a run parsed in math mode is opaque.
@@ -111,8 +122,8 @@
 //! substitutions that [`BlocksConfig`] enables are applied. An inline node
 //! whose element absorbs the whitespace beside it
 //! ([`InlineSpacing`](crate::model::aspects::InlineSpacing)) has that
-//! whitespace removed, even when comments separate the node from the
-//! whitespace.
+//! whitespace removed, whitespace nodes included (below), even when comments
+//! separate the node from the whitespace.
 //!
 //! The merged node records where its text came from. When its text is a
 //! byte-for-byte copy of one range of one source, its span alone says so and
@@ -120,6 +131,26 @@
 //! [`TextSourceMap`], which records the source range of each part of the text.
 //! A text node whose text does not change is copied with its extension, source
 //! map included.
+//!
+//! ## Whitespace nodes
+//!
+//! A **whitespace node** is a node whose element carries the
+//! [`Whitespace`](crate::model::aspects::Whitespace) aspect, such as the
+//! literals `~` and `\ `. It is whitespace to every rule of the layout step,
+//! and stays a node of its own:
+//!
+//! - the whitespace removed beside an absorbing node and at the edges of a
+//!   paragraph is the whole stretch of whitespace there, up to the nearest
+//!   content: whitespace-only text and whitespace nodes alike are removed, and
+//!   the comments among them are kept;
+//! - a whitespace node is not paragraph content: a stretch holding only
+//!   whitespace and comments starts no paragraph;
+//! - a straight quote right after a whitespace node opens, as it does after a
+//!   space;
+//! - a whitespace node is never merged into the text beside it and never
+//!   collapsed with the whitespace around it: `a~~b` keeps its two nodes, and
+//!   `a~ b` the node and the space. A whitespace node that is not removed is
+//!   staged like any other inline node, and lowered by its element's own rule.
 //!
 //! # Block-structure hooks
 //!
@@ -159,7 +190,8 @@
 //!   its first child with a non-empty span, so that a paragraph that begins
 //!   with a created decorator (whose span is empty, on a synthesized source)
 //!   still points at real content. Its parsing state is that of its first
-//!   child that is kept: blank text at the head is removed, a comment is kept.
+//!   child that is kept: blank text and whitespace nodes at the head are
+//!   removed, a comment is kept.
 //! - A [`Leads`](Placement::Leads) or [`Trails`](Placement::Trails) decorator
 //!   in a content region laid out inline (a `{…}` group, an argument, a
 //!   fragment laid out inline) is placed like any inline node and is not
@@ -189,9 +221,10 @@
 // guard checks (techy's documented caveat). In FLM's grammar what they copy is
 // leaves only: an argument's pre-space, the whitespace between arguments, the
 // newline techy gobbles after a verbatim environment's begin, the wrapper group
-// or body list itself. The content subtree is replaced, never copied, and the
-// interiors of math and verbatim groups descend through `restage_children`,
-// which the guard checks per level. So no document input can exhaust the stack
+// or body list itself, and the opaque wrapper over it. The content subtree is
+// replaced, never copied, and the interiors of math groups, verbatim groups and
+// opaque wrappers descend through `restage_children`, which the guard checks
+// per level. So no document input can exhaust the stack
 // inside such a copy; revisit only if a construct ever designates content below
 // a deep wrapper chain. See the design rationale at
 // [§flm-dd-dr:lang-nested-restage-budget].
@@ -215,11 +248,11 @@ use super::hook::{
     BlockStructure, BlockStructurer, RegionLayout, StructureCx, Structuring, SynthesizedNode,
 };
 use super::predicates::{
-    Region, argument_layout, is_blank_text, is_content, is_math_run, is_parbreak,
-    run_holds_blocks, slot_layout,
+    Opacity, Region, argument_layout, group_opacity, is_content, is_math_run, is_opaque_group,
+    is_parbreak, run_holds_blocks, run_opacity, slot_layout,
 };
 use super::text::{Edges, Tape, resolve};
-use crate::model::aspects::{BlockRole, Placement, block_role_of};
+use crate::model::aspects::{BlockRole, Placement, block_role_of, is_whitespace_of};
 use crate::model::doc::FragmentLayout;
 use crate::model::element::{ElementSpec, element_of};
 use crate::lang::ext::TextSourceMap;
@@ -227,6 +260,7 @@ use crate::lang::flm::{Flm, FlmGroupType};
 use crate::lang::guard::{self, GuardPolicy};
 use crate::lang::mint::reads_text_in_math;
 use crate::lang::origin::{FlmDiagnostic, FlmDiagnostics, FlmSpan};
+use crate::lang::text::is_blank_text;
 
 // --- entry points ---------------------------------------------------------------------
 
@@ -424,12 +458,22 @@ impl RestageVisitor<Flm, (), ()> for Pass<'_> {
         // resolution. The one exception is a construct of mathematics that
         // reads a region of its own in text mode — a text command, whose
         // argument is document content: that region is laid out like any
-        // other, and the rest of the node is carried over as before.
-        if self.region == Region::Raw {
-            if reads_text_in_math(&node) {
-                return Ok(Restage::Emit(self.callable_node(cx, node)?));
+        // other, and the rest of the node is carried over unchanged. The
+        // exception holds in mathematics only; a verbatim group or an opaque
+        // wrapper met there opens a region opaque in any mode, where it does
+        // not apply.
+        match self.region {
+            Region::Raw(Opacity::AnyMode) => return Ok(Restage::Descend(())),
+            Region::Raw(Opacity::Math) => {
+                if is_opaque_group(&node) {
+                    return Ok(Restage::Emit(self.group_node(cx, node)?));
+                }
+                if reads_text_in_math(&node) {
+                    return Ok(Restage::Emit(self.callable_node(cx, node)?));
+                }
+                return Ok(Restage::Descend(()));
             }
-            return Ok(Restage::Descend(()));
+            Region::Blocks | Region::Inline => {}
         }
         if let Some(hook) = element_of(&node).aspect::<dyn BlockStructure>() {
             let mark = self.synthesized.len();
@@ -488,10 +532,17 @@ impl Pass<'_> {
 
     // -- regions -------------------------------------------------------------------------
 
-    /// Lays out a run with the given layout (opaque, regardless of `layout`,
-    /// when the run's nodes were parsed in math mode), and restores the current
-    /// region layout afterwards. `context` is the kind of content region that a
-    /// `parbreak-in-inline` diagnostic reports.
+    /// Lays out a run with the given layout (opaque as mathematics, when
+    /// `layout` is not opaque already and the run's nodes were parsed in math
+    /// mode), and restores the current region layout afterwards. `context` is
+    /// the kind of content region that a `parbreak-in-inline` diagnostic
+    /// reports.
+    ///
+    /// A run opaque in any mode comes with that layout already: the layout of
+    /// an argument or a slot says so ([`argument_layout`], [`slot_layout`]),
+    /// a hook's run is tested ([`hook_layout`]), and the content of a `{…}`
+    /// group is never opaque in any mode, since the walk enters no region
+    /// under a verbatim group or an opaque wrapper.
     fn lay_out(
         &mut self,
         cx: &mut StructureCx<'_>,
@@ -499,20 +550,24 @@ impl Pass<'_> {
         layout: Region,
         context: &'static str,
     ) -> Result<Vec<BuildId>, StructureError> {
-        let layout = if is_math_run(run) { Region::Raw } else { layout };
+        let layout = match layout {
+            Region::Blocks | Region::Inline if is_math_run(run) => Region::Raw(Opacity::Math),
+            layout => layout,
+        };
         let saved = self.region;
         self.region = layout;
         let result = match layout {
             Region::Blocks => self.blocks(cx, run),
             Region::Inline => self.inline(cx, run, Trim::NONE, context),
-            Region::Raw => self.raw(cx, run),
+            Region::Raw(_) => self.raw(cx, run),
         };
         self.region = saved;
         result
     }
 
     /// Copies a run unchanged, node for node (the current layout is already
-    /// [`Region::Raw`], so every visit descends).
+    /// [`Region::Raw`], so every visit descends, except at the nodes that
+    /// [`restage`](RestageVisitor::restage) singles out inside mathematics).
     fn raw(
         &mut self,
         cx: &mut StructureCx<'_>,
@@ -543,7 +598,7 @@ impl Pass<'_> {
                 let run: Vec<NodeRef<'_, Flm>> = node.children().iter().collect();
                 let layout = match self.region {
                     Region::Blocks => Region::Blocks,
-                    Region::Inline | Region::Raw => Region::Inline,
+                    Region::Inline | Region::Raw(_) => Region::Inline,
                 };
                 let out = self.lay_out(cx, &run, layout, "list")?;
                 Ok(vec![copy_over(cx, &node, out)?])
@@ -552,20 +607,18 @@ impl Pass<'_> {
         }
     }
 
-    /// A group: the content of a mathematics or verbatim group is an opaque
-    /// region; the content of any other group is laid out inline.
+    /// A group: the content of a verbatim group or of an opaque wrapper is an
+    /// opaque region of the kind [`Opacity::AnyMode`], the content of a
+    /// mathematics group one of the kind [`Opacity::Math`]
+    /// ([`group_opacity`]); the content of any other group is laid out inline.
     fn group_node(
         &mut self,
         cx: &mut StructureCx<'_>,
         node: NodeRef<'_, Flm>,
     ) -> Result<Vec<BuildId>, StructureError> {
-        let raw = matches!(
-            node.group_type(),
-            Some(FlmGroupType::Math(_)) | Some(FlmGroupType::Verbatim)
-        );
-        let children = if raw {
+        let children = if let Some(opacity) = group_opacity(&node) {
             let saved = self.region;
-            self.region = Region::Raw;
+            self.region = Region::Raw(opacity);
             let children = cx.restage_children(node, self);
             self.region = saved;
             children?
@@ -591,8 +644,8 @@ impl Pass<'_> {
 
     /// The staged arguments of a callable, one per declared argument: an
     /// argument that was not written stays absent, and a written one has its
-    /// content laid out by its declared layout and put back between its
-    /// original delimiters.
+    /// content laid out by its declared layout (or copied unchanged, when it
+    /// is opaque) and put back between its original delimiters.
     fn arguments(
         &mut self,
         cx: &mut StructureCx<'_>,
@@ -620,8 +673,9 @@ impl Pass<'_> {
     }
 
     /// The staged slots of a callable: every slot's content laid out with the
-    /// body layout, except the body slot when `body` supplies its new content
-    /// already staged ([`BlockStructurer::with_body`]).
+    /// body layout (or copied unchanged, when it is opaque), except the body
+    /// slot when `body` supplies its new content already staged
+    /// ([`BlockStructurer::with_body`]).
     fn slots(
         &mut self,
         cx: &mut StructureCx<'_>,
@@ -629,7 +683,6 @@ impl Pass<'_> {
         mut body: Option<Vec<BuildId>>,
     ) -> Result<Vec<RestagedSlot<Flm>>, StructureError> {
         let count = node.slots().map_or(0, |slots| slots.len());
-        let layout = slot_layout(&node);
         let mut out = Vec::with_capacity(count);
         for i in 0..count {
             let is_body = node
@@ -646,7 +699,7 @@ impl Pass<'_> {
                 .slot_content_nodes(i)
                 .map(|slice| slice.iter().collect())
                 .unwrap_or_default();
-            let ids = self.lay_out(cx, &content, layout, "body")?;
+            let ids = self.lay_out(cx, &content, slot_layout(&node, i), "body")?;
             out.push(cx.restage_slot_with_content(node, i, ids, ())?);
         }
         if body.is_some() {
@@ -709,9 +762,9 @@ impl Pass<'_> {
     }
 
     /// Ends the pending paragraph: a run with content becomes one paragraph; a
-    /// run of only whitespace and comments adds its comments to the content
-    /// region and removes the whitespace; a run whose layout yields nothing
-    /// produces no paragraph.
+    /// run of only whitespace (text and whitespace nodes) and comments adds its
+    /// comments to the content region and removes the whitespace; a run whose
+    /// layout yields nothing produces no paragraph.
     fn close_paragraph(
         &mut self,
         cx: &mut StructureCx<'_>,
@@ -754,7 +807,8 @@ impl Pass<'_> {
     // -- inline layout -------------------------------------------------------------------
 
     /// Lays out a run as inline content: adjacent text merged and resolved,
-    /// comments and other nodes staged in place.
+    /// whitespace nodes removed where the whitespace of their place is
+    /// ([`whitespace_removed`]), comments and other nodes staged in place.
     fn inline(
         &mut self,
         cx: &mut StructureCx<'_>,
@@ -775,6 +829,8 @@ impl Pass<'_> {
                 items.push(Item::Comment(*node));
             } else if node.is_chars() && !is_raw_chars(node) {
                 items.push(Item::Text(*node));
+            } else if is_whitespace_of(node) {
+                items.push(Item::Whitespace(*node));
             } else {
                 let role = block_role_of(node);
                 if matches!(role, BlockRole::Block) {
@@ -786,7 +842,8 @@ impl Pass<'_> {
             }
         }
 
-        // 2. Emit, merging every maximal run of text and recovery spaces.
+        // 2. Emit, merging every maximal run of text and recovery spaces. A
+        // whitespace node is an item of its own, never merged into a run.
         let mut out: Vec<BuildId> = Vec::new();
         let mut i = 0usize;
         while i < items.len() {
@@ -804,7 +861,8 @@ impl Pass<'_> {
                     out.push(copy_leaf(cx, node)?);
                     i += 1;
                 }
-                Item::Node(node, _) => {
+                Item::Whitespace(_) if whitespace_removed(&items, i, trim) => i += 1,
+                Item::Whitespace(node) | Item::Node(node, _) => {
                     let saved = self.region;
                     self.region = Region::Inline;
                     let ids = cx.restage_subtree(*node, self);
@@ -826,44 +884,7 @@ impl Pass<'_> {
         range: Range<usize>,
         trim: Trim,
     ) -> Result<Option<BuildId>, StructureError> {
-        // Absorption: the neighbouring element asked for the whitespace beside it
-        // to be removed outright. It sees through comments, and through the
-        // blank runs between a comment and the element, as the trimming of the
-        // edges below does.
-        let passed_over = |item: &&Item<'_>| matches!(item, Item::Comment(_)) || is_blank(item);
-        let absorb_left = match items[..range.start].iter().rev().find(|item| !passed_over(item)) {
-            Some(Item::Node(_, BlockRole::Inline(spacing))) => spacing.absorb_after,
-            _ => false,
-        };
-        let absorb_right = match items[range.end..].iter().find(|item| !passed_over(item)) {
-            Some(Item::Node(_, BlockRole::Inline(spacing))) => spacing.absorb_before,
-            _ => false,
-        };
-        // Trimming sees through comments, through the decorator leading
-        // (trailing) the paragraph, and through blank runs — whitespace-only text
-        // and recovery spaces between the edge and this run are themselves
-        // dropped as edge whitespace.
-        let transparent_before = |item: &Item<'_>| {
-            is_blank(item)
-                || matches!(
-                    item,
-                    Item::Comment(_) | Item::Node(_, BlockRole::BlockDecorator(Placement::Leads))
-                )
-        };
-        let transparent_after = |item: &Item<'_>| {
-            is_blank(item)
-                || matches!(
-                    item,
-                    Item::Comment(_) | Item::Node(_, BlockRole::BlockDecorator(Placement::Trails))
-                )
-        };
-        let trim_left = trim.head && items[..range.start].iter().all(transparent_before);
-        let trim_right = trim.tail && items[range.end..].iter().all(transparent_after);
-        let prev_is_content = items[..range.start]
-            .iter()
-            .rev()
-            .find(|item| !matches!(item, Item::Comment(_)))
-            .is_some_and(|item| matches!(item, Item::Node(..)));
+        let edges = edges_of(items, range.clone(), trim);
 
         // The tape: the run's text with its provenance.
         let mut tape = Tape::default();
@@ -894,18 +915,13 @@ impl Pass<'_> {
                     tape.push(" ", node.span().clone(), false);
                     state.get_or_insert(node.parsing_state());
                 }
-                Item::Comment(_) | Item::Node(..) => {}
+                Item::Comment(_) | Item::Whitespace(_) | Item::Node(..) => {}
             }
         }
         let Some(state) = state else {
             return Ok(None);
         };
 
-        let edges = Edges {
-            drop_leading: trim_left || absorb_left,
-            drop_trailing: trim_right || absorb_right,
-            prev_is_content,
-        };
         let resolved = resolve(&tape, self.config, edges);
         if resolved.text.is_empty() {
             return Ok(None);
@@ -981,7 +997,7 @@ impl BlockStructurer for Pass<'_> {
         cx: &mut StructureCx<'_>,
         run: &[NodeRef<'_, Flm>],
     ) -> Result<Vec<BuildId>, StructureError> {
-        self.lay_out(cx, run, Region::Blocks, "run")
+        self.lay_out(cx, run, hook_layout(run, Region::Blocks), "run")
     }
 
     fn build_inline(
@@ -989,7 +1005,7 @@ impl BlockStructurer for Pass<'_> {
         cx: &mut StructureCx<'_>,
         run: &[NodeRef<'_, Flm>],
     ) -> Result<Vec<BuildId>, StructureError> {
-        self.lay_out(cx, run, Region::Inline, "run")
+        self.lay_out(cx, run, hook_layout(run, Region::Inline), "run")
     }
 
     fn default(
@@ -1051,17 +1067,25 @@ impl BlockStructurer for Pass<'_> {
     fn region(&self) -> RegionLayout {
         match self.region {
             Region::Blocks => RegionLayout::Blocks,
-            Region::Inline | Region::Raw => RegionLayout::Inline,
+            Region::Inline | Region::Raw(_) => RegionLayout::Inline,
         }
     }
+}
+
+/// The layout of a run that a hook asks to lay out as `layout`: raw when the
+/// run is an opaque region ([`run_opacity`]: a run that stands in a verbatim
+/// group or an opaque wrapper, or was parsed in math mode), `layout`
+/// otherwise.
+fn hook_layout(run: &[NodeRef<'_, Flm>], layout: Region) -> Region {
+    run_opacity(run).map_or(layout, Region::Raw)
 }
 
 // --- run items and helpers ----------------------------------------------------------------
 
 /// One item of an inline run, after classification.
 enum Item<'t> {
-    /// Text read in text mode, outside verbatim content: goes on the merge
-    /// tape.
+    /// Text read in text mode, outside verbatim content and opaque wrappers:
+    /// goes on the merge tape.
     Text(NodeRef<'t, Flm>),
     /// A paragraph-break marker found in inline content: one space on the
     /// tape.
@@ -1069,33 +1093,106 @@ enum Item<'t> {
     /// A comment: kept as it is; it separates the text before it from the text
     /// after it, and trimming looks through it.
     Comment(NodeRef<'t, Flm>),
+    /// A whitespace node ([`is_whitespace_of`]): blank, never merged into the
+    /// text beside it, and staged in place unless the whitespace of its place
+    /// is removed ([`whitespace_removed`]).
+    Whitespace(NodeRef<'t, Flm>),
     /// Anything else, with its role.
     Node(NodeRef<'t, Flm>, BlockRole),
 }
 
-/// Whether an item is blank: text that is only whitespace, or the space read
-/// for a paragraph break.
+/// Whether an item is blank: text that is only whitespace, the space read for
+/// a paragraph break, or a whitespace node.
 fn is_blank(item: &Item<'_>) -> bool {
     match item {
         Item::Text(node) => node.chars().is_none_or(is_blank_text),
-        Item::Space(_) => true,
+        Item::Space(_) | Item::Whitespace(_) => true,
         Item::Comment(_) | Item::Node(..) => false,
     }
 }
 
-/// Whether text resolution must leave this text node alone: text read in math
-/// mode, or the content of a verbatim group.
+/// How the whitespace at the edges of `items[range]` is treated, and what
+/// precedes the range, for a run laid out under `trim`.
 ///
-/// The layout step never enters an opaque region (mathematics and verbatim
-/// groups are walked raw, math-mode runs are laid out raw), so a text item that
-/// reaches the inline layout is in text mode and outside every verbatim group.
-/// The test remains for a run a hook assembles itself. It tests the immediate
-/// parent only, because a verbatim group's content is flat (the group's
-/// children are the raw text). The checker walks the ancestors instead,
-/// because it checks whole trees, including trees built by hand.
+/// An edge's whitespace is dropped beside an inline node that absorbs the
+/// whitespace toward the range, and at an edge of a paragraph that `trim`
+/// trims. Both look past comments and blank items ([`is_blank`]), so every
+/// blank item of the stretch between the edge and the nearest other item
+/// goes, and the comments among them stay.
+fn edges_of(items: &[Item<'_>], range: Range<usize>, trim: Trim) -> Edges {
+    // Absorption: the neighbouring element asked for the whitespace beside it
+    // to be removed outright. It sees through comments, and through the
+    // blank items between a comment and the element, as the trimming of the
+    // edges below does.
+    let passed_over = |item: &&Item<'_>| matches!(item, Item::Comment(_)) || is_blank(item);
+    let absorb_left = match items[..range.start].iter().rev().find(|item| !passed_over(item)) {
+        Some(Item::Node(_, BlockRole::Inline(spacing))) => spacing.absorb_after,
+        _ => false,
+    };
+    let absorb_right = match items[range.end..].iter().find(|item| !passed_over(item)) {
+        Some(Item::Node(_, BlockRole::Inline(spacing))) => spacing.absorb_before,
+        _ => false,
+    };
+    // Trimming sees through comments, through the decorator leading
+    // (trailing) the paragraph, and through blank items — whitespace-only
+    // text, recovery spaces and whitespace nodes between the edge and this
+    // range are themselves dropped as edge whitespace.
+    let transparent_before = |item: &Item<'_>| {
+        is_blank(item)
+            || matches!(
+                item,
+                Item::Comment(_) | Item::Node(_, BlockRole::BlockDecorator(Placement::Leads))
+            )
+    };
+    let transparent_after = |item: &Item<'_>| {
+        is_blank(item)
+            || matches!(
+                item,
+                Item::Comment(_) | Item::Node(_, BlockRole::BlockDecorator(Placement::Trails))
+            )
+    };
+    let trim_left = trim.head && items[..range.start].iter().all(transparent_before);
+    let trim_right = trim.tail && items[range.end..].iter().all(transparent_after);
+    // A whitespace node before the range is whitespace to the quote-position
+    // test, not a content sibling.
+    let prev_is_content = items[..range.start]
+        .iter()
+        .rev()
+        .find(|item| !matches!(item, Item::Comment(_)))
+        .is_some_and(|item| matches!(item, Item::Node(..)));
+    Edges {
+        drop_leading: trim_left || absorb_left,
+        drop_trailing: trim_right || absorb_right,
+        prev_is_content,
+    }
+}
+
+/// Whether the whitespace node `items[index]` is removed. It is all
+/// whitespace, so it is removed exactly where a run of whitespace-only text in
+/// its place would be: when the whitespace at either edge of its place is
+/// dropped ([`edges_of`]), beside an absorbing node or at a trimmed edge of a
+/// paragraph.
+fn whitespace_removed(items: &[Item<'_>], index: usize, trim: Trim) -> bool {
+    let edges = edges_of(items, index..index + 1, trim);
+    edges.drop_leading || edges.drop_trailing
+}
+
+/// Whether text resolution must leave this text node alone: text read in math
+/// mode, or a child of a group opaque in any mode (a verbatim group, an opaque
+/// wrapper).
+///
+/// The layout step never enters an opaque region (mathematics, verbatim groups
+/// and opaque wrappers are walked raw, math-mode runs and the content of
+/// verbatim and opaque-wrapped arguments and bodies are laid out raw), so a
+/// text item that reaches the inline layout is in text mode and outside every
+/// such group. The test remains for a run a hook assembles itself. It tests
+/// the immediate parent only, which covers the flat content of a verbatim
+/// group (the group's children are the raw text). The checker walks the
+/// ancestors instead, because it checks whole trees, including trees built by
+/// hand.
 fn is_raw_chars(node: &NodeRef<'_, Flm>) -> bool {
     node.parsing_state().mode() != Mode::Text
-        || node.parent().and_then(|parent| parent.group_type()) == Some(FlmGroupType::Verbatim)
+        || node.parent().is_some_and(|parent| is_opaque_group(&parent))
 }
 
 /// The span of a run: the union of its nodes' spans in the source of the first

@@ -13,11 +13,14 @@
 //! space and the ends trimmed. Source comments between those nodes are left
 //! out. `\(\alpha\)-decay` and `\emph{Markov} chain` keep their markup, and
 //! `Markov  chain` written across a line break is the same term as `Markov
-//! chain`. Matching is exact, case included: `Entropy` and `entropy` are two
-//! terms. A term is read in the tree where it occurs, after the same passes
-//! over the document as every other term, so the typographic substitutions of
-//! the block-structure pass (`--` read as a dash) apply alike to a term
-//! definition's term and to a term link's.
+//! chain`. The space literals `~` and `\ ` are markup there too, written out
+//! again as they are written: they are part of the term, so `~x` is not the
+//! term `x`, and a term holding only `~` is not empty. Matching is exact, case
+//! included: `Entropy` and `entropy` are two terms. A term is read in the
+//! tree where it occurs, after the same passes over the document as every
+//! other term, so the typographic substitutions of the block-structure pass
+//! (`--` read as a dash) apply alike to a term definition's term and to a term
+//! link's.
 //!
 //! The source text of each node is read on its own, never as one slice of a
 //! source: the term of a term definition written through a user definition's
@@ -63,6 +66,7 @@ use std::sync::{Arc, LazyLock};
 use techy::core::node::{NodeRef, NodeSlice};
 
 use crate::lang::mint::{ArgDef, ArgStdKind, TackOnField, field_name};
+use crate::lang::text::collapse_whitespace;
 use crate::lang::{Flm, FlmCallableType};
 use crate::model::aspects::{
     AcceptedRefTypes, AnchorPolicy, ApartFromText, BlockRole, BlockRoleAspect, ContentRef,
@@ -204,7 +208,7 @@ fn declared_identity<'t>(nodes: impl IntoIterator<Item = NodeRef<'t, Flm>> + Clo
         .filter(|node| !node.is_comment())
         .map(|node| node.span_content())
         .collect();
-    written.split_whitespace().collect::<Vec<_>>().join(" ")
+    collapse_whitespace(&written)
 }
 
 /// Whether the term definition `node` defines the term that `target`

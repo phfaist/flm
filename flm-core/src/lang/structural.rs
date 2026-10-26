@@ -55,6 +55,12 @@ pub const MATH: &str = "flm.math";
 /// parent of every run of raw text: `flm.verbatim`. See [verbatim
 /// regions](crate::guide::concepts_overview#verbatim-regions).
 pub const VERBATIM: &str = "flm.verbatim";
+/// The name of the element of an opaque wrapper, the group with no delimiters
+/// of its own that holds parsed content kept as written
+/// ([`FlmGroupType::OpaqueWrapper`](crate::lang::FlmGroupType::OpaqueWrapper)):
+/// `flm.opaque-wrapper`. Every backend writes it natively, through its
+/// children.
+pub const OPAQUE_WRAPPER: &str = "flm.opaque-wrapper";
 /// The name of the element of a paragraph: `flm.paragraph`. Paragraphs are
 /// created by the block-structure rewrite pass
 /// ([`crate::lang::rewrites::blocks`]); no delimiter in the source opens one.
@@ -102,13 +108,14 @@ pub const UNKNOWN_ENVIRONMENT: &str = "flm.unknown.environment";
 
 /// Every structural element name, in the fixed order in which the set is
 /// listed. [`StructuralElements::all`] returns the elements in the same order.
-pub const NAMES: [&str; 11] = [
+pub const NAMES: [&str; 12] = [
     TEXT,
     COMMENT,
     CONTAINER,
     GROUP,
     MATH,
     VERBATIM,
+    OPAQUE_WRAPPER,
     PARAGRAPH,
     PARBREAK,
     PLACEHOLDER,
@@ -142,6 +149,9 @@ pub struct StructuralElementSpecs {
     pub math: ElementSpec,
     /// The element of verbatim groups; inline content. See [`VERBATIM`].
     pub verbatim: ElementSpec,
+    /// The element of opaque wrappers; inline content, like a verbatim group.
+    /// See [`OPAQUE_WRAPPER`].
+    pub opaque_wrapper: ElementSpec,
     /// The element of paragraphs; block content. See [`PARAGRAPH`].
     pub paragraph: ElementSpec,
     /// The element of paragraph-break nodes. It has no block role: the node
@@ -169,6 +179,7 @@ impl StructuralElementSpecs {
             GROUP => &mut self.group,
             MATH => &mut self.math,
             VERBATIM => &mut self.verbatim,
+            OPAQUE_WRAPPER => &mut self.opaque_wrapper,
             PARAGRAPH => &mut self.paragraph,
             PARBREAK => &mut self.parbreak,
             PLACEHOLDER => &mut self.placeholder,
@@ -183,10 +194,11 @@ impl Default for StructuralElementSpecs {
     /// Returns the set FLM starts from, with a block role
     /// ([`BlockRoleAspect`]) attached where the node shape has one.
     ///
-    /// Text, comments, groups, mathematics, verbatim groups and a macro no
-    /// feature defines are inline content. A paragraph and an environment no
-    /// feature defines are blocks. The paragraph-break node and the placeholder
-    /// have no block role, and neither does the container: the library asks a
+    /// Text, comments, groups, mathematics, verbatim groups, opaque wrappers
+    /// and a macro no feature defines are inline content. A paragraph and an
+    /// environment no feature defines are blocks. The paragraph-break node and
+    /// the placeholder have no block role, and neither does the container: the
+    /// library asks a
     /// container's children for their roles, not the container, and an element
     /// without the aspect counts as inline content
     /// ([`block_role_of`](crate::model::aspects::block_role_of)).
@@ -207,6 +219,11 @@ impl Default for StructuralElementSpecs {
             math: element(MATH, "a mathematics group").with::<dyn BlockRoleAspect>(inline()),
             verbatim: element(VERBATIM, "a verbatim group, the parent of a run of raw text")
                 .with::<dyn BlockRoleAspect>(inline()),
+            opaque_wrapper: element(
+                OPAQUE_WRAPPER,
+                "a group with no delimiters that holds parsed content kept as written",
+            )
+            .with::<dyn BlockRoleAspect>(inline()),
             paragraph: element(PARAGRAPH, "a paragraph").with::<dyn BlockRoleAspect>(block()),
             parbreak: element(PARBREAK, "a paragraph break (a blank line in the source)"),
             placeholder: element(
@@ -251,6 +268,8 @@ pub struct StructuralElements {
     pub math: Arc<ElementSpec>,
     /// See [`StructuralElementSpecs::verbatim`].
     pub verbatim: Arc<ElementSpec>,
+    /// See [`StructuralElementSpecs::opaque_wrapper`].
+    pub opaque_wrapper: Arc<ElementSpec>,
     /// See [`StructuralElementSpecs::paragraph`].
     pub paragraph: Arc<ElementSpec>,
     /// See [`StructuralElementSpecs::parbreak`].
@@ -274,6 +293,7 @@ impl StructuralElements {
             group: Arc::new(specs.group),
             math: Arc::new(specs.math),
             verbatim: Arc::new(specs.verbatim),
+            opaque_wrapper: Arc::new(specs.opaque_wrapper),
             paragraph: Arc::new(specs.paragraph),
             parbreak: Arc::new(specs.parbreak),
             placeholder: Arc::new(specs.placeholder),
@@ -283,7 +303,7 @@ impl StructuralElements {
     }
 
     /// Returns every structural element, in the same fixed order as [`NAMES`].
-    pub fn all(&self) -> [&Arc<ElementSpec>; 11] {
+    pub fn all(&self) -> [&Arc<ElementSpec>; 12] {
         [
             &self.text,
             &self.comment,
@@ -291,6 +311,7 @@ impl StructuralElements {
             &self.group,
             &self.math,
             &self.verbatim,
+            &self.opaque_wrapper,
             &self.paragraph,
             &self.parbreak,
             &self.placeholder,

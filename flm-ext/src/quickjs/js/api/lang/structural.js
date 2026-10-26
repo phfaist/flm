@@ -25,6 +25,10 @@ export const MATH = "flm.math";
 // Mirrors `VERBATIM`: `flm.verbatim`, the element of a verbatim group.
 export const VERBATIM = "flm.verbatim";
 
+// Mirrors `OPAQUE_WRAPPER`: `flm.opaque-wrapper`, the element of a group with no delimiters that
+// holds content kept as written.
+export const OPAQUE_WRAPPER = "flm.opaque-wrapper";
+
 // Mirrors `PARAGRAPH`: `flm.paragraph`, the element of a paragraph.
 export const PARAGRAPH = "flm.paragraph";
 
@@ -42,4 +46,4 @@ export const UNKNOWN_MACRO = "flm.unknown.macro";
 export const UNKNOWN_ENVIRONMENT = "flm.unknown.environment";
 
 // Mirrors `NAMES`: every structural element name, in the fixed order of the set.
-export const NAMES = Object.freeze(["flm.text", "flm.comment", "flm.container", "flm.group", "flm.math", "flm.verbatim", "flm.paragraph", "flm.parbreak", "flm.placeholder", "flm.unknown.macro", "flm.unknown.environment"]);
+export const NAMES = Object.freeze(["flm.text", "flm.comment", "flm.container", "flm.group", "flm.math", "flm.verbatim", "flm.opaque-wrapper", "flm.paragraph", "flm.parbreak", "flm.placeholder", "flm.unknown.macro", "flm.unknown.environment"]);

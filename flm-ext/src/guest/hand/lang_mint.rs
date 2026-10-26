@@ -1,32 +1,78 @@
 //! The guest's own types of `flm:lang/mint`: [`ArgDef`] (an argument
-//! declared by its code, or a helper's, by its handle), [`SyntaxDef`],
+//! declared by its code or its standard kind, which [`ArgSyntax`] holds, or a
+//! helper's, by its handle), [`SyntaxDef`],
 //! [`ElementDef`] (an element declaration as data, or a helper's, by its
 //! handle), [`FallbackDef`] and [`ScopedPackageDef`].
 
 use std::fmt;
 
+use flm_core::lang::mint::ArgDataFields;
 use serde_json::{json, Map, Value};
 
 use super::{arg, get, not_shape, object, single};
 use crate::adapter::handles::{Handle, HandleKind};
-use crate::adapter::values::{handle_to_value, JsonForm, HANDLE_KEY};
-use crate::api::lang::mint::{ArgLayout, BodyDef, FallbackKind, Mode};
+use crate::adapter::values::{handle_to_value, read, JsonForm, HANDLE_KEY};
+use crate::api::lang::mint::{ArgLayout, ArgStdKind, BodyDef, FallbackKind, Mode};
 use crate::guest::abi;
 use crate::guest::model::element::ElementSpec;
 use crate::runtime::ExtError;
 
+/// What the guest's [`ArgDef::new`] and [`ArgDef::named`] declare an
+/// argument by: an argument code or a standard kind, the twins of the code
+/// and of the structured syntax that the JavaScript `new ArgDef(syntax)`
+/// takes. A `&str` or a `String` converts into a code and an [`ArgStdKind`]
+/// into a kind, so that the guest takes both `ArgDef::named("size", "r()")`
+/// and the api's `ArgDef::named("key", ArgStdKind::CharsGroup)`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArgSyntax {
+    /// An argument code (`{` a mandatory argument, `[` an optional one,
+    /// `r()` a group between parentheses, …), with which the argument is
+    /// written.
+    Code(String),
+    /// A standard kind, with whose structured syntax the argument is written
+    /// (`{"syntax": "chars-group"}`). A tack-on kind does not cross: its
+    /// fields are declarations with elements of their own, and the host
+    /// refuses it.
+    Kind(ArgStdKind),
+}
+
+impl From<&str> for ArgSyntax {
+    fn from(code: &str) -> ArgSyntax {
+        ArgSyntax::Code(code.to_string())
+    }
+}
+
+impl From<String> for ArgSyntax {
+    fn from(code: String) -> ArgSyntax {
+        ArgSyntax::Code(code)
+    }
+}
+
+impl From<ArgStdKind> for ArgSyntax {
+    fn from(kind: ArgStdKind) -> ArgSyntax {
+        ArgSyntax::Kind(kind)
+    }
+}
+
 /// How an argument crosses.
 #[derive(Debug, Clone, PartialEq)]
 enum ArgForm {
-    /// Declared by its code, with what an argument declares.
+    /// Declared by its code or its structured syntax, with what an argument
+    /// declares. The host writes an argument with neither when it is a
+    /// tack-on argument or its parser is a feature's own; such an argument
+    /// does not read back.
     Declared {
-        /// The argument's code (`{`, `[`, …); `None` for an argument the
-        /// host built from a parser, which does not read back.
+        /// The argument's code (`{`, `[`, …), when it is declared by one.
         code: Option<String>,
+        /// The argument's structured syntax, its standard kind written as
+        /// data, when it is declared by one.
+        syntax: Option<ArgStdKind>,
         /// Its name.
         name: Option<String>,
         /// Its layout.
         layout: ArgLayout,
+        /// Whether its content is placed under an opaque wrapper.
+        opaque_wrapper: bool,
         /// Its documentation.
         docs: String,
         /// Its mode, when it is not that of its surroundings.
@@ -48,11 +94,13 @@ enum ArgForm {
 }
 
 /// Mirrors `flm-core`'s `ArgDef`: an argument of a declaration. The guest's
-/// own: an argument is declared by its code, or is one a helper of the host
-/// made (`refs::label_fields_arg`), which crosses as its handle. The host
-/// has no method that changes a helper's argument: a setter called on one
-/// keeps its field beside the handle, and the argument is written with that
-/// field next to the handle, a form the host's reader refuses.
+/// own: an argument is declared by its code or by its standard kind
+/// ([`ArgSyntax`]), which crosses as its structured syntax (`{"syntax":
+/// "chars-group", …}`), or is one a helper of the host made
+/// (`refs::label_fields_arg`), which crosses as its handle. The host has no
+/// method that changes a helper's argument: a setter called on one keeps its
+/// field beside the handle, and the argument is written with that field next
+/// to the handle, a form the host's reader refuses.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ArgDef {
     /// How it crosses.
@@ -60,14 +108,21 @@ pub struct ArgDef {
 }
 
 impl ArgDef {
-    /// Mirrors `ArgDef::new`: the argument of the code `code` (`{` a
-    /// mandatory argument, `[` an optional one, …).
-    pub fn new(code: impl Into<String>) -> ArgDef {
+    /// Mirrors `ArgDef::new`: the argument declared by `syntax`, an argument
+    /// code (`ArgDef::new("[")`) or a standard kind
+    /// (`ArgDef::new(ArgStdKind::Star)`); see [`ArgSyntax`].
+    pub fn new(syntax: impl Into<ArgSyntax>) -> ArgDef {
+        let (code, syntax) = match syntax.into() {
+            ArgSyntax::Code(code) => (Some(code), None),
+            ArgSyntax::Kind(kind) => (None, Some(kind)),
+        };
         ArgDef {
             form: ArgForm::Declared {
-                code: Some(code.into()),
+                code,
+                syntax,
                 name: None,
                 layout: ArgLayout::default(),
+                opaque_wrapper: false,
                 docs: String::new(),
                 mode: None,
                 scoped: Vec::new(),
@@ -76,9 +131,10 @@ impl ArgDef {
         }
     }
 
-    /// Mirrors `ArgDef::named`: the argument of the code `code`, named `name`.
-    pub fn named(name: impl Into<String>, code: impl Into<String>) -> ArgDef {
-        let mut arg = ArgDef::new(code);
+    /// Mirrors `ArgDef::named`: the argument declared by `syntax`, an
+    /// argument code or a standard kind ([`ArgSyntax`]), named `name`.
+    pub fn named(name: impl Into<String>, syntax: impl Into<ArgSyntax>) -> ArgDef {
+        let mut arg = ArgDef::new(syntax);
         if let ArgForm::Declared { name: slot, .. } = &mut arg.form {
             *slot = Some(name.into());
         }
@@ -122,6 +178,18 @@ impl ArgDef {
         self.layout(ArgLayout::Blocks)
     }
 
+    /// Mirrors `ArgDef::with_opaque_wrapper`: the argument's content placed
+    /// under an opaque wrapper, which keeps its text as typed.
+    pub fn with_opaque_wrapper(mut self) -> ArgDef {
+        match &mut self.form {
+            ArgForm::Declared { opaque_wrapper, .. } => *opaque_wrapper = true,
+            ArgForm::Lent { changes, .. } => {
+                changes.insert("opaque_wrapper".to_string(), Value::Bool(true));
+            }
+        }
+        self
+    }
+
     /// Mirrors `ArgDef::scoped`: the commands of the scoped package `package`
     /// are legal in the argument.
     pub fn scoped(mut self, package: impl Into<String>) -> ArgDef {
@@ -162,7 +230,7 @@ impl ArgDef {
     }
 
     /// Mirrors `ArgDef::code`: the code the argument was declared by; `None`
-    /// for a helper's argument or one the host built from a parser.
+    /// for a helper's argument and one declared otherwise.
     pub fn code(&self) -> Option<&str> {
         match &self.form {
             ArgForm::Declared { code, .. } => code.as_deref(),
@@ -171,23 +239,36 @@ impl ArgDef {
     }
 }
 
-/// `{"code", "name", "layout", "docs", "mode", "scoped", "role"}`, or a helper's
-/// handle (of the kind `arg_def`); the host's `arg_def_to_value` and
+/// `{"code", "name", "layout", "opaque_wrapper", "docs", "mode", "scoped",
+/// "role"}`, with the keys of the structured syntax (`"syntax"` and its
+/// parameters) in place of `"code"` for an argument declared by one and
+/// neither for an argument the host wrote with neither, or a helper's handle
+/// (of the kind `arg_def`); the host's `arg_def_to_value` and
 /// `arg_defs_from_value`. A helper's argument given fields by its setters is
 /// its handle's map holding those fields too, which the host's reader
 /// refuses and the guest reads back as itself.
 impl JsonForm for ArgDef {
     fn to_value(&self) -> Value {
         match &self.form {
-            ArgForm::Declared { code, name, layout, docs, mode, scoped, role } => json!({
-                "code": code,
-                "name": name,
-                "layout": layout.to_value(),
-                "docs": docs,
-                "mode": mode.as_ref().map_or(Value::Null, JsonForm::to_value),
-                "scoped": scoped,
-                "role": role,
-            }),
+            ArgForm::Declared { code, syntax, name, layout, opaque_wrapper, docs, mode, scoped, role } => {
+                let mut map = Map::new();
+                if let Some(code) = code {
+                    map.insert("code".to_string(), Value::String(code.clone()));
+                }
+                if let Some(Value::Object(keys)) = syntax.as_ref().map(JsonForm::to_value) {
+                    map.extend(keys);
+                }
+                map.extend([
+                    ("name".to_string(), json!(name)),
+                    ("layout".to_string(), layout.to_value()),
+                    ("opaque_wrapper".to_string(), Value::Bool(*opaque_wrapper)),
+                    ("docs".to_string(), Value::String(docs.clone())),
+                    ("mode".to_string(), mode.as_ref().map_or(Value::Null, JsonForm::to_value)),
+                    ("scoped".to_string(), json!(scoped)),
+                    ("role".to_string(), json!(role)),
+                ]);
+                Value::Object(map)
+            }
             ArgForm::Lent { handle, changes } => {
                 let mut value = handle_to_value(*handle);
                 if let Value::Object(map) = &mut value {
@@ -207,15 +288,20 @@ impl JsonForm for ArgDef {
             let handle = abi::handle_of(&json!({ HANDLE_KEY: lent }), HandleKind::ArgDef)?;
             return Ok(ArgDef { form: ArgForm::Lent { handle, changes } });
         }
+        // Read as the host reads an argument's map, which tells the keys of
+        // the structured syntax from the argument's own.
+        let fields: ArgDataFields = read(WHAT, value)?;
         Ok(ArgDef {
             form: ArgForm::Declared {
-                code: get(WHAT, map, "code")?,
-                name: get(WHAT, map, "name")?,
-                layout: get::<Option<ArgLayout>>(WHAT, map, "layout")?.unwrap_or_default(),
-                docs: get::<Option<String>>(WHAT, map, "docs")?.unwrap_or_default(),
-                mode: get(WHAT, map, "mode")?,
-                scoped: get::<Option<Vec<String>>>(WHAT, map, "scoped")?.unwrap_or_default(),
-                role: get(WHAT, map, "role")?,
+                code: fields.code,
+                syntax: fields.syntax,
+                name: fields.name,
+                layout: fields.layout,
+                opaque_wrapper: fields.opaque_wrapper,
+                docs: fields.docs,
+                mode: fields.mode,
+                scoped: fields.scoped.iter().map(ToString::to_string).collect(),
+                role: fields.role.as_ref().map(ToString::to_string),
             },
         })
     }

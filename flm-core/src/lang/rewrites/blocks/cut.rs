@@ -15,7 +15,8 @@
 //! region](crate::guide::concepts_overview#opaque-regions) is copied unchanged,
 //! with the exception the layout step also makes: an argument or a body that a
 //! construct of mathematics reads in text mode is document content and is
-//! walked.
+//! walked. The exception does not reach inside a verbatim group or an opaque
+//! wrapper, whose content is copied unchanged whatever its parsing mode.
 //!
 //! The step does not look at region layouts: it cuts in a content region laid
 //! out inline as in one laid out as blocks. The layout step decides, and
@@ -50,10 +51,13 @@ use techy::transform::{Restage, RestageVisitor, RestagedArgument, RestagedSlot};
 use super::error::StructureError;
 use super::hook::{StructureCx, SynthesizedNode};
 use super::pass::{copy_leaf, copy_over, mint};
-use super::predicates::{Region, is_content, is_math_run, is_parbreak, slot_layout};
+use super::predicates::{
+    Opacity, argument_opacity, group_opacity, is_content, is_math_run, is_opaque_group,
+    is_parbreak, run_opacity, slot_opacity,
+};
 use super::transparent::{BlockCutter, BlockTransparent, CutItem, CutPart, Cutting};
 use crate::lang::ext::{FlmNodeExt, PresPayload};
-use crate::lang::flm::{Flm, FlmGroupType};
+use crate::lang::flm::Flm;
 use crate::lang::guard::{self, GuardPolicy};
 use crate::lang::mint::reads_text_in_math;
 use crate::lang::origin::{FlmDiagnostic, FlmDiagnostics};
@@ -69,7 +73,7 @@ pub(super) fn cut(
 ) -> Result<NodeTree<Flm>, StructureError> {
     let mut walk = Cut {
         diags,
-        raw: false,
+        raw: None,
         at_root: true,
         cuts: 0,
         answered: None,
@@ -81,8 +85,8 @@ pub(super) fn cut(
 /// receive.
 struct Cut<'a> {
     diags: &'a mut FlmDiagnostics,
-    /// Whether the run being walked is an opaque region.
-    raw: bool,
+    /// Whether the run being walked is an opaque region, and of which kind.
+    raw: Option<Opacity>,
     /// Whether the next visited node is the tree's root (the driver's first
     /// call).
     at_root: bool,
@@ -120,11 +124,18 @@ impl Cut<'_> {
             self.at_root = false;
             return Ok((Restage::Emit(self.root(cx, node)?), None));
         }
-        if self.raw {
-            if reads_text_in_math(&node) {
-                return Ok((Restage::Emit(vec![self.callable(cx, node)?]), None));
+        match self.raw {
+            Some(Opacity::AnyMode) => return Ok((Restage::Descend(()), None)),
+            Some(Opacity::Math) => {
+                if is_opaque_group(&node) {
+                    return Ok((Restage::Emit(vec![self.group(cx, node)?]), None));
+                }
+                if reads_text_in_math(&node) {
+                    return Ok((Restage::Emit(vec![self.callable(cx, node)?]), None));
+                }
+                return Ok((Restage::Descend(()), None));
             }
-            return Ok((Restage::Descend(()), None));
+            None => {}
         }
         if let Some(aspect) = element_of(&node).aspect::<dyn BlockTransparent>() {
             if let Cutting::Emit(items) = aspect.cut(node, cx, self)? {
@@ -145,10 +156,10 @@ impl Cut<'_> {
     ) -> Result<Vec<BuildId>, StructureError> {
         if node.is_list() {
             let run: Vec<NodeRef<'_, Flm>> = node.children().iter().collect();
-            let out = self.run(cx, &run, false)?;
+            let out = self.run(cx, &run, None)?;
             return Ok(vec![copy_over(cx, &node, out)?]);
         }
-        let out = self.run(cx, &[node], false)?;
+        let out = self.run(cx, &[node], None)?;
         if out.len() == 1 {
             return Ok(out);
         }
@@ -158,16 +169,17 @@ impl Cut<'_> {
     }
 
     /// Walks a run of sibling nodes and returns their replacements,
-    /// concatenated. `raw` says the run is an opaque region; a run parsed in
-    /// mathematics mode is one regardless of `raw`.
+    /// concatenated. `raw` says the run is an opaque region, and of which
+    /// kind; a run parsed in mathematics mode is one of the kind
+    /// [`Opacity::Math`] when `raw` is `None`.
     fn run(
         &mut self,
         cx: &mut StructureCx<'_>,
         run: &[NodeRef<'_, Flm>],
-        raw: bool,
+        raw: Option<Opacity>,
     ) -> Result<Vec<BuildId>, StructureError> {
         let saved = self.raw;
-        self.raw = raw || is_math_run(run);
+        self.raw = raw.or_else(|| is_math_run(run).then_some(Opacity::Math));
         let mut out = Vec::new();
         let mut result = Ok(());
         for node in run {
@@ -192,22 +204,28 @@ impl Cut<'_> {
     ) -> Result<Vec<BuildId>, StructureError> {
         match node.kind() {
             NodeKind::Chars { .. } | NodeKind::Comment(_) => Ok(vec![copy_leaf(cx, &node)?]),
-            NodeKind::Group(_) => {
-                let raw = matches!(
-                    node.group_type(),
-                    Some(FlmGroupType::Math(_)) | Some(FlmGroupType::Verbatim)
-                );
-                let run: Vec<NodeRef<'_, Flm>> = node.children().iter().collect();
-                let children = self.run(cx, &run, raw)?;
-                Ok(vec![copy_over(cx, &node, children)?])
-            }
+            NodeKind::Group(_) => Ok(vec![self.group(cx, node)?]),
             NodeKind::List => {
                 let run: Vec<NodeRef<'_, Flm>> = node.children().iter().collect();
-                let children = self.run(cx, &run, false)?;
+                let children = self.run(cx, &run, None)?;
                 Ok(vec![copy_over(cx, &node, children)?])
             }
             NodeKind::Callable(_) => Ok(vec![self.callable(cx, node)?]),
         }
+    }
+
+    /// A group, copied over its walked children: the content of a verbatim
+    /// group or of an opaque wrapper is an opaque region of the kind
+    /// [`Opacity::AnyMode`], the content of a mathematics group one of the
+    /// kind [`Opacity::Math`] ([`group_opacity`]).
+    fn group(
+        &mut self,
+        cx: &mut StructureCx<'_>,
+        node: NodeRef<'_, Flm>,
+    ) -> Result<BuildId, StructureError> {
+        let run: Vec<NodeRef<'_, Flm>> = node.children().iter().collect();
+        let children = self.run(cx, &run, group_opacity(&node))?;
+        copy_over(cx, &node, children)
     }
 
     /// A callable that is not cut: every part walked, the node rebuilt with
@@ -226,8 +244,8 @@ impl Cut<'_> {
         Ok(cx.restage_invocation(node, arguments, slots, ())?)
     }
 
-    /// The argument at `index` with its content walked; an argument that was
-    /// not written stays unwritten.
+    /// The argument at `index` with its content walked (an opaque argument
+    /// copied unchanged); an argument that was not written stays unwritten.
     fn argument(
         &mut self,
         cx: &mut StructureCx<'_>,
@@ -247,7 +265,8 @@ impl Cut<'_> {
             .argument_content_nodes(index)
             .map(|slice| slice.iter().collect())
             .unwrap_or_default();
-        let ids = self.run(cx, &content, false)?;
+        let raw = argument_opacity(&node, index, &content);
+        let ids = self.run(cx, &content, raw)?;
         Ok(cx.restage_argument_with_content(node, index, ids, ())?)
     }
 
@@ -262,7 +281,6 @@ impl Cut<'_> {
         mut body: Option<Vec<BuildId>>,
     ) -> Result<Vec<RestagedSlot<Flm>>, StructureError> {
         let count = node.slots().map_or(0, |slots| slots.len());
-        let raw = slot_layout(&node) == Region::Raw;
         let mut out = Vec::with_capacity(count);
         for index in 0..count {
             let is_body = node
@@ -279,7 +297,7 @@ impl Cut<'_> {
                 .slot_content_nodes(index)
                 .map(|slice| slice.iter().collect())
                 .unwrap_or_default();
-            let ids = self.run(cx, &content, raw)?;
+            let ids = self.run(cx, &content, slot_opacity(&node, index))?;
             out.push(cx.restage_slot_with_content(node, index, ids, ())?);
         }
         Ok(out)
@@ -294,10 +312,10 @@ impl BlockCutter for Cut<'_> {
         cx: &mut StructureCx<'_>,
         run: &[NodeRef<'_, Flm>],
     ) -> Result<Vec<CutItem>, StructureError> {
-        let raw = is_math_run(run);
+        let raw = run_opacity(run);
         let mut items = Vec::with_capacity(run.len());
         for node in run {
-            if !raw && is_parbreak(node) {
+            if raw.is_none() && is_parbreak(node) {
                 items.push(CutItem::Marker(copy_leaf(cx, node)?));
                 continue;
             }
@@ -306,7 +324,7 @@ impl BlockCutter for Cut<'_> {
                 items.extend(passed);
                 continue;
             }
-            let class: fn(BuildId) -> CutItem = if !raw && block_role_of(node) == BlockRole::Block {
+            let class: fn(BuildId) -> CutItem = if raw.is_none() && block_role_of(node) == BlockRole::Block {
                 CutItem::Block
             } else if is_content(node) {
                 CutItem::Inline

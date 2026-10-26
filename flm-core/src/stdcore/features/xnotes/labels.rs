@@ -2,8 +2,9 @@
 //! that label the xnote and nothing else: [`labels_of`] reads it, and
 //! [`Rejected`] records what it refuses.
 
-use techy::core::node::{NodeKind, NodeRef};
+use techy::core::node::NodeRef;
 
+use crate::lang::text::{is_blank, is_space};
 use crate::lang::{Flm, FlmSpan, structural};
 use crate::stdcore::features::refs::{self, LabelUse};
 
@@ -52,27 +53,24 @@ pub fn labels_of(node: &NodeRef<'_, Flm>) -> (Vec<LabelUse>, Vec<Rejected>) {
     let uses = refs::label_uses_in(run.iter());
     let rejected = run
         .iter()
-        .filter(|node| refs::label_use(node).is_none() && !is_blank(node))
+        .filter(|node| refs::label_use(node).is_none() && !is_layout(node))
         .map(|node| Rejected { found: quoted(node.span_content()), span: node.span().clone() })
         .collect();
     (uses, rejected)
 }
 
-/// Whether `node` is nothing but layout: whitespace, a comment, or the blank
-/// line that the block-structure pass reports in an inline argument.
-fn is_blank(node: &NodeRef<'_, Flm>) -> bool {
-    if node.ext().element.name.as_str() == structural::PARBREAK {
-        return true;
-    }
-    match node.kind() {
-        NodeKind::Comment(_) => true,
-        _ => node.chars().is_some_and(|text| text.trim().is_empty()),
-    }
+/// Whether `node` is nothing but layout: whitespace ([`is_blank`]: text made
+/// of whitespace alone, or a node that is whitespace, such as `~` and `\ `), a
+/// comment, or the blank line that the block-structure pass reports in an
+/// inline argument.
+fn is_layout(node: &NodeRef<'_, Flm>) -> bool {
+    node.is_comment() || is_blank(node) || node.ext().element.name.as_str() == structural::PARBREAK
 }
 
-/// `text` trimmed, cut after [`QUOTED_CHARS`] characters with `…`.
+/// `text` without the whitespace ([`is_space`]) at either end, cut after
+/// [`QUOTED_CHARS`] characters with `…`.
 fn quoted(text: &str) -> String {
-    let text = text.trim();
+    let text = text.trim_matches(is_space);
     match text.char_indices().nth(QUOTED_CHARS) {
         Some((at, _)) => format!("{}\u{2026}", &text[..at]),
         None => text.to_string(),

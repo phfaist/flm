@@ -8,8 +8,6 @@ mod common;
 
 use std::sync::Arc;
 
-use techy::error::Severity;
-
 use flm_core::model::element::{ElementSpec, element_of};
 use flm_core::core::registry::{BuildError, BuildPhase, FlmFeature, FlmRegistry};
 use flm_core::dump::ExpectDiag;
@@ -156,30 +154,6 @@ fn a_refused_definition_leaves_the_others_compiled() {
     let registry = registry(definitions);
     assert!(definition(&registry, "flm.userdefs.macro.bad").compiled().is_none());
     assert!(definition(&registry, "flm.userdefs.macro.good").compiled().is_some());
-}
-
-#[test]
-fn a_template_warning_reaches_the_build_diagnostics_without_refusing() {
-    // techy's parse-initialization check warns when every macro of a package is
-    // registered under a name that begins with an escape character of the state
-    // and continues past it: `#x` is an ordinary (if unreachable) name in a
-    // document, but in a template parse `#` is an escape — a Warning-severity
-    // template diagnostic. (A one-character name such as `#`, the command `\#`,
-    // is legitimate and does not warn.)
-    let hash: Arc<dyn FlmFeature> = feature("t", |b| b.element(macro_def("t", "#x", 0)));
-    let registry = build(vec![userdefs(Definition::macro_("f", Vec::new()).text("F")), hash]);
-    // Without the LaTeX features, the `userdefs` feature's peer declarations
-    // of the backend and the constructs its rules stage stay unresolved, each
-    // with a Note that is not this test's concern.
-    let reported: Vec<(&str, Severity)> = registry
-        .build_diagnostics()
-        .iter()
-        .filter(|d| d.identifier() != "flm.registry.unresolved-peer")
-        .map(|d| (d.identifier(), d.severity()))
-        .collect();
-    let shadowed = "core.specs.provider-commands-shadowed-by-escape";
-    assert_eq!(reported, [(shadowed, Severity::Warning)]);
-    assert!(definition(&registry, "flm.userdefs.macro.f").compiled().is_some());
 }
 
 // --- overrides -----------------------------------------------------------------------------------

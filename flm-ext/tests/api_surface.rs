@@ -181,7 +181,7 @@ fn the_surface_has_the_pinned_counts() {
     assert_eq!(count(ItemClass::SealedTrait), 30, "the sealed façade traits");
     assert_eq!(count(ItemClass::ExtensionTrait), 10, "the extension-side traits");
     assert_eq!(count(ItemClass::OpaqueType), 9, "the opaque value types");
-    assert_eq!(count(ItemClass::Constant), 112, "the constants");
+    assert_eq!(count(ItemClass::Constant), 113, "the constants");
     let dispatched: Vec<&str> = inventory.modules.iter().filter(|module| has_module_arms(module)).map(|module| module.path.as_str()).collect();
     assert_eq!(
         dispatched,
@@ -417,7 +417,8 @@ fn snake_case(name: &str) -> String {
 /// Every entry of `NOT_DISPATCHED`, `CALL_OVERRIDES`, `OPTIONAL_IN_SCRIPTS`,
 /// `EXTRA_METHODS`, `HAND_ARMS`, `HAND_WRITTEN` and `STATIC_OBJECTS` names an
 /// item that exists; every entry of `GUEST_OWN` is a type row, every entry
-/// of `GUEST_HAND` a row of `HAND_WRITTEN`, and every entry of
+/// of `GUEST_HAND` a row of `HAND_WRITTEN`, every entry of `GUEST_ADDED` a
+/// module that holds no item of its name, and every entry of
 /// `EXTRA_METHODS` has its Rust signature.
 fn check_lists(inventory: &Inventory, failures: &mut Vec<String>) {
     let method_of = |owner: &str, method: &str| -> bool {
@@ -497,6 +498,11 @@ fn check_lists(inventory: &Inventory, failures: &mut Vec<String>) {
     for hand in mapping::GUEST_HAND {
         if !mapping::HAND_WRITTEN.iter().any(|entry| entry.item == *hand) {
             failures.push(format!("the entry `{hand}` of `GUEST_HAND` must name an item of `HAND_WRITTEN`"));
+        }
+    }
+    for (path, name) in mapping::GUEST_ADDED {
+        if !inventory.module(path).is_some_and(|module| module.items.iter().all(|item| item.name != *name)) {
+            failures.push(format!("the entry `{path}::{name}` of `GUEST_ADDED` must name a module that holds no item `{name}`"));
         }
     }
     for entry in mapping::HAND_WRITTEN {
@@ -599,7 +605,7 @@ fn the_constants_are_read_from_the_compiled_table() {
         inventory.of_class(ItemClass::Constant).map(|(module, item)| (module.path.clone(), item.name.clone())).collect();
     let table: Vec<(&str, &str, Value)> = names.iter().map(|(module, name)| (module.as_str(), name.as_str(), json!(name))).collect();
     let values = constant_values(&inventory, &table, false).expect("every constant");
-    assert_eq!(values.len(), 112);
+    assert_eq!(values.len(), 113);
     assert_eq!(values[0].2, json!(values[0].1));
     let missing = table.iter().filter(|(_, name, _)| *name != "TAG").cloned().collect::<Vec<_>>();
     assert_eq!(

@@ -140,6 +140,7 @@ use crate::core::lowering::{
 use crate::model::names::{ElementName, FeatureName, Name};
 use crate::core::registry::{BuildError, FeatureBuilder, FeatureInfo, FlmFeature};
 use crate::lang::mint::{ArgDef, ArgStdKind, BodyDef, ElementDef, SyntaxDef};
+use crate::lang::text::is_space;
 use crate::lang::{Flm, FlmGroupType};
 use crate::stdcore::backends::lowering::{copy_subtree_verbatim, stage_verbatim_content};
 use crate::stdcore::backends::pres::{
@@ -280,7 +281,7 @@ fn language_argument() -> ArgDef {
 /// argument is absent, or when its text is blank.
 pub(super) fn language_of(node: &NodeRef<'_, Flm>) -> Option<String> {
     let content = node.argument_content_nodes_named(LANG_ARG).ok()??;
-    let text = plain_text(content.iter()).trim().to_string();
+    let text = plain_text(content.iter()).trim_matches(is_space).to_string();
     (!text.is_empty()).then_some(text)
 }
 

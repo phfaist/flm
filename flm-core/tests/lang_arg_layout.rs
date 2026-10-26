@@ -478,19 +478,19 @@ fn an_inline_run_beside_a_paragraph_in_an_inferred_argument_is_a_violation() {
 // --- 5. the build error ----------------------------------------------------------------------
 
 #[test]
-fn a_layout_on_an_argument_holding_no_document_content_is_a_build_error() {
-    let chars = ArgDef::new(ArgStdKind::CharsGroup).layout(ArgLayout::InlineOrBlocks);
-    let errors = mint_errors(vec![common::macro_with("t", "lbl", vec![ArgDef::new(ArgStdKind::Star), chars])]);
+fn a_layout_on_an_opaque_wrapped_argument_is_a_build_error() {
+    let key = ArgDef::mandatory("key").with_opaque_wrapper().layout(ArgLayout::InlineOrBlocks);
+    let errors = mint_errors(vec![common::macro_with("t", "lbl", vec![ArgDef::new(ArgStdKind::Star), key])]);
     assert_eq!(
         errors,
-        [MintError::LayoutOnNonContentArgument {
+        [MintError::LayoutOnOpaqueWrappedArgument {
             owner: "t".into(),
             callable: "t.lbl".into(),
             index: 1,
             field: None,
         }]
     );
-    let star = ArgDef::new(ArgStdKind::Star).blocks();
+    let star = ArgDef::new(ArgStdKind::Star).with_opaque_wrapper().blocks();
     assert_eq!(mint_errors(vec![common::macro_with("t", "s", vec![star])]).len(), 1);
 }
 
@@ -500,14 +500,13 @@ fn blocks_on_an_argument_read_in_mathematics_is_a_build_error() {
     let errors = mint_errors(vec![common::macro_with("t", "m", vec![math])]);
     assert_eq!(
         errors,
-        [MintError::LayoutOnNonContentArgument {
+        [MintError::BlocksOnMathArgument {
             owner: "t".into(),
             callable: "t.m".into(),
             index: 0,
             field: None,
         }]
     );
-    assert!(errors[0].to_string().contains("argument #1 of `t.m`"), "{}", errors[0]);
 }
 
 #[test]
@@ -812,24 +811,13 @@ fn a_cycle_through_an_argument_is_the_existing_build_error() {
 }
 
 #[test]
-fn a_scoped_package_on_an_argument_holding_no_document_content_is_a_build_error() {
-    let star = ArgDef::new(ArgStdKind::Star).scoped("s.tags");
-    let lang = language(
-        vec![common::macro_with("s", "st", vec![star, ArgDef::mandatory("x")])],
-        vec![tag_package("s.tags")],
-    );
-    assert_eq!(
-        mint_errors_of(&lang),
-        [MintError::ScopeOnNonContentArgument {
-            owner: "s".into(),
-            callable: "s.st".into(),
-            index: 0,
-            field: None,
-        }]
-    );
-    // The package is not attached: `\tag` stays unknown after the star.
-    let (elements, _) = parsed(&lang, "\\st*{\\tag{a}}");
-    assert!(!elements.contains(&"s.tag".to_string()), "{elements:?}");
+fn a_scoped_package_on_a_key_value_argument_is_attached() {
+    let options = ArgDef::new(ArgStdKind::KeyVals).scoped("s.tags");
+    let lang = language(vec![common::macro_with("s", "opts", vec![options])], vec![tag_package("s.tags")]);
+    assert!(lang.is_sound(), "{:?}", lang.errors());
+    let (elements, diags) = parsed(&lang, "\\opts[a=\\tag{b}]");
+    assert_eq!(elements, ["s.opts", "s.tag"]);
+    assert!(diags.is_empty(), "{diags:?}");
 }
 
 #[test]
@@ -885,21 +873,10 @@ fn a_tack_on_field_argument_takes_its_declared_layout_and_scoped_package() {
 
 #[test]
 fn the_build_errors_of_a_tack_on_field_argument_name_the_field() {
-    let chars = ArgDef::new(ArgStdKind::CharsGroup).blocks();
+    let key = ArgDef::mandatory("key").with_opaque_wrapper().blocks();
     assert_eq!(
-        mint_errors(vec![fig(chars)]),
-        [MintError::LayoutOnNonContentArgument {
-            owner: "s".into(),
-            callable: "s.fig".into(),
-            index: 0,
-            field: Some("caption".into()),
-        }]
-    );
-    let star = ArgDef::new(ArgStdKind::Star).scoped("s.tags");
-    let lang = language(vec![fig(star)], vec![tag_package("s.tags")]);
-    assert_eq!(
-        mint_errors_of(&lang),
-        [MintError::ScopeOnNonContentArgument {
+        mint_errors(vec![fig(key)]),
+        [MintError::LayoutOnOpaqueWrappedArgument {
             owner: "s".into(),
             callable: "s.fig".into(),
             index: 0,

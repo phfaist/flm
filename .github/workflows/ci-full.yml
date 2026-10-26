@@ -1,0 +1,154 @@
+# Every check of `scripts/check.sh`, run by hand (the tab Actions, the workflow
+# `CI (full)`, the button "Run workflow"), with a choice of the parts to run and of the
+# platforms for the tests. The tests run on Linux, and on macOS and Windows when selected;
+# the other parts run on Linux, one after the other in one job, each after installing
+# what it needs (the Rust toolchains, the WebAssembly target, TeX Live, Node and the npm
+# workspace). The script runs with `--strict`: a test skipped for a missing program fails.
+
+name: CI (full)
+
+on:
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Tests (scripts/check.sh test)"
+        type: boolean
+        default: true
+      macos:
+        description: "... the tests also on macOS (runner minutes cost 10 times those of Linux)"
+        type: boolean
+        default: true
+      windows:
+        description: "... the tests also on Windows (runner minutes cost 2 times those of Linux)"
+        type: boolean
+        default: true
+      clippy:
+        description: "Clippy"
+        type: boolean
+        default: true
+      docs:
+        description: "API documentation"
+        type: boolean
+        default: true
+      msrv:
+        description: "Minimum supported Rust versions"
+        type: boolean
+        default: true
+      features:
+        description: "Builds and tests with default features turned off"
+        type: boolean
+        default: true
+      wasm:
+        description: "WebAssembly builds and tests"
+        type: boolean
+        default: true
+      latex:
+        description: "LaTeX compilation tests (installs TeX Live)"
+        type: boolean
+        default: true
+      browser:
+        description: "Browser tests of the live preview's page (Chrome)"
+        type: boolean
+        default: true
+      npm:
+        description: "Tests that run the npm workspace's tools"
+        type: boolean
+        default: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # No debug information: smaller build folders and caches, faster links.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tests:
+    name: tests (${{ matrix.os }})
+    if: ${{ inputs.test }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(format('["ubuntu-latest"{0}{1}]', inputs.macos && ', "macos-latest"' || '', inputs.windows && ', "windows-latest"' || '')) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - name: Keep line endings as they are (the goldens are compared byte for byte)
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Tests
+        run: scripts/check.sh --locked --strict test
+
+  linux:
+    name: other checks (Linux)
+    if: ${{ inputs.clippy || inputs.docs || inputs.msrv || inputs.features || inputs.wasm || inputs.latex || inputs.browser || inputs.npm }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: wasm32-unknown-unknown
+      - name: Install the toolchains 1.86 and 1.88
+        if: ${{ inputs.msrv }}
+        run: rustup toolchain install 1.86 1.88 --profile minimal
+      - uses: actions/setup-node@v4
+        if: ${{ inputs.browser || inputs.npm }}
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: npm/package-lock.json
+      # MathJax's own files for the browser tests; the TypeScript compiler and esbuild for
+      # the tests of the part `npm`.
+      - name: Install the npm workspace
+        if: ${{ inputs.browser || inputs.npm }}
+        working-directory: npm
+        run: npm ci
+      # The LaTeX programs and the packages that the generated documents load.
+      - uses: teatimeguest/setup-texlive-action@v3
+        if: ${{ inputs.latex }}
+        with:
+          packages: |
+            scheme-basic
+            collection-latexrecommended
+            collection-latexextra
+            collection-luatex
+            collection-fontsrecommended
+            collection-mathscience
+            latexmk
+            dsfont
+            sourceserifpro
+            sourcesanspro
+            sourcecodepro
+      - uses: Swatinem/rust-cache@v2
+      # Each part runs even when an earlier one failed.
+      - name: Clippy
+        if: ${{ !cancelled() && inputs.clippy }}
+        run: scripts/check.sh --locked --strict clippy
+      - name: API documentation
+        if: ${{ !cancelled() && inputs.docs }}
+        run: scripts/check.sh --locked --strict docs
+      - name: Minimum supported Rust versions
+        if: ${{ !cancelled() && inputs.msrv }}
+        run: scripts/check.sh --locked --strict msrv
+      - name: Builds and tests with default features turned off
+        if: ${{ !cancelled() && inputs.features }}
+        run: scripts/check.sh --locked --strict features
+      - name: WebAssembly
+        if: ${{ !cancelled() && inputs.wasm }}
+        run: scripts/check.sh --locked --strict wasm
+      - name: LaTeX compilation
+        if: ${{ !cancelled() && inputs.latex }}
+        run: scripts/check.sh --locked --strict latex
+      - name: Browser
+        if: ${{ !cancelled() && inputs.browser }}
+        run: scripts/check.sh --locked --strict browser
+      - name: npm workspace
+        if: ${{ !cancelled() && inputs.npm }}
+        run: scripts/check.sh --locked --strict npm

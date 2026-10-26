@@ -1,7 +1,7 @@
 //! Reading the characters of content: the plain text of a run of nodes or of a
-//! synthesized value ([`plain_text_of`], [`plain_text`]), and the characters of
-//! an argument that holds only characters, read by segments ([`read_chars`],
-//! [`chars_text`]).
+//! synthesized value ([`plain_text_of`], [`plain_text`]), the characters of an
+//! argument that holds only characters, read by segments ([`read_chars`],
+//! [`chars_text`]), and the whitespace of FLM text.
 //!
 //! # Plain text
 //!
@@ -59,6 +59,28 @@
 //! LaTeX backend, the template of a kept definition or a list's own label
 //! template); everywhere else no placeholder remains, and the content is all
 //! characters.
+//!
+//! # Whitespace
+//!
+//! Whitespace in FLM text is the four ASCII whitespace characters: the space,
+//! the tab, the carriage return and the line feed. Every reader of parsed FLM
+//! content (a document, a template) counts whitespace this way: the
+//! block-structure pass, the lowering helpers' blank test
+//! ([`is_blank`](crate::stdcore::backends::lowering::is_blank)), and each
+//! feature's reader where it trims what it reads, splits it at whitespace or
+//! tests whether content is blank. Content is blank when it is text made of
+//! whitespace alone, or a node whose element carries the
+//! [`Whitespace`](crate::model::aspects::Whitespace) aspect, such as `~` and
+//! `\ `. Every other character is a character of the text, the no-break space
+//! U+00A0 typed directly in the text among them.
+//!
+//! The one exception is the key of a `key=value` entry. techy's key-value
+//! reader ([`parse_keyval`](techy::extract::parse_keyval)), through which the
+//! features read such entries, trims each key with [`str::trim`], which removes
+//! every Unicode whitespace character. A no-break space U+00A0 typed at either
+//! end of a key is therefore removed, and the key is read without it; the
+//! entry's value is trimmed by the rule above
+//! ([`key_value_pieces`](crate::lang::copy::key_value_pieces)).
 
 use std::collections::HashSet;
 use std::fmt;
@@ -66,7 +88,7 @@ use std::fmt;
 use techy::core::node::{NodeId, NodeKind, NodeRef, NodeTree};
 
 use crate::lang::{Flm, FlmCallableType, FlmGroupType};
-use crate::model::aspects::{apart_from_text_of, ContentRef};
+use crate::model::aspects::{apart_from_text_of, is_whitespace_of, ContentRef};
 
 /// Returns the plain text of a run of nodes: the characters of every text node
 /// among the nodes and their descendants, in document order.
@@ -114,6 +136,45 @@ fn key(node: &NodeRef<'_, Flm>) -> (*const NodeTree<Flm>, NodeId) {
 /// its root.
 pub fn plain_text(tree: &NodeTree<Flm>) -> String {
     plain_text_of(std::iter::once(tree.root()))
+}
+
+// --- whitespace -----------------------------------------------------------------------
+
+/// Whether `ch` is whitespace in FLM text: the space, the tab, the carriage
+/// return or the line feed (see the [module documentation](self#whitespace)).
+/// Every other character is content, the no-break space U+00A0 among them.
+pub(crate) fn is_space(ch: char) -> bool {
+    matches!(ch, ' ' | '\t' | '\r' | '\n')
+}
+
+/// Whether the byte `byte` of UTF-8 text is whitespace ([`is_space`]); a byte
+/// of a character beyond ASCII never is.
+pub(crate) fn is_space_byte(byte: u8) -> bool {
+    is_space(char::from(byte))
+}
+
+/// Whether `text` is blank: empty, or whitespace ([`is_space`]) alone.
+pub(crate) fn is_blank_text(text: &str) -> bool {
+    text.bytes().all(is_space_byte)
+}
+
+/// Whether `node` is blank: text that is blank ([`is_blank_text`]), or a node
+/// that is whitespace, such as `~` and `\ ` (its element carries the
+/// [`Whitespace`](crate::model::aspects::Whitespace) aspect,
+/// [`is_whitespace_of`]). A comment is not blank: a reader that looks past
+/// comments tests for them itself.
+pub(crate) fn is_blank(node: &NodeRef<'_, Flm>) -> bool {
+    is_whitespace_of(node) || node.chars().is_some_and(is_blank_text)
+}
+
+/// Returns `text` with every run of whitespace ([`is_space`]) made one space
+/// and the whitespace at both ends removed: the rule by which two written
+/// texts are the same however their whitespace is laid out.
+/// [`spelling_identity`](crate::stdcore::backends::pres::spelling_identity)
+/// reads a citation key and a term's identity with it, and
+/// [`Label::parse`](crate::model::aspects::Label::parse) each part of a label.
+pub(crate) fn collapse_whitespace(text: &str) -> String {
+    text.split(is_space).filter(|word| !word.is_empty()).collect::<Vec<_>>().join(" ")
 }
 
 // --- reading an argument as characters ------------------------------------------------

@@ -394,3 +394,92 @@ fn the_warning_names_the_feature_and_the_package() {
     }
     assert_eq!(stderr.matches("warning: ").count(), 2, "{stderr}");
 }
+
+/// Runs `flm render` with `args` in `dir`, as [`flm`] runs `flm info`.
+#[cfg(feature = "bundled-extensions")]
+fn flm_render(dir: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_flm"))
+        .arg("render")
+        .args(args)
+        .current_dir(dir)
+        .env("HOME", dir)
+        .env_remove("FLMPATH")
+        .env_remove("USERPROFILE")
+        .env_remove("COLUMNS")
+        .output()
+        .unwrap()
+}
+
+/// `--write-flm FILE` writes the page's source in FLM to FILE, ending with one newline, and
+/// prints nothing; `flm render FILE -p text` prints the text that `flm info` prints for the
+/// page. `--write-flm -` prints the same source on standard output.
+#[cfg(feature = "bundled-extensions")]
+#[test]
+fn a_page_written_as_flm_renders_as_its_text() {
+    let dir = folder("write-flm", false);
+    let page = ["--math", "passthrough", "features/headings/macros/section"];
+    let output = flm(&dir, &[&["--write-flm", "section.flm"], &page[..]].concat());
+    assert!(output.status.success() && output.stdout.is_empty() && output.stderr.is_empty(), "{output:?}");
+    let source = std::fs::read_to_string(dir.join("section.flm")).unwrap();
+    assert!(
+        source.starts_with("---\ntitle: \"Macro \\\\textbackslash{}section\"\nflm:\n  use: [flmdoc]\n  math: false\n---\n"),
+        "{source}"
+    );
+    assert!(source.ends_with("\n") && !source.ends_with("\n\n"), "one final newline");
+    assert_eq!(shown(&dir, &[&["--write-flm", "-"], &page[..]].concat()), source);
+    let rendered = flm_render(&dir, &["section.flm", "-p", "text"]);
+    assert!(rendered.status.success() && rendered.stderr.is_empty(), "{rendered:?}");
+    assert_eq!(String::from_utf8(rendered.stdout).unwrap(), shown(&dir, &page));
+}
+
+/// `--write-flm` writes one page: two paths that give two pages exit with status 2 and
+/// write nothing; `-r` and `--json` are refused with it.
+#[test]
+fn write_flm_writes_exactly_one_page() {
+    let dir = folder("write-flm-one", false);
+    let output = flm(&dir, &["--math", "passthrough", "--write-flm", "out.flm", "settings/text", "features/headings"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap(),
+        "error: the paths given must choose exactly one page with `--write-flm`; they choose 2: `settings/text`, \
+         `features/headings`\n"
+    );
+    assert!(!dir.join("out.flm").exists());
+    for option in ["-r", "--json"] {
+        let output = flm(&dir, &["--math", "passthrough", "--write-flm", "out.flm", option, "features/headings"]);
+        assert_eq!(output.status.code(), Some(2), "{option}");
+        assert!(String::from_utf8(output.stderr).unwrap().contains("cannot be used with"), "{option}");
+        assert!(!dir.join("out.flm").exists());
+    }
+}
+
+/// A file that `--write-flm` cannot write (its folder does not exist) exits with status 1.
+#[cfg(feature = "bundled-extensions")]
+#[test]
+fn a_file_that_cannot_be_written_exits_with_status_1() {
+    let dir = folder("write-flm-unwritable", false);
+    let output = flm(&dir, &["--math", "passthrough", "--write-flm", "nofolder/out.flm", "features/headings"]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.starts_with("error: the file `nofolder/out.flm` cannot be written: "), "{stderr}");
+}
+
+/// A documentation text that does not parse is written into the FLM document as plain text,
+/// after the warning that the text output gives, so that `flm render` renders the document.
+#[cfg(feature = "bundled-extensions")]
+#[test]
+fn a_documentation_text_that_does_not_parse_is_written_as_plain_text() {
+    let dir = folder("write-flm-unparsed", true);
+    let output = flm(&dir, &["--math", "passthrough", "-d", "doc/draft/draft.flm", "--write-flm", "draft.flm", "workflows/draft"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.starts_with("warning: the documentation text of the workflow `draft` "), "{stderr}");
+    assert_eq!(stderr.matches("warning: ").count(), 1, "{stderr}");
+    let source = std::fs::read_to_string(dir.join("draft.flm")).unwrap();
+    assert!(source.contains("\\docsummary{The text output, 50\\% narrower, with \\{an unbalanced brace.}"), "{source}");
+    let rendered = flm_render(&dir, &["draft.flm", "-p", "text"]);
+    assert!(rendered.status.success() && rendered.stderr.is_empty(), "{rendered:?}");
+    let text = String::from_utf8(rendered.stdout).unwrap();
+    assert!(text.contains("\nThe text output, 50% narrower, with {an unbalanced brace.\n"), "{text}");
+}

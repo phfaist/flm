@@ -145,7 +145,9 @@ lists `flm-core` without its default cargo feature, `serde`, `schemars` and
 `serde_json`, and it reaches the parser toolkit techy only through the re-export
 `flm_core::techy`. Its macros are rows of a table turned into
 [`Definition`](crate::lang::rewrites::userdefs::Definition)s: arguments read by
-[`arg_def_from_code`](crate::lang::mint::arg_def_from_code), computed placeholders
+[`arg_def_from_code`](crate::lang::mint::arg_def_from_code) (a row's codes) and by
+[`ArgData`](crate::lang::mint::ArgData) (a declared macro's arguments, each a structured
+syntax or a code), computed placeholders
 declared with
 [`Definition::extra_placeholder`](crate::lang::rewrites::userdefs::Definition::extra_placeholder),
 a declared macro's `content` read by
@@ -470,37 +472,53 @@ documentation. **Name every argument that anything reads**: a reader that finds 
 argument by name survives a change to the list. Constructors: `ArgDef::mandatory(name)`,
 `ArgDef::optional(name)`, `ArgDef::named(name, kind)`.
 
-The standard kinds, [`ArgStdKind`](crate::lang::mint::ArgStdKind), with their argument
-codes (the short texts settings use; table in
+The standard kinds, [`ArgStdKind`](crate::lang::mint::ArgStdKind), with their structured
+syntax (the kind as data: `syntax` holds the name below, the parameters stand beside it, as
+in `{syntax: delimited-group, delimiters: ["(", ")"]}`; [the kind as
+data](crate::lang::mint::ArgStdKind#the-kind-as-data)) and their argument codes (the
+shorthands settings may write in its place; table in
 [`lang::mint::codes`](crate::lang::mint::codes)):
 
-| kind | reads | code |
-|---|---|---|
-| [`Mandatory`](crate::lang::mint::ArgStdKind::Mandatory) | a `{…}` group; a single token also counts, as in TeX | `{`, `m` |
-| [`Optional`](crate::lang::mint::ArgStdKind::Optional) | an optional `[…]` group | `[`, `o` |
-| [`Star`](crate::lang::mint::ArgStdKind::Star) | an optional `*` | `*`, `s`, `t*` |
-| [`Marker`](crate::lang::mint::ArgStdKind::Marker) | an optional marker of one other character (`\name!`) | `t<c>` |
-| [`DelimitedGroup`](crate::lang::mint::ArgStdKind::DelimitedGroup) | a group between a prescribed pair (`\name(arg)`); no single token | `r<c1><c2>` |
-| [`OptionalDelimitedGroup`](crate::lang::mint::ArgStdKind::OptionalDelimitedGroup) | the same, optional | `d<c1><c2>` |
-| [`AnyDelimitedGroup`](crate::lang::mint::ArgStdKind::AnyDelimitedGroup) | a group in `{}`, `[]`, `()` or `<>`, whichever the use site opens; the node records which | `AnyDelimited` |
-| [`OptionalAnyDelimitedGroup`](crate::lang::mint::ArgStdKind::OptionalAnyDelimitedGroup) | the same, optional | `AnyDelimitedOptional` |
-| [`BracedOnly`](crate::lang::mint::ArgStdKind::BracedOnly) | a `{…}` group and nothing else | `BracedOnly` |
-| [`Embellishments`](crate::lang::mint::ArgStdKind::Embellishments) | marker–expression pairs in any order, each marker at most once (`\name_{a}^{b}`); absent when no marker follows; techy's `split_embellishments` reads the pairs back by marker | `e{<chars>}` |
-| [`KeyVals`](crate::lang::mint::ArgStdKind::KeyVals) | an optional `[key=value,…]` group, parsed as `Optional`; the element reads the pairs itself | none |
-| [`CharsGroup`](crate::lang::mint::ArgStdKind::CharsGroup) | a `{…}` group read as plain characters (`\label{sec:intro}`); comments and nested groups are recognized, and a template's placeholder stays one | none |
-| [`Verbatim`](crate::lang::mint::ArgStdKind::Verbatim) | raw text between delimiters (`\verbcode|…|`); nothing is recognized but a template's placeholder | `v`, `v<c1><c2>` |
-| [`TackOn`](crate::lang::mint::ArgStdKind::TackOn) | the fields ([`TackOnField`](crate::lang::mint::TackOnField)) absorbed after the construct's other arguments, as `\section{…}` absorbs `\label{…}` | none |
-| [`Terminated`](crate::lang::mint::ArgStdKind::Terminated) `{ terminator, repeat_char, opener, head, raw }` | everything up to a terminator, matched before any other markup: prefix = run of `repeat_char` (any length) + `opener`; terminator = `head` + the same run + `terminator`; content parsed (`raw: false`) or raw text in a verbatim-class group (`raw: true`); nothing trimmed; techy's `TerminatedArgumentParser`; `MissingArgumentTerminator`, `ExpectedArgumentOpener` | `u<term>` (content), `U<term>` (raw), `f<c><term>` (content after a run of `<c>`), `F<c><term>` (raw); the code span is a specials `` ` `` with one argument ``` F`` ```; no code sets `opener` or `head` |
+| kind | `syntax` and parameters | reads | code |
+|---|---|---|---|
+| [`Mandatory`](crate::lang::mint::ArgStdKind::Mandatory) | `mandatory` | a `{…}` group; a single token also counts, as in TeX | `{`, `m` |
+| [`Optional`](crate::lang::mint::ArgStdKind::Optional) | `optional` | an optional `[…]` group | `[`, `o` |
+| [`Star`](crate::lang::mint::ArgStdKind::Star) | `star` | an optional `*` | `*`, `s`, `t*` |
+| [`Marker`](crate::lang::mint::ArgStdKind::Marker) | `marker`; `marker`: one character | an optional marker of one other character (`\name!`) | `t<c>` |
+| [`DelimitedGroup`](crate::lang::mint::ArgStdKind::DelimitedGroup) | `delimited-group`; `delimiters`: `[<c1>, <c2>]` | a group between a prescribed pair (`\name(arg)`); no single token | `r<c1><c2>` |
+| [`OptionalDelimitedGroup`](crate::lang::mint::ArgStdKind::OptionalDelimitedGroup) | `optional-delimited-group`; `delimiters` | the same, optional | `d<c1><c2>` |
+| [`AnyDelimitedGroup`](crate::lang::mint::ArgStdKind::AnyDelimitedGroup) | `any-delimited-group` | a group in `{}`, `[]`, `()` or `<>`, whichever the use site opens; the node records which | `AnyDelimited` |
+| [`OptionalAnyDelimitedGroup`](crate::lang::mint::ArgStdKind::OptionalAnyDelimitedGroup) | `optional-any-delimited-group` | the same, optional | `AnyDelimitedOptional` |
+| [`BracedOnly`](crate::lang::mint::ArgStdKind::BracedOnly) | `braced-only` | a `{…}` group and nothing else | `BracedOnly` |
+| [`Embellishments`](crate::lang::mint::ArgStdKind::Embellishments) | `embellishments`; `markers`: one character each, at least one | marker–expression pairs in any order, each marker at most once (`\name_{a}^{b}`); absent when no marker follows; techy's `split_embellishments` reads the pairs back by marker | `e{<chars>}` |
+| [`KeyVals`](crate::lang::mint::ArgStdKind::KeyVals) | `key-vals` | an optional `[key=value,…]` group, parsed as `Optional`; the element reads the pairs itself | none |
+| [`CharsGroup`](crate::lang::mint::ArgStdKind::CharsGroup) | `chars-group` | a `{…}` group read as plain characters (`\label{sec:intro}`); comments and nested groups are recognized, and a template's placeholder stays one | none |
+| [`Verbatim`](crate::lang::mint::ArgStdKind::Verbatim) | `verbatim`; `delimiters`, absent for the closer matched to the opener | raw text between delimiters (`\verbcode|…|`); nothing is recognized but a template's placeholder | `v`, `v<c1><c2>` |
+| [`TackOn`](crate::lang::mint::ArgStdKind::TackOn) | `tack-on`; `fields`: `[{name, args, repeatable, docs}]`; written, never read | the fields ([`TackOnField`](crate::lang::mint::TackOnField)) absorbed after the construct's other arguments, as `\section{…}` absorbs `\label{…}` | none |
+| [`Terminated`](crate::lang::mint::ArgStdKind::Terminated) `{ terminator, repeat_char, opener, head, raw }` | `terminated`; `terminator`; `repeat_char` (absent: none), `opener` and `head` (empty by default), `raw` (`false` by default) | everything up to a terminator, matched before any other markup: prefix = run of `repeat_char` (any length) + `opener`; terminator = `head` + the same run + `terminator`; content parsed (`raw: false`) or raw text in a verbatim-class group (`raw: true`); nothing trimmed; techy's `TerminatedArgumentParser`; `MissingArgumentTerminator`, `ExpectedArgumentOpener` | `u<term>` (content), `U<term>` (raw), `f<c><term>` (content after a run of `<c>`), `F<c><term>` (raw); the code span is a specials `` ` `` with one argument ``` F`` ```; no code sets `opener` or `head` |
 
-Codes in data are read by one reader only:
+An argument's syntax in data is read by one reader only:
 [`arg_def_from_code`](crate::lang::mint::arg_def_from_code) (one code; an
-[`ArgCodeError`](crate::lang::mint::ArgCodeError) otherwise) and
+[`ArgCodeError`](crate::lang::mint::ArgCodeError) otherwise),
+[`ArgData`](crate::lang::mint::ArgData) (one argument: a code, or a map
+[`ArgDataFields`](crate::lang::mint::ArgDataFields) holding exactly one of `syntax` (with
+the kind's parameters) and `code`, beside `name, layout, opaque_wrapper, docs, mode,
+scoped, role`; an [`ArgDataError`](crate::lang::mint::ArgDataError) otherwise) and
 [`ArgListData`](crate::lang::mint::ArgListData) (a list in its three shapes: `"[{"`,
-`["[", "r()"]`, or entries `{code, name, layout, docs, mode, scoped, role}`). A feature's settings field of
+`["[", "r()"]`, or entries, each a code or a map; an
+[`ArgListError`](crate::lang::mint::ArgListError) names the entry). A tack-on kind is
+refused when read: a feature declares it in Rust. A feature's settings field of
 arguments is `Vec<ArgDef>` with `#[serde(deserialize_with = "deserialize_arg_list")]` and
 `#[schemars(with = "ArgListData")]`
-([`deserialize_arg_list`](crate::lang::mint::deserialize_arg_list)); never read a code by
-hand.
+([`deserialize_arg_list`](crate::lang::mint::deserialize_arg_list)); never read a code or
+a structured syntax by hand. Written back (`ArgDataFields::from(&arg)`, which flm-ext uses
+for every argument it gives an extension), a declaration read from a code gives its
+`code` ([`ArgDef::code`](crate::lang::mint::ArgDef::code)); any other declaration whose
+parser is a standard kind other than tack-on gives its `syntax`; a tack-on argument or a
+feature's own parser gives neither and does not read back. JavaScript and Rust guests:
+`new ArgDef(syntax)` / `ArgDef::new(syntax)` and `ArgDef.named(name, syntax)` take a code
+or a structured syntax (JavaScript: a map typed `ArgStdKind` in `flm.d.ts`; Rust guest:
+an `ArgStdKind`, through `flm_ext::guest::lang::mint::ArgSyntax`).
 
 **An argument's role** ([`ArgDef::role`](crate::lang::mint::ArgDef::role())): a
 registered dotted name for what the argument holds (a label, a file path), shown by
@@ -532,15 +550,14 @@ feature `docs` (default) keeps them; off, every builder stores `""`
 block-structure pass lays out its content: `Inline` (the default; a blank line inside is
 reported and read as a space), `Blocks` (`.blocks()`: paragraphs and blocks inside), or
 `InlineOrBlocks` (blocks when the content holds a blank line or a block-level node,
-inline otherwise). Only an argument that holds document content takes a layout other
-than inline: of the standard kinds, every group of content (mandatory, optional or
-delimited) and a run of embellishments; a parser of the feature's own says so with
-[`holds_content`](crate::lang::mint::FlmArgumentParser::holds_content). `Blocks` is
-refused in mathematics mode. Both refusals are
-[`MintError::LayoutOnNonContentArgument`](crate::lang::mint::MintError::LayoutOnNonContentArgument).
-A scoped package on an argument that holds no content (`Star`, `Marker`, `KeyVals`,
-`CharsGroup`, `Verbatim`, `TackOn`) is
-[`MintError::ScopeOnNonContentArgument`](crate::lang::mint::MintError::ScopeOnNonContentArgument).
+inline otherwise). An argument declared with an opaque wrapper
+([`ArgDef::with_opaque_wrapper`](crate::lang::mint::ArgDef::with_opaque_wrapper): its
+text is kept as typed, for a key or a label) takes no layout other than inline
+([`MintError::LayoutOnOpaqueWrappedArgument`](crate::lang::mint::MintError::LayoutOnOpaqueWrappedArgument)),
+and `Blocks` is refused in mathematics mode
+([`MintError::BlocksOnMathArgument`](crate::lang::mint::MintError::BlocksOnMathArgument)).
+A layout declared on a verbatim argument or a characters-only group has no effect and is
+not reported. A scoped package may be declared on any argument.
 Read a declared layout back with [`arg_layout_of`](crate::lang::mint::arg_layout_of). An
 element whose block role or rendering depends on whether an argument holds blocks calls
 [`argument_holds_blocks`](crate::lang::rewrites::blocks::argument_holds_blocks) (for a
@@ -554,9 +571,10 @@ default: the element's own block role decides), an optional body parser
 ([`BodyDef::parser`](crate::lang::mint::BodyDef::parser), a
 [`FlmBodyParser`](crate::lang::mint::FlmBodyParser);
 [`BodyDef::verbatim`](crate::lang::mint::BodyDef::verbatim) installs FLM's raw-text
-reader), the parsing mode, and the scoped packages available inside it. A body that holds
-no content takes neither a layout nor a scoped package
-(`MintError::LayoutOnNonContentBody`, `MintError::ScopeOnNonContentBody`).
+reader), the parsing mode, whether its content is kept as typed under an opaque wrapper
+([`BodyDef::with_opaque_wrapper`](crate::lang::mint::BodyDef::with_opaque_wrapper)), and
+the scoped packages available inside it. A body declared with an opaque wrapper takes no
+layout (`MintError::LayoutOnOpaqueWrappedBody`).
 
 **Scoped packages.** A scoped package
 ([`ScopedPackageDef`](crate::lang::mint::ScopedPackageDef)) is a set of element
@@ -619,10 +637,11 @@ assert_eq!(note.names.len(), 1);
 syntax, the argument carries a parser object: a type implementing techy's
 `ArgumentParser<Flm>` (the reading) and
 [`FlmArgumentParser`](crate::lang::mint::FlmArgumentParser) (what FLM needs beyond it:
-whether it holds content, the bytes of its identity for the registry digest, its shape
-for a definition written back, a description for messages). The name, mode, layout,
-scoped packages and documentation stay on the `ArgDef`; minting applies the mode and the
-packages around the parser, which finds them in `cx.state`. The parser never panics or
+the bytes of its identity for the registry digest, its tack-on fields, its shape for a
+definition written back, a short description of its syntax for the settings' schema). The
+name, mode, layout, scoped packages, opaque wrapper and documentation stay on the `ArgDef`; minting applies the mode
+and the packages around the parser, which finds them in `cx.state`, and places what the
+parser read under the opaque wrapper when the declaration asks for one. The parser never panics or
 loops: reading nothing and meeting the end of the input are ordinary outcomes. Whether a
 use site may leave the argument out is techy's `can_match_empty`, `true` unless the
 parser overrides it; a parser that always reads something overrides it to return
@@ -653,7 +672,6 @@ impl ArgumentParser<Flm> for Angles {
 }
 
 impl FlmArgumentParser for Angles {
-    fn holds_content(&self) -> bool { true }          // admits a layout and scoped packages
     fn identity(&self) -> Vec<u8> { b"notes.angles".to_vec() } // digest bytes, stable
     fn definition_shape(&self) -> DefinitionShape { DefinitionShape::NoShape { token: "angles" } }
     fn description(&self) -> String { String::from("an optional `<…>` group") }
@@ -665,17 +683,19 @@ let rule = Arc::new(GroupRule {
     close: String::from(">"),
 });
 let arg = ArgDef::named("aside", Angles(OptionalGroupArgumentParser::new(rule))).scoped("notes.inner");
-assert!(arg.kind.holds_content());
+assert_eq!(arg.kind.description(), "an optional `<…>` group");
 ```
 
 **A body read by a parser of one's own.** An environment's `BodyDef` carries a
 [`FlmBodyParser`](crate::lang::mint::FlmBodyParser), set with
 [`BodyDef::parser`](crate::lang::mint::BodyDef::parser): techy's
 `EnvironmentBehavior<Flm>` (the reading; only `make_body_parser` is used) plus what FLM
-needs beyond it. The layout, mode and scoped packages stay on the `BodyDef`, and minting
-applies them around the parser, which finds them in `cx.state`. Meeting the end of the
-input inside the body is an ordinary outcome. The `math` feature's line check is a full
-example ([`lines::LinesBehavior`](crate::stdcore::features::math::lines::LinesBehavior)).
+needs beyond it (the bytes of its identity for the registry digest, a short description
+of how it reads the body). The layout, mode, scoped packages and opaque wrapper stay on the
+`BodyDef`; minting applies the mode and the packages around the parser, which finds them
+in `cx.state`, and places what the parser read under the opaque wrapper when the
+declaration asks for one. Meeting the end of the input inside the body is an ordinary
+outcome. The `math` feature's line check is a full example ([`lines::LinesBehavior`](crate::stdcore::features::math::lines::LinesBehavior)).
 
 ```rust
 use flm_core::lang::{Flm, FlmGroupType};
@@ -699,7 +719,6 @@ impl EnvironmentBehavior<Flm> for Checked {
 }
 
 impl FlmBodyParser for Checked {
-    fn holds_content(&self) -> bool { true } // `false` only for raw text
     fn identity(&self) -> Vec<u8> { b"notes.checked".to_vec() } // digest bytes, stable
     fn description(&self) -> String { String::from("content, checked as it is read") }
 }
@@ -730,11 +749,14 @@ impl ConstructParser<Flm> for CheckedBody<'_> {
 }
 
 let body = BodyDef::new().blocks().mode(Mode::Text).scoped("notes.inner").parser(Checked);
-assert!(body.holds_content());
+assert!(body.parser.is_some());
 ```
 
 **Reading an argument as characters.** A label, a reference target or an address (any
-argument an element reads as characters) is read with
+argument an element reads as characters) is declared so that its text is kept as typed:
+a characters-only group (`CharsGroup`) is placed under an opaque wrapper by
+construction, a verbatim argument (`Verbatim`) yields a verbatim group, and any other
+kind is declared `.with_opaque_wrapper()`. It is read with
 [`read_chars`](crate::lang::text::read_chars), the only reader of content as
 characters. It returns the content as [segments](crate::lang::text::CharsSegment): runs
 of characters, and the placeholder nodes of a user definition's template that was not
@@ -799,7 +821,14 @@ for inline content), [`Referenceable`](crate::model::aspects::Referenceable),
 contents entry), [`ApartFromText`](crate::model::aspects::ApartFromText) (the content of
 an occurrence that is not part of the text around it),
 [`InCopy`](crate::model::aspects::InCopy) (what replaces an occurrence in a copy of
-content shown a second time). Read when a document is rendered, declared with the
+content shown a second time), [`Whitespace`](crate::model::aspects::Whitespace) (each
+occurrence is whitespace to the layout of paragraphs, as `~` and `\ ` are: removed where
+the block-structure pass removes whitespace, and at the edges of a paragraph a rule writes
+itself, which [`stage_trimmed`](crate::stdcore::backends::lowering::stage_trimmed) trims as
+the pass does; whitespace to the standard features' tests for blank content, except those
+of text read as typed or with its markup (a citation key, a term: `\term{~}` is not empty);
+kept elsewhere as a node of its own; a marker, attached as
+[`IsWhitespace`](crate::model::aspects::IsWhitespace)). Read when a document is rendered, declared with the
 presentation vocabulary: [`Decoration`](crate::stdcore::backends::pres::Decoration),
 [`OpaqueContent`](crate::stdcore::backends::pres::OpaqueContent),
 [`ContentInOpaque`](crate::stdcore::backends::pres::ContentInOpaque). Declared beside
@@ -1692,7 +1721,8 @@ writes natively, a lowering stage, an emit stage and a final stage
    `new OutputDef(…).made_from(name)`.
 5. `b.backend(new BackendDef(B, native, new LoweringStage(B), emitStage, finalStage).docs(text))`.
    `native`: `ALL` (`flm:stdcore/backends/pres`), the structural names your emitter handles
-   (`TEXT`, `GROUP`, `COMMENT`, `CONTAINER`, `PARBREAK` from `flm:lang/structural`), your
+   (`TEXT`, `GROUP`, `OPAQUE_WRAPPER`, `COMMENT`, `CONTAINER`, `PARBREAK` from
+   `flm:lang/structural`), your
    own presentation elements.
 6. Coverage: every element the documents can hold must reach the native set through the
    selected rules, else `PlanError::Incomplete`. The standard package registers its rule
@@ -2580,7 +2610,7 @@ The element does the work; the cut step provides, through the
 
 | operation | what it does |
 |---|---|
-| [`restage_and_classify`](crate::lang::rewrites::blocks::BlockCutter::restage_and_classify)`(cx, run)` → `Vec<`[`CutItem`](crate::lang::rewrites::blocks::CutItem)`>` | stages a run (an argument's content) in order: a paragraph-break marker as `Marker`; a node whose block role (read on the *input* node) is `Block` as `Block`; a comment or text that is only whitespace as `Blank`; anything else `Inline`. A block-transparent node inside is cut on the way and its items returned with their variants (the cut is recursive). A run in mathematics mode is copied unchanged, as `Inline` and `Blank` items only |
+| [`restage_and_classify`](crate::lang::rewrites::blocks::BlockCutter::restage_and_classify)`(cx, run)` → `Vec<`[`CutItem`](crate::lang::rewrites::blocks::CutItem)`>` | stages a run (an argument's content) in order: a paragraph-break marker as `Marker`; a node whose block role (read on the *input* node) is `Block` as `Block`; a comment, text that is only whitespace, or a node whose element carries [`Whitespace`](crate::model::aspects::Whitespace) (`~`) as `Blank`; anything else `Inline`. A block-transparent node inside is cut on the way and its items returned with their variants (the cut is recursive). A run in mathematics mode is copied unchanged, as `Inline` and `Blank` items only |
 | [`rebuild`](crate::lang::rewrites::blocks::BlockCutter::rebuild)`(cx, &node, vec![(`[`CutPart`](crate::lang::rewrites::blocks::CutPart)`, content)…], Some(payload))` → `BuildId` | a copy of the node (same span, parsing state, element, way of writing) in which each listed part (`Argument(i)`, `ArgumentNamed(name)`, `Body`) holds the given staged nodes inside its own delimiters; the other parts are staged through the cut step; the payload is set as [`FlmNodeExt::payload`](crate::lang::FlmNodeExt::payload) (`None` keeps the node's own). A part listed twice, a missing part or an unwritten argument is [`StructureError::Cut`](crate::lang::rewrites::blocks::StructureError) |
 | [`carry`](crate::lang::rewrites::blocks::BlockCutter::carry)`(cx, &node)` | an unchanged copy of a node and its subtree, nothing cut |
 | [`synthesize_callable`](crate::lang::rewrites::blocks::BlockCutter::synthesize_callable)`(&node, &element)` | a childless node of a synthesized element at the node, to stage with `carry` |

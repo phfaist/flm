@@ -27,7 +27,7 @@ use techy::extract::parse_keyval_drop_annotations;
 
 use crate::core::lowering::{LowerError, Lowerer, chars_at_lowering};
 use crate::lang::Flm;
-use crate::lang::text::plain_text_of;
+use crate::lang::text::{is_space, plain_text_of};
 use crate::stdcore::backends::pres::{I48F16, Length};
 
 use super::OPTIONS_ARG;
@@ -296,7 +296,7 @@ fn read(node: &NodeRef<'_, Flm>) -> Result<(ImageOptions, Vec<Finding>), LowerEr
             findings.push(Finding::NoValue(key.to_string()));
             continue;
         };
-        let text = chars_at_lowering(value.iter())?.map(|text| text.trim().to_string());
+        let text = chars_at_lowering(value.iter())?.map(|text| text.trim_matches(is_space).to_string());
         if key == ALT_KEY {
             match text {
                 Ok(text) => options.alt = Some(text),
@@ -306,7 +306,7 @@ fn read(node: &NodeRef<'_, Flm>) -> Result<(ImageOptions, Vec<Finding>), LowerEr
         }
         let written = match text {
             Ok(text) => text,
-            Err(_) => plain_text_of(value.iter()).trim().to_string(),
+            Err(_) => plain_text_of(value.iter()).trim_matches(is_space).to_string(),
         };
         match dimension(key, &written) {
             Ok(length) => {

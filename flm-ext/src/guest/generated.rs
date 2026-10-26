@@ -914,8 +914,8 @@ pub mod lang {
     pub mod mint {
         use crate::guest::generated::prelude::*;
 
-        pub use crate::api::lang::mint::{ArgLayout, BodyDef, BodyLayout, FallbackKind, Mode};
-        pub use crate::guest::hand::lang_mint::{ArgDef, ElementDef, SyntaxDef, FallbackDef, ScopedPackageDef};
+        pub use crate::api::lang::mint::{ArgLayout, ArgStdKind, BodyDef, BodyLayout, FallbackKind, Mode};
+        pub use crate::guest::hand::lang_mint::{ArgDef, ElementDef, SyntaxDef, FallbackDef, ScopedPackageDef, ArgSyntax};
         pub use crate::guest::core::registry::CallableKind;
 
         /// Mirrors `arg_def_from_code`: the argument an argument code stands for (`{`, `[`, `*`, …).
@@ -1198,7 +1198,7 @@ pub mod lang {
 
     /// The guest's side of `flm:lang/structural`. Mirrors `flm_core::lang::structural`: the names of the structural elements, the elements of the node shapes no feature declares (text, comments, containers, groups, paragraphs, …).
     pub mod structural {
-        pub use crate::api::lang::structural::{TEXT, COMMENT, CONTAINER, GROUP, MATH, VERBATIM, PARAGRAPH, PARBREAK, PLACEHOLDER, UNKNOWN_MACRO, UNKNOWN_ENVIRONMENT, NAMES};
+        pub use crate::api::lang::structural::{TEXT, COMMENT, CONTAINER, GROUP, MATH, VERBATIM, OPAQUE_WRAPPER, PARAGRAPH, PARBREAK, PLACEHOLDER, UNKNOWN_MACRO, UNKNOWN_ENVIRONMENT, NAMES};
     }
 
     /// The guest's side of `flm:lang/text`. Mirrors `flm_core::lang::text`: reading the characters of a run of nodes.

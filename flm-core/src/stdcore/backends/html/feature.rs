@@ -48,13 +48,14 @@
 //!
 //! # The elements the backend writes natively
 //!
-//! The native set ([`native_elements`]) holds 28 elements: every element of the
+//! The native set ([`native_elements`]) holds 29 elements: every element of the
 //! [presentation vocabulary](crate::stdcore::backends::pres), the construct
-//! element [`flm.pres.html.tag`](super::construct::TAG), and the five
+//! element [`flm.pres.html.tag`](super::construct::TAG), and the six
 //! [structural elements](crate::guide::concepts_overview#structural-elements)
 //! of [`FLOW_THROUGH`] that the backend emits natively, without a lowering rule,
 //! because they carry nothing an HTML page has to translate: `flm.text`,
-//! `flm.group`, `flm.comment`, `flm.container` and `flm.parbreak`.
+//! `flm.group`, `flm.opaque-wrapper`, `flm.comment`, `flm.container` and
+//! `flm.parbreak`.
 //!
 //! The native set holds **no element another feature owns**, and in
 //! particular not the reference element `flm.ref`. The `refs` feature's own
@@ -163,14 +164,15 @@ pub const OUTPUT: &str = "html";
 /// takes.
 pub const WORKFLOW: &str = "html";
 
-/// The five [structural elements](crate::guide::concepts_overview#structural-elements)
+/// The six [structural elements](crate::guide::concepts_overview#structural-elements)
 /// the HTML backend emits natively, without a lowering rule, beside the
-/// presentation vocabulary and the construct element: text, groups, source
-/// comments, containers and paragraph breaks (see the [module
+/// presentation vocabulary and the construct element: text, groups, opaque
+/// wrappers, source comments, containers and paragraph breaks (see the [module
 /// documentation](self)).
-pub const FLOW_THROUGH: [&str; 5] = [
+pub const FLOW_THROUGH: [&str; 6] = [
     structural::TEXT,
     structural::GROUP,
+    structural::OPAQUE_WRAPPER,
     structural::COMMENT,
     structural::CONTAINER,
     structural::PARBREAK,
@@ -180,7 +182,7 @@ pub const FLOW_THROUGH: [&str; 5] = [
 /// without a lowering rule: every element of the presentation vocabulary
 /// ([`pres::ALL`]), the construct element
 /// [`flm.pres.html.tag`](super::construct::TAG), then the elements of
-/// [`FLOW_THROUGH`], in that order (28 elements).
+/// [`FLOW_THROUGH`], in that order (29 elements).
 ///
 /// The set holds no element another feature owns; the [module
 /// documentation](self#the-elements-the-backend-writes-natively) says why.
@@ -193,7 +195,7 @@ pub const FLOW_THROUGH: [&str; 5] = [
 ///
 /// let native = native_elements();
 /// assert_eq!(native.len(), pres::ALL.len() + 1 + FLOW_THROUGH.len());
-/// assert_eq!(native.len(), 28);
+/// assert_eq!(native.len(), 29);
 /// assert!(native.iter().any(|element| element.as_str() == TAG));
 /// // No element another feature owns: a reference is lowered by the `refs`
 /// // feature's own rule, so the plan schedules the stage computing the anchors.

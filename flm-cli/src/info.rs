@@ -1,5 +1,5 @@
 //! `flm info`: describes the environment in which a document is processed, as pages of
-//! documentation, and prints them as text or as JSON.
+//! documentation, and prints them as text or as JSON, or writes one page as an FLM document.
 //!
 //! The environment is what the host library prepares for a document before it reads the
 //! document's content: the packages in use, the registry their features build (the
@@ -26,13 +26,17 @@
 //!   program's defaults, and nothing but the terminal's width shapes them: when standard
 //!   output is a terminal, the lines are as wide as the terminal (`COLUMNS`, else the width
 //!   the terminal reports); otherwise, the text backend's default width applies. No build
-//!   option reaches this rendering.
+//!   option reaches this rendering;
+//! - as an FLM document with `--write-flm FILE`: the source in FLM of the one page chosen,
+//!   the source that the text output renders, written to FILE (or on standard output for
+//!   `-`), so that `flm render FILE` renders the page ([`write_flm`]).
 //!
-//! Before a page is rendered, each documentation text it embeds as FLM is parsed with the
-//! registry that renders it ([`text_problems`]); the library lists these texts, each with
-//! whose text it is ([`texts`]). The program's own texts are tested, so a text that does not
-//! parse is one the program does not own: an extension's, or one written in a front matter
-//! or with `-O`. Such a text is written into the page as plain text
+//! Before a page is rendered or written as an FLM document, each documentation text it
+//! embeds as FLM is parsed with the registry that renders it ([`text_problems`]); the
+//! library lists these texts, each with whose text it is ([`texts`]). The program's own
+//! texts are tested, so a text that does not parse is one the program does not own: an
+//! extension's, or one written in a front matter or with `-O`. Such a text is written into
+//! the page as plain text
 //! ([`SourceOptions::plain_texts`]), and a warning shows it as written, with the page, its
 //! source as the library gives it and the problems found; the exit status stays 0. The
 //! source of a text written as data in a settings value (the documentation text of a
@@ -41,7 +45,6 @@
 //! `-O`; that of any other text is the feature that declares it, with that feature's
 //! package.
 
-use std::collections::BTreeSet;
 use std::io::{IsTerminal, Write};
 use std::path::Path;
 use std::sync::Arc;
@@ -57,14 +60,16 @@ use flm_info::pages::{
 use flm_info::{Environment, summary_of};
 use flm_main::extensions::ExtensionFinder;
 use flm_main::files::{BuildFiles, DiskFiles, Files, ServiceFiles};
-use flm_main::output::{MemorySink, Naming};
+use flm_main::output::{MemorySink, Naming, write_file};
 use flm_main::packages::ExtensionFolder;
 use flm_main::report::{self, ContentOffsets};
 use flm_main::session::{Input, Prepared, Request, build, prepare};
 use flm_main::settings::CommandLineSetting;
 
 use crate::args::{FolderOrigin, InfoArgs, MAGICK_VARIABLE, cache_folder, environment_search_path_with_origins};
-use crate::{BROWSER_VARIABLE, CANNOT_START, Cli, DONE, PROGRAM_FAILURE, cannot_start, reporter, stopped};
+use crate::{
+    BROWSER_VARIABLE, CANNOT_START, Cli, DOCUMENT_ERRORS, DONE, PROGRAM_FAILURE, cannot_start, reporter, stopped,
+};
 
 /// The environment variable that gives the width of the terminal in columns, `COLUMNS`,
 /// with which `flm info` writes its pages when standard output is a terminal.
@@ -87,11 +92,14 @@ const NEAREST: usize = 5;
 const TEXT_ORIGIN: &str = "text";
 
 /// Runs `flm info`: prepares the environment, chooses the pages of `args.paths` and prints
-/// them on standard output, as JSON under `--json`, else as text. Returns the exit status:
-/// 0 when every page was shown; 2 when the arguments are wrong, the environment cannot be
-/// prepared (the document of `-d` cannot be read, a package cannot be found, a setting
-/// cannot be read) or a path gives no page; 3 on a failure of the program, such as a page
-/// that does not render or standard output that cannot be written.
+/// them on standard output, as JSON under `--json`, else as text; under `--write-flm`, it
+/// writes the one page chosen as an FLM document instead ([`write_flm`]). Returns the exit
+/// status: 0 when every page was shown or written; 1 when the file of `--write-flm` cannot
+/// be written; 2 when the arguments are wrong, the environment cannot be prepared (the
+/// document of `-d` cannot be read, a package cannot be found, a setting cannot be read), a
+/// path gives no page, or `--write-flm` is given and the paths do not choose exactly one
+/// page; 3 on a failure of the program, such as a page that does not render or standard
+/// output that cannot be written.
 pub(crate) fn run(args: &InfoArgs, packages: &[PackageFactory]) -> u8 {
     let request = match args.build_args().request() {
         Ok(request) => request,
@@ -131,7 +139,11 @@ pub(crate) fn run(args: &InfoArgs, packages: &[PackageFactory]) -> u8 {
             return CANNOT_START;
         }
     };
-    if args.json { print_json(&pages, args.recursive) } else { print_text(&tree, &pages, args.recursive, packages) }
+    match (&args.write_flm, args.json) {
+        (Some(path), _) => write_flm(&pages, path, packages),
+        (None, true) => print_json(&pages, args.recursive),
+        (None, false) => print_text(&tree, &pages, args.recursive, packages),
+    }
 }
 
 /// Returns the pages that `paths` ask for, in order: for each path, its page
@@ -224,6 +236,38 @@ fn print_json(pages: &[Page], recursive: bool) -> u8 {
     }
 }
 
+/// Writes the one page of `pages` as an FLM document ([`page_source`]), ending with one
+/// newline, to the file `path` (through [`write_file`], which keeps no record of the file),
+/// or on standard output when `path` is `-`. Returns the exit status: 0; 1 when the file
+/// cannot be written; 2 when `pages` does not hold exactly one page; 3 when the page cannot
+/// be prepared or standard output cannot be written.
+fn write_flm(pages: &[Page], path: &str, packages: &[PackageFactory]) -> u8 {
+    let [page] = pages else {
+        let paths: Vec<&str> = pages.iter().map(|page| page.path.as_str()).collect();
+        reporter().error(&format!(
+            "the paths given must choose exactly one page with `--write-flm`; they choose {}: `{}`",
+            pages.len(),
+            paths.join("`, `")
+        ));
+        return CANNOT_START;
+    };
+    let text = match page_source(page, packages) {
+        Ok(text) => format!("{}\n", text.trim_end_matches('\n')),
+        Err(status) => return status,
+    };
+    if path == "-" {
+        let mut stdout = std::io::stdout().lock();
+        if let Err(error) = stdout.write_all(text.as_bytes()).and_then(|()| stdout.flush()) {
+            reporter().error(&format!("standard output cannot be written: {error}"));
+            return PROGRAM_FAILURE;
+        }
+    } else if let Err(error) = write_file(Path::new(path), text.as_bytes()) {
+        reporter().error(&error.detail);
+        return DOCUMENT_ERRORS;
+    }
+    DONE
+}
+
 /// Prints `pages` on standard output as text, each rendered by [`render`], separated by one
 /// blank line; under `-r` (`recursive`), each page is followed by every page below it, in
 /// tree order. Each page is printed once rendered. Returns the exit status: 0, or 3 when a
@@ -298,47 +342,106 @@ fn terminal_width() -> Option<u32> {
     })
 }
 
-/// Renders `page` as text: its source in FLM ([`source`]), whose front matter uses the
-/// extension `flmdoc` and no math processor, prepared and built by the host library with the
-/// profile `text`, the settings `settings` and the program's defaults otherwise, its output
-/// kept in memory. No folder of extensions is searched, so that the extension `flmdoc` is
-/// the one the program carries. Returns the text output with the line endings at its end
-/// removed.
+/// Renders `page` as text: its source in FLM, prepared ([`prepare_page`]) and built by the
+/// host library with the profile `text`, the settings `settings` and the program's defaults
+/// otherwise, its output kept in memory. Returns the text output with the line endings at
+/// its end removed.
 ///
-/// Before the page is built, each documentation text it embeds as FLM ([`texts`]) is
-/// parsed with the registry of the rendering ([`text_problems`]); a text that does not parse
-/// is written as plain text ([`SourceOptions::plain_texts`]), after a warning on standard
-/// error ([`unparsed_text`]) that shows it, its page, its source as [`texts`] gives it and
-/// the problems found. A failing text that is the summary of another failing text of the
-/// same source gets no warning of its own: the warning about the whole text covers it.
+/// Before the page is built, each documentation text it embeds as FLM is parsed with the
+/// registry of the rendering; a text that does not parse is written as plain text, after a
+/// warning on standard error ([`checked_options`]).
 ///
 /// # Errors
 ///
 /// The exit status 3, once the problems are printed on standard error, when the page does
 /// not render without a problem: a page that does not render is a failure of the program.
 fn render(page: &Page, settings: &[CommandLineSetting], packages: &[PackageFactory]) -> Result<String, u8> {
-    let failed = || {
-        reporter().error(&format!("the page `{}` must render without problems", page.path));
-        PROGRAM_FAILURE
-    };
     let sink = Arc::new(MemorySink::new());
-    let prepare_page = |options: &SourceOptions| -> Result<Prepared, u8> {
-        let mut request = Request::new(Input::Text(source(page, options)));
-        request.profile = Some(String::from("text"));
-        request.default_math = crate::default_math();
-        request.options = settings.to_vec();
-        request.naming = Naming::File { name: String::from("page") };
-        request.sink = Some(Arc::clone(&sink) as Arc<dyn flm_main::output::Sink>);
-        prepare(request, Arc::new(DiskFiles), packages).map_err(|error| {
-            stopped(&error);
-            failed()
-        })
+    let mut prepared = prepare_page(page, &SourceOptions::default(), settings, Some(&sink), packages)?;
+    let options = checked_options(page, &prepared);
+    if !options.plain_texts.is_empty() {
+        // Nothing is built before this, so the sink is still empty when the page is
+        // prepared again.
+        prepared = prepare_page(page, &options, settings, Some(&sink), packages)?;
+    }
+    let built = build(&prepared).map_err(|error| {
+        stopped(&error);
+        page_failed(page)
+    })?;
+    if !built.diagnostics.is_empty() {
+        reporter().diagnostics(&built.diagnostics, &built.content_offsets);
+        return Err(page_failed(page));
+    }
+    let files = sink.files();
+    let Some(file) = files.values().find(|file| file.entry) else {
+        return Err(page_failed(page));
     };
-    let mut prepared = prepare_page(&SourceOptions::default())?;
+    let text = String::from_utf8_lossy(&file.bytes);
+    Ok(text.trim_end_matches(['\n', '\r']).to_string())
+}
+
+/// Returns `page`'s source in FLM ([`source`]) as [`render`] renders it: the source is
+/// prepared once with no settings ([`prepare_page`]), so that each documentation text it
+/// embeds as FLM is parsed with the registry of the rendering, and a text that does not
+/// parse is written as plain text, after a warning on standard error ([`checked_options`]).
+///
+/// # Errors
+///
+/// The exit status 3, once the problems are printed on standard error, when the source
+/// cannot be prepared: a page that does not render is a failure of the program.
+fn page_source(page: &Page, packages: &[PackageFactory]) -> Result<String, u8> {
+    let prepared = prepare_page(page, &SourceOptions::default(), &[], None, packages)?;
+    Ok(source(page, &checked_options(page, &prepared)))
+}
+
+/// Prepares `page`'s source in FLM, written with `options` ([`source`]), whose front matter
+/// uses the extension `flmdoc` and no math processor: with the profile `text`, the settings
+/// `settings` and the program's defaults otherwise, its output sent to `sink` when it is
+/// built, if a sink is given. No folder of extensions is searched, so that the extension
+/// `flmdoc` is the one the program carries.
+///
+/// # Errors
+///
+/// The exit status 3, once the problems are printed on standard error, when the source
+/// cannot be prepared: a page that does not render is a failure of the program.
+fn prepare_page(
+    page: &Page,
+    options: &SourceOptions,
+    settings: &[CommandLineSetting],
+    sink: Option<&Arc<MemorySink>>,
+    packages: &[PackageFactory],
+) -> Result<Prepared, u8> {
+    let mut request = Request::new(Input::Text(source(page, options)));
+    request.profile = Some(String::from("text"));
+    request.default_math = crate::default_math();
+    request.options = settings.to_vec();
+    request.naming = Naming::File { name: String::from("page") };
+    request.sink = sink.map(|sink| Arc::clone(sink) as Arc<dyn flm_main::output::Sink>);
+    prepare(request, Arc::new(DiskFiles), packages).map_err(|error| {
+        stopped(&error);
+        page_failed(page)
+    })
+}
+
+/// Prints on standard error that `page` must render without problems, and returns the exit
+/// status 3: a page that does not render is a failure of the program.
+fn page_failed(page: &Page) -> u8 {
+    reporter().error(&format!("the page `{}` must render without problems", page.path));
+    PROGRAM_FAILURE
+}
+
+/// Returns the options with which `page`'s source is written ([`source`]) so that it
+/// renders. Each documentation text the page embeds as FLM ([`texts`]) is parsed with the
+/// registry of `prepared`, the page's source prepared for rendering ([`text_problems`]); a
+/// text that does not parse is among the texts to write as plain text
+/// ([`SourceOptions::plain_texts`]), after a warning on standard error ([`unparsed_text`])
+/// that shows it, its page, its source as [`texts`] gives it and the problems found. A
+/// failing text that is the summary of another failing text of the same source gets no
+/// warning of its own: the warning about the whole text covers it.
+fn checked_options(page: &Page, prepared: &Prepared) -> SourceOptions {
     // The program's own texts are tested, so a documentation text that does not parse is
     // one the program does not own: an extension's, or one written in a front matter or with
-    // `-O`. The page shows it as plain text. Nothing is built before this, so the sink is
-    // still empty when the page is prepared again.
+    // `-O`. The page shows it as plain text.
     // Each distinct text is parsed once, though several sources may give it.
     let mut parsed: Vec<(String, Vec<FlmDiagnostic>)> = Vec::new();
     let mut failing: Vec<(EmbeddedText, Vec<FlmDiagnostic>)> = Vec::new();
@@ -363,26 +466,9 @@ fn render(page: &Page, settings: &[CommandLineSetting], packages: &[PackageFacto
             reporter().warning(&unparsed_text(&text.text, &source_text(&text.source), &page.path, problems));
         }
     }
-    let plain_texts: BTreeSet<String> = failing.into_iter().map(|(text, _)| text.text).collect();
-    if !plain_texts.is_empty() {
-        let mut options = SourceOptions::default();
-        options.plain_texts = plain_texts;
-        prepared = prepare_page(&options)?;
-    }
-    let built = build(&prepared).map_err(|error| {
-        stopped(&error);
-        failed()
-    })?;
-    if !built.diagnostics.is_empty() {
-        reporter().diagnostics(&built.diagnostics, &built.content_offsets);
-        return Err(failed());
-    }
-    let files = sink.files();
-    let Some(file) = files.values().find(|file| file.entry) else {
-        return Err(failed());
-    };
-    let text = String::from_utf8_lossy(&file.bytes);
-    Ok(text.trim_end_matches(['\n', '\r']).to_string())
+    let mut options = SourceOptions::default();
+    options.plain_texts = failing.into_iter().map(|(text, _)| text.text).collect();
+    options
 }
 
 /// The warning about `text`, a documentation text that does not parse, shown on the page

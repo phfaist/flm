@@ -167,10 +167,11 @@ pub const SAFE_LABELS: TableName<SafeLabels> = TableName::new("flm.labels.safe")
 pub const REF_DOMAIN: &str = "ref";
 
 /// The key under which a label is allocated a safe label: its `type:label`
-/// spelling with the whitespace around each part trimmed (the form in which
-/// [`Label`] is displayed) when `label` is a parsed label, and `text` as
-/// written when it is not (`intro`, with no colon). Two spellings of one
-/// label, `sec:intro` and `sec : intro`, therefore share one safe label.
+/// spelling as [`Label::parse`] reads it, each part with its whitespace runs
+/// made one space and its ends trimmed (the form in which [`Label`] is
+/// displayed), when `label` is a parsed label, and `text` as written when it
+/// is not (`intro`, with no colon). Two spellings of one label, `sec:intro`
+/// and `sec : intro`, therefore share one safe label.
 ///
 /// The stages and the rules all build the key through this function, so that
 /// they agree.

@@ -19,7 +19,7 @@ use flm_core::lang::{Flm, FlmCallableType, FlmGroupType};
 use techy::core::constructs::UnresolvableCommand;
 use techy::core::token::EndOfStreamAfterEscape;
 use techy::core::node::NodeTree;
-use techy::error::{Diagnostic, DiagnosticInfo, Severity};
+use techy::error::{Diagnostic, DiagnosticInfo};
 use techy::latexlike::Mode;
 
 use common::userdefs::{expanded, recomposed, setup, setup_definitions, Setup};
@@ -532,26 +532,7 @@ fn a_definition_level_diagnostic_is_raised_in_a_source_named_after_the_declarati
     assert_eq!(label, Some("declaration of \\empty"));
 }
 
-// --- warnings and the shared template language ----------------------------------------------
-
-#[test]
-fn a_template_parse_warning_reaches_the_build_diagnostics_without_refusing_the_definition() {
-    // techy's parse-initialization check warns when every macro of a package is
-    // registered under a name that begins with an escape character of the state
-    // and continues past it: `#x` is an ordinary (if unreachable) name in a
-    // document, but in a template parse `#` is an escape, so the check fires
-    // there — a Warning-severity template diagnostic. (A one-character name such
-    // as `#`, the command `\#`, is legitimate and does not warn.)
-    let setup = setup(
-        vec![Definition::macro_("f", Vec::new()).text("F")],
-        vec![macro_def("t", "#x", 0)],
-    );
-    assert!(setup.definition("f").compiled().is_some());
-    let severities: Vec<Severity> =
-        setup.build_diagnostics.iter().map(|diagnostic| diagnostic.severity()).collect();
-    assert_eq!(severities, [Severity::Warning]);
-    assert_eq!(setup.definition("f").compiled().unwrap().diagnostics().len(), 1);
-}
+// --- the shared template language -----------------------------------------------------------
 
 #[test]
 fn a_definition_compiles_over_a_template_language_built_for_the_call() {

@@ -8,8 +8,8 @@
 //! A backend lists the structural elements its emit stage writes without a
 //! lowering rule in its native set
 //! ([`BackendDef::native`](crate::api::core::registry::BackendDef::native));
-//! the text backend writes five of them: [`TEXT`], [`GROUP`], [`COMMENT`],
-//! [`CONTAINER`] and [`PARBREAK`].
+//! the text backend writes six of them: [`TEXT`], [`GROUP`],
+//! [`OPAQUE_WRAPPER`], [`COMMENT`], [`CONTAINER`] and [`PARBREAK`].
 
 use flm_core::lang::structural as names;
 
@@ -31,6 +31,9 @@ pub const MATH: &str = names::MATH;
 /// Mirrors [`VERBATIM`](names::VERBATIM): `flm.verbatim`, the element of a verbatim group.
 pub const VERBATIM: &str = names::VERBATIM;
 
+/// Mirrors [`OPAQUE_WRAPPER`](names::OPAQUE_WRAPPER): `flm.opaque-wrapper`, the element of a group with no delimiters that holds content kept as written.
+pub const OPAQUE_WRAPPER: &str = names::OPAQUE_WRAPPER;
+
 /// Mirrors [`PARAGRAPH`](names::PARAGRAPH): `flm.paragraph`, the element of a paragraph.
 pub const PARAGRAPH: &str = names::PARAGRAPH;
 
@@ -47,4 +50,4 @@ pub const UNKNOWN_MACRO: &str = names::UNKNOWN_MACRO;
 pub const UNKNOWN_ENVIRONMENT: &str = names::UNKNOWN_ENVIRONMENT;
 
 /// Mirrors [`NAMES`](names::NAMES): every structural element name, in the fixed order of the set.
-pub const NAMES: [&str; 11] = names::NAMES;
+pub const NAMES: [&str; 12] = names::NAMES;

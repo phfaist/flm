@@ -22,7 +22,7 @@ import { Artifact, ArtifactId } from "flm:core/artifact";
 import { LoweringRule, LoweringDecl, DefaultMark, Lowering } from "flm:core/lowering";
 import { LoweringStage, lowered_table_name } from "flm:stdcore/backends/lowering";
 import { ALL, BLOCK, UNSUPPORTED } from "flm:stdcore/backends/pres";
-import { TEXT, GROUP, COMMENT, CONTAINER, PARBREAK } from "flm:lang/structural";
+import { TEXT, GROUP, OPAQUE_WRAPPER, COMMENT, CONTAINER, PARBREAK } from "flm:lang/structural";
 import { ArgDef, ElementDef, SyntaxDef } from "flm:lang/mint";
 import { chars_text } from "flm:lang/text";
 import { ElementSpec, Aspect } from "flm:model/element";
@@ -37,9 +37,9 @@ const CALLOUT = "typst.pres.callout";              // the presentation element o
 const CALLOUT_ELEMENT = "typst.callout";           // \tcallout[kind]{text}
 
 // The elements the emitter writes natively: the whole presentation vocabulary (the
-// rest as the `[unsupported: …]` stand-in), the five structural elements the text
+// rest as the `[unsupported: …]` stand-in), the six structural elements the text
 // backend writes, and the fixture's own element.
-const NATIVE = [...ALL, TEXT, GROUP, COMMENT, CONTAINER, PARBREAK, CALLOUT];
+const NATIVE = [...ALL, TEXT, GROUP, OPAQUE_WRAPPER, COMMENT, CONTAINER, PARBREAK, CALLOUT];
 
 // The one element of the standard package whose library rule is registered for the
 // library's backends alone, so that a backend of an extension lowers it by a rule

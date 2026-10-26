@@ -565,32 +565,36 @@ declare module "flm:lang/mint" {
   export { CallableKind } from "flm:core/registry";
 
   export class ArgDef {
-    constructor(code: string);
-    code: string;
+    constructor(syntax: string | ArgStdKind);
+    code: string | null;
     name: string | null;
-    static named(name: string, code: string): ArgDef;
+    static named(name: string, syntax: string | ArgStdKind): ArgDef;
     static mandatory(name: string): ArgDef;
     static optional(name: string): ArgDef;
     layout(layout: ArgLayout): this;
     blocks(): this;
+    with_opaque_wrapper(): this;
     docs(text: string): this;
     mode(mode: Mode): this;
     scoped(name: string): this;
     role(name: string): this;
-    toJSON(): { code: string; name: string | null; layout: ArgLayout; docs: string; mode: Mode | null; scoped: string[]; role: string | null };
+    toJSON(): ({ code: string } | ArgStdKind) & { name: string | null; layout: ArgLayout; opaque_wrapper: boolean; docs: string; mode: Mode | null; scoped: string[]; role: string | null };
   }
 
   export const ArgLayout: Readonly<{ Inline: "inline"; Blocks: "blocks"; InlineOrBlocks: "inline-or-blocks" }>;
   export type ArgLayout = "inline" | "blocks" | "inline-or-blocks";
 
+  export type ArgStdKind = { syntax: "mandatory" } | { syntax: "optional" } | { syntax: "star" } | { syntax: "marker"; marker: string } | { syntax: "delimited-group"; delimiters: [string, string] } | { syntax: "optional-delimited-group"; delimiters: [string, string] } | { syntax: "any-delimited-group" } | { syntax: "optional-any-delimited-group" } | { syntax: "braced-only" } | { syntax: "embellishments"; markers: string[] } | { syntax: "key-vals" } | { syntax: "chars-group" } | { syntax: "verbatim"; delimiters?: [string, string] } | { syntax: "terminated"; terminator: string; repeat_char?: string; opener?: string; head?: string; raw?: boolean };
+
   export class BodyDef {
     constructor();
     layout(layout: BodyLayout): this;
     blocks(): this;
+    with_opaque_wrapper(): this;
     verbatim(): this;
     mode(mode: Mode): this;
     scoped(name: string): this;
-    toJSON(): { layout: BodyLayout; verbatim: boolean; mode: Mode | null; scoped: string[] };
+    toJSON(): { layout: BodyLayout; opaque_wrapper: boolean; verbatim: boolean; mode: Mode | null; scoped: string[] };
   }
 
   export const BodyLayout: Readonly<{ Inline: "inline"; Blocks: "blocks"; FromRole: "from-role" }>;
@@ -820,6 +824,9 @@ declare module "flm:lang/structural" {
   /** Mirrors `VERBATIM`: `flm.verbatim`, the element of a verbatim group. */
   export const VERBATIM: "flm.verbatim";
 
+  /** Mirrors `OPAQUE_WRAPPER`: `flm.opaque-wrapper`, the element of a group with no delimiters that holds content kept as written. */
+  export const OPAQUE_WRAPPER: "flm.opaque-wrapper";
+
   /** Mirrors `PARAGRAPH`: `flm.paragraph`, the element of a paragraph. */
   export const PARAGRAPH: "flm.paragraph";
 
@@ -836,7 +843,7 @@ declare module "flm:lang/structural" {
   export const UNKNOWN_ENVIRONMENT: "flm.unknown.environment";
 
   /** Mirrors `NAMES`: every structural element name, in the fixed order of the set. */
-  export const NAMES: readonly ["flm.text", "flm.comment", "flm.container", "flm.group", "flm.math", "flm.verbatim", "flm.paragraph", "flm.parbreak", "flm.placeholder", "flm.unknown.macro", "flm.unknown.environment"];
+  export const NAMES: readonly ["flm.text", "flm.comment", "flm.container", "flm.group", "flm.math", "flm.verbatim", "flm.opaque-wrapper", "flm.paragraph", "flm.parbreak", "flm.placeholder", "flm.unknown.macro", "flm.unknown.environment"];
 }
 
 declare module "flm:lang/text" {

@@ -295,11 +295,6 @@ impl ArgumentParser<Flm> for AnnotationParser {
 }
 
 impl FlmArgumentParser for AnnotationParser {
-    /// The argument is document content, so it takes a layout.
-    fn holds_content(&self) -> bool {
-        true
-    }
-
     /// `flm.annotations.text:` followed by the command: the parsers of two
     /// commands differ, since each stops at its own closing command.
     fn identity(&self) -> Vec<u8> {

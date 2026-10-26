@@ -170,7 +170,7 @@ userdefs:
     note: { content: "#{body}" }
 ```
 
-A definition's `args` are written with the Python implementation's argument
+A definition's `args` may be written with the Python implementation's argument
 codes (`{` or `m`, `[` or `o`, `*` or `s`, `t<c>`, `r<c1><c2>`, `d<c1><c2>`,
 `v`, `v<c1><c2>`, `e{<chars>}`, `AnyDelimited`, `AnyDelimitedOptional`; the
 [table of argument codes](crate::lang::mint::codes#the-codes) gives each one),
@@ -187,6 +187,21 @@ terminator: `u<terminator>` (document content up to `<terminator>`, as in
 `\phf … \endphf`), `U<terminator>` (raw text up to it), `f<c><terminator>` and
 `F<c><terminator>` (the same after a run of the character `<c>`, up to the same
 run followed by `<terminator>`).
+
+The codes are shorthands for this library's **structured syntax**, which the
+Python implementation does not have: a map whose key `syntax` holds the name of
+a standard kind of argument and whose other keys hold the kind's parameters,
+beside the argument's own keys:
+`{syntax: delimited-group, delimiters: ["(", ")"], name: size}` declares the
+argument that `{code: "r()", name: size}` declares. Every code has its
+structured syntax (the table of argument codes gives it), and three forms have
+a structured syntax but no code: a group read as plain characters
+(`chars-group`), a group of `key=value` pairs (`key-vals`), and a terminated
+argument with an opener or with fixed text before the repeated run of its
+terminator (`terminated` with `opener` or `head`). The kinds and their
+parameters are listed in [the kind as
+data](crate::lang::mint::ArgStdKind#the-kind-as-data). A map gives exactly one
+of `syntax` and `code`.
 
 A plan expands the use sites of a definition with the [expand
 pass](crate::lang::rewrites::userdefs::expand), which replaces every use site of
@@ -1863,7 +1878,7 @@ The citation marks differ as the following table says, each for its reason:
 | the delimiters inside the link for one number, outside for several | always outside the links, each number its own link | one rule; a link never holds a bracket |
 | two spellings of one DOI in one call, `\cite{doi:10.1/X,doi:10.1/x}`, show two numbers, as does a key written twice in one call, `[1,1]` | the numbers of a group are a set: two keys that the provider answers as one work show one number, `[1]`, as does a key written twice | a citation mark lists the works it cites |
 | `sort_and_compress=False`: one citation mark per number, `[1][2][3]` | the citation counter style's `ranges` off: the numbers sorted and each written alone, `[1,2,3]`, one link each; every counter style has this switch | the same one link per number, without the delimiters repeated around each |
-| the space before `\cite` as the author wrote it; the citation marks raised by the stylesheet (`.citation-marks`) | a `\cite` removes the space written before it and always writes its own, a no-break space before an inline, bracketed citation mark, regardless of what precedes it; the citation mark is raised only in the superscript form, which writes no space | a citation belongs to the text before it, and no rule can tell reliably from the text around it which space is wanted |
+| the space before `\cite` as the author wrote it; the citation marks raised by the stylesheet (`.citation-marks`) | a `\cite` removes the space written before it, `~` and `\ ` included, and always writes its own, a no-break space before an inline, bracketed citation mark, regardless of what precedes it; the citation mark is raised only in the superscript form, which writes no space | a citation belongs to the text before it, and no rule can tell reliably from the text around it which space is wanted |
 | a comment between two calls ends the citation chunk | a comment between two calls does not end the citation chunk | the parser passes over the comments between the calls it absorbs |
 | — | `\R\cite{a,b}` writes the citation as a noun with its word, `refs. [1,2]`; `\R[S]` capitalizes the word, `\R[I]` writes the citation mark alone, inline, with no space of its own | new: a citation used as a word of its sentence, where an attached citation mark would bring an unwanted space |
 
@@ -1960,7 +1975,8 @@ differences:
   is nothing to install.
 - **How a macro is declared.** In `macro_definitions`, a declaration is written
   with the keys of a user definition: `args` (the Python `arguments_spec_list`,
-  its entries `code` and `name` for `parser` and `argname`),
+  its entries `code` and `name` for `parser` and `argname`, or a structured
+  syntax under `syntax`),
   `argument_number_offset` for the marker `SetArgumentNumberOffset`, and
   `content` with `text` and `math` for `textmode` and `mathmode`;
   `delimited_args` is the Python `delimited_arguments_spec_list`. The names

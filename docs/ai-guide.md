@@ -90,7 +90,7 @@ canonical one; the link leads to where the term is documented in full.
 | frozen tree | a document tree after the rewrite stages have run: it is never changed again, and everything a later stage computes about it is stored in tables beside it, keyed by node address | [frozen trees and computed data](crate::guide::concepts_overview#frozen-trees-and-computed-data) |
 | structural elements | the elements of the node shapes no feature declares: text, comments, containers, groups of each class, paragraph breaks, template placeholders, and the macros and environments a parse could not attribute to any feature (`flm.unknown.macro`, `flm.unknown.environment`) | [`StructuralElements`](crate::lang::structural::StructuralElements) |
 | content region | a run of sibling nodes laid out together: a fragment's top level, a body, an argument, a group's children; the block-structure pass lays each out as blocks, inline, or opaque (its region layout) | [`crate::lang::rewrites::blocks`] |
-| opaque region, verbatim region | an opaque region is a part of a tree that the rewrite passes carry over untouched and the lowering copies unchanged (mathematics and verbatim content, any run parsed in math mode); a verbatim region is a run of raw text in which no markup character means anything, always inside a group of the verbatim class | [opaque regions](crate::guide::concepts_overview#opaque-regions) |
+| opaque region, verbatim region, opaque wrapper | an opaque region is a part of a tree that the rewrite passes carry over untouched (mathematics and verbatim content, any run parsed in math mode, the content of an opaque wrapper); the lowering copies mathematics and verbatim content unchanged and writes an opaque wrapper through its children; a verbatim region is a run of raw text in which no markup character means anything, always inside a group of the verbatim class; an opaque wrapper is a group with no delimiters (`flm.opaque-wrapper`) that the parser places around the content of an argument or a body declared `with_opaque_wrapper()`, of every characters-only group, and of a proof title that begins with a star, so that the element reads the text as typed (`\cite`'s keys, `\label`, `\ref`, `\hyperref`'s target, a proof's back-reference) | [opaque regions](crate::guide::concepts_overview#opaque-regions) |
 | field, tack-on argument | a field is a macro that a construct absorbs as data rather than as content (`\label` after a heading; `\\`, `\label`, `\tag` and `\nonumber` in a display-math body); a tack-on argument is the trailing argument through which a construct absorbs the field macros written after its other arguments | [fields](crate::guide::concepts_overview#fields-data-a-construct-reads) |
 | scoped package | a set of element declarations that can be written only inside the environment bodies and arguments whose declarations refer to the package by name, for instance `\item` inside a list's body or `\caption` inside a float's body | [`ScopedPackageDef`](crate::lang::mint::ScopedPackageDef) |
 | synthesized value | a small tree that a stage builds while a run is under way, held outside the document's trees and numbered per stage invocation; a consumer brings it up to date through value catch-up before reading it as document content | [synthesized values](crate::guide::concepts_overview#synthesized-values) |
@@ -252,12 +252,19 @@ By \eqref{eq:energy}, \(E\) grows with \(m\).
 | `$` | **refused** (`flm.lang.dollar-math-disabled`) unless the front matter sets `flm.parsing.dollar_math: true`; write `\(…\)`, `\[…\]`, or `\$` for a dollar sign |
 | a blank line | a paragraph break |
 | `\(…\)`, `\[…\]` | inline and display mathematics |
-| `~` | a non-breaking space |
-| `\%` `\#` `\&` `\$` `\{` `\}` `\textbackslash` `\ ` | the character itself (`\ ` is a space that whitespace collapsing keeps) |
+| `~` | a non-breaking space; whitespace to the paragraph layout (below) |
+| `\%` `\#` `\&` `\$` `\{` `\}` `\textbackslash` `\ ` | the character itself (`\ ` is a space never merged with the spaces around it; whitespace to the paragraph layout, as `~` is) |
 | `\@` | nothing: a hint that a period ends an abbreviation (`cf.\@ the`) or a sentence (`NASA\@.`) |
-| `---`, `--`, `...`, two backticks and `''`, `"`, `'` | em dash, en dash, ellipsis, curly quotes (typographic substitutions; not inside mathematics or verbatim content) |
+| `---`, `--`, `...`, two backticks and `''`, `"`, `'` | em dash, en dash, ellipsis, curly quotes (typographic substitutions; not inside mathematics, verbatim content or text kept as typed: `\cite` keys, labels) |
 
-A run of spaces and line breaks inside a paragraph is one space. A command written in
+A run of spaces and line breaks inside a paragraph is one space. `~` and `\ ` are
+whitespace to the paragraph layout: removed at the edges of a paragraph and of a quotation's
+line, between blocks and before `\cite` or `\footnote` (`word~\cite{a}` is `word\cite{a}`);
+ignored where a command ignores whitespace (`\footnote{~}` is empty, `\item[~]` is
+`\item[]`), except in text a command reads as typed or with its markup (a `\cite` key, a
+label, a proof's back-reference, a term), where they are part of the text (`\cite{~a}`
+cites `~a`, `[~*lem:a]` is a malformed back-reference); kept everywhere else, each a space
+of its own, never merged with the spaces around it (`a~~b` keeps both). A command written in
 text that no feature declares is an Error
 ([`UnresolvableCommand`](crate::techy::core::constructs::UnresolvableCommand), matched by
 its `IDENTIFIER`) and is kept as written; an unknown environment is an Error and its body is still read. Inside
@@ -277,12 +284,12 @@ define is an Error inside a formula too.
 | mathematics | `\(…\)`, `\[…\]`, environments `equation` `align` `gather` and their starred forms | inside the six environments only: `\\[spacing]`, `\label{eq:x}`, `\tag{A}`/`\tag*{A}`, `\nonumber` (`\notag` is not one of them); `\eqref{eq:x}` shows `(3)`; text in a formula: `\text{…}` and `\textnormal` `\textup` `\textrm` `\textmd` `\textbf` `\textit` `\textsl` `\textsc` `\textsf` `\texttt` `\mbox`, whose argument is ordinary FLM content ([`math`](crate::stdcore::features::math)) |
 | verbatim content | `\verbtext+…+`, `\verbcode[lang]+…+`, `\verba[lang]+…+` (any delimiter; `{…}` `[…]` `<…>` `(…)` nest), `\begin{verbatimtext}…\end{verbatimtext}`, `\begin{verbatimcode}[lang]…\end{verbatimcode}` (a block) | no character is special inside ([`verbatim`](crate::stdcore::features::verbatim)) |
 | lists | `itemize`, `enumerate`, `description`; `\item[tag]\label{item:x}` | optional `[label=(#{alph}), ref=#{alph}]` or a short form `[(i)]`, `[1.]`, `[-]`; a `description` item needs a tag; nothing but whitespace and comments before the first `\item` ([`lists`](crate::stdcore::features::lists)) |
-| footnotes | `\footnote[\label{fn:x}]{content}` | the label goes **inside the optional argument**, never after the footnote; the space before `\footnote` is removed ([`xnotes`](crate::stdcore::features::xnotes)) |
+| footnotes | `\footnote[\label{fn:x}]{content}` | the label goes **inside the optional argument**, never after the footnote; the space before `\footnote` is removed, `~` included ([`xnotes`](crate::stdcore::features::xnotes)) |
 | hyperlinks | `\href{address}{text}`, `\url{address}`, `\email{address}` | the address is raw text up to the balancing `}` (`%` and `#` are characters there) ([`href`](crate::stdcore::features::href)) |
-| citations | `\cite[note]{key1,key2}`, `\R[S]\cite{key}`, `\R[I]\cite{key}` | adjacent `\cite` calls are one mark; `\cite` removes the space before it and writes its own; `\R` writes "ref."/"refs." before the mark (`S`: capitalized, `I`: no word) ([`citations`](crate::stdcore::features::citations)). The `flm` program finds entries by key prefix: `arxiv:`, `doi:`, `manual:{…}`, `bib:` ([citations](crate::guide::command_line#citations)) |
+| citations | `\cite[note]{key1,key2}`, `\R[S]\cite{key}`, `\R[I]\cite{key}` | adjacent `\cite` calls are one mark; `\cite` removes the space before it (`~` included) and writes its own; `\R` writes "ref."/"refs." before the mark (`S`: capitalized, `I`: no word) ([`citations`](crate::stdcore::features::citations)). The `flm` program finds entries by key prefix: `arxiv:`, `doi:`, `manual:{…}`, `bib:` ([citations](crate::guide::command_line#citations)) |
 | defined terms | `\begin{defterm}{term}\label{topic:x}\aliasterm{terms} body \end{defterm}`, `\term[ref]{shown}` | a term link matches the term exactly (case and markup count) ([`defterm`](crate::stdcore::features::defterm)) |
 | theorems | `theorem` `proposition` `lemma` `corollary` `conjecture` `definition` `remark` (one shared count), `proof`; `\begin{lemma}[Title]\label{lem:x}\noproofref …` | label types `thm` `prop` `cor` `lem` `rem` `def` `dfn` `x` `topic`; a proof's back-reference `\begin{proof}[*lem:x]` (shown) or `[**lem:x]` (recorded only); a `theorem`/`proposition`/`lemma`/`corollary` that no proof refers back to and that has no `\noproofref` is the Warning `flm.theorems.missing-proof` ([`theorems`](crate::stdcore::features::theorems)) |
-| quotations | `quote` (with `\text{…}`, `\lines{…}`, `\attributed{…}`, `\block{…}` sections), `blockquote`, `address` | text written directly in `quote` outside a section is an Error; in `\lines` and `address`, `\\` ends a line and `\indent` at a line's start indents it ([`quote`](crate::stdcore::features::quote)) |
+| quotations | `quote` (with `\text{…}`, `\lines{…}`, `\attributed{…}`, `\block{…}` sections), `blockquote`, `address` | text written directly in `quote` outside a section is an Error; in `\lines` and `address`, `\\` ends a line and `\indent` at a line's start indents it (`~` does not: it is removed there) ([`quote`](crate::stdcore::features::quote)) |
 | floats | `figure`, `table` with `\caption[alt=…]{…}`, `\label{figure:x}`, `\nonumber` in the body | `figure` holds exactly one `\includegraphics`; `table` one `cells` environment or one image; the label type is the float type's name ([`floats`](crate::stdcore::features::floats)) |
 | images | `\includegraphics[alt=…, width=5cm, height=…]{path}` | by default only inside a float's body; lengths in `pt`, `mm`, `cm`, `in` ([`graphics`](crate::stdcore::features::graphics)) |
 | tables of cells | `\begin{cells} \celldata<H>{A & B} \celldata{1 & 2 \\ 3 & 4} \end{cells}`, `\cell<styles>[row;col]{…}` | by default only inside a `table` float ([`cells`](crate::stdcore::features::cells)) |
@@ -308,17 +315,31 @@ flm:
       macros:
         hi: {content: "Hello, #1!", args: "{"}
         vec: {content: {text: "arrow", math: "\\vec{#1}"}, args: "{"}
-        unit: {content: "#{n} #{u}", args: [{code: "[", name: u}, {code: "{", name: n}], defaults: {u: m}}
+        unit: {content: "#{n} #{u}", args: [{syntax: optional, name: u}, {code: "{", name: n}], defaults: {u: m}}
+        pair: {content: "(#1, #2)", args: [{syntax: delimited-group, delimiters: ["<", ">"]}, "{"]}
       environments:
         note: {content: "[Note: #{body}]"}
 ```
 
-`args` uses argument codes (`{` or `m` mandatory, `[` or `o` optional, `*` or `s` star,
-`v` verbatim, and others: [the table of argument
-codes](crate::lang::mint::codes#the-codes)). Other keys: `defaults`,
-`argument_number_offset`, `block_role`, `expand` (`per-plan`, the default, or `always`),
-`overrides`, `docs`. The template language and its conditionals (`\IfValueT`,
-`\IfProvidedTF`, `\ifblank`, …) are described under [the template
+`args` gives each argument's syntax as a structured syntax or as an argument code. The
+structured syntax is a map whose key `syntax` names a standard kind (`mandatory`,
+`optional`, `star`, `marker`, `delimited-group`, `optional-delimited-group`,
+`any-delimited-group`, `optional-any-delimited-group`, `braced-only`, `embellishments`,
+`key-vals`, `chars-group`, `verbatim`, `terminated`) with the kind's parameters beside it
+(`delimiters: ["<", ">"]`, `markers`, `marker`, `terminator`, …: [the kind as
+data](crate::lang::mint::ArgStdKind#the-kind-as-data)). An argument code is its shorthand
+(`{` or `m` mandatory, `[` or `o` optional, `*` or `s` star, `v` verbatim, `r<c1><c2>` a
+`delimited-group`, and others: [the table of argument
+codes](crate::lang::mint::codes#the-codes)), written alone or under the key `code` of a
+map; `chars-group`, `key-vals` and a `terminated` argument with an `opener` or a `head`
+have no code. A map holds exactly one of `syntax` and `code`, beside the argument's
+`name`, `layout`, `opaque_wrapper`, `docs`, `mode`, `scoped` and `role`. A placeholder is
+replaced by the argument's content nodes and nothing else, whatever the argument's kind and
+its `opaque_wrapper`: the text is kept as typed only where the template places the
+placeholder in an argument that its command reads as typed (`\cite{#1}`, `\ref{#1}`).
+Other keys: `defaults`, `argument_number_offset`, `block_role`, `expand` (`per-plan`, the
+default, or `always`), `overrides`, `docs`. The template language and its conditionals
+(`\IfValueT`, `\IfProvidedTF`, `\ifblank`, …) are described under [the template
 language](crate::guide::language_syntax#the-template-language).
 
 ### Checking and rendering with the `flm` program
@@ -338,6 +359,7 @@ $ flm info                                    # the environment at a glance: pac
 $ flm info '\section'                         # a command's page, looked up by name
 $ flm info -d paper.flm settings/text         # the settings in effect for paper.flm, with where each was written
 $ flm info --json -r features/refs            # a feature and every page below it, as JSON
+$ flm info --write-flm refs.flm features/refs # one page as an FLM document (uses flmdoc), for flm render
 $ flm check --json-diagnostics paper.flm      # problems as JSON records on stderr, one per line
 $ flm dump --help                             # inspect trees, tables and outputs as JSON
 ```
@@ -1157,7 +1179,8 @@ assert_eq!(point.addr.tree, tree);
 
 ### Describe the environment
 
-From the command line: `flm info` prints pages; `--json` gives data. The pages describe
+From the command line: `flm info` prints pages; `--json` gives data; `--write-flm FILE`
+writes one page's FLM source, which `flm render` renders. The pages describe
 what a document may write and set, never its content.
 
 ```text

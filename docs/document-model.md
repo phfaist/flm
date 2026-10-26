@@ -126,7 +126,8 @@ object-safe trait can be one, and the aspect map is keyed by the trait object ty
 so an aspect is always looked up as `dyn MyAspect`, never as the struct that
 implements it.
 
-The aspects the standard features share are declared in [`crate::model::aspects`]:
+The aspects the standard features share, and the aspects that state what an element
+is, are declared in [`crate::model::aspects`]:
 
 - [`BlockRoleAspect`](crate::model::aspects::BlockRoleAspect) — whether an
   occurrence is a block, inline content, or a *block decorator*, an element attached
@@ -151,6 +152,20 @@ The aspects the standard features share are declared in [`crate::model::aspects`
 - [`InCopy`](crate::model::aspects::InCopy) — what represents an occurrence in a
   copy of content shown a second time (see [synthesized
   values](#synthesized-values) below).
+- [`Whitespace`](crate::model::aspects::Whitespace) — that each occurrence is
+  whitespace, as the non-breaking space `~` and the space `\ ` are. The
+  block-structure pass, which builds paragraphs and resolves text
+  ([`lang::rewrites::blocks`](crate::lang::rewrites::blocks)), removes such a node
+  where it removes whitespace. A paragraph that a lowering rule writes itself,
+  over content it cuts out of a longer run, is trimmed by
+  [`stage_trimmed`](crate::stdcore::backends::lowering::stage_trimmed), which
+  removes the same whitespace at its edges as the pass does, whitespace nodes
+  included, and the standard features' tests for blank content count such a node
+  as whitespace (a footnote holding only `~` is empty), except the tests of text
+  read as typed or with its markup, such as a citation key or a term, of which
+  the node is part (a term holding only `~` is not empty). Everywhere else the
+  node is kept, as a node of its own. Read the aspect with
+  [`is_whitespace_of`](crate::model::aspects::is_whitespace_of).
 
 Two rules follow from the way aspects are consulted, and both matter when writing
 one. An aspect method always receives the *node*, so it is evaluated per occurrence

@@ -70,12 +70,20 @@ impl Lower for LowerFn {
     }
 }
 
-/// The presentation vocabulary and the five structural elements the text
+/// The presentation vocabulary and the six structural elements the text
 /// backend writes.
 fn vocabulary() -> Vec<String> {
     let mut native: Vec<String> = pres::ALL.iter().map(ToString::to_string).collect();
     native.extend(
-        [structural::TEXT, structural::GROUP, structural::COMMENT, structural::CONTAINER, structural::PARBREAK].map(String::from),
+        [
+            structural::TEXT,
+            structural::GROUP,
+            structural::OPAQUE_WRAPPER,
+            structural::COMMENT,
+            structural::CONTAINER,
+            structural::PARBREAK,
+        ]
+        .map(String::from),
     );
     native
 }

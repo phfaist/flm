@@ -87,7 +87,7 @@ use crate::core::lowering::{
 };
 use crate::core::registry::{BuildError, FeatureBuilder};
 use crate::lang::Flm;
-use crate::lang::text::read_chars;
+use crate::lang::text::{is_space, read_chars};
 use crate::lang::mint::{ArgDef, ArgStdKind, ElementDef, SyntaxDef};
 use crate::model::aspects::{
     ApartFromText, BlockRole, BlockRoleAspect, ContentRef, FixedBlockRole, Label, RefDisplayOptions,
@@ -152,7 +152,7 @@ pub fn eqref_target(node: &NodeRef<'_, Flm>) -> Option<RefTargetText> {
     let text = match node.argument_content_nodes_named(TARGET_ARG) {
         Ok(Some(content)) => match read_chars(content.iter()) {
             Ok(read) if read.has_placeholder() => return None,
-            Ok(read) => read.text().unwrap_or_default().trim().to_string(),
+            Ok(read) => read.text().unwrap_or_default().trim_matches(is_space).to_string(),
             Err(_) => String::new(),
         },
         _ => String::new(),

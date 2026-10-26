@@ -1,6 +1,7 @@
 //! The `citations` feature on the text output: chunks, the numbering by
 //! first appearance, the marks in both forms, attached and standalone, the
-//! word of `\R`, the configuration, and the mistakes of a citation's writing.
+//! word of `\R`, the configuration, and the mistakes of a citation's writing;
+//! and `~`, whitespace beside a citation mark and at a paragraph's edges.
 
 mod common;
 
@@ -164,8 +165,8 @@ fn a_chunk_is_read_as_its_keys_split_trimmed_and_the_empty_ones_skipped() {
 
 #[test]
 fn a_key_is_flm_code_and_a_comma_inside_braces_belongs_to_it() {
-    // The keys argument is content: a group, a command and a formula are kept
-    // whole, and only a comma outside them separates two keys.
+    // The keys argument is parsed FLM code: a group, a command and a formula
+    // are kept whole, and only a comma outside them separates two keys.
     assert_eq!(
         items("\\cite{manual:{X et al., Journal of Future Results (2034)}}"),
         (keys(&["manual:{X et al., Journal of Future Results (2034)}"]), 0)
@@ -181,6 +182,14 @@ fn a_key_is_flm_code_and_a_comma_inside_braces_belongs_to_it() {
 fn a_key_s_whitespace_is_one_space_and_its_ends_trimmed() {
     assert_eq!(items("\\cite{ manual:{A   B} ,\n x }"), (keys(&["manual:{A B}", "x"]), 0));
     assert_eq!(items("\\cite{ , }"), (Vec::new(), 1));
+}
+
+#[test]
+fn a_key_s_quotes_and_dashes_are_recorded_as_typed() {
+    let run = render("See \\cite{manual:{A \"T\" -- x}}.");
+    assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
+    let table = run.table(&CITATIONS).expect("declared").expect("written");
+    assert_eq!(table.keys().map(|(key, _)| key).collect::<Vec<_>>(), ["manual:{A \"T\" -- x}"]);
 }
 
 #[test]
@@ -467,6 +476,42 @@ fn a_comment_between_the_text_and_a_cite_leaves_no_space_before_the_mark() {
         assert!(written.contains(&format!("{NBSP}[1] more")), "{written:?}");
         assert!(!written.contains(&format!(" {NBSP}")), "{written:?}");
     }
+}
+
+#[test]
+fn a_cite_removes_a_no_break_space_written_before_it_as_any_space() {
+    let documents = ["word~\\cite{a}", "word ~ \\cite{a}", "word~~\\cite{a}", "word\\ \\cite{a}"];
+    for document in documents {
+        assert_eq!(clean(document), format!("word{NBSP}[1]"), "{document}");
+    }
+}
+
+// `~` is whitespace to the layout of paragraphs wherever it stands, beside a
+// citation mark or not.
+
+#[test]
+fn a_no_break_space_at_a_paragraph_s_edge_is_removed_and_one_inside_is_kept() {
+    // The blank line lays the document out as paragraphs.
+    let run = render("~a~b~\n\nc");
+    assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
+    let tree = run.frozen_tree(TreeId::tree(0)).expect("the first tree is frozen");
+    let paragraph = tree.root().children().iter().next().expect("the first paragraph");
+    let children: Vec<String> = paragraph
+        .children()
+        .iter()
+        .map(|child| match child.chars() {
+            Some(text) => text.to_string(),
+            None => element_of(&child).name.to_string(),
+        })
+        .collect();
+    assert_eq!(children, ["a", "flm.literal", "b"]);
+}
+
+#[test]
+fn a_straight_quote_after_a_no_break_space_opens() {
+    // A document of one line is laid out inline, where the `~` is kept.
+    assert_eq!(clean("~\"x\""), format!("{NBSP}\u{201c}x\u{201d}"));
+    assert_eq!(clean("a~\"x\""), format!("a{NBSP}\u{201c}x\u{201d}"));
 }
 
 #[test]

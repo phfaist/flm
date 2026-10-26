@@ -71,13 +71,15 @@ Compile it ...
 `flm info` describes what a document can use: the packages, the commands each feature
 declares (how each is written and what each argument holds), the settings with their
 values in effect, the workflows and their processing steps. It prints pages of
-documentation at the terminal, or JSON with `--json`:
+documentation at the terminal, or JSON with `--json`, or writes a page as an FLM document
+with `--write-flm`:
 
 ```sh
 flm info                        # the environment at a glance
 flm info '\section'             # how \section is written, and its arguments
 flm info -d paper.flm settings/ # the settings in effect for paper.flm
 flm info --json features/refs   # one page as JSON
+flm info --write-flm refs.flm features/refs   # one page as an FLM document, for flm render
 ```
 
 The command is built on the crate `flm-info`, which a program can use to describe an FLM

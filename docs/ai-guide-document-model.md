@@ -74,16 +74,18 @@ aspects](crate::guide::concepts_overview#elements-and-aspects)). Its parts:
   option values (aspects are read during the rewrites and while a plan is built, before
   option values exist).
 
-The aspects the standard features share, in [`crate::model::aspects`]:
+The aspects the standard features share, and the aspect that says an element is whitespace,
+in [`crate::model::aspects`]:
 
 | aspect | what it says about an occurrence |
 |---|---|
-| [`BlockRoleAspect`](crate::model::aspects::BlockRoleAspect) → [`BlockRole`](crate::model::aspects::BlockRole) | `Block`, `Inline(InlineSpacing)` (whether the whitespace before or after is removed) or `BlockDecorator(Placement)` (attached to the block it occurs in). Read with [`block_role_of`](crate::model::aspects::block_role_of), which gives [`BlockRole::DEFAULT`](crate::model::aspects::BlockRole::DEFAULT) (inline) for an element without the aspect; most elements declare [`FixedBlockRole`](crate::model::aspects::FixedBlockRole) |
+| [`BlockRoleAspect`](crate::model::aspects::BlockRoleAspect) → [`BlockRole`](crate::model::aspects::BlockRole) | `Block`, `Inline(InlineSpacing)` (whether the whitespace before or after is removed, `~` included) or `BlockDecorator(Placement)` (attached to the block it occurs in). Read with [`block_role_of`](crate::model::aspects::block_role_of), which gives [`BlockRole::DEFAULT`](crate::model::aspects::BlockRole::DEFAULT) (inline) for an element without the aspect; most elements declare [`FixedBlockRole`](crate::model::aspects::FixedBlockRole) |
 | [`Referenceable`](crate::model::aspects::Referenceable) → [`RefPoint`](crate::model::aspects::RefPoint) | the reference points the occurrence carries, each with the label types it accepts ([`AcceptedRefTypes`](crate::model::aspects::AcceptedRefTypes)), its labels, its anchor policy ([`AnchorPolicy`](crate::model::aspects::AnchorPolicy)) and its number source ([`NumberSource`](crate::model::aspects::NumberSource)) |
 | [`Referencing`](crate::model::aspects::Referencing) → [`RefSite`](crate::model::aspects::RefSite) | the reference sites the occurrence carries |
 | [`Sectioning`](crate::model::aspects::Sectioning) | the heading level (every `u32` is valid; the standard kinds use 1 to 5), whether the occurrence is listed in the table of contents, and what its entry there shows (`toc_title`; the standard headings answer the `alt=` key's copy, else the title argument) |
 | [`ApartFromText`](crate::model::aspects::ApartFromText) | the content of the occurrence that is not part of the words around it (a footnote's content in a heading's title, a citation's keys); [`plain_text_of`](crate::lang::text::plain_text_of) leaves it out; read with [`apart_from_text_of`](crate::model::aspects::apart_from_text_of) |
 | [`InCopy`](crate::model::aspects::InCopy) → [`CopiedAs`](crate::model::aspects::CopiedAs) | what replaces the occurrence in a copy shown a second time: `Verbatim` (the default), `Nothing`, or `StandIn` ([`StandIn`](crate::model::aspects::StandIn), a childless node of an element of the feature's own); read with [`copied_as`](crate::model::aspects::copied_as) |
+| [`Whitespace`](crate::model::aspects::Whitespace) | that the occurrence is whitespace (`~`, `\ `): a marker with no method, attached as [`IsWhitespace`](crate::model::aspects::IsWhitespace). The block-structure pass treats such a *whitespace node* as whitespace-only text: removed beside an element that absorbs the whitespace on that side, at a paragraph's edges and between blocks; no paragraph content; a straight quote after it opens. A paragraph a rule writes itself over content it cuts out (a quotation's passage, attribution and lines, a `\celldata` entry) is trimmed by [`stage_trimmed`](crate::stdcore::backends::lowering::stage_trimmed), which removes the same whitespace at its edges as the pass does, whitespace nodes included. The standard features' tests for blank content count it as whitespace (`\footnote{~}` is empty), except those of text read as typed or with its markup, of which it is part (a citation key, a term: `\term{~}` is not empty). Elsewhere it stays a node of its own, never merged into text or collapsed (`a~~b` keeps two), lowered by its own rule. Read with [`is_whitespace_of`](crate::model::aspects::is_whitespace_of) (`false` without the aspect) |
 
 Aspects defined beside the code that reads them:
 
@@ -249,10 +251,15 @@ keyed by node address.
   [`RestrictedInterior`](crate::lang::RestrictedInterior) says what such an interior
   still recognizes).
 - **Opaque regions**: an opaque region is a part of a tree that the rewrite passes carry
-  over untouched and the lowering copies unchanged (mathematics and verbatim content,
-  any run parsed in math mode) ([opaque
-  regions](crate::guide::concepts_overview#opaque-regions)). Opacity belongs to the
-  region, not to the spelling that opened it.
+  over untouched (mathematics and verbatim content, any run parsed in math mode, the
+  content of an opaque wrapper); the lowering copies mathematics and verbatim content
+  unchanged and writes an opaque wrapper through its children ([opaque
+  regions](crate::guide::concepts_overview#opaque-regions)). An opaque wrapper is a group
+  with no delimiters (`FlmGroupType::OpaqueWrapper`, element `flm.opaque-wrapper`) that
+  the parser places around the content of an argument or a body declared
+  `with_opaque_wrapper()`, of every characters-only group, and of a proof title that
+  begins with a star, so that the element reads that text as typed. Opacity belongs to
+  the region, not to the spelling that opened it.
 
 ## Tables and the store
 

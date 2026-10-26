@@ -62,7 +62,8 @@ pub struct BlocksConfig {
     /// applies to a single `'`.
     ///
     /// A quote opens at the start of a text run that no content precedes (a
-    /// comment does not count), and after whitespace, an opening bracket
+    /// comment does not count, nor the spaces `~` and `\ `), and after
+    /// whitespace, an opening bracket
     /// (`(`, `[`, `{`) or a dash (`-`, `–`, `—`). A single quote also opens
     /// before a digit (`x'9` becomes `x‘9`), except in a decade abbreviation:
     /// after a letter, a digit or an underscore, and before two digits and an

@@ -169,6 +169,7 @@ use crate::lang::mint::{
     ScopedPackageDef, SyntaxDef, field_element,
     is_field_named,
 };
+use crate::lang::text::is_blank_text;
 use crate::model::aspects::ContentRef;
 use crate::model::element::ElementSpec;
 use crate::model::names::{FeatureName, Name};
@@ -219,10 +220,9 @@ fn linebreak_syntax() -> SyntaxDef {
 /// as `{1ex}`, exactly as written.
 ///
 /// Otherwise the parser behaves as the parser of an optional group: the
-/// argument holds document content (read in math mode, the mode of the body
-/// it is written in), declares no field, and is written as a value when a
-/// user definition is recomposed. Its identity is its own, distinct from the
-/// optional group's.
+/// argument is read in the mode of the body it is written in (math mode),
+/// declares no field, and is written as a value when a user definition is
+/// recomposed. Its identity is its own, distinct from the optional group's.
 #[derive(Debug)]
 struct SpacingParser(OptionalGroupArgumentParser<Flm>);
 
@@ -253,10 +253,6 @@ impl ArgumentParser<Flm> for SpacingParser {
 }
 
 impl FlmArgumentParser for SpacingParser {
-    fn holds_content(&self) -> bool {
-        true
-    }
-
     fn identity(&self) -> Vec<u8> {
         b"flm.math.lines.spacing".to_vec()
     }
@@ -468,12 +464,6 @@ pub fn body_behavior(numbered: bool) -> LinesBehavior {
 }
 
 impl FlmBodyParser for LinesBehavior {
-    /// The body holds content (mathematics, read in the mode that the body
-    /// declaration sets), not raw text.
-    fn holds_content(&self) -> bool {
-        true
-    }
-
     fn identity(&self) -> Vec<u8> {
         let mut out = b"flm.math.lines".to_vec();
         out.push(u8::from(self.numbered));
@@ -835,7 +825,7 @@ fn piece_of(kind: &NodeKind<Flm>, element: &ElementSpec, source: &Source<FlmOrig
     } else {
         match kind {
             NodeKind::Comment(_) => Piece::Blank,
-            NodeKind::Chars { content } if content.resolve(source).trim().is_empty() => Piece::Blank,
+            NodeKind::Chars { content } if is_blank_text(content.resolve(source)) => Piece::Blank,
             _ => Piece::Content,
         }
     }

@@ -216,8 +216,8 @@ fn a_nested_group_of_a_characters_only_group_reads_commands_again() {
     assert_eq!(argument_shapes(root, "lbl"), ["chars:a\\x", "group"]);
     assert_eq!(named(root, "emph").name(), Some("emph"));
     let lbl = named(root, "lbl");
-    let group = lbl.argument_nodes(0).unwrap().iter().find(|node| node.is_group()).unwrap();
-    assert_eq!(group.group_type(), Some(FlmGroupType::Content));
+    let first = lbl.argument_content_nodes(0).unwrap().iter().next().unwrap();
+    assert_eq!(first.parent().unwrap().group_type(), Some(FlmGroupType::Content));
 }
 
 // --- hard inputs ---------------------------------------------------------------------------

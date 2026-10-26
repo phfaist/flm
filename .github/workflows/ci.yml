@@ -1,0 +1,66 @@
+# The everyday checks, run on each push to the main branches and on each pull request:
+# the tests, clippy, the API documentation and the minimum supported Rust versions, on
+# Linux only (`scripts/check.sh quick`). The other checks (the tests on macOS and Windows,
+# the builds with features turned off, WebAssembly, LaTeX, the browser, the npm workspace)
+# are in the workflow `CI (full)` (ci-full.yml), which is run by hand.
+#
+# `cargo fmt --check` is deliberately absent: the code is formatted by hand.
+
+name: CI
+
+on:
+  push:
+    branches: [main-dev, main-rs]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch or pull request cancels the run in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # No debug information: smaller build folders and caches, faster links.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  checks:
+    name: tests, clippy, docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      # The build cache is saved by the runs on a push to a main branch, and read by all.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name == 'push' }}
+      - name: Tests
+        run: scripts/check.sh --locked test
+      - name: Clippy
+        if: ${{ !cancelled() }}
+        run: scripts/check.sh --locked clippy
+      - name: API documentation
+        if: ${{ !cancelled() }}
+        run: scripts/check.sh --locked docs
+
+  msrv:
+    name: minimum supported Rust versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the toolchains 1.86 and 1.88
+        run: rustup toolchain install 1.86 1.88 --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name == 'push' }}
+      - name: Minimum supported Rust versions
+        run: scripts/check.sh --locked msrv

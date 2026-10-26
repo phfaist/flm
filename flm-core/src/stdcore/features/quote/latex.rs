@@ -24,8 +24,9 @@
 //! The rule [`LATEX_RULE`] ([`QuoteLatexRule`]) writes a quotation as the
 //! environment of its name. Inside the environment, it writes the body as the
 //! author wrote it (the whitespace, blank lines and source comments between
-//! the quotation sections unchanged), and each quotation section through the
-//! LaTeX hook of its kind ([`hook_of`]):
+//! the quotation sections unchanged, the nodes that are whitespace, such as
+//! `~` and `\ `, left out), and each quotation section through the LaTeX hook
+//! of its kind ([`hook_of`]):
 //!
 //! - `\flmQuoteText{<passage>}`, `\flmQuoteAttributed{<attribution>}` and
 //!   `\flmQuoteBlock{<paragraphs>}`, over the argument of the
@@ -49,7 +50,9 @@
 //! of an environment that accepts it, and each maximal run of other content
 //! between two quotation sections is a run of **bare content**. The
 //! whitespace, blank lines and source comments at the edges of a run are
-//! written unchanged, outside any LaTeX hook. The rest of the run, with the
+//! written unchanged, outside any LaTeX hook, except the nodes that are
+//! whitespace, such as `~` and `\ `, which are left out there, as every other
+//! backend leaves them out. The rest of the run, with the
 //! whitespace at both of its ends trimmed, is written through the LaTeX hook
 //! of the environment's bare-content kind (a `blockquote`'s content inside
 //! `\flmQuoteBlock`, an `address`'s inside `\flmQuoteLines`). Where the
@@ -101,6 +104,7 @@ use crate::core::lowering::{
 use crate::core::registry::{BuildError, FeatureBuilder};
 use crate::lang::Flm;
 use crate::lang::structural::PARBREAK;
+use crate::model::aspects::is_whitespace_of;
 use crate::model::element::{element_of, element_value};
 use crate::model::names::{ElementName, Name};
 use crate::stdcore::backends::latex::construct::{
@@ -300,7 +304,8 @@ impl Lower for QuoteLatexRule {
 
 /// Stages `run`, a maximal run of bare content between two quotation
 /// sections of the quotation `value`: the whitespace, blank lines and source
-/// comments at its edges unchanged, and the rest through the LaTeX hook of
+/// comments at its edges unchanged, the nodes that are whitespace there left
+/// out ([`lower_edge`]), and the rest through the LaTeX hook of
 /// the environment's bare-content kind, with the whitespace at both of its
 /// ends trimmed as a quotation section's content is; or, where the
 /// environment reads no bare content, reported once and written in place.
@@ -312,11 +317,11 @@ fn bare_run(
     out: &mut Vec<BuildId>,
 ) -> Result<(), LowerError> {
     let Some(first) = run.iter().position(|node| !is_edge(node)) else {
-        out.extend(lower_run(cx, lw, run)?);
+        out.extend(lower_edge(cx, lw, run)?);
         return Ok(());
     };
     let last = run.iter().rposition(|node| !is_edge(node)).unwrap_or(first);
-    out.extend(lower_run(cx, lw, &run[..first])?);
+    out.extend(lower_edge(cx, lw, &run[..first])?);
     let core = &run[first..=last];
     match value.environment.bare {
         Some(QuoteSection::Lines) => {
@@ -332,16 +337,32 @@ fn bare_run(
             out.extend(lower_run(cx, lw, core)?);
         }
     }
-    out.extend(lower_run(cx, lw, &run[last + 1..])?);
+    out.extend(lower_edge(cx, lw, &run[last + 1..])?);
     Ok(())
 }
 
-/// Returns whether `node`, at the edge of a bare run, is written unchanged
-/// outside any LaTeX hook: whitespace, a source comment, or the
-/// paragraph-break node that a blank line leaves in the tree this backend
-/// lowers, which has not been through the block-structure pass.
+/// Returns whether `node`, at the edge of a bare run, stands outside any
+/// LaTeX hook: whitespace (`~` and `\ ` included, [`is_blank`]), a source
+/// comment, or the paragraph-break node that a blank line leaves in the tree
+/// this backend lowers, which has not been through the block-structure pass.
 fn is_edge(node: &NodeRef<'_, Flm>) -> bool {
     node.is_comment() || is_blank(node) || element_of(node).name.as_str() == PARBREAK
+}
+
+/// Lowers `edge`, nodes at the edge of a bare run ([`is_edge`]), as written,
+/// except the nodes that are whitespace, such as `~` and `\ `
+/// ([`is_whitespace_of`]), which are left out: LaTeX would typeset them
+/// there, and every other backend removes them.
+fn lower_edge(
+    cx: &mut LowerCx<'_>,
+    lw: &mut dyn Lowerer,
+    edge: &[NodeRef<'_, Flm>],
+) -> Result<Vec<BuildId>, LowerError> {
+    let mut out = Vec::new();
+    for run in edge.split(is_whitespace_of) {
+        out.extend(lower_run(cx, lw, run)?);
+    }
+    Ok(out)
 }
 
 /// Stages the lines of a lines section over `content`: split at every `\\`,

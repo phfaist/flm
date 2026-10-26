@@ -1,8 +1,9 @@
 //! The argument codes (`flm_core::lang::mint::codes`): what each code of the
 //! alphabet reads, the three shapes of an argument list, a user definition
 //! declared in settings with each code, the codes that are none, the mode and
-//! scoped packages of an argument written as a map, and the code an argument
-//! keeps.
+//! scoped packages of an argument written as a map, the code an argument
+//! keeps, and a user definition declared in settings with a structured syntax
+//! that no code writes.
 
 mod common;
 
@@ -253,4 +254,26 @@ fn an_argument_built_from_a_parser_has_no_code() {
     assert_eq!(ArgDef::new(ArgStdKind::Optional).code(), None);
     assert_eq!(ArgDef::mandatory("text").code(), None);
     assert_eq!(ArgDef::optional("size").code(), None);
+}
+
+// --- test 7: a user definition declared with a structured syntax that no code writes --------------
+
+/// The text that the template `[#1]` gives for `source` in running text, with
+/// a macro `\m` declared in settings with the one argument `arg`.
+fn expanded(arg: Value, source: &str) -> String {
+    let registry = registry(json!({ "macros": { "m": { "content": "[#1]", "args": [arg] } } }));
+    let run = common::stdcore::run_workflow(&registry, html::WORKFLOW, &[source], &Overrides::none());
+    assert!(run.diagnostics().iter().next().is_none(), "{source}: {}", run.diagnostics().render_all());
+    common::spine::text_at(&registry, source, None)
+}
+
+#[test]
+fn a_characters_only_group_declared_in_settings_reads_an_escape_as_a_character() {
+    assert_eq!(expanded(json!({ "syntax": "chars-group" }), r"A \m{a\b} B"), "A [a\\b] B\n");
+}
+
+#[test]
+fn a_terminated_argument_declared_in_settings_reads_its_opener() {
+    let arg = json!({ "syntax": "terminated", "terminator": "\\endm", "opener": ":", "head": "" });
+    assert_eq!(expanded(arg, r"A \m: text \endm B"), "A [ text ] B\n");
 }

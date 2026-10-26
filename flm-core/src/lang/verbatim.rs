@@ -73,6 +73,11 @@
 //!
 //! - Commands and special character sequences are not recognized, so `\` and
 //!   `~` are ordinary characters.
+//! - The content is carried over as written by the [block-structure
+//!   pass](crate::lang::rewrites::blocks): a verbatim argument's content
+//!   stands under its verbatim group, and the reader of a characters-only
+//!   group places the group under an opaque wrapper
+//!   ([`FlmGroupType::OpaqueWrapper`]).
 //! - Both follow the same policy of the parsing state
 //!   ([`RestrictedInterior`](crate::lang::RestrictedInterior)). In the parse of
 //!   a user definition's template, the placeholder syntax stays enabled inside

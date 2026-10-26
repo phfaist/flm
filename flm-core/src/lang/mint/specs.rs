@@ -64,6 +64,7 @@ use crate::model::element::ElementSpec;
 use crate::lang::ext::FlmStateExt;
 use crate::lang::flm::{Flm, FlmCallableType, FlmGroupType};
 use crate::lang::mint::decl::{ArgLayout, BodyDef};
+use crate::lang::mint::opaque::OpaqueWrapperBodyParser;
 use crate::lang::mint::parsers::FlmBodyParser;
 use crate::lang::origin::FlmOrigin;
 
@@ -300,24 +301,33 @@ impl EnvironmentBehavior<Flm> for FlmEnvironment {
     }
 
     /// Returns the body parser of the body declaration's
-    /// [parser](BodyDef::parser), or else the ordinary body parser.
+    /// [parser](BodyDef::parser), or else the ordinary body parser; when the
+    /// body declaration asks for an opaque wrapper
+    /// ([`BodyDef::opaque_wrapper`]), that parser wrapped so that the body's
+    /// content is placed under one.
     fn make_body_parser<'p>(
         &'p self,
         invocation: EnvironmentInvocation<'p, Flm>,
     ) -> Box<dyn ConstructParser<Flm, Output = EnvironmentBody<Flm>> + 'p> {
-        match &self.body.parser {
-            Some(parser) => parser.make_body_parser(invocation),
-            // The preset's default body handling, as its documentation constructs
-            // it: content up to and including the rigid `\end{name}` terminator.
-            None => Box::new(
-                EnvironmentBodyParser::new(
-                    invocation.trigger_span.clone(),
-                    invocation.name,
-                    invocation.end_command_name,
-                    FlmGroupType::Content,
-                )
-                .with_invocation_name_span(invocation.name_span),
-            ),
+        let parser: Box<dyn ConstructParser<Flm, Output = EnvironmentBody<Flm>> + 'p> =
+            match &self.body.parser {
+                Some(parser) => parser.make_body_parser(invocation),
+                // The preset's default body handling, as its documentation constructs
+                // it: content up to and including the rigid `\end{name}` terminator.
+                None => Box::new(
+                    EnvironmentBodyParser::new(
+                        invocation.trigger_span.clone(),
+                        invocation.name,
+                        invocation.end_command_name,
+                        FlmGroupType::Content,
+                    )
+                    .with_invocation_name_span(invocation.name_span),
+                ),
+            };
+        if self.body.opaque_wrapper {
+            Box::new(OpaqueWrapperBodyParser::new(parser))
+        } else {
+            parser
         }
     }
 }
@@ -532,11 +542,6 @@ impl FlmUnknownEnvironmentBehavior {
 }
 
 impl FlmBodyParser for FlmUnknownEnvironmentBehavior {
-    /// The body is parsed as usual: it is content.
-    fn holds_content(&self) -> bool {
-        true
-    }
-
     fn identity(&self) -> Vec<u8> {
         b"flm.unknown.environment".to_vec()
     }
@@ -793,6 +798,7 @@ pub fn resolve_element(
         NodeKind::Group(group) => match group.group_type {
             Some(FlmGroupType::Math(_)) => &structural.math,
             Some(FlmGroupType::Verbatim) => &structural.verbatim,
+            Some(FlmGroupType::OpaqueWrapper) => &structural.opaque_wrapper,
             Some(FlmGroupType::Paragraph) => &structural.paragraph,
             Some(FlmGroupType::Content) | None => &structural.group,
         },

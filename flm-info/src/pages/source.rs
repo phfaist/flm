@@ -789,8 +789,8 @@ fn command_declaration(doc: &mut Doc, page: &CommandPageView, view: &CommandView
         if !body.scoped.is_empty() {
             notes.push(format!("with the scoped packages {} available inside", codes(&body.scoped)));
         }
-        if body.raw {
-            notes.push(String::from("raw text"));
+        if body.opaque_wrapper {
+            notes.push(String::from("content kept as written"));
         }
         if let Some(reader) = &body.reader {
             notes.push(format!("read as {reader}"));
@@ -824,7 +824,8 @@ fn signature(kind: CallableKind, name: &str, arguments: &[ArgumentView]) -> Stri
 
 /// One argument of a command that the feature `feature` declares, as a parameter: its
 /// written form, its name, its role and its text, with a note of its layout, mode and scoped
-/// packages when they are not the default; `field` is the field it belongs to.
+/// packages when they are not the default, and of its opaque wrapper when the declaration
+/// places one; `field` is the field it belongs to.
 fn param(doc: &mut Doc, argument: &ArgumentView, feature: &str, field: Option<&str>) -> (String, String, String, String) {
     let mut notes = Vec::new();
     let layout = word(&argument.layout);
@@ -836,6 +837,9 @@ fn param(doc: &mut Doc, argument: &ArgumentView, feature: &str, field: Option<&s
     }
     if !argument.scoped.is_empty() {
         notes.push(format!("with the scoped packages {} available inside", codes(&argument.scoped)));
+    }
+    if argument.opaque_wrapper {
+        notes.push(String::from("content kept as written"));
     }
     if let Some(field) = field {
         notes.push(format!("an argument of the field {}", code(field)));

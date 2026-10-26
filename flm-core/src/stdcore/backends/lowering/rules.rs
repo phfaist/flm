@@ -12,10 +12,12 @@
 //! rule here too.
 //!
 //! Most structural elements need no rule: `flm.text`, `flm.group`,
-//! `flm.comment`, `flm.container` and `flm.parbreak` are elements a backend
-//! writes natively, so nothing lowers them; the `text` backend of this crate
-//! writes all five natively
-//! ([`FLOW_THROUGH`](crate::stdcore::backends::text::FLOW_THROUGH)). The
+//! `flm.opaque-wrapper`, `flm.comment`, `flm.container` and `flm.parbreak` are
+//! elements a backend writes natively, so nothing lowers them; the `text`
+//! backend of this crate writes all six natively
+//! ([`FLOW_THROUGH`](crate::stdcore::backends::text::FLOW_THROUGH)). An
+//! opaque wrapper has no delimiters, so a backend writes it through its
+//! children, and its text comes out as typed. The
 //! paragraph-break element is among them because it remains after block
 //! structuring inside opaque math content. The six rules of this module cover
 //! the elements that do need a rule, and [`default_rules`] is the list the
@@ -121,8 +123,9 @@ use crate::core::lowering::{
     DefaultMark, Lower, LowerCx, LowerError, Lowerer, Lowering, LoweringDecl, LoweringRule,
 };
 use crate::model::names::{ElementName, Name};
-use crate::lang::mint::{FIELD, body_def_of, field_name};
+use crate::lang::mint::{FIELD, field_name};
 use crate::lang::structural::{MATH, PARAGRAPH, UNKNOWN_ENVIRONMENT, UNKNOWN_MACRO, VERBATIM};
+use crate::lang::text::is_space;
 use crate::lang::{Flm, FlmGroupType};
 use crate::stdcore::backends::pres::{
     self, ParPayload, SpanPayload, UnknownKind, UnknownPayload, VerbatimDisplay, VerbatimKind,
@@ -375,8 +378,11 @@ pub fn lower_blocks_with_edges(
 /// content out of a longer run itself: the `quote` feature's passage,
 /// attribution and lines, and an entry of the `cells` feature's
 /// `\celldata`, each written without the spaces around it. Whitespace here
-/// is the ASCII whitespace a source contains ([`is_blank`]); a no-break space
-/// is content.
+/// is what [`is_blank`] counts as blank: the space, the tab, the carriage
+/// return and the line feed, and the nodes that are whitespace, such as `~`
+/// and `\ ` ([`Whitespace`](crate::model::aspects::Whitespace)), the same
+/// whitespace the block-structure pass removes at a paragraph's edges. The
+/// character U+00A0 typed in text is content.
 ///
 /// `passed_over` selects further nodes that are not content (commands that
 /// write nothing, which the calling rule reads in place, such as the `\\`
@@ -468,17 +474,18 @@ pub fn stage_trimmed_runs(
     Ok(out)
 }
 
-/// Whether `ch` is whitespace a line or a paragraph is trimmed of: the ASCII
-/// whitespace a source writes, never a no-break space, which is content.
-fn is_space(ch: char) -> bool {
-    ch.is_ascii_whitespace()
-}
-
-/// Whether `node` is text made of whitespace alone, the ASCII whitespace a
-/// source contains ([`stage_trimmed`] leaves such text out at the edges of a
-/// run).
+/// Whether `node` is blank: a node that is whitespace, such as `~` and `\ `
+/// (its element carries the aspect
+/// [`Whitespace`](crate::model::aspects::Whitespace)), or text made of
+/// whitespace alone: the space, the tab, the carriage return and the line
+/// feed. Text holding the character U+00A0 is not blank. [`stage_trimmed`]
+/// leaves blank nodes out at the edges of a run.
+///
+/// This is the one blank test of every reader of FLM content (see [the
+/// whitespace of FLM text](crate::lang::text#whitespace)): the
+/// block-structure pass and the features' readers make the same test.
 pub fn is_blank(node: &NodeRef<'_, Flm>) -> bool {
-    node.chars().is_some_and(|text| text.chars().all(is_space))
+    crate::lang::text::is_blank(node)
 }
 
 /// Lowers `flm.paragraph` to a `flm.pres.par` holding the paragraph's
@@ -567,24 +574,33 @@ pub const MATH_DISPLAY_KIND: &str = "display";
 pub struct VerbatimRule;
 
 /// The callable whose argument or body directly holds `node` (a verbatim
-/// group, a quote environment's section command), when there is one.
+/// group, a quote environment's section command), when there is one. An
+/// opaque wrapper over the argument or the body
+/// ([`FlmGroupType::OpaqueWrapper`]) is looked through.
 pub(crate) fn owning_callable<'t>(node: &NodeRef<'t, Flm>) -> Option<NodeRef<'t, Flm>> {
     // The body slot's content nodes are the callable's own children; a
-    // transparent container in between (a hook's) is looked through.
-    let mut owner = node.parent()?;
-    if owner.is_list() {
-        owner = owner.parent()?;
+    // transparent container in between (a hook's) is looked through. An
+    // opaque wrapper stands over an argument's nodes, or over the body's
+    // container under a container of its own.
+    let parent_past_list = |node: &NodeRef<'t, Flm>| {
+        let parent = node.parent()?;
+        if parent.is_list() { parent.parent() } else { Some(parent) }
+    };
+    let mut owner = parent_past_list(node)?;
+    if owner.group_type() == Some(FlmGroupType::OpaqueWrapper) {
+        owner = parent_past_list(&owner)?;
     }
     owner.is_callable().then_some(owner)
 }
 
-/// Whether the verbatim group is the body of a block-role element declared
-/// with a verbatim body, a body that holds no document content
-/// ([`BodyDef::holds_content`](crate::lang::mint::BodyDef::holds_content)).
+/// Whether the verbatim group is the body of a block-role element: the group
+/// is one of the content nodes of the owning callable's body slot (the body
+/// of an environment declared with a verbatim body), and the callable's block
+/// role is `Block`.
 fn is_block_verbatim(node: &NodeRef<'_, Flm>) -> bool {
     owning_callable(node).is_some_and(|owner| {
-        body_def_of(&owner).is_some_and(|body| !body.holds_content())
-            && block_role_of(&owner) == BlockRole::Block
+        block_role_of(&owner) == BlockRole::Block
+            && owner.body().is_some_and(|body| body.iter().any(|child| child.id() == node.id()))
     })
 }
 

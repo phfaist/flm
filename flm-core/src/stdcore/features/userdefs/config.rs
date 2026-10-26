@@ -119,11 +119,12 @@ impl UserdefsConfig {
     /// same definitions in the same order under the same expansion depth
     /// limit. A definition is written as its name, its kind, its arguments
     /// (each one's name, the identity of its parser, its parsing mode, its
-    /// layout and its scoped packages), its template text, the parsing modes it
-    /// applies in, its default values, its argument number offset, its block
-    /// role, its expansion policy, whether it overrides another feature's
-    /// command, and its extra placeholders (each one's name and whether it
-    /// accepts a substitution argument; [`Definition::extra_placeholder`]).
+    /// layout, whether it is declared with an opaque wrapper and its scoped
+    /// packages), its template text, the parsing modes it applies in, its
+    /// default values, its argument number offset, its block role, its
+    /// expansion policy, whether it overrides another feature's command, and
+    /// its extra placeholders (each one's name and whether it accepts a
+    /// substitution argument; [`Definition::extra_placeholder`]).
     /// Documentation strings change nothing in a parse and are left out.
     pub fn digest_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
@@ -237,12 +238,15 @@ fn put_role(out: &mut Vec<u8>, role: BlockRole) {
 
 /// Writes one argument: its name; the identity of its parser
 /// ([`FlmArgumentParser::identity`](crate::lang::mint::FlmArgumentParser::identity)),
-/// its length first; its parsing mode; its layout; and its scoped packages,
-/// their count first.
+/// its length first; its parsing mode; its layout; whether it is declared with
+/// an opaque wrapper; and its scoped packages, their count first.
 ///
-/// The identity of a standard parser gives its kind and, for a tack-on argument,
-/// each field's name, arguments and whether it repeats; a field's element is
-/// built from its name, so the name covers it. The parsing mode is written as
+/// The identity of a standard parser gives its kind with every parameter it
+/// holds, whether the argument was read from a code or from a structured
+/// syntax, so two arguments that differ in one parameter are written apart;
+/// for a tack-on argument, it gives each field's name, arguments and whether
+/// it repeats, and a field's element is built from its name, so the name
+/// covers it. The parsing mode is written as
 /// the `Debug` output of techy's parse mode (`Some(Math)`), which holds no
 /// memory address; the registry digest writes it the same way.
 fn put_arg(out: &mut Vec<u8>, arg: &ArgDef) {
@@ -259,6 +263,7 @@ fn put_arg(out: &mut Vec<u8>, arg: &ArgDef) {
             ArgLayout::InlineOrBlocks => "inline-or-blocks",
         },
     );
+    put_count(out, usize::from(arg.opaque_wrapper));
     put_count(out, arg.scoped.len());
     for package in &arg.scoped {
         put(out, package.as_str());
@@ -380,12 +385,22 @@ impl NamedEntry for NamedDefinition {
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct DefinitionData {
-    /// The arguments, in the order they are written at a use site, given in
-    /// one of three forms: one text in which each character is one argument code
-    /// (`"[{"`); a list of codes (`["[", "r()"]`); or a list whose entries are
-    /// each a code or a map giving the code with the argument's name, layout
-    /// and documentation. The codes are listed in [the table of argument
-    /// codes](crate::lang::mint::codes#the-codes).
+    /// The arguments, in the order they are written at a use site. Each
+    /// argument gives its syntax as a structured syntax: a map whose key
+    /// `syntax` holds the name of a standard kind of argument and whose other
+    /// keys hold the kind's parameters, beside the argument's own keys
+    /// (`name`, `mode`, `layout`, `opaque_wrapper`, `scoped`, `docs`, `role`),
+    /// as in `{syntax: delimited-group, delimiters: ["(", ")"], name: size}`
+    /// for a group in parentheses named `size`. An argument code is a
+    /// shorthand for a structured syntax: in a map, the key `code` holds it in
+    /// place of `syntax`, so `{code: "r()", name: size}` declares the same
+    /// argument; a code alone (`"{"`) declares an argument with no other key.
+    /// The list is written in one of three shapes: one text in which each
+    /// character is one code (`"[{"`); a list of codes (`["[", "r()"]`); or a
+    /// list whose entries are each a code or a map. The kinds and their
+    /// parameters are listed in [the documentation of the standard
+    /// kinds](crate::lang::mint::ArgStdKind#the-kind-as-data), and the codes
+    /// in [the table of argument codes](crate::lang::mint::codes#the-codes).
     #[serde(deserialize_with = "deserialize_arg_list")]
     #[schemars(with = "ArgListData")]
     pub args: Vec<ArgDef>,

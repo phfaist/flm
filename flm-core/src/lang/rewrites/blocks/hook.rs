@@ -248,9 +248,10 @@ pub trait BlockStructurer {
     /// end paragraphs and are removed, comments are kept, block decorators are
     /// placed by their [`Placement`](crate::model::aspects::Placement), and the
     /// text is resolved with the whitespace at the edges of each paragraph
-    /// removed. A run whose nodes were parsed in math mode is an [opaque
-    /// region](crate::guide::concepts_overview#opaque-regions) and is copied
-    /// unchanged instead.
+    /// removed. A run whose nodes were parsed in math mode, and a run that
+    /// stands in a verbatim group or an opaque wrapper or begins with one, is
+    /// an [opaque region](crate::guide::concepts_overview#opaque-regions) and
+    /// is copied unchanged instead.
     ///
     /// The staged nodes are paragraphs, block-level nodes and comments. A
     /// container the hook builds to hold them must therefore be a node of an
@@ -270,7 +271,9 @@ pub trait BlockStructurer {
     /// ([`BlockInInline`](super::error::BlockInInline)); a paragraph break is
     /// read as one space and reported
     /// ([`ParbreakInInline`](super::error::ParbreakInInline), with the context
-    /// `run`). A run parsed in math mode is copied unchanged instead.
+    /// `run`). A run parsed in math mode, and a run that stands in a verbatim
+    /// group or an opaque wrapper or begins with one, is copied unchanged
+    /// instead.
     fn build_inline(
         &mut self,
         cx: &mut StructureCx<'_>,
@@ -288,9 +291,11 @@ pub trait BlockStructurer {
     /// where the declaration says so, and otherwise by the element's block role
     /// (as blocks for an element whose role is
     /// [`Block`](crate::model::aspects::BlockRole::Block), inline otherwise). A
-    /// verbatim body and a body read in math mode are copied unchanged. The
-    /// content of a `{…}` group is laid out inline. Mathematics and verbatim
-    /// groups are copied unchanged.
+    /// verbatim body, a body under an opaque wrapper and a body read in math
+    /// mode are copied unchanged, and so is an argument whose content stands
+    /// in a verbatim group or an opaque wrapper. The content of a `{…}` group
+    /// is laid out inline. Mathematics groups, verbatim groups and opaque
+    /// wrappers are copied unchanged.
     fn default(
         &mut self,
         cx: &mut StructureCx<'_>,

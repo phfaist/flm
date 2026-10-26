@@ -84,6 +84,7 @@ pub fn constants() -> Vec<(&'static str, &'static str, Value)> {
         ("lang/structural", "GROUP", json!(crate::api::lang::structural::GROUP)),
         ("lang/structural", "MATH", json!(crate::api::lang::structural::MATH)),
         ("lang/structural", "VERBATIM", json!(crate::api::lang::structural::VERBATIM)),
+        ("lang/structural", "OPAQUE_WRAPPER", json!(crate::api::lang::structural::OPAQUE_WRAPPER)),
         ("lang/structural", "PARAGRAPH", json!(crate::api::lang::structural::PARAGRAPH)),
         ("lang/structural", "PARBREAK", json!(crate::api::lang::structural::PARBREAK)),
         ("lang/structural", "PLACEHOLDER", json!(crate::api::lang::structural::PLACEHOLDER)),

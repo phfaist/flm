@@ -126,6 +126,7 @@ use crate::lang::parse::{parse_fragment_with_state, ParseOptions};
 use crate::lang::rewrites::userdefs::diagnostics::{
     BadDefinition, BadPlaceholder, DefinitionProblem, PlaceholderProblem,
 };
+use crate::lang::text::is_space;
 
 /// The escape character that introduces a placeholder in a template: `#`.
 pub const PLACEHOLDER_ESCAPE: char = '#';
@@ -547,7 +548,7 @@ fn staged_reference_text(
             }
         }
     }
-    text.trim().to_string()
+    text.trim_matches(is_space).to_string()
 }
 
 /// Builds a placeholder node: a command of the placeholder type, named after
@@ -684,7 +685,7 @@ impl PlaceholderParser<'_> {
         stage_placeholder(
             cx,
             &self.invocation,
-            name.trim(),
+            name.trim_matches(is_space),
             ParsedArguments::empty(),
             Vec::new(),
             span,

@@ -27,7 +27,8 @@
 //! built in the body.
 //!
 //! The **content** is every other direct child of the body, except source
-//! comments, text made of whitespace alone, and paragraph breaks. A paragraph
+//! comments, whitespace (text made of whitespace alone, and the nodes that
+//! are whitespace, such as `~` and `\ `), and paragraph breaks. A paragraph
 //! that holds nothing but commands, whitespace and source comments is left out
 //! of the content as a whole; a paragraph that holds a command beside other
 //! content is one content node, and the float's rule leaves the command out
@@ -56,6 +57,7 @@ use crate::lang::mint::field_name;
 use crate::lang::{Flm, FlmGroupType};
 use crate::model::aspects::ContentRef;
 use crate::lang::structural::PARBREAK;
+use crate::lang::text::{is_blank, is_space};
 use crate::model::element::{element_of, element_value};
 use crate::stdcore::features::numbering::COUNTERS;
 use crate::stdcore::features::refs::{self, ANCHORS, LABEL_FIELD};
@@ -96,15 +98,11 @@ pub(super) fn is_float_field(node: &NodeRef<'_, Flm>) -> bool {
     })
 }
 
-/// Whether `node` is text made of whitespace alone.
-fn is_blank(node: &NodeRef<'_, Flm>) -> bool {
-    node.chars().is_some_and(|text| text.trim().is_empty())
-}
-
-/// Whether `node` is left out of a float's content: a source comment, text
-/// made of whitespace alone, or a paragraph break (which is found in the body
-/// where the block-structure pass built no paragraph, as on the raw tree the
-/// recomposed LaTeX reads).
+/// Whether `node` is left out of a float's content: a source comment,
+/// whitespace ([`is_blank`]: text made of whitespace alone, or a node that is
+/// whitespace, such as `~` and `\ `), or a paragraph break (which is found in
+/// the body where the block-structure pass built no paragraph, as on the raw
+/// tree the recomposed LaTeX reads).
 pub(super) fn is_aside(node: &NodeRef<'_, Flm>) -> bool {
     node.is_comment() || is_blank(node) || element_of(node).name.as_str() == PARBREAK
 }
@@ -247,10 +245,12 @@ impl<'t> Caption<'t> {
 /// The optional argument holds key-value pairs, read by techy's key-value
 /// reader ([`parse_keyval_drop_annotations`]), with the only key [`ALT_KEY`]
 /// (`alt`), whose value is content: `alt=Short`, `alt={Short, with a
-/// comma}`. These are recorded as problems: any other key; an argument that
-/// is not key-value pairs, or that holds no `=` at all (`\caption[Short]{…}`
-/// is read as the key `Short`); `alt` with no value; and a second `alt=`, the
-/// first being kept.
+/// comma}`. An argument holding nothing but whitespace (`~` and `\ `
+/// included) and comments is read as if it were not written. These are
+/// recorded as problems: any other key; an argument that is not key-value
+/// pairs, or that holds no `=` at all (`\caption[Short]{…}` is read as the
+/// key `Short`); `alt` with no value; and a second `alt=`, the first being
+/// kept.
 pub fn read_caption<'t>(node: NodeRef<'t, Flm>) -> Caption<'t> {
     let mut caption = Caption { node, alt: None, problems: Vec::new() };
     let Some(content) = node.argument_content_nodes_named(CAPTION_OPTIONS_ARG).ok().flatten() else {
@@ -261,7 +261,7 @@ pub fn read_caption<'t>(node: NodeRef<'t, Flm>) -> Caption<'t> {
     }
     let Ok(keyvals) = parse_keyval_drop_annotations(content) else {
         let written: String = content.iter().map(|node| node.span_content().to_string()).collect();
-        caption.problems.push(CaptionProblem::UnknownKey(written.trim().to_string()));
+        caption.problems.push(CaptionProblem::UnknownKey(written.trim_matches(is_space).to_string()));
         return caption;
     };
     for entry in keyvals.iter() {

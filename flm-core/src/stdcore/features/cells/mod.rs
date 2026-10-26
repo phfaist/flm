@@ -485,7 +485,6 @@ mod tests {
         use crate::lang::mint::{DefinitionShape, FlmArgumentParser};
         use techy::core::constructs::ArgumentParser;
         let parser = CellStylesParser::new();
-        assert!(parser.holds_content());
         assert_eq!(parser.identity(), b"flm.cells.styles");
         assert_eq!(parser.definition_shape(), DefinitionShape::NoShape { token: "cell-styles" });
         assert_eq!(parser.description(), "an optional `<…>` group of style tokens");

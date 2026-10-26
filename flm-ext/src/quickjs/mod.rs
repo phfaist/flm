@@ -543,7 +543,7 @@
 //!         Artifact.bytes(new ArtifactId("typst", "document"), "application/x-typst", text).as_entry());
 //!   },
 //! };
-//! b.backend(new BackendDef("typst", [...ALL, TEXT, GROUP, COMMENT, CONTAINER, PARBREAK, "typst.pres.callout"],
+//! b.backend(new BackendDef("typst", [...ALL, TEXT, GROUP, OPAQUE_WRAPPER, COMMENT, CONTAINER, PARBREAK, "typst.pres.callout"],
 //!                          new LoweringStage("typst"), emitStage, finalStage));
 //! b.output(new OutputDef("typst", "typst.document", "typst.document", "application/x-typst", "typ"));
 //! ```
@@ -768,10 +768,14 @@
 //!   reads as in Rust.
 //!
 //! An argument crosses as its argument code (the codes
-//! [`arg_def_from_code`](crate::api::lang::mint::arg_def_from_code) reads),
-//! never as a parser object: `new ArgDef(code)` and `ArgDef.named(name, code)`
-//! take a code where Rust's `ArgDef::new` and `ArgDef::named` take a parser
-//! kind; `ArgDef.mandatory(name)` and `ArgDef.optional(name)` are as in Rust.
+//! [`arg_def_from_code`](crate::api::lang::mint::arg_def_from_code) reads)
+//! or as its structured syntax, its standard kind written as data
+//! ([`ArgStdKind`](crate::api::lang::mint::ArgStdKind#the-kind-as-data):
+//! `{ syntax: "chars-group" }`), never as a parser object: `new
+//! ArgDef(syntax)` and `ArgDef.named(name, syntax)` take a code or a
+//! structured syntax where Rust's `ArgDef::new` and `ArgDef::named` take a
+//! standard kind or a parser; `ArgDef.mandatory(name)` and
+//! `ArgDef.optional(name)` are as in Rust.
 //! `ArgDef.mode(mode)`, `ArgDef.scoped(name)`, `BodyDef.scoped(name)` and
 //! `Definition.extra_placeholder(name, substitution)` are builder methods as
 //! in Rust. Not offered, since the data shape of a declaration cannot carry

@@ -8,8 +8,9 @@
 //! enums ([`unit_enum_tokens`], evaluated through the crate), the frozen
 //! objects of static constructors ([`STATIC_OBJECTS`]), the six lists
 //! [`NOT_DISPATCHED`], [`OPTIONAL_IN_SCRIPTS`], [`CALL_OVERRIDES`],
-//! [`EXTRA_METHODS`], [`HAND_ARMS`] and [`HAND_WRITTEN`], and the two lists
-//! of the WebAssembly guest client ([`GUEST_OWN`], [`GUEST_HAND`]). The test
+//! [`EXTRA_METHODS`], [`HAND_ARMS`] and [`HAND_WRITTEN`], and the three lists
+//! of the WebAssembly guest client ([`GUEST_OWN`], [`GUEST_HAND`],
+//! [`GUEST_ADDED`]). The test
 //! `the_mapping_table_matches_the_inventory` checks it against the inventory
 //! in both directions.
 //!
@@ -406,6 +407,15 @@ pub const TYPES: &[TypeRow] = &[
         ts: Ts::Hand,
         note: "lent as Entry::ArgDef (label_fields_arg); the hand-written arm arg_def_from_code writes it as data (arg_def_to_value)",
     },
+    // The structured syntax of an argument: the kinds the host reads and
+    // writes; a tack-on argument crosses with neither a code nor a syntax.
+    inside(
+        "ArgStdKind",
+        Ts::Text(
+            "{ syntax: \"mandatory\" } | { syntax: \"optional\" } | { syntax: \"star\" } | { syntax: \"marker\"; marker: string } | { syntax: \"delimited-group\"; delimiters: [string, string] } | { syntax: \"optional-delimited-group\"; delimiters: [string, string] } | { syntax: \"any-delimited-group\" } | { syntax: \"optional-any-delimited-group\" } | { syntax: \"braced-only\" } | { syntax: \"embellishments\"; markers: string[] } | { syntax: \"key-vals\" } | { syntax: \"chars-group\" } | { syntax: \"verbatim\"; delimiters?: [string, string] } | { syntax: \"terminated\"; terminator: string; repeat_char?: string; opener?: string; head?: string; raw?: boolean }",
+        ),
+        "JsonForm for ArgStdKind (serde), inside ArgDef: arg_def_to_value and arg_defs_from_value",
+    ),
     inside("BodyDef", Ts::Hand, "body_def_from_value, inside SyntaxDef"),
     both("UserDefinition", Ts::Handle, "the entry cloned; lent as Entry::UserDefinition"),
     both("LoweringRule", Ts::Handle, "the entry cloned; lent as Entry::LoweringRule"),
@@ -456,7 +466,6 @@ pub const TYPES: &[TypeRow] = &[
     inside("FixedBlockRole", Ts::NotOffered, "the aspect { BlockRoleAspect: role } holds the block role itself"),
     inside("NotCharacters", Ts::NotOffered, "an error, rendered as ExtError::Core of kind not-characters"),
     inside("NodeRegion", Ts::NotOffered, "taken by lower_region only, which is not dispatched"),
-    inside("ArgStdKind", Ts::NotOffered, "a Rust-side reader of an argument's kind; no stub uses it"),
     // The artifacts of an output (E5's WP-1a): plain data, re-exported; an
     // artifact crosses as the item of `TablePiece::push`, read by
     // artifact_from_value.
@@ -1202,19 +1211,20 @@ pub const HAND_WRITTEN: &[Hand] = &[
         module: "lang/mint",
         item: "ArgDef",
         ts: "export class ArgDef {
-  constructor(code: string);
-  code: string;
+  constructor(syntax: string | ArgStdKind);
+  code: string | null;
   name: string | null;
-  static named(name: string, code: string): ArgDef;
+  static named(name: string, syntax: string | ArgStdKind): ArgDef;
   static mandatory(name: string): ArgDef;
   static optional(name: string): ArgDef;
   layout(layout: ArgLayout): this;
   blocks(): this;
+  with_opaque_wrapper(): this;
   docs(text: string): this;
   mode(mode: Mode): this;
   scoped(name: string): this;
   role(name: string): this;
-  toJSON(): { code: string; name: string | null; layout: ArgLayout; docs: string; mode: Mode | null; scoped: string[]; role: string | null };
+  toJSON(): ({ code: string } | ArgStdKind) & { name: string | null; layout: ArgLayout; opaque_wrapper: boolean; docs: string; mode: Mode | null; scoped: string[]; role: string | null };
 }",
     },
     Hand { module: "lang/mint", item: "arg_def_from_code", ts: "export function arg_def_from_code(code: string): ArgDef;" },
@@ -1225,10 +1235,11 @@ pub const HAND_WRITTEN: &[Hand] = &[
   constructor();
   layout(layout: BodyLayout): this;
   blocks(): this;
+  with_opaque_wrapper(): this;
   verbatim(): this;
   mode(mode: Mode): this;
   scoped(name: string): this;
-  toJSON(): { layout: BodyLayout; verbatim: boolean; mode: Mode | null; scoped: string[] };
+  toJSON(): { layout: BodyLayout; opaque_wrapper: boolean; verbatim: boolean; mode: Mode | null; scoped: string[] };
 }",
     },
     Hand {
@@ -1696,6 +1707,15 @@ pub const GUEST_HAND: &[&str] = &[
     "LoweringRule.constructor",
     "BackendDef",
 ];
+
+/// The types the guest client adds to a module (by its path), written by
+/// hand in the module's file of `src/guest/hand/` and re-exported from the
+/// module with its own types: a type that no item of the api names, which a
+/// constructor of a type of [`GUEST_OWN`] takes where the api's constructor
+/// takes a type that does not cross. `ArgSyntax` is what the guest's
+/// `ArgDef::new` and `ArgDef::named` take: an argument code or a standard
+/// kind, where the api's take a parser (`IntoFlmArgumentParser`).
+pub const GUEST_ADDED: &[(&str, &str)] = &[("lang/mint", "ArgSyntax")];
 
 // --- the structural rules (the plan's section 4.2) ------------------------------------------
 

@@ -16,6 +16,7 @@ use techy::extract::parse_keyval_drop_annotations;
 
 use crate::lang::Flm;
 use crate::lang::copy::{WrittenPiece, key_value_pieces, trim_pieces};
+use crate::lang::text::{is_blank, is_space};
 
 use super::{LABEL_KEY, OPTIONS_ARG, REF_KEY, TAG_KEY};
 
@@ -84,7 +85,8 @@ pub(super) enum OptionProblem {
 #[derive(Debug, Clone, Default)]
 pub struct ListOptions<'t> {
     /// The list's own label template, `None` where the argument is absent,
-    /// empty, or writes none that can be read.
+    /// holds nothing but whitespace (`~` and `\ ` included) and comments, or
+    /// writes none that can be read.
     pub label: Option<OwnLabel<'t>>,
     /// The reference template the argument writes with `ref=`, as written,
     /// in the language of a counter style's number template (one enclosing
@@ -125,15 +127,16 @@ pub struct ItemTag<'t> {
 /// writes one. Returned by [`item_options`].
 #[derive(Debug, Clone, Default)]
 pub struct ItemOptions<'t> {
-    /// The item's tag, `None` where the argument is absent, empty, or writes
-    /// no tag.
+    /// The item's tag, `None` where the argument is absent, holds nothing but
+    /// whitespace (`~` and `\ ` included) and comments, or writes no tag.
     pub tag: Option<ItemTag<'t>>,
     /// What the reader could not take, in the order written.
     pub(super) problems: Vec<OptionProblem>,
 }
 
 /// The content nodes of `node`'s bracket [`OPTIONS_ARG`], or `None` where it
-/// is absent or holds nothing but whitespace — which is as if it were absent.
+/// is absent or holds nothing but whitespace ([`is_blank`]: `~` and `\ `
+/// included) and comments — which is as if it were absent.
 fn bracket<'t>(node: &NodeRef<'t, Flm>) -> Option<NodeSlice<'t, Flm>> {
     let content = node.argument_content_nodes_named(OPTIONS_ARG).ok()??;
     let blank = content.iter().all(|child| child.is_comment() || is_blank(&child));
@@ -242,19 +245,21 @@ pub fn short_form_ref(text: &str) -> Option<String> {
 /// read. This function reports nothing; the list's lowering rule reports
 /// what could not be read.
 ///
-/// A bracket holding no `=` outside braces and consisting only of the
-/// characters `[]().:-+*aAiI1` (after one enclosing pair of braces is taken
-/// off, which is how a `]` is written inside the bracket) is a **short form**
-/// of `label=` — see [`short_form`] — which also gives the list a reference
-/// template ([`short_form_ref`]). Any other bracket is read as key-values,
-/// whose keys are `label` and `ref`, each value a template as written (one
-/// enclosing pair of braces taken off, the text trimmed; its characters as
-/// the tree holds them, so that a dash the block-structure pass wrote for
-/// `--` stays a dash): `label=` alone sets the label template and, the same
-/// text, the reference template; `ref=` sets the reference template. An
-/// unknown key, a known key with no value, and a short form holding more
-/// than one number character are recorded as problems and give no template;
-/// a later `label=` or `ref=` replaces an earlier one.
+/// A bracket holding nothing but whitespace (`~` and `\ ` included) and
+/// comments is read as if it were not written. A bracket holding no `=`
+/// outside braces and consisting only of the characters `[]().:-+*aAiI1`
+/// (after one enclosing pair of braces is taken off, which is how a `]` is
+/// written inside the bracket) is a **short form** of `label=` — see
+/// [`short_form`] — which also gives the list a reference template
+/// ([`short_form_ref`]). Any other bracket is read as key-values, whose keys
+/// are `label` and `ref`, each value a template as written (one enclosing
+/// pair of braces taken off, the text trimmed; its characters as the tree
+/// holds them, so that a dash the block-structure pass wrote for `--` stays a
+/// dash): `label=` alone sets the label template and, the same text, the
+/// reference template; `ref=` sets the reference template. An unknown key, a
+/// known key with no value, and a short form holding more than one number
+/// character are recorded as problems and give no template; a later `label=`
+/// or `ref=` replaces an earlier one.
 pub fn list_options<'t>(node: &NodeRef<'t, Flm>) -> ListOptions<'t> {
     let mut options = ListOptions::default();
     let Some(content) = bracket(node) else { return options };
@@ -264,7 +269,7 @@ pub fn list_options<'t>(node: &NodeRef<'t, Flm>) -> ListOptions<'t> {
             (1, Some(group)) if group.is_group() => written_text(group.children().iter()),
             _ => written_text(content.iter()),
         };
-        let written = unwrapped.trim().to_string();
+        let written = unwrapped.trim_matches(is_space).to_string();
         let pieces = trim_pieces(content.iter().map(WrittenPiece::Node).collect());
         match (short_form(&written), short_form_ref(&written)) {
             (Some(Ok(template)), Some(ref_template)) => {
@@ -278,7 +283,8 @@ pub fn list_options<'t>(node: &NodeRef<'t, Flm>) -> ListOptions<'t> {
         return options;
     }
     let Ok(keyvals) = parse_keyval_drop_annotations(content) else {
-        options.problems.push(OptionProblem::UnknownKey(written_text(content.iter()).trim().to_string()));
+        let written = written_text(content.iter()).trim_matches(is_space).to_string();
+        options.problems.push(OptionProblem::UnknownKey(written));
         return options;
     };
     for entry in keyvals.iter() {
@@ -292,10 +298,10 @@ pub fn list_options<'t>(node: &NodeRef<'t, Flm>) -> ListOptions<'t> {
         }
         match (entry.value(), entry.value_content()) {
             (Some(_), Some(unwrapped)) if key == REF_KEY => {
-                options.ref_label = Some(template_text(unwrapped.iter()).trim().to_string());
+                options.ref_label = Some(template_text(unwrapped.iter()).trim_matches(is_space).to_string());
             }
             (Some(value), Some(unwrapped)) => {
-                let written = template_text(unwrapped.iter()).trim().to_string();
+                let written = template_text(unwrapped.iter()).trim_matches(is_space).to_string();
                 let pieces = key_value_pieces(&content, value);
                 options.label = Some(OwnLabel {
                     template: written.clone(),
@@ -314,10 +320,12 @@ pub fn list_options<'t>(node: &NodeRef<'t, Flm>) -> ListOptions<'t> {
 /// and what could not be read. This function reports nothing; the list's
 /// lowering rule reports what could not be read.
 ///
-/// A bracket holding no `=` outside braces is the tag whole — `\item[My tag]`
-/// is `\item[tag={My tag}]`. Any other bracket is read as key-values, whose
-/// one key is `tag`, its value the tag's content, FLM; `tag={a=b}` protects a
-/// `=` in braces. An unknown key and a `tag` with no value are recorded as
+/// A bracket holding nothing but whitespace (`~` and `\ ` included) and
+/// comments is read as if it were not written: it gives no tag. A bracket
+/// holding no `=` outside braces is the tag whole — `\item[My tag]` is
+/// `\item[tag={My tag}]`. Any other bracket is read as key-values, whose one
+/// key is `tag`, its value the tag's content, FLM; `tag={a=b}` protects a `=`
+/// in braces. An unknown key and a `tag` with no value are recorded as
 /// problems; a later `tag=` replaces an earlier one.
 pub fn item_options<'t>(node: &NodeRef<'t, Flm>) -> ItemOptions<'t> {
     let mut options = ItemOptions::default();
@@ -327,7 +335,8 @@ pub fn item_options<'t>(node: &NodeRef<'t, Flm>) -> ItemOptions<'t> {
         return options;
     }
     let Ok(keyvals) = parse_keyval_drop_annotations(content) else {
-        options.problems.push(OptionProblem::UnknownKey(written_text(content.iter()).trim().to_string()));
+        let written = written_text(content.iter()).trim_matches(is_space).to_string();
+        options.problems.push(OptionProblem::UnknownKey(written));
         return options;
     };
     for entry in keyvals.iter() {
@@ -346,11 +355,6 @@ pub fn item_options<'t>(node: &NodeRef<'t, Flm>) -> ItemOptions<'t> {
         options.tag = Some(ItemTag { pieces: key_value_pieces(&content, value) });
     }
     options
-}
-
-/// Whether `node` is characters holding nothing but whitespace.
-fn is_blank(node: &NodeRef<'_, Flm>) -> bool {
-    node.chars().is_some_and(|text| text.trim().is_empty())
 }
 
 #[cfg(test)]

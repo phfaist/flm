@@ -208,6 +208,32 @@ fn a_chars_group_argument_reads_commands_as_characters() {
 }
 
 #[test]
+fn an_opaque_wrapped_argument_is_a_wrapper_around_the_content_it_reads() {
+    let declared = |arg: ArgDef| lang(vec![macro_with("t", "key", vec![arg]), macro_def("t", "emph", 1)]);
+    let plain = declared(ArgDef::mandatory("key"));
+    let wrapped = declared(ArgDef::mandatory("key").with_opaque_wrapper());
+    // Each content node of `\key`'s argument, by its span and its characters.
+    let content = |lang: &BuiltLang, text: &str| -> Vec<(usize, usize, Option<String>)> {
+        let fragment = parse(lang, text);
+        let node = callables(&fragment).into_iter().next().unwrap();
+        let content = node.argument_content_nodes(0).unwrap();
+        content.iter().map(|node| (node.span().start(), node.span().end(), node.chars().map(String::from))).collect()
+    };
+    // A braced argument, whose content is inside its group, and a single
+    // token, whose content is the argument's own node.
+    for text in [r#"\key{a "b" \emph{c}}"#, r"\key x"] {
+        let fragment = parse(&wrapped, text);
+        let node = callables(&fragment).into_iter().next().unwrap();
+        let region: Vec<_> = node.argument_nodes(0).unwrap().iter().collect();
+        assert_eq!(region.len(), 1, "{text}");
+        assert_eq!(region[0].group_type(), Some(FlmGroupType::OpaqueWrapper), "{text}");
+        assert_eq!(region[0].group_delimiters(), Some(("", "")), "{text}");
+        assert!(!content(&plain, text).is_empty(), "{text}");
+        assert_eq!(content(&wrapped, text), content(&plain, text), "{text}");
+    }
+}
+
+#[test]
 fn a_tack_on_field_is_absorbed_as_a_node_of_the_field_element() {
     // Whatever a field is called, its node carries the one field element, and
     // the field's name is the element's value: a field is data, and the
@@ -264,9 +290,6 @@ impl ArgumentParser<Flm> for Angles {
 }
 
 impl FlmArgumentParser for Angles {
-    fn holds_content(&self) -> bool {
-        true
-    }
     fn identity(&self) -> Vec<u8> {
         b"test.angles".to_vec()
     }
@@ -420,9 +443,6 @@ impl EnvironmentBehavior<Flm> for Checked {
 }
 
 impl FlmBodyParser for Checked {
-    fn holds_content(&self) -> bool {
-        true
-    }
     fn identity(&self) -> Vec<u8> {
         b"test.checked".to_vec()
     }
@@ -488,7 +508,6 @@ fn a_body_is_read_by_the_parser_its_declaration_carries() {
     assert!(Arc::ptr_eq(element_of(&nodes[2]), &lang.structural().unknown_macro));
     let body = body_def_of(&nodes[0]).unwrap();
     assert_eq!(body.layout, BodyLayout::Blocks);
-    assert!(body.holds_content());
     // The declared layout is honored: the body is laid out as blocks.
     let mut diags = FlmDiagnostics::new();
     let tree = structure(fragment.tree(), FragmentLayout::Blocks, &BlocksConfig::new(), &mut diags)
@@ -530,9 +549,8 @@ fn a_body_parser_of_ones_own_meeting_the_end_of_the_input_does_not_fail_the_pars
 #[test]
 fn a_verbatim_body_is_read_through_the_body_parser_field() {
     let body = BodyDef::new().verbatim();
-    assert!(!body.holds_content());
     assert!(body.parser.is_some());
-    assert!(BodyDef::new().holds_content());
+    assert!(BodyDef::new().parser.is_none());
 }
 
 // --- the parser objects in each syntax ------------------------------------------------------

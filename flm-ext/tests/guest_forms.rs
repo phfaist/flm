@@ -88,9 +88,9 @@ fn round_trip<T: JsonForm + PartialEq + std::fmt::Debug>(value: &T) {
     assert_eq!(&T::from_value(&value.to_value()).expect("the guest reads its own form"), value);
 }
 
-/// The host's argument of the code `code`, named `name`: an argument the
-/// host reads back (one built from a parser, as `ArgDef::mandatory` builds it,
-/// is written with no code).
+/// The host's argument of the code `code`, named `name`, which the host
+/// writes with its code (one built from a standard kind, as
+/// `ArgDef::mandatory` builds it, is written with its structured syntax).
 fn host_arg(code: &str, name: &str) -> api::lang::mint::ArgDef {
     let mut arg = api::lang::mint::arg_def_from_code(code).expect("a code");
     arg.name = Some(name.to_string());
@@ -526,10 +526,8 @@ fn a_body_with_a_parser_of_its_own_written_by_the_guest_is_refused_by_the_host()
     let mut table = CallTable::new(1);
     let body = api::lang::mint::BodyDef::new().parser(flm_core::lang::mint::FlmUnknownEnvironmentBehavior::new());
     let written = SyntaxDef::Environment { args: vec![], body }.to_value();
-    let Err(error) = host::syntax_def_from_value(&written, &mut |value: &Value| host::held_from_table(&mut table, value)) else {
-        panic!("a parser the shape cannot name is refused");
-    };
-    assert_eq!(detail(&error), "a body must hold only the fields `layout`, `verbatim`, `mode`, `scoped`, not `parser`");
+    let refused = host::syntax_def_from_value(&written, &mut |value: &Value| host::held_from_table(&mut table, value));
+    assert!(matches!(refused, Err(ExtError::Value { .. })), "a parser the shape cannot name is refused");
     let verbatim = SyntaxDef::Environment { args: vec![], body: api::lang::mint::BodyDef::new().verbatim() };
     let read = host::syntax_def_from_value(&verbatim.to_value(), &mut |value: &Value| host::held_from_table(&mut table, value))
         .expect("the verbatim parser crosses");

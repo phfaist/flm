@@ -31,6 +31,7 @@ use techy::error::{Diagnostic, DiagnosticInfo};
 
 use crate::core::lowering::{LowerError, chars_at_lowering};
 use crate::lang::structural;
+use crate::lang::text::{is_blank_text, is_space};
 use crate::lang::{Flm, FlmDiagnostic, FlmGroupType};
 use crate::model::element::element_of;
 use crate::model::names::Name;
@@ -185,7 +186,7 @@ enum Piece<'t> {
 
 impl Piece<'_> {
     fn is_blank(&self) -> bool {
-        matches!(self, Piece::Text(text) if text.trim().is_empty())
+        matches!(self, Piece::Text(text) if is_blank_text(text))
     }
 }
 
@@ -303,7 +304,7 @@ impl<'s, 't> Reader<'s, 't> {
         };
         let word = axis.word();
         for (k, entry) in text.split(',').enumerate() {
-            let entry = entry.trim();
+            let entry = entry.trim_matches(is_space);
             let index = k as u64;
             if entry.is_empty() {
                 continue;
@@ -526,7 +527,8 @@ impl<'s, 't> Reader<'s, 't> {
                 let list = lists.last_mut().expect("at least one list");
                 list.extend(
                     piece
-                        .split_whitespace()
+                        .split(is_space)
+                        .filter(|name| !name.is_empty())
                         .map(|name| Token { name: name.to_string(), value: None, at: child }),
                 );
             }
@@ -564,7 +566,7 @@ impl<'s, 't> Reader<'s, 't> {
                     self.report(&token.at, BadStyleValue { detail }, None);
                     continue;
                 }
-                (StyleForm::Structural(parameter), Some(value)) => match parameter.effect(value.trim()) {
+                (StyleForm::Structural(parameter), Some(value)) => match parameter.effect(value.trim_matches(is_space)) {
                     Some(effect) => effect,
                     None => {
                         let detail = format!(
@@ -638,7 +640,9 @@ impl<'s, 't> Reader<'s, 't> {
             }
             Piece::Text(text) => match self.index(text, axis, IndexDefault::Current) {
                 Ok(Some(index)) => Ok((index, Some(index + 1))),
-                Ok(None) => Err(Bad(format!("the {} ‘{}’ must be given", axis.word(), text.trim()))),
+                Ok(None) => {
+                    Err(Bad(format!("the {} ‘{}’ must be given", axis.word(), text.trim_matches(is_space))))
+                }
                 Err(bad) => Err(bad),
             },
         })
@@ -696,7 +700,10 @@ impl<'s, 't> Reader<'s, 't> {
             };
             let (start, end) = match self.range(&text, axis, IndexDefault::Value(current), current, None) {
                 Ok((Some(start), end)) => (start, end),
-                Ok((None, _)) => return Ok(Err(Bad(format!("the range ‘{}’ must give its start", text.trim())))),
+                Ok((None, _)) => {
+                    let written = text.trim_matches(is_space);
+                    return Ok(Err(Bad(format!("the range ‘{written}’ must give its start"))));
+                }
                 Err(bad) => return Ok(Err(bad)),
             };
             // The length is counted from the range before any entry is
@@ -733,12 +740,14 @@ impl<'s, 't> Reader<'s, 't> {
         default_start: Option<u64>,
         default_end: Option<u64>,
     ) -> Result<(Option<u64>, Option<u64>), Bad> {
+        // The range as a message quotes it.
+        let written = text.trim_matches(is_space);
         if text.contains(',') {
             let mut covered: Vec<(u64, u64)> = Vec::new();
             for part in text.split(',') {
                 match self.range(part, axis, default, None, None)? {
                     (Some(start), Some(end)) => covered.push((start, end)),
-                    _ => return Err(Bad(format!("each part of the range ‘{}’ must give both its ends", text.trim()))),
+                    _ => return Err(Bad(format!("each part of the range ‘{written}’ must give both its ends"))),
                 }
             }
             covered.sort_unstable();
@@ -746,7 +755,7 @@ impl<'s, 't> Reader<'s, 't> {
             let mut end = covered[0].1;
             for &(part_start, part_end) in &covered[1..] {
                 if part_start > end {
-                    return Err(Bad(format!("the range ‘{}’ must be contiguous", text.trim())));
+                    return Err(Bad(format!("the range ‘{written}’ must be contiguous")));
                 }
                 end = end.max(part_end);
             }
@@ -759,22 +768,22 @@ impl<'s, 't> Reader<'s, 't> {
                 None => default_end,
             };
             if matches!((start, end), (Some(start), Some(end)) if end <= start) {
-                return Err(Bad(format!("the range ‘{}’ must not run backwards", text.trim())));
+                return Err(Bad(format!("the range ‘{written}’ must not run backwards")));
             }
             return Ok((start, end));
         }
         if let Some((start, count)) = text.split_once('+') {
             let start = self.index(start, axis, default)?;
-            let count = count.trim();
+            let count = count.trim_matches(is_space);
             if count.is_empty() || !count.bytes().all(|byte| byte.is_ascii_digit()) {
-                return Err(Bad(format!("in the range ‘{}’, ‘{count}’ must be a number", text.trim())));
+                return Err(Bad(format!("in the range ‘{written}’, ‘{count}’ must be a number")));
             }
             let count: u64 = count.parse().unwrap_or(u64::MAX);
             if count == 0 {
-                return Err(Bad(format!("the range ‘{}’ must span one {} at least", text.trim(), axis.word())));
+                return Err(Bad(format!("the range ‘{written}’ must span one {} at least", axis.word())));
             }
             let Some(start) = start else {
-                return Err(Bad(format!("the range ‘{}’ must give its start", text.trim())));
+                return Err(Bad(format!("the range ‘{written}’ must give its start")));
             };
             let end = start.saturating_add(count);
             if end > MAX_CELLS_POSITIONS {
@@ -789,7 +798,7 @@ impl<'s, 't> Reader<'s, 't> {
     /// An index: a number from 1, a declared name, or `.` or nothing for what
     /// `default` says.
     fn index(&self, text: &str, axis: Axis, default: IndexDefault) -> Result<Option<u64>, Bad> {
-        let text = text.trim();
+        let text = text.trim_matches(is_space);
         if text.is_empty() || text == "." {
             return Ok(match default {
                 IndexDefault::Current => Some(self.current(axis)),
@@ -905,8 +914,8 @@ fn is_name(text: &str) -> bool {
         && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
 }
 
-/// Whether `node` is a comment or blank text, in the lowering helpers' sense
-/// ([`is_blank`]): a no-break space is content.
+/// Whether `node` is a comment or blank, in the lowering helpers' sense
+/// ([`is_blank`]): whitespace text, or a node that is whitespace, such as `~`.
 fn is_comment_or_blank(node: &NodeRef<'_, Flm>) -> bool {
     node.is_comment() || is_blank(node)
 }

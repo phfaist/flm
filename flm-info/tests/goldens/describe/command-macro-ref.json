@@ -13,14 +13,21 @@
     "arguments": [
       {
         "form": "an optional `[key=value,…]` group",
+        "syntax": {
+          "syntax": "key-vals"
+        },
         "written": "[options]",
         "name": "options",
         "layout": "inline",
         "docs": "Display options: the name of a wording variant of the word before a number, `S` for the capitalized wording, or `noprefix` to leave the word out.",
-        "summary": "Display options: the name of a wording variant of the word before a number, `S` for the capitalized wording, or `noprefix` to leave the word out."
+        "summary": "Display options: the name of a wording variant of the word before a number, `S` for the capitalized wording, or `noprefix` to leave the word out.",
+        "opaque_wrapper": true
       },
       {
-        "form": "a `{…}` group read as plain characters",
+        "form": "a `{…}` group read as plain characters, kept as written",
+        "syntax": {
+          "syntax": "chars-group"
+        },
         "written": "{target}",
         "name": "target",
         "layout": "inline",
@@ -38,7 +45,7 @@
         "flm_core::model::aspects::ApartFromText",
         "flm_core::model::aspects::Referencing"
       ],
-      "number": 46
+      "number": 47
     }
   }
 ]

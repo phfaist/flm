@@ -346,8 +346,9 @@ Each argument is declared by an [`ArgDef`](crate::lang::mint::ArgDef): the parse
 reads it (one of the standard kinds of [`ArgStdKind`](crate::lang::mint::ArgStdKind), or
 a parser of the feature's own,
 [`FlmArgumentParser`](crate::lang::mint::FlmArgumentParser)), an optional name, the
-parsing mode it is read in, its layout and its scoped packages (both described below),
-and documentation. Give an argument a name whenever anything reads it: a reader that
+parsing mode it is read in, its layout, whether its content is kept as typed under an
+opaque wrapper, its scoped packages (the last three described below), and
+documentation. Give an argument a name whenever anything reads it: a reader that
 finds an argument by name keeps working when the argument list changes later, and one
 that finds it by position does not.
 
@@ -367,7 +368,7 @@ that finds it by position does not.
 | [`CharsGroup`](crate::lang::mint::ArgStdKind::CharsGroup) | a `{…}` group read as plain characters, as in `\label{sec:intro}` |
 | [`Verbatim`](crate::lang::mint::ArgStdKind::Verbatim) | raw text between a pair of delimiters, as in `\verbcode|…|`; the closing delimiter is matched to the opening character unless the declaration prescribes the pair |
 | [`TackOn`](crate::lang::mint::ArgStdKind::TackOn) | the fields ([`TackOnField`](crate::lang::mint::TackOnField)) that the construct absorbs after its own arguments, as `\section{…}` absorbs `\label{…}` |
-| [`Terminated`](crate::lang::mint::ArgStdKind::Terminated) | everything up to a fixed *terminator*, as document content or as raw text: `\phf … \endphf`, or the code span `` `…` `` that ends at the first place where as many backticks as opened it follow one another |
+| [`Terminated`](crate::lang::mint::ArgStdKind::Terminated) | everything up to a fixed *terminator*, as FLM markup or as raw text: `\phf … \endphf`, or the code span `` `…` `` that ends at the first place where as many backticks as opened it follow one another |
 
 A terminated argument is written in three parts: a *prefix*, which may be a run of copies
 of one character (as many as the author writes) followed by a fixed opener; the content;
@@ -379,7 +380,7 @@ on the declaration:
 
 - With `raw: true`, the content is raw text, like a verbatim argument's: the terminator is
   the only thing recognized in it, so the content needs no escaping.
-- With `raw: false`, the content is parsed as document content and follows the document's
+- With `raw: false`, the content is parsed as FLM markup and follows the document's
   rules: commands are read as usual, groups must pair, and `%` starts a comment. Inside a
   nested `{…}` group the terminator is not recognized: `\phf a{b\endphf}c\endphf` ends at
   the second `\endphf`.
@@ -388,37 +389,68 @@ The variant's documentation gives the complete rules (such as where a longer run
 repeated character ends the argument) and the errors reported for a missing terminator or
 an incomplete prefix.
 
-### Argument codes in settings
+### An argument's syntax in settings
 
-Settings written as data cannot hold a parser, so they describe an argument by a short
-text, its **argument code**: `{` for a mandatory group, `[` for an optional one, `r()`
-for a group in parentheses, `e{_^}` for a subscript and a superscript, ``` F`` ``` for raw
-text after a run of backticks up to the same run followed by one more backtick (a code
-span, whose first backtick the command itself reads). Each code corresponds to
-one of the standard kinds above. A terminated argument has four codes: `u<terminator>`
-(content up to the terminator), `U<terminator>` (raw text up to it), `f<c><terminator>`
-(content after a run of the character `<c>`, up to the same run followed by the
-terminator, which may be empty) and `F<c><terminator>` (the same, raw text); these four
-are FLM's own, and no code sets a terminated argument's opener or the fixed text that may
-begin its terminator, which a declaration in Rust sets. Three standard kinds have no code and are
-declared in Rust only: a group read as plain characters (`CharsGroup`), a group of
-`key=value` pairs (`KeyVals`), and the fields absorbed after the arguments (`TackOn`).
-The table of codes is in [`lang::mint::codes`](crate::lang::mint::codes#the-codes). Two
-functions read codes into
-declarations: [`arg_def_from_code`](crate::lang::mint::arg_def_from_code) reads one code,
-and [`ArgListData`](crate::lang::mint::ArgListData) reads an argument list written in any
-of its three forms (one text of one-character codes, such as `"[{"`; a list of codes; a
-list of entries, each a code or a map of the code with the argument's name, layout,
-documentation, parsing mode (`mode`: `text` or `math`) and scoped packages (`scoped`: a
-list of names)). A declaration read from a code keeps that code
-([`ArgDef::code`](crate::lang::mint::ArgDef::code)), so that it can be written back as
-it was read.
+Settings written as data cannot hold a parser, so they give the syntax of each argument as
+data, in one of two forms:
+
+- The **structured syntax** is a standard kind written as data: a map whose key `syntax`
+  holds the kind's name, in lowercase with hyphens, and whose other keys hold the kind's
+  parameters, as in `{syntax: delimited-group, delimiters: ["(", ")"]}` for a group in
+  parentheses or `{syntax: chars-group}` for a group read as plain characters. Every
+  standard kind above can be written this way except `TackOn`: its fields are
+  declarations that a feature makes in Rust, each with an element of its own, so settings
+  cannot declare one. The [documentation of
+  `ArgStdKind`](crate::lang::mint::ArgStdKind#the-kind-as-data) lists each kind's name and
+  parameters, and what reading a kind refuses.
+- An **argument code** is a short text that stands for one structured syntax: `{` for a
+  mandatory group, `[` for an optional one, `r()` for a group in parentheses, `e{_^}` for
+  a subscript and a superscript, ``` F`` ``` for raw text after a run of backticks up to
+  the same run followed by one more backtick (a code span, whose first backtick the
+  command itself reads). A terminated argument has four codes: `u<terminator>` (content
+  up to the terminator), `U<terminator>` (raw text up to it), `f<c><terminator>` (content
+  after a run of the character `<c>`, up to the same run followed by the terminator, which
+  may be empty) and `F<c><terminator>` (the same, raw text); these four are FLM's own. The
+  [table of codes](crate::lang::mint::codes#the-codes) gives each code with the
+  structured syntax it stands for. Three forms have no code and are written with the
+  structured syntax: a group read as plain characters (`chars-group`), a group of
+  `key=value` pairs (`key-vals`), and a terminated argument with an opener or with fixed
+  text before the repeated run of its terminator (`terminated` with `opener` or `head`).
+
+An argument list ([`ArgListData`](crate::lang::mint::ArgListData)) is written in one of
+three shapes: one text of one-character codes, such as `"[{"`; a list of codes; or a list
+of entries, each a code or an argument's map. An argument's map
+([`ArgDataFields`](crate::lang::mint::ArgDataFields)) gives the syntax in exactly one of
+the two forms, the key `syntax` with the kind's parameters or the key `code`, beside the
+argument's own keys: its name, layout, opaque wrapper (`opaque_wrapper`: `true` or
+`false`), documentation, parsing mode (`mode`: `text` or `math`), scoped packages
+(`scoped`: a list of names) and role. So
+`{syntax: delimited-group, delimiters: ["(", ")"], name: size}` and
+`{code: "r()", name: size}` declare the same argument. Two functions read these into
+declarations:
+[`arg_def_from_code`](crate::lang::mint::arg_def_from_code) reads one code, and
+[`ArgListData::arg_defs`](crate::lang::mint::ArgListData::arg_defs) reads an argument
+list. A declaration read from a code keeps that code
+([`ArgDef::code`](crate::lang::mint::ArgDef::code)), and one read from a structured syntax
+holds its standard kind, so that each can be written back in the form it was read from.
 
 A feature whose own settings declare commands reads their argument lists through these
 functions, as the `userdefs` feature does: it declares the settings field as
 `Vec<ArgDef>` read with
-[`deserialize_arg_list`](crate::lang::mint::deserialize_arg_list). It never reads a code
-itself, so that a code means the same form of argument in every settings file.
+[`deserialize_arg_list`](crate::lang::mint::deserialize_arg_list). It never reads an
+argument's syntax itself, so that a syntax means the same form of argument in every
+settings file.
+
+An extension in JavaScript, or in Rust written against the guest client `flm_ext::guest`
+(see [A Rust extension compiled to
+WebAssembly](#a-rust-extension-compiled-to-webassembly)), declares its arguments with the
+same data, since its declarations cross to FLM as data: `new ArgDef(syntax)` and
+`ArgDef.named(name, syntax)` in JavaScript, and `ArgDef::new(syntax)` and
+`ArgDef::named(name, syntax)` in Rust, take a code (`"r()"`) or a structured syntax
+(`{ syntax: "chars-group" }` in JavaScript, `ArgStdKind::CharsGroup` in Rust). When FLM
+gives a declaration to an extension, it writes each argument in the form it was read
+from: with its code, with its structured syntax, or, for a tack-on argument or a parser
+of a feature's own, with neither.
 
 ### What an argument holds: its role
 
@@ -461,9 +493,11 @@ The registry lists the roles with their documentation
 ([`FlmRegistry::argument_roles`](crate::core::registry::FlmRegistry::argument_roles),
 [`argument_role_named`](crate::core::registry::FlmRegistry::argument_role_named)). In
 settings written as data, an argument entry gives its role under the key `role`
-(`{code: "{", name: "target", role: "flm.refs.target"}`); an extension in JavaScript or in
-Rust declares a role with `b.argument_role(name, docs)` and sets it with `.role(name)` on
-its `ArgDef`.
+(`{syntax: chars-group, name: target, role: flm.refs.target}`); an extension in
+JavaScript or in Rust declares a role with `b.argument_role(name, docs)` and sets it with
+`.role(name)` on its `ArgDef`. The same map gives the argument's name, layout,
+documentation, mode, scoped packages and opaque wrapper (`opaque_wrapper: true` keeps the
+argument's text as typed).
 
 A feature may set a role that another feature declares. When that other feature may be
 absent from the registry, the feature setting the role declares it as a peer with
@@ -495,12 +529,15 @@ standard ones, `<owner>.<feature>.<thing>` (`acme.glossary.entry`).
 
 ### An argument's layout
 
-An argument that holds document content is laid out by the block-structure pass, the
-rewrite that lays out content in paragraphs and blocks, or as inline content
-([`blocks`](crate::lang::rewrites::blocks)). Among the standard kinds, every group of
-content, mandatory or optional, and a run of embellishments hold document content; a
-parser of the feature's own says whether its argument does
-([`FlmArgumentParser::holds_content`](crate::lang::mint::FlmArgumentParser::holds_content)).
+An argument's content is laid out by the block-structure pass, the rewrite that lays out
+content in paragraphs and blocks, or as inline content
+([`blocks`](crate::lang::rewrites::blocks)), unless it is an [opaque
+region](crate::guide::concepts_overview#opaque-regions), which the pass carries over as
+written: content read in mathematics mode, verbatim text, and content under an opaque
+wrapper (an argument declared with
+[`ArgDef::with_opaque_wrapper`](crate::lang::mint::ArgDef::with_opaque_wrapper), and every
+characters-only group). An argument declared with an opaque wrapper
+takes no layout: a layout other than inline is refused when the language is built.
 The argument's declaration chooses its layout
 ([`ArgDef::layout`](crate::lang::mint::ArgDef::layout)), one of the three values of
 [`ArgLayout`](crate::lang::mint::ArgLayout):
@@ -524,12 +561,15 @@ An argument's layout does not depend on where the command is written: a command 
 in the middle of a paragraph, or in a heading's title, still holds paragraphs in an
 argument declared as blocks.
 
-Two declarations can never take effect, and minting reports both as
-[`MintError::LayoutOnNonContentArgument`](crate::lang::mint::MintError::LayoutOnNonContentArgument):
-a layout other than inline on an argument that holds no document content, and the
-blocks layout on an argument read in mathematics mode
-([`ArgDef::mode`](crate::lang::mint::ArgDef::mode)), which the block-structure pass
-carries over untouched ([opaque regions](crate::guide::concepts_overview#opaque-regions)).
+Two declarations can never take effect, and minting reports both: a layout other than
+inline on an argument declared with an opaque wrapper
+([`ArgDef::with_opaque_wrapper`](crate::lang::mint::ArgDef::with_opaque_wrapper);
+[`MintError::LayoutOnOpaqueWrappedArgument`](crate::lang::mint::MintError::LayoutOnOpaqueWrappedArgument)),
+and the blocks layout on an argument read in mathematics mode
+([`ArgDef::mode`](crate::lang::mint::ArgDef::mode);
+[`MintError::BlocksOnMathArgument`](crate::lang::mint::MintError::BlocksOnMathArgument)).
+The block-structure pass carries the content of both over untouched ([opaque
+regions](crate::guide::concepts_overview#opaque-regions)).
 The check of the tree contract
 ([`check_block_contract`](crate::lang::rewrites::blocks::check_block_contract)) reports
 an argument whose content does not match its declared layout, as it does for an
@@ -608,6 +648,10 @@ says:
   ([`BodyDef::verbatim`](crate::lang::mint::BodyDef::verbatim)), or a body parser of the
   feature's own ([`BodyDef::parser`](crate::lang::mint::BodyDef::parser));
 - which parsing mode the body is read in;
+- whether the body's content is kept as typed under an opaque wrapper
+  ([`BodyDef::with_opaque_wrapper`](crate::lang::mint::BodyDef::with_opaque_wrapper);
+  [opaque regions](crate::guide::concepts_overview#opaque-regions)), in which case a
+  layout other than the default, `FromRole`, is refused when the language is built;
 - which scoped packages are available inside it.
 
 ### Scoped packages
@@ -624,7 +668,10 @@ scoped package with [`BodyDef::scoped`](crate::lang::mint::BodyDef::scoped) or
 A scoped package gives an environment or a command constructs of its own, which mean
 nothing outside it, without adding them to the language everywhere. The parser adds the
 package to the parsing state for the length of the body or the argument, so its
-declarations take precedence over any other declaration of the same name there. The
+declarations take precedence over any other declaration of the same name there. Any
+body or argument may refer to a scoped package, whatever reads it: inside a reading
+that recognizes no command, such as a characters-only group or a verbatim argument,
+the package's declarations cannot be reached, and nothing is reported. The
 `math` feature declares one for the commands of an equation line, which can be written
 only inside the bodies of its display-math environments
 ([`math::lines`](crate::stdcore::features::math::lines)); `\footnote`'s optional
@@ -647,18 +694,14 @@ When no feature of the registry declares the package, the build succeeds with on
 the bodies and arguments that refer to the package get nothing from it, and every
 command the package would define is an unknown command there.
 
-The registry build fails, with a [`MintError`](crate::lang::mint::MintError), in three
+The registry build fails, with a [`MintError`](crate::lang::mint::MintError), in two
 cases:
 
 - a body or an argument refers to a package that no feature declares and that the
   referring feature did not peer-declare; this catches a misspelled name
   ([`MintError::UnknownScopedPackage`](crate::lang::mint::MintError::UnknownScopedPackage));
 - packages refer to each other in a circle, through bodies or arguments
-  ([`MintError::ScopedPackageCycle`](crate::lang::mint::MintError::ScopedPackageCycle));
-- an argument that holds no document content refers to a scoped package; among the
-  standard kinds, these are `Star`, `Marker`, `KeyVals`, `CharsGroup`, `Verbatim` and
-  `TackOn`
-  ([`MintError::ScopeOnNonContentArgument`](crate::lang::mint::MintError::ScopeOnNonContentArgument)).
+  ([`MintError::ScopedPackageCycle`](crate::lang::mint::MintError::ScopedPackageCycle)).
 
 ### Element values
 
@@ -765,7 +808,8 @@ Two rules hold for every aspect:
 
 ### The standard aspects
 
-The aspects that many features implement are in [`model::aspects`](crate::model::aspects):
+The aspects that many features implement, and the aspects that state what an element is,
+are in [`model::aspects`](crate::model::aspects):
 
 - [`BlockRoleAspect`](crate::model::aspects::BlockRoleAspect): whether an occurrence is a
   block, inline content, or a decorator attached to its block;
@@ -782,7 +826,24 @@ The aspects that many features implement are in [`model::aspects`](crate::model:
   that is not part of the text around it, such as the words of a footnote written in a
   heading's title;
 - [`InCopy`](crate::model::aspects::InCopy): what replaces an occurrence in a copy of
-  content shown a second time, away from where it is written.
+  content shown a second time, away from where it is written;
+- [`Whitespace`](crate::model::aspects::Whitespace): that each occurrence is whitespace,
+  as `~` and `\ ` are. The block-structure pass removes such a node where it removes
+  whitespace: beside an element whose block role removes the whitespace on that side
+  ([`InlineSpacing`](crate::model::aspects::InlineSpacing), as `\cite` does before it), at
+  the edges of a paragraph, and between blocks. A paragraph that a lowering rule writes
+  itself, over content it cuts out of a longer run (a quotation's passage, attribution and
+  lines, a `\celldata` entry), is trimmed by
+  [`stage_trimmed`](crate::stdcore::backends::lowering::stage_trimmed), which removes the
+  same whitespace at its edges as the pass does, whitespace nodes included, and the
+  standard features' tests for blank content count such a node as whitespace (a footnote
+  holding only `~` is empty), except the tests of text read as typed or with its markup,
+  such as a citation key or a term, of which the node is part (a term holding only `~` is
+  not empty). Everywhere else the node is kept, as a node of its own,
+  which its element's lowering rule lowers. The aspect has no method: attach its
+  implementation
+  [`IsWhitespace`](crate::model::aspects::IsWhitespace), and read it with
+  [`is_whitespace_of`](crate::model::aspects::is_whitespace_of).
 
 Three aspects are read when a document is rendered and are declared with the elements of
 the presentation vocabulary (the presentation elements the standard backends write;
@@ -1655,8 +1716,9 @@ made from another output's files above).
 
 The native set lists the elements the emit stage writes: the presentation vocabulary
 (`ALL` of `flm:stdcore/backends/pres`), the structural elements the lowered trees keep
-(five of the names of `flm:lang/structural`, `TEXT`, `GROUP`, `COMMENT`, `CONTAINER` and
-`PARBREAK`: a run of characters, a group, a comment, a list of nodes, a paragraph break),
+(six of the names of `flm:lang/structural`, `TEXT`, `GROUP`, `OPAQUE_WRAPPER`, `COMMENT`,
+`CONTAINER` and `PARBREAK`: a run of characters, a group, a group holding content kept as
+typed, a comment, a list of nodes, a paragraph break),
 and the extension's own presentation elements. The backend
 covers, by its native set or by its rules, every element the documents it serves can
 hold. The standard package registers some of its rules for its own backends only (the
@@ -1695,7 +1757,7 @@ const finalStage = {
         Artifact.bytes(new ArtifactId("typst", "document"), "application/x-typst", text).as_entry());
   },
 };
-b.backend(new BackendDef("typst", [...ALL, TEXT, GROUP, COMMENT, CONTAINER, PARBREAK, "typst.pres.callout"],
+b.backend(new BackendDef("typst", [...ALL, TEXT, GROUP, OPAQUE_WRAPPER, COMMENT, CONTAINER, PARBREAK, "typst.pres.callout"],
                          new LoweringStage("typst"), emitStage, finalStage));
 b.output(new OutputDef("typst", "typst.document", "typst.document", "application/x-typst", "typ"));
 ```
@@ -4930,9 +4992,11 @@ such as entropies. The crate shows the whole path from declaration to program:
   template. A macro that a document declares in the feature's settings becomes the same
   kind of value as a row. Each becomes a
   [`Definition`](crate::lang::rewrites::userdefs::Definition) whose arguments are read by
-  the library's reader of argument codes
-  ([`arg_def_from_code`](crate::lang::mint::arg_def_from_code)) and whose templates may
-  use the feature's computed placeholders, declared on the definition with
+  the library's readers of an argument's syntax (a row's codes by
+  [`arg_def_from_code`](crate::lang::mint::arg_def_from_code); the arguments of a macro
+  declared in the settings by [`ArgData`](crate::lang::mint::ArgData), each a structured
+  syntax or a code) and whose templates may use the feature's computed placeholders,
+  declared on the definition with
   [`Definition::extra_placeholder`](crate::lang::rewrites::userdefs::Definition::extra_placeholder)
   (see [Templates with values the feature
   computes](#templates-with-values-the-feature-computes)).

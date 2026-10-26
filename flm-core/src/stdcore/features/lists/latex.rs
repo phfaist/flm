@@ -120,6 +120,7 @@ use crate::lang::flm::FlmCallableType;
 use crate::lang::guard::{self, on_worker_thread, GuardPolicy};
 use crate::lang::rewrites::userdefs::{CompiledTemplate, PlaceholderTarget};
 use crate::lang::{Flm, FlmGroupType};
+use crate::model::aspects::is_whitespace_of;
 use crate::model::element::element_value;
 use crate::model::names::{ElementName, Name};
 use crate::stdcore::backends::latex::construct::{stamp_point, ARG_SLOT, ENVIRONMENT, MACRO, RAW};
@@ -390,13 +391,21 @@ impl Lower for ListLatexRule {
             slots.push((ARG_SLOT.to_string(), staged));
         }
         let mut content: Vec<BuildId> = Vec::new();
-        // Whatever stands before the first `\item` — whitespace and comments
-        // included — is written as it stands.
+        // What stands before the first `\item`: content, an error reported
+        // above, is written as it stands; whitespace and comments alone are
+        // written without the nodes that are whitespace, such as `~`, which
+        // LaTeX would read as text before the first `\item`.
         let before: Vec<NodeRef<'_, Flm>> = node
             .body()
             .map(|children| children.iter().take_while(|child| !is_item(child)).collect())
             .unwrap_or_default();
-        content.extend(lower_run(cx, lw, &before)?);
+        if body.before.is_empty() {
+            for run in before.split(is_whitespace_of) {
+                content.extend(lower_run(cx, lw, run)?);
+            }
+        } else {
+            content.extend(lower_run(cx, lw, &before)?);
+        }
         for item in &body.items {
             let (args, item_slots) = match &item.tag {
                 None => (Vec::new(), Vec::new()),

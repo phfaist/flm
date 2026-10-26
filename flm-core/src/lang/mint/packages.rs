@@ -132,6 +132,7 @@ use crate::lang::mint::decl::{
     ArgDef, ArgLayout, BodyDef, BodyLayout, CallableKind, ElementDef, FallbackDef,
     FallbackKind, OverrideDef, ScopedPackageDef, SyntaxDef, TackOnField,
 };
+use crate::lang::mint::opaque::OpaqueWrapperReader;
 use crate::lang::mint::specs::{
     FlmCallable, FlmEnvironment, FlmUnknownEnvironmentBehavior, FlmUnknownMacroSpec,
 };
@@ -298,23 +299,13 @@ pub enum MintError {
         /// The element concerned.
         element: ElementName,
     },
-    /// An argument declares a [layout](ArgLayout) it can never take: a layout
-    /// other than inline on an argument that holds no document content
-    /// ([`FlmArgumentParser::holds_content`](super::FlmArgumentParser::holds_content);
-    /// among the standard kinds, [`Star`](super::ArgStdKind::Star),
-    /// [`Marker`](super::ArgStdKind::Marker),
-    /// [`KeyVals`](super::ArgStdKind::KeyVals),
-    /// [`CharsGroup`](super::ArgStdKind::CharsGroup),
-    /// [`Verbatim`](super::ArgStdKind::Verbatim) and
-    /// [`TackOn`](super::ArgStdKind::TackOn)) — or [`ArgLayout::Blocks`] on an
-    /// argument read in mathematics mode.
-    ///
-    /// One error covers both cases because neither declaration could ever take
-    /// effect: the [block-structure pass](crate::lang::rewrites::blocks) lays
-    /// out only document content, and it carries mathematics over untouched
-    /// regardless of the declaration. The argument is built with the inline
-    /// layout.
-    LayoutOnNonContentArgument {
+    /// An argument declared with an opaque wrapper
+    /// ([`ArgDef::opaque_wrapper`]) declares a [layout](ArgLayout) other than
+    /// [`ArgLayout::Inline`]. The [block-structure
+    /// pass](crate::lang::rewrites::blocks) carries the content of an opaque
+    /// wrapper over as written, so the declaration could never take effect.
+    /// The argument is built with the inline layout.
+    LayoutOnOpaqueWrappedArgument {
         /// The declaring feature.
         owner: FeatureName,
         /// The element whose declaration holds the argument.
@@ -328,12 +319,12 @@ pub enum MintError {
         /// own.
         field: Option<String>,
     },
-    /// An argument that holds no document content
-    /// ([`FlmArgumentParser::holds_content`](super::FlmArgumentParser::holds_content))
-    /// refers to a [scoped package](ArgDef::scoped), although no command can
-    /// be written inside such an argument. Minting does not use the package
-    /// for the argument.
-    ScopeOnNonContentArgument {
+    /// An argument read in mathematics mode ([`ArgDef::mode`]) declares the
+    /// layout [`ArgLayout::Blocks`]. The [block-structure
+    /// pass](crate::lang::rewrites::blocks) carries mathematics over
+    /// untouched, so the declaration could never take effect. The argument is
+    /// built with the inline layout.
+    BlocksOnMathArgument {
         /// The declaring feature.
         owner: FeatureName,
         /// The element whose declaration holds the argument.
@@ -347,24 +338,13 @@ pub enum MintError {
         /// own.
         field: Option<String>,
     },
-    /// An environment's body declares a [layout](BodyDef::layout) other than
-    /// [`FromRole`](super::BodyLayout::FromRole), but its
-    /// [parser](BodyDef::parser) holds no document content
-    /// ([`FlmBodyParser::holds_content`](super::FlmBodyParser::holds_content)),
-    /// as a verbatim body does not. The [block-structure
-    /// pass](crate::lang::rewrites::blocks) carries such a body over
-    /// untouched, so the declaration could never take effect.
-    LayoutOnNonContentBody {
-        /// The declaring feature.
-        owner: FeatureName,
-        /// The environment's element.
-        element: ElementName,
-    },
-    /// An environment's body refers to a [scoped package](BodyDef::scoped),
-    /// but its [parser](BodyDef::parser) holds no document content, so no
-    /// command can be written inside it. Minting does not use the package for
-    /// the body.
-    ScopeOnNonContentBody {
+    /// An environment's body declared with an opaque wrapper
+    /// ([`BodyDef::opaque_wrapper`]) declares a [layout](BodyDef::layout)
+    /// other than [`FromRole`](super::BodyLayout::FromRole). The
+    /// [block-structure pass](crate::lang::rewrites::blocks) carries the
+    /// content of an opaque wrapper over as written, so the declaration could
+    /// never take effect.
+    LayoutOnOpaqueWrappedBody {
         /// The declaring feature.
         owner: FeatureName,
         /// The environment's element.
@@ -534,31 +514,24 @@ impl fmt::Display for MintError {
                      `{element}` must list at least one name"
                 )
             }
-            MintError::LayoutOnNonContentArgument { owner, callable, index, field } => write!(
+            MintError::LayoutOnOpaqueWrappedArgument { owner, callable, index, field } => write!(
                 f,
-                "feature `{owner}`: argument #{}{} of `{callable}` declares a layout it \
-                 cannot take: only an argument that holds document content may declare a \
-                 layout other than inline, and an argument read in mathematics mode may not be \
-                 laid out as blocks",
+                "feature `{owner}`: argument #{}{} of `{callable}` must be laid out inline, \
+                 because it is declared with an opaque wrapper",
                 index + 1,
                 of_field(field)
             ),
-            MintError::ScopeOnNonContentArgument { owner, callable, index, field } => write!(
+            MintError::BlocksOnMathArgument { owner, callable, index, field } => write!(
                 f,
-                "feature `{owner}`: argument #{}{} of `{callable}` refers to a scoped \
-                 package, but only an argument that holds document content may refer to one",
+                "feature `{owner}`: argument #{}{} of `{callable}` must not be laid out as \
+                 blocks, because it is read in mathematics mode",
                 index + 1,
                 of_field(field)
             ),
-            MintError::LayoutOnNonContentBody { owner, element } => write!(
+            MintError::LayoutOnOpaqueWrappedBody { owner, element } => write!(
                 f,
-                "feature `{owner}`: the body of `{element}` declares a layout, but only a \
-                 body that holds document content may declare one"
-            ),
-            MintError::ScopeOnNonContentBody { owner, element } => write!(
-                f,
-                "feature `{owner}`: the body of `{element}` refers to a scoped package, but \
-                 only a body that holds document content may refer to one"
+                "feature `{owner}`: the body of `{element}` must not declare a layout, because \
+                 it is declared with an opaque wrapper"
             ),
         }
     }
@@ -802,7 +775,8 @@ fn argument_specs_of(
 
 /// Returns the layout `arg` is built with: its declared one, or inline when the
 /// argument can never take the declared one, which is reported
-/// ([`MintError::LayoutOnNonContentArgument`]).
+/// ([`MintError::LayoutOnOpaqueWrappedArgument`],
+/// [`MintError::BlocksOnMathArgument`]).
 fn declared_layout(
     arg: &ArgDef,
     index: usize,
@@ -810,21 +784,17 @@ fn declared_layout(
     def: &ElementDef,
     errors: &mut Vec<MintError>,
 ) -> ArgLayout {
-    let content = arg.kind.holds_content();
-    let refused = match arg.layout {
-        ArgLayout::Inline => false,
-        ArgLayout::Blocks => !content || arg.mode == Some(Mode::Math),
-        ArgLayout::InlineOrBlocks => !content,
-    };
-    if !refused {
+    let owner = def.owner.clone();
+    let callable = def.element.name.clone();
+    let field = field.map(str::to_string);
+    let error = if arg.opaque_wrapper && arg.layout != ArgLayout::Inline {
+        MintError::LayoutOnOpaqueWrappedArgument { owner, callable, index, field }
+    } else if arg.layout == ArgLayout::Blocks && arg.mode == Some(Mode::Math) {
+        MintError::BlocksOnMathArgument { owner, callable, index, field }
+    } else {
         return arg.layout;
-    }
-    errors.push(MintError::LayoutOnNonContentArgument {
-        owner: def.owner.clone(),
-        callable: def.element.name.clone(),
-        index,
-        field: field.map(str::to_string),
-    });
+    };
+    errors.push(error);
     ArgLayout::Inline
 }
 
@@ -894,10 +864,12 @@ fn field_spec(
 /// The parser is the declaration's own object ([`ArgDef::kind`]), except for
 /// a tack-on argument: its fields are declarations whose specifications are
 /// built here into `home`, so the reader that absorbs them is built here from
-/// those specifications ([`tack_on_reader`]). The declared mode and scoped
-/// packages apply around either parser, as the state change of the argument's
-/// specification, so a parser of a feature's own receives them exactly as a
-/// standard kind does.
+/// those specifications ([`tack_on_reader`]). When the declaration asks for an
+/// opaque wrapper ([`ArgDef::opaque_wrapper`]), the chosen parser is wrapped
+/// so that what it reads is placed under one ([`OpaqueWrapperReader`]). The
+/// declared mode and scoped packages apply around the parser, whatever it is,
+/// as the state change of the argument's specification, so a parser of a
+/// feature's own receives them exactly as a standard kind does.
 fn argument_spec_of(
     arg: &ArgDef,
     arg_index: usize,
@@ -911,20 +883,14 @@ fn argument_spec_of(
         Some(fields) => Arc::new(tack_on_reader(fields, home, def, arg_index, scopes, errors)),
         None => arg.kind.clone(),
     };
+    let parser: Arc<dyn ArgumentParser<Flm>> = if arg.opaque_wrapper {
+        Arc::new(OpaqueWrapperReader::new(parser))
+    } else {
+        parser
+    };
     let spec = match arg.name.as_deref() {
         Some(name) => ArgumentSpec::new(parser, name),
         None => ArgumentSpec::new_unnamed(parser),
-    };
-    let packages: &[Name] = if arg.kind.holds_content() || arg.scoped.is_empty() {
-        &arg.scoped
-    } else {
-        errors.push(MintError::ScopeOnNonContentArgument {
-            owner: def.owner.clone(),
-            callable: def.element.name.clone(),
-            index: arg_index,
-            field: field.map(str::to_string),
-        });
-        &[]
     };
     let unknown = |package: &Name| MintError::UnknownScopedPackage {
         element: def.element.name.clone(),
@@ -933,7 +899,7 @@ fn argument_spec_of(
         field: field.map(str::to_string),
         package: package.clone(),
     };
-    let spec = match region_delta(arg.mode, packages, &def.owner, scopes, unknown, errors) {
+    let spec = match region_delta(arg.mode, &arg.scoped, &def.owner, scopes, unknown, errors) {
         Some(delta) => spec.with_state_delta(delta),
         None => spec,
     };
@@ -1577,22 +1543,12 @@ fn insert_environment(
         errors.push(no_names(def));
         return;
     }
-    let content = body.holds_content();
-    if !content && body.layout != BodyLayout::FromRole {
-        errors.push(MintError::LayoutOnNonContentBody {
+    if body.opaque_wrapper && body.layout != BodyLayout::FromRole {
+        errors.push(MintError::LayoutOnOpaqueWrappedBody {
             owner: def.owner.clone(),
             element: def.element.name.clone(),
         });
     }
-    let packages: &[Name] = if content || body.scoped.is_empty() {
-        &body.scoped
-    } else {
-        errors.push(MintError::ScopeOnNonContentBody {
-            owner: def.owner.clone(),
-            element: def.element.name.clone(),
-        });
-        &[]
-    };
     let unknown = |package: &Name| MintError::UnknownScopedPackage {
         element: def.element.name.clone(),
         owner: def.owner.clone(),
@@ -1600,7 +1556,7 @@ fn insert_environment(
         field: None,
         package: package.clone(),
     };
-    if let Some(delta) = region_delta(body.mode, packages, &def.owner, scopes, unknown, errors) {
+    if let Some(delta) = region_delta(body.mode, &body.scoped, &def.owner, scopes, unknown, errors) {
         environment = environment.with_body_delta(delta);
     }
     let spec = environment.into_spec();

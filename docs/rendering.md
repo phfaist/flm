@@ -1218,10 +1218,10 @@ written without a size.
 
 The `text` backend ([`crate::stdcore::backends::text`]) writes a document as plain text,
 wrapped to a chosen line width. Its native set is the whole presentation vocabulary,
-together with the five structural elements that it writes natively, without a lowering
+together with the six structural elements that it writes natively, without a lowering
 rule ([`FLOW_THROUGH`](crate::stdcore::backends::text::FLOW_THROUGH): `flm.text`,
-`flm.group`, `flm.comment`, `flm.container` and `flm.parbreak`), because they carry no
-meaning that plain text has to translate. The feature
+`flm.group`, `flm.opaque-wrapper`, `flm.comment`, `flm.container` and `flm.parbreak`),
+because they carry no meaning that plain text has to translate. The feature
 [`TextBackend`](crate::stdcore::backends::text::TextBackend) registers the backend, the
 `text` output and the `text` workflow.
 
@@ -2071,16 +2071,17 @@ Python FLM](crate::guide::python_flm_migration) lists the differences.
 ### The elements the backend writes without a lowering rule
 
 The backend's native set
-([`native_elements`](crate::stdcore::backends::html::native_elements)) holds 28 elements:
+([`native_elements`](crate::stdcore::backends::html::native_elements)) holds 29 elements:
 
 - every presentation element ([`pres::ALL`](crate::stdcore::backends::pres::ALL));
 - the HTML construct element
   [`flm.pres.html.tag`](crate::stdcore::backends::html::TAG), one HTML tag that a lowering
   rule stages when no presentation element carries what it must write ([Escaping, and the
   trust guarantee](#escaping-and-the-trust-guarantee) below);
-- five [structural elements](crate::lang::structural::StructuralElements) that
+- six [structural elements](crate::lang::structural::StructuralElements) that
   need no translation ([`FLOW_THROUGH`](crate::stdcore::backends::html::FLOW_THROUGH)):
-  `flm.text`, `flm.group`, `flm.comment`, `flm.container` and `flm.parbreak`.
+  `flm.text`, `flm.group`, `flm.opaque-wrapper`, `flm.comment`, `flm.container` and
+  `flm.parbreak`.
 
 No element of a content feature (a feature that declares elements an author writes in a
 document, such as `headings`, `refs` or `xnotes`, as opposed to a backend feature such as
@@ -4063,15 +4064,15 @@ not used.
 ### The elements the backend writes without a lowering rule
 
 The backend's native set
-([`native_elements`](crate::stdcore::backends::latex_rendered::native_elements)) holds 31
+([`native_elements`](crate::stdcore::backends::latex_rendered::native_elements)) holds 32
 elements:
 
 - every presentation element ([`pres::ALL`](crate::stdcore::backends::pres::ALL));
 - the four construct elements of the LaTeX family
   ([`construct::ALL`](crate::stdcore::backends::latex::construct::ALL)): a macro call, an
   environment, a raw node written byte for byte, and a definition;
-- the five structural elements `flm.text`, `flm.group`, `flm.comment`, `flm.container` and
-  `flm.parbreak`
+- the six structural elements `flm.text`, `flm.group`, `flm.opaque-wrapper`,
+  `flm.comment`, `flm.container` and `flm.parbreak`
   ([`FLOW_THROUGH`](crate::stdcore::backends::latex_rendered::FLOW_THROUGH)).
 
 Every element of a content feature is therefore lowered by its feature's general lowering
@@ -5393,7 +5394,7 @@ Two rules of the sink matter to an author of a lowering rule for this backend:
 
 The backend's native set
 ([`native_elements`](crate::stdcore::backends::latex_recomposed::native_elements)) holds
-fifteen elements:
+sixteen elements:
 
 - the four construct elements of the family;
 - `flm.pres.math-passthrough` and `flm.pres.verbatim`, whose content LaTeX reads byte for byte;
@@ -5408,8 +5409,9 @@ fifteen elements:
 - `flm.pres.span`, written as its content: its role and its kinds have no meaning for
   LaTeX, so a rule that stages a span on every backend (the rule of last resort of a math
   group among them) is written on this one too;
-- four of the [structural elements](crate::guide::concepts_overview#structural-elements):
-  `flm.text`, `flm.group`, `flm.comment` and `flm.container`.
+- five of the [structural elements](crate::guide::concepts_overview#structural-elements):
+  `flm.text`, `flm.group`, `flm.opaque-wrapper` (written as its children, since it has no
+  delimiters), `flm.comment` and `flm.container`.
 
 The native set holds no other presentation element (no paragraph or heading node),
 because no rule for this backend stages one. Instead, each standard feature registers a
@@ -5882,8 +5884,8 @@ gives it.
 
 A quotation ([`quote::latex`](crate::stdcore::features::quote::latex)) is written as the
 environment the author wrote. Inside it, the body is written as the author wrote it (the
-whitespace, blank lines and comments between the quotation sections unchanged), and each
-quotation section through the LaTeX hook of its kind:
+whitespace, blank lines and comments between the quotation sections unchanged, `~` and `\ `
+left out), and each quotation section through the LaTeX hook of its kind:
 
 | written | recomposed |
 |---|---|
@@ -5893,12 +5895,13 @@ quotation section through the LaTeX hook of its kind:
 | `\begin{blockquote}One.` ⏎⏎ `Two.\end{blockquote}` | `\begin{blockquote}\flmQuoteBlock{One.` ⏎⏎ `Two.}\end{blockquote}` |
 | `\begin{address}123 Main St\\ City\end{address}` | `\begin{address}\flmQuoteLines{123 Main St\\\relax`, then `City}\end{address}` |
 
-**A lines section** is split at every `\\`. The whitespace at both ends of each line is
-trimmed, and the lines are joined by `\\\relax` and a line break. The `\relax` ends the
-`\\` command there, so that a line beginning with `[` or `*` is printed as written instead
-of being read as an argument or a star of `\\`. A line's indentation (its leading
-`\indent` commands, a [length](crate::stdcore::backends::pres::Length) of as many tabs) is
-written `\flmIndent{<length>}` before the line's content. The family writes every length
+**A lines section** is split at every `\\`. The whitespace at both ends of each line, `~`
+and `\ ` included, is trimmed, and the lines are joined by `\\\relax` and a line break.
+The `\relax` ends the `\\` command there, so that a line beginning with `[` or `*` is
+printed as written instead of being read as an argument or a star of `\\`. A line's
+indentation (its leading `\indent` commands, a
+[length](crate::stdcore::backends::pres::Length) of as many tabs) is written
+`\flmIndent{<length>}` before the line's content. The family writes every length
 the same way
 ([`stage_length`](crate::stdcore::backends::latex::preamble::stage_length)): a length in
 tabs as a multiple of the LaTeX length `\flmTabWidth` (which also requires the definition
@@ -5907,7 +5910,8 @@ LaTeX calls a big point), and an em, a millimeter, a centimeter and an inch unch
 
 **Content outside the quotation section commands** (a `blockquote`'s paragraphs, an
 `address`'s lines) is written through the hook of the environment's bare-content kind,
-with the whitespace at its edges outside the hook. Where the environment accepts no bare
+with the whitespace and comments at its edges outside the hook, and `~` and `\ ` there left
+out, as on every other backend. Where the environment accepts no bare
 content, the content is reported (`flm.quote.bare-content`) and written in place. A
 quotation section written inside another (`flm.quote.nested-section`) and an `\indent` in
 the middle of a line (`flm.quote.indent-mid-line`) are reported as on every other backend.
@@ -6120,10 +6124,11 @@ The hook's four arguments are:
 A cell's text is one `\flmCellsSet{<name>}` for each custom cell style it carries, in the
 order of its style tokens, then its content recomposed through the ordinary rules: a
 `\cell`'s blank lines are kept, and a `\celldata` entry is written without the whitespace
-around it. The dropped marks for what the table's reader left out are written before the
-call, each as a comment line (`% flm: dropped cell overlapping another`). A command of
-tables of cells used outside its place is reported, and its content shown where it is
-written or a dropped mark written there.
+around it, `~` and `\ ` included. The dropped marks for what the table's reader left out
+are written before the call, each as a comment line
+(`% flm: dropped cell overlapping another`). A command of tables of cells used outside its
+place is reported, and its content shown where it is written or a dropped mark written
+there.
 
 **The definitions in the style file.** The definition piece `flm.latex.def.cells` defines
 the hook with `\ProvideDocumentCommand`. The hook sets the table in `tblr` at its natural

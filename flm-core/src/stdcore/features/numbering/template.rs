@@ -46,6 +46,7 @@ use crate::lang::rewrites::userdefs::template::{
     compile_template_with, CompiledTemplate, PlaceholderTarget, PlaceholderVocabulary,
     TemplateLanguage, TemplateSpec,
 };
+use crate::lang::text::is_space;
 use crate::lang::{BuiltLang, Flm, FlmSpan};
 use crate::model::names::Name;
 
@@ -219,7 +220,7 @@ pub(super) fn slice_text(nodes: NodeSlice<'_, Flm>) -> String {
             None => return String::new(),
         }
     }
-    text.trim().to_string()
+    text.trim_matches(is_space).to_string()
 }
 
 // --- the keys of a within template's substitution ---------------------------------------------
@@ -253,7 +254,7 @@ const BARE_KEY: &str = "bare";
 pub(crate) fn parse_keys(text: &str) -> Result<AncestorKeys, String> {
     let mut keys = AncestorKeys::default();
     for key in text.split(',') {
-        let key = key.trim();
+        let key = key.trim_matches(is_space);
         if key.is_empty() {
             continue;
         }

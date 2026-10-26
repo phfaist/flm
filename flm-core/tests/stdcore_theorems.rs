@@ -615,6 +615,16 @@ fn a_back_reference_shows_the_statement_it_proves() {
 }
 
 #[test]
+fn a_back_reference_to_a_label_holding_a_dash_reads_the_label_as_typed() {
+    let run = render_with(
+        &std(),
+        "\\begin{lemma}\\label{lem:a--b}A.\\end{lemma}\n\n\\begin{proof}[*lem:a--b]Q.\\end{proof}",
+    );
+    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_eq!(printed(&run), "Lemma\u{a0}1. A.\n\nProof (Lemma\u{a0}1). Q.\u{a0}\u{25a1}\n");
+}
+
+#[test]
 fn the_closing_mark_is_content_of_the_class() {
     let with_mark = |mark: Option<&str>| {
         with_config(TheoremsConfig::new().class(

@@ -58,6 +58,7 @@ use crate::model::element::element_value;
 use crate::lang::flm::{Flm, FlmCallableType};
 use crate::lang::origin::{FlmOrigin, FlmSource, FlmSpan};
 use crate::lang::guard::{self, GuardPolicy};
+use crate::lang::text::is_blank;
 use crate::lang::rewrites::userdefs::hook::{ExpandError, PlaceholderBindings, PlaceholderValue};
 use crate::lang::rewrites::userdefs::template::{
     CompiledTemplate, Conditional, ConditionalTest, PlaceholderRef, PlaceholderTarget,
@@ -101,15 +102,18 @@ fn copy_slice(cx: &mut Cx<'_>, slice: NodeSlice<'_, Flm>) -> Result<Vec<BuildId>
 }
 
 /// Whether `node` is ignored around the single placeholder that a value test
-/// reads: a run of whitespace or a comment. Both are left out before the test
-/// argument is read, so that a template may lay out a conditional readably.
+/// reads: a blank node ([`is_blank`]: a run of whitespace, or a node that is
+/// whitespace, such as `~` and `\ `), or a comment. These are left out before
+/// the test argument is read, so that a template may lay out a conditional
+/// readably.
 pub(crate) fn is_noise(node: &NodeRef<'_, Flm>) -> bool {
-    node.is_comment() || node.chars().is_some_and(|text| text.trim().is_empty())
+    node.is_comment() || is_blank(node)
 }
 
 /// Whether `node` counts as blank for `\ifblank`: a comment, and nothing else.
-/// Whitespace is content for this test (an argument written as one space is not
-/// blank), which is why this differs from [`is_noise`].
+/// Whitespace, `~` and `\ ` included, is content for this test (an argument
+/// written as one space is not blank), which is why this differs from
+/// [`is_noise`].
 pub(crate) fn is_blank_node(node: &NodeRef<'_, Flm>) -> bool {
     node.is_comment()
 }

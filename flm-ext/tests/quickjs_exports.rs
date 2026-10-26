@@ -60,8 +60,8 @@ const EXPECTED: &[(&str, &[&str])] = &[
     (
         "lang/structural",
         &[
-            "TEXT", "COMMENT", "CONTAINER", "GROUP", "MATH", "VERBATIM", "PARAGRAPH", "PARBREAK", "PLACEHOLDER", "UNKNOWN_MACRO",
-            "UNKNOWN_ENVIRONMENT", "NAMES",
+            "TEXT", "COMMENT", "CONTAINER", "GROUP", "MATH", "VERBATIM", "OPAQUE_WRAPPER", "PARAGRAPH", "PARBREAK", "PLACEHOLDER",
+            "UNKNOWN_MACRO", "UNKNOWN_ENVIRONMENT", "NAMES",
         ],
     ),
     ("lang/text", &["chars_text", "read_chars"]),

@@ -11,9 +11,12 @@
 //! name, its public constructors and methods with the guest's types, and a
 //! handle where the api holds an object; its conversion is written here, the
 //! one statement of the guest type's form, and tested against the host's
-//! converter of the same shape (`tests/guest_forms.rs`). The types that hold
-//! handler objects (`ElementSpec`, `ElementDef`, `FallbackDef`,
-//! `ScopedPackageDef`, `BackendDef`, `Aspect`, `BackendStage`, `Contributed`)
+//! converter of the same shape (`tests/guest_forms.rs`). A type that no item
+//! of the api names is added where a constructor of the guest's own type
+//! takes it (the list `GUEST_ADDED`): `ArgSyntax`, the code or the standard
+//! kind that `ArgDef::new` takes. The types that hold handler objects
+//! (`ElementSpec`, `ElementDef`, `FallbackDef`, `ScopedPackageDef`,
+//! `BackendDef`, `Aspect`, `BackendStage`, `Contributed`)
 //! keep each object beside the crossing form its lending answered; the
 //! methods that record and lend the objects are the runtime's.
 //!

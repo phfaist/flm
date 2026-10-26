@@ -419,3 +419,15 @@ fn an_argument_inside_a_math_group_is_untouched() {
     );
     assert_eq!(text_of(math), "a  --  b", "{}", laid.dump());
 }
+
+#[test]
+fn an_argument_under_an_opaque_wrapper_is_kept_as_typed() {
+    // The pass changes nothing under the wrapper: the quotes and the dashes
+    // stay as typed, inside the nested command too, and the whitespace is not
+    // collapsed.
+    let lang = toy_lang();
+    let laid = run(&lang, "x \\keep{\"q\"  --  \\emph{\"r\"}} y", FragmentLayout::Inline);
+    let keep = laid.children()[1];
+    assert_eq!(element_of(&keep).name.as_str(), "t.keep");
+    assert_eq!(text_of(keep), "\"q\"  --  \"r\"", "{}", laid.dump());
+}

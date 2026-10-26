@@ -46,7 +46,7 @@ use flm_ext::guest::core::services::Arity;
 use flm_ext::guest::core::stage::{Effect, Needs, RewriteDecl, RewriteStage, Scope, Stage, StageDecl};
 use flm_ext::guest::lang::mint::{ArgDef, ElementDef, FallbackDef, FallbackKind, Mode, ScopedPackageDef, SyntaxDef};
 use flm_ext::guest::lang::rewrites::userdefs::{Definition, UserDefinition};
-use flm_ext::guest::lang::structural::{COMMENT, CONTAINER, GROUP, PARBREAK, TEXT};
+use flm_ext::guest::lang::structural::{COMMENT, CONTAINER, GROUP, OPAQUE_WRAPPER, PARBREAK, TEXT};
 use flm_ext::guest::lang::{BuiltLang, FlmDiagnostics};
 use flm_ext::guest::model::aspects::{
     AcceptedRefTypes, AnchorPolicy, ContentRef, RefPoint, Referenceable, Sectioning,
@@ -356,7 +356,7 @@ fn register_backend(b: &mut FeatureBuilder, _: &Value) -> Result<(), ExtError> {
     b.table_named(&lowered, StandardTable::LoweredTrees, "the backend's lowered trees")?;
     b.table("rows.output", "the emitted text, one item")?;
     b.table_named(DOCUMENT, StandardTable::ArtifactSet, "the backend's one artifact")?;
-    let native: Vec<String> = ALL.iter().chain(&[TEXT, GROUP, COMMENT, CONTAINER, PARBREAK]).map(|name| name.to_string()).collect();
+    let native: Vec<String> = ALL.iter().chain(&[TEXT, GROUP, OPAQUE_WRAPPER, COMMENT, CONTAINER, PARBREAK]).map(|name| name.to_string()).collect();
     let backend = BackendDef::new(
         "rows",
         native,

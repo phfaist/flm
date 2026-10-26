@@ -19,6 +19,9 @@
         "arguments": [
           {
             "form": "an optional `[key=value,…]` group",
+            "syntax": {
+              "syntax": "key-vals"
+            },
             "written": "[options]",
             "name": "options",
             "layout": "inline",
@@ -27,6 +30,28 @@
           },
           {
             "form": "the fields `\\label` written after the command",
+            "syntax": {
+              "syntax": "tack-on",
+              "fields": [
+                {
+                  "name": "label",
+                  "args": [
+                    {
+                      "syntax": "chars-group",
+                      "name": "target",
+                      "layout": "inline",
+                      "opaque_wrapper": false,
+                      "docs": "The label, written `type:label` (`sec:intro`).",
+                      "mode": null,
+                      "scoped": [],
+                      "role": "flm.refs.defined-label"
+                    }
+                  ],
+                  "repeatable": true,
+                  "docs": "Attaches a label to the construct, which a reference can point at; may be repeated."
+                }
+              ]
+            },
             "written": "\\label{target}",
             "name": "fields",
             "layout": "inline",
@@ -40,7 +65,10 @@
                 "summary": "Attaches a label to the construct, which a reference can point at; may be repeated.",
                 "arguments": [
                   {
-                    "form": "a `{…}` group read as plain characters",
+                    "form": "a `{…}` group read as plain characters, kept as written",
+                    "syntax": {
+                      "syntax": "chars-group"
+                    },
                     "written": "{target}",
                     "name": "target",
                     "layout": "inline",
@@ -61,7 +89,7 @@
             "flm_core::model::aspects::BlockRoleAspect",
             "flm_core::model::aspects::Referenceable"
           ],
-          "number": 134
+          "number": 135
         },
         "within": "flm.lists.items",
         "available_in": [

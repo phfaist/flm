@@ -1010,9 +1010,9 @@ fn attach_aspects(
 /// build identity, the parsing settings, the structural elements with their
 /// aspects, every feature's name and version, the element declarations
 /// (owner, callable names, syntax, element type name, aspects and modes; the
-/// syntax covers the parser identity, mode, layout and scoped packages of
-/// each argument and body, as [`digest_syntax`] lists), the fallbacks, the
-/// scoped packages, the overrides, the rewrite stages with their
+/// syntax covers the parser identity, mode, layout, opaque wrapper and scoped
+/// packages of each argument and body, as [`digest_syntax`] lists), the
+/// fallbacks, the scoped packages, the overrides, the rewrite stages with their
 /// refinements, the ordering edges, the option declarations, and every
 /// feature's own digest input. What stages compute and what backends emit are
 /// not inputs: they follow from these inputs.
@@ -1117,8 +1117,9 @@ fn digest_of_roster(
 /// characters where it has some, and for each argument its name, its parser's
 /// identity ([`FlmArgumentParser::identity`](crate::lang::mint::FlmArgumentParser::identity),
 /// which for a tack-on argument covers each field's name, arguments and
-/// repeatability), its mode, its layout and its scoped packages; and for a
-/// body its layout, its parser's identity
+/// repeatability), its mode, its layout, whether it is declared with an
+/// opaque wrapper and its scoped packages; and for a body its layout, whether
+/// it is declared with an opaque wrapper, its parser's identity
 /// ([`FlmBodyParser::identity`](crate::lang::mint::FlmBodyParser::identity)),
 /// its mode and its scoped packages. Documentation strings change no parse
 /// and are not inputs.
@@ -1151,9 +1152,9 @@ fn digest_syntax(hasher: &mut Fnv1a64, syntax: &SyntaxDef) {
 }
 
 /// Adds a list of arguments to the digest: for each argument, its name, its
-/// parser's identity (preceded by its length), its mode, its layout and its
-/// scoped packages, as [`digest_body`] does for a body; see
-/// [`digest_syntax`].
+/// parser's identity (preceded by its length), its mode, its layout, whether
+/// it is declared with an opaque wrapper and its scoped packages, as
+/// [`digest_body`] does for a body; see [`digest_syntax`].
 fn digest_args(hasher: &mut Fnv1a64, args: &[ArgDef]) {
     for arg in args {
         hasher.write_str(arg.name.as_deref().unwrap_or(""));
@@ -1162,17 +1163,19 @@ fn digest_args(hasher: &mut Fnv1a64, args: &[ArgDef]) {
         hasher.write_bytes(&identity);
         hasher.write_str(&format!("{:?}", arg.mode));
         hasher.write_str(&format!("{:?}", arg.layout));
+        hasher.write_u64(u64::from(arg.opaque_wrapper));
         for package in &arg.scoped {
             hasher.write_str(package.as_str());
         }
     }
 }
 
-/// Adds a body declaration to the digest: its layout, its parser's identity
-/// (or the fact that it has none), its mode and its scoped packages; see
-/// [`digest_syntax`].
+/// Adds a body declaration to the digest: its layout, whether it is declared
+/// with an opaque wrapper, its parser's identity (or the fact that it has
+/// none), its mode and its scoped packages; see [`digest_syntax`].
 fn digest_body(hasher: &mut Fnv1a64, body: &BodyDef) {
     hasher.write_str(&format!("{:?}", body.layout));
+    hasher.write_u64(u64::from(body.opaque_wrapper));
     match &body.parser {
         None => hasher.write_u64(0),
         Some(parser) => {

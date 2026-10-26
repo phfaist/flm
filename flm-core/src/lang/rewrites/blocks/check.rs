@@ -63,6 +63,11 @@
 //!   off ends up is not checked: an expansion places a verbatim argument's
 //!   characters wherever its template uses the argument. An empty verbatim group
 //!   satisfies the rule.
+//! - **An opaque wrapper has no delimiters.** A group of the opaque-wrapper
+//!   class ([`FlmGroupType::OpaqueWrapper`]), which minting places around the
+//!   content of an argument or a body to keep that content as written, has
+//!   empty opening and closing delimiters: it stands for no source text of its
+//!   own.
 //!
 //! # The block-structure part
 //!
@@ -97,11 +102,14 @@
 //!   [`Trails`](crate::model::aspects::Placement::Trails) decorator is followed
 //!   only by comments.
 //! - **Text is resolved.** Text outside opaque regions holds no tab, carriage
-//!   return or line feed and no two consecutive spaces; the text at the edges of
-//!   a paragraph (looking through comments and edge decorators) neither starts
-//!   nor ends with whitespace; and no two text nodes are adjacent siblings. The
-//!   typographic substitutions are not checked, because the options that decide
-//!   them are not recorded in the tree.
+//!   return or line feed and no two consecutive spaces; a paragraph (looking
+//!   through comments and edge decorators) neither starts nor ends with
+//!   whitespace: the text at its edges neither starts nor ends with whitespace,
+//!   and no node at its edges is a node whose element carries the
+//!   [`Whitespace`](crate::model::aspects::Whitespace) aspect (such as `~`);
+//!   and no two text nodes are adjacent siblings. The typographic
+//!   substitutions are not checked, because the options that decide them are
+//!   not recorded in the tree.
 //! - **Source maps are consistent.** A source map is attached to a text node
 //!   only, and its pieces cover exactly that node's text.
 //!
@@ -109,19 +117,22 @@
 //!
 //! The pass copies an [opaque
 //! region](crate::guide::concepts_overview#opaque-regions) exactly as it was
-//! parsed or created: everything under a verbatim group, and every node parsed
-//! in math mode (the content of a mathematics group, a math-mode environment
-//! body, a mathematics snippet). The rules about content (the remaining
-//! paragraph-break marker, the text rules) do not apply inside them; what a
-//! blank line inside mathematics means is checked by the mathematics feature.
+//! parsed or created: everything under a verbatim group or an opaque wrapper,
+//! and every node parsed in math mode (the content of a mathematics group, a
+//! math-mode environment body, a mathematics snippet). The rules about content
+//! (the remaining paragraph-break marker, the text rules) do not apply inside
+//! them; what a blank line inside mathematics means is checked by the
+//! mathematics feature.
 //!
 //! An argument or a body that a construct of mathematics reads in **text** mode
 //! (the argument of a text command such as `\text{…}`) is not opaque: it is
 //! document content, the pass lays it out, and every rule above applies inside
 //! it. A paragraph there is reported as a paragraph inside content laid out
-//! inline, and its text is checked like any other text. A verbatim region is
-//! opaque in every parsing mode, because reading verbatim content changes no
-//! mode.
+//! inline, and its text is checked like any other text. Everything under a
+//! verbatim group or an opaque wrapper is opaque in every parsing mode
+//! ([`FlmGroupType::is_opaque_in_any_mode`]): reading verbatim content changes
+//! no mode, and an opaque wrapper keeps everything under it as written, a
+//! formula's text command included.
 //!
 //! # What the checker does not check
 //!
@@ -158,7 +169,7 @@ use techy::core::node::{
 use techy::error::{Diagnostic, DiagnosticInfo};
 use techy::latexlike::{Mode, ParagraphBreakSpec};
 
-use crate::model::aspects::{BlockRole, Placement, block_role_of};
+use crate::model::aspects::{BlockRole, Placement, block_role_of, is_whitespace_of};
 use crate::model::element::{ElementSpec, element_of};
 use crate::model::names::ElementName;
 use crate::lang::ext::RestrictedInterior;
@@ -167,9 +178,9 @@ use crate::lang::mint::specs::element_of_spec;
 use crate::lang::mint::{FALLBACK_PACKAGE_NAME, body_def_of, resolve_element};
 use crate::lang::origin::FlmDiagnostic;
 use crate::lang::rewrites::userdefs::Expand;
+use crate::lang::text::is_space_byte;
 
-use super::predicates::{Region, argument_holds_blocks, is_content, slot_layout};
-use super::typography::is_ascii_space;
+use super::predicates::{Region, argument_holds_blocks, is_content, is_opaque_group, slot_layout};
 
 /// The rule of the [tree contract](self) that a [`ContractViolation`] breaks,
 /// with the facts that describe the violation.
@@ -218,6 +229,15 @@ pub enum ContractViolationKind {
     /// sequences and paragraph breaks disabled, except the rules that the
     /// parse of a template keeps on for its placeholders.
     VerbatimInteriorRulesOn,
+    /// A group of the opaque-wrapper class
+    /// ([`FlmGroupType::OpaqueWrapper`]) has delimiters; an opaque wrapper's
+    /// delimiters must be empty.
+    OpaqueWrapperDelimiters {
+        /// The opening delimiter.
+        open: String,
+        /// The closing delimiter.
+        close: String,
+    },
     /// A template placeholder (a placeholder callable, or a node of the
     /// placeholder element) remains after expansion.
     PlaceholderSurvived,
@@ -276,8 +296,10 @@ pub enum ContractViolationKind {
     /// Resolved text still holds a tab, a carriage return, a line feed, or two
     /// consecutive spaces.
     WhitespaceNotCollapsed,
-    /// The text at the start of a paragraph starts with whitespace, or the
-    /// text at its end ends with whitespace.
+    /// The text at the start of a paragraph starts with whitespace, the text
+    /// at its end ends with whitespace, or the node at its start or at its end
+    /// is a node whose element carries the
+    /// [`Whitespace`](crate::model::aspects::Whitespace) aspect.
     ParagraphEdgeNotTrimmed,
     /// Two text nodes outside an opaque region are adjacent siblings.
     AdjacentText,
@@ -304,6 +326,7 @@ impl ContractViolationKind {
             ContractViolationKind::UnknownCallableShape { .. } => "UnknownCallableShape",
             ContractViolationKind::FallbackShape { .. } => "FallbackShape",
             ContractViolationKind::VerbatimInteriorRulesOn => "VerbatimInteriorRulesOn",
+            ContractViolationKind::OpaqueWrapperDelimiters { .. } => "OpaqueWrapperDelimiters",
             ContractViolationKind::PlaceholderSurvived => "PlaceholderSurvived",
             ContractViolationKind::UseSiteSurvived { .. } => "UseSiteSurvived",
             ContractViolationKind::ParbreakSurvived => "ParbreakSurvived",
@@ -365,6 +388,13 @@ impl fmt::Display for ContractViolationKind {
                     "the text of a verbatim group was not read with the markup rules switched off"
                 )
             }
+            ContractViolationKind::OpaqueWrapperDelimiters { open, close } => {
+                write!(
+                    f,
+                    "a group that keeps its content as written has the delimiters {open:?} and \
+                     {close:?}, and must have none"
+                )
+            }
             ContractViolationKind::PlaceholderSurvived => {
                 write!(f, "a template placeholder remains after expansion")
             }
@@ -375,7 +405,11 @@ impl fmt::Display for ContractViolationKind {
                 )
             }
             ContractViolationKind::ParbreakSurvived => {
-                write!(f, "a paragraph break remains outside mathematics and verbatim content")
+                write!(
+                    f,
+                    "a paragraph break remains outside mathematics, verbatim content and content \
+                     kept as written"
+                )
             }
             ContractViolationKind::ParagraphDelimiters { open, close } => {
                 write!(
@@ -501,8 +535,8 @@ pub struct ContractViolated {
 /// parent's, which come first (techy's tree rules place children after their
 /// parent).
 struct Facts {
-    /// The node is inside an opaque region: under a verbatim group, or parsed
-    /// in math mode.
+    /// The node is inside an opaque region: under a verbatim group or an
+    /// opaque wrapper, or parsed in math mode.
     opaque: Vec<bool>,
     /// The node holds the content of an argument of a callable (the node is
     /// the argument's group) or of one of the callable's node slots (the node
@@ -519,23 +553,24 @@ impl Facts {
             opaque: vec![false; count],
             content_parent: vec![false; count],
         };
-        // Some ancestor is a verbatim group, per node: what `opaque` is
-        // derived from.
-        let mut under_verbatim = vec![false; count];
+        // Some ancestor is a group opaque in any mode (a verbatim group, an
+        // opaque wrapper), per node: what `opaque` is derived from.
+        let mut under_opaque_group = vec![false; count];
         for node in tree.iter_storage_order() {
             let i = node.id().index();
             let math_mode = node.parsing_state().mode() == Mode::Math;
             if let Some(parent) = node.parent() {
                 let p = parent.id().index();
-                let verbatim = parent.group_type() == Some(FlmGroupType::Verbatim);
-                under_verbatim[i] = under_verbatim[p] || verbatim;
+                under_opaque_group[i] = under_opaque_group[p] || is_opaque_group(&parent);
             }
-            // Verbatim content is opaque whatever its parsing mode, since a
-            // verbatim region changes no mode as it is read. Everywhere else
-            // the node's own mode decides: math mode is opaque, and text mode
-            // is content — which is what a text command's argument inside
+            // The content of a verbatim group or of an opaque wrapper is
+            // opaque whatever its parsing mode: a verbatim region changes no
+            // mode as it is read, and an opaque wrapper keeps everything under
+            // it as written, a formula's text command included. Everywhere
+            // else the node's own mode decides: math mode is opaque, and text
+            // mode is content — which is what a text command's argument inside
             // mathematics is.
-            facts.opaque[i] = under_verbatim[i] || math_mode;
+            facts.opaque[i] = under_opaque_group[i] || math_mode;
             if let Some(callable) = node.callable() {
                 for region in regions(callable) {
                     let parent = region.content_parent().index();
@@ -566,8 +601,8 @@ impl Facts {
 /// Checks `tree` against the parse part of the [tree contract](self), and
 /// returns every violation: every node has the right element, every
 /// callable's specification was built by FLM, a macro read by a fallback has
-/// nothing inside, and the text of a verbatim group was read with the markup
-/// rules off.
+/// nothing inside, the text of a verbatim group was read with the markup
+/// rules off, and an opaque wrapper has no delimiters.
 ///
 /// The violations come in the tree's storage order; the result is empty when
 /// the tree satisfies the rules. When techy's [`validate_tree`] fails, that one
@@ -681,6 +716,18 @@ pub fn check_parse_contract(tree: &NodeTree<Flm>) -> Vec<ContractViolation> {
                         &child,
                         ContractViolationKind::VerbatimInteriorRulesOn,
                     ));
+                }
+            }
+        }
+
+        if node.group_type() == Some(FlmGroupType::OpaqueWrapper) {
+            if let Some((open, close)) = node.group_delimiters() {
+                if !open.is_empty() || !close.is_empty() {
+                    let kind = ContractViolationKind::OpaqueWrapperDelimiters {
+                        open: open.to_string(),
+                        close: close.to_string(),
+                    };
+                    out.push(ContractViolation::at(&node, kind));
                 }
             }
         }
@@ -942,20 +989,26 @@ fn check_paragraph(paragraph: &NodeRef<'_, Flm>, out: &mut Vec<ContractViolation
                 BlockRole::BlockDecorator(Placement::Trails)
             )
     };
-    let head = children.iter().find(|child| !leads(child));
-    if let Some(text) = head.and_then(|child| child.chars()) {
-        if text.bytes().next().is_some_and(is_ascii_space) {
+    // A whitespace node at an edge is edge whitespace too: the pass removes it
+    // with the whitespace-only text there.
+    if let Some(head) = children.iter().find(|child| !leads(child)) {
+        let blank = head
+            .chars()
+            .is_some_and(|text| text.bytes().next().is_some_and(is_space_byte));
+        if blank || is_whitespace_of(head) {
             out.push(ContractViolation::at(
-                head.expect("found"),
+                head,
                 ContractViolationKind::ParagraphEdgeNotTrimmed,
             ));
         }
     }
-    let tail = children.iter().rev().find(|child| !trails(child));
-    if let Some(text) = tail.and_then(|child| child.chars()) {
-        if text.bytes().next_back().is_some_and(is_ascii_space) {
+    if let Some(tail) = children.iter().rev().find(|child| !trails(child)) {
+        let blank = tail
+            .chars()
+            .is_some_and(|text| text.bytes().next_back().is_some_and(is_space_byte));
+        if blank || is_whitespace_of(tail) {
             out.push(ContractViolation::at(
-                tail.expect("found"),
+                tail,
                 ContractViolationKind::ParagraphEdgeNotTrimmed,
             ));
         }
@@ -969,9 +1022,10 @@ fn check_paragraph(paragraph: &NodeRef<'_, Flm>, out: &mut Vec<ContractViolation
 /// (declared blocks, or declared `InlineOrBlocks` and holding a block-level
 /// node, a paragraph included), and as inline content otherwise. A slot's
 /// content follows the body declaration's layout: checked as blocks, as inline
-/// content, or not at all when it is opaque (a verbatim body, a body read in
-/// math mode). Content inside an opaque region is skipped in every case (an
-/// argument or a body that takes math mode from around it).
+/// content, or not at all when it is opaque (a verbatim body, a body under an
+/// opaque wrapper, a body read in math mode). Content inside an opaque region
+/// is skipped in every case (an argument or a body that takes math mode from
+/// around it, the content of an argument under an opaque wrapper).
 fn check_callable_regions(
     node: &NodeRef<'_, Flm>,
     facts: &Facts,
@@ -987,12 +1041,11 @@ fn check_callable_regions(
         let layout = if argument_holds_blocks(node, i) { Region::Blocks } else { Region::Inline };
         check_region(node, content.iter(), layout, facts, out);
     }
-    let layout = slot_layout(node);
     for i in 0..callable.slots.len() {
         let Some(content) = node.slot_content_nodes(i) else {
             continue;
         };
-        check_region(node, content.iter(), layout, facts, out);
+        check_region(node, content.iter(), slot_layout(node, i), facts, out);
     }
 }
 
@@ -1022,7 +1075,7 @@ fn check_region<'t>(
                 };
                 out.push(ContractViolation::at(&child, kind));
             }
-            Region::Blocks | Region::Inline | Region::Raw => {}
+            Region::Blocks | Region::Inline | Region::Raw(_) => {}
         }
     }
 }
@@ -1074,8 +1127,8 @@ fn is_block_child(node: &NodeRef<'_, Flm>) -> bool {
 
 /// Whether a node is text that text resolution has resolved: content text
 /// outside every opaque region (math-mode text, and the content of mathematics
-/// and verbatim groups and everything inside them, are not resolved),
-/// excluding the source text around an argument or a body.
+/// groups, verbatim groups and opaque wrappers and everything inside them, are
+/// not resolved), excluding the source text around an argument or a body.
 fn is_resolved_text(node: &NodeRef<'_, Flm>, facts: &Facts) -> bool {
     node.is_chars() && !facts.opaque(node) && !is_region_noise(node)
 }

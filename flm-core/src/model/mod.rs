@@ -42,7 +42,8 @@
 //!   rule that two elements are the same when they are the same allocation.
 //! - [`aspects`] — the aspects that the standard features implement and read:
 //!   block roles, reference points, reference sites, headings, content outside
-//!   the surrounding text, and what replaces a node in a copy of content.
+//!   the surrounding text, what replaces a node in a copy of content, and
+//!   whether a node is whitespace.
 //! - [`doc`] — fragments, a document's content (its tree arena, traversal list
 //!   and resolution map), the document itself, and the walk that defines
 //!   document order.

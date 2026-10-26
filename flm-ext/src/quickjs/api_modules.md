@@ -15,7 +15,7 @@
 | `flm:lang/mint` | [`api::lang::mint`](crate::api::lang::mint) | `CallableKind`, `ArgDef`, `ArgLayout`, `BodyDef`, `BodyLayout`, `FallbackKind`, `Mode`, `ElementDef`, `SyntaxDef`, `FallbackDef`, `arg_def_from_code`, `ScopedPackageDef` |
 | `flm:lang/rewrites/blocks` | [`api::lang::rewrites::blocks`](crate::api::lang::rewrites::blocks) | `argument_holds_blocks` |
 | `flm:lang/rewrites/userdefs` | [`api::lang::rewrites::userdefs`](crate::api::lang::rewrites::userdefs) | `Definition`, `DefinitionKind`, `DefinitionModes`, `ExpandPolicy`, `Expansion`, `Staged`, `Expander`, `ExpandCx`, `UserDefinition`, `ModeVariant`, `CompiledTemplate`, `PlaceholderBindings`, `DefinitionBindings`, `TemplateSpec`, `TemplateLanguage`, `compile_template_with`, `ValueBindings`, `instantiate` |
-| `flm:lang/structural` | [`api::lang::structural`](crate::api::lang::structural) | `TEXT`, `COMMENT`, `CONTAINER`, `GROUP`, `MATH`, `VERBATIM`, `PARAGRAPH`, `PARBREAK`, `PLACEHOLDER`, `UNKNOWN_MACRO`, `UNKNOWN_ENVIRONMENT`, `NAMES` |
+| `flm:lang/structural` | [`api::lang::structural`](crate::api::lang::structural) | `TEXT`, `COMMENT`, `CONTAINER`, `GROUP`, `MATH`, `VERBATIM`, `OPAQUE_WRAPPER`, `PARAGRAPH`, `PARBREAK`, `PLACEHOLDER`, `UNKNOWN_MACRO`, `UNKNOWN_ENVIRONMENT`, `NAMES` |
 | `flm:lang/text` | [`api::lang::text`](crate::api::lang::text) | `chars_text`, `read_chars` |
 | `flm:model/aspects` | [`api::model::aspects`](crate::api::model::aspects) | `AcceptedRefTypes`, `BlockRole`, `InlineSpacing`, `Placement`, `RefPoint`, `NumberSource`, `AnchorPolicy`, `ContentRef` |
 | `flm:model/element` | [`api::model::element`](crate::api::model::element) | `ElementSpec`, `Aspect` |

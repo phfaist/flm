@@ -38,14 +38,18 @@
 //! ([`FlmBodyParser`], in [`BodyDef::parser`]). The name, layout, parsing mode,
 //! scoped packages and documentation are declared beside the parser, and this
 //! module builds the specification around it: the mode and the scoped packages
-//! become the parsing state the parser reads under, and the specification
+//! become the parsing state the parser reads under, the specification
 //! carries the layout for the [block-structure
-//! pass](crate::lang::rewrites::blocks). The library reads a parser object
+//! pass](crate::lang::rewrites::blocks), and an argument or a body declared
+//! with an opaque wrapper ([`ArgDef::opaque_wrapper`],
+//! [`BodyDef::opaque_wrapper`]) has what the parser read placed under a group
+//! of the class [`FlmGroupType::OpaqueWrapper`](crate::lang::FlmGroupType::OpaqueWrapper),
+//! whose content the pass carries over as written. The library reads a parser object
 //! only through the methods of these traits and never tests which parser
-//! type it is. The methods return, for instance, whether the argument holds
-//! document content, and the bytes that identify the parser in the [registry
-//! digest](crate::model::digest), the hash of everything about a registry that
-//! can change what processing produces.
+//! type it is. The methods return, for instance, the bytes that identify the
+//! parser in the [registry digest](crate::model::digest), the hash of
+//! everything about a registry that can change what processing produces, and
+//! a short description of the syntax the parser reads.
 //!
 //! # Every specification carries its element
 //!
@@ -73,8 +77,11 @@
 //! - [`parsers`] — the parser objects an argument or a body declaration holds:
 //!   the traits [`FlmArgumentParser`] and [`FlmBodyParser`], and the standard
 //!   argument kinds [`ArgStdKind`].
-//! - [`codes`] — the argument codes: the text form of an argument (`{`, `[`,
-//!   `r()`, ...) that settings given as data use, and its only reader.
+//! - [`codes`] — the syntax of an argument in settings given as data, and its
+//!   only reader: the structured syntax, a standard argument kind written as a
+//!   map (`{syntax: delimited-group, delimiters: ["(", ")"]}`), and the
+//!   argument codes, the short texts that stand for the kinds (`{`, `[`,
+//!   `r()`, ...).
 //! - [`field`] — the element `flm.field` that every field node carries; a field
 //!   is a macro that a construct absorbs as data, such as the `\label` written
 //!   after a heading.
@@ -94,13 +101,14 @@
 pub mod codes;
 pub mod decl;
 pub mod field;
+pub(crate) mod opaque;
 pub mod packages;
 pub mod parsers;
 pub mod specs;
 
 pub use codes::{
     arg_def_from_code, deserialize_arg_list, ArgCodeError, ArgCodeProblem, ArgData,
-    ArgDataFields, ArgListData,
+    ArgDataError, ArgDataFields, ArgListData, ArgListError,
 };
 pub use decl::{
     ArgDef, ArgLayout, BodyDef,

@@ -1,8 +1,7 @@
 //! Minting the parser's packages from element declarations
 //! (`flm_core::lang::mint`): clash detection by mode, overrides, scoped
-//! packages and their ordering, the fallback package, and the refusals of a
-//! layout or a scoped package on an argument or a body whose parser holds no
-//! content.
+//! packages and their ordering, the fallback package, and the refusal of a
+//! layout on an argument or a body declared with an opaque wrapper.
 
 mod common;
 
@@ -315,10 +314,9 @@ fn a_macro_without_a_name_is_reported() {
         .any(|error| matches!(error, LangBuildError::Mint(MintError::NoNames { .. }))));
 }
 
-// --- a parser of one's own answering that it holds no content ---------------------------
+// --- a parser of one's own --------------------------------------------------------------
 
-/// An optional `!` marker: a parser of the test's own that holds no document
-/// content.
+/// An optional `!` marker: a parser of the test's own.
 #[derive(Debug)]
 struct Bang(MarkerArgumentParser);
 
@@ -336,9 +334,6 @@ impl ArgumentParser<Flm> for Bang {
 }
 
 impl FlmArgumentParser for Bang {
-    fn holds_content(&self) -> bool {
-        false
-    }
     fn identity(&self) -> Vec<u8> {
         b"test.bang".to_vec()
     }
@@ -362,11 +357,13 @@ fn mint_errors(elements: Vec<ElementDef>) -> Vec<MintError> {
 }
 
 #[test]
-fn a_layout_on_a_parser_answering_no_content_is_refused_as_on_a_star() {
+fn a_layout_on_an_opaque_wrapped_argument_is_refused_whatever_its_parser() {
     for layout in [ArgLayout::Blocks, ArgLayout::InlineOrBlocks] {
-        let bang = ArgDef::named("bang", Bang(MarkerArgumentParser::new("!"))).layout(layout);
-        let star = ArgDef::named("star", ArgStdKind::Star).layout(layout);
-        let expected = |callable: &str| MintError::LayoutOnNonContentArgument {
+        let bang = ArgDef::named("bang", Bang(MarkerArgumentParser::new("!")))
+            .with_opaque_wrapper()
+            .layout(layout);
+        let star = ArgDef::named("star", ArgStdKind::Star).with_opaque_wrapper().layout(layout);
+        let expected = |callable: &str| MintError::LayoutOnOpaqueWrappedArgument {
             owner: "t".into(),
             callable: callable.into(),
             index: 0,
@@ -378,17 +375,7 @@ fn a_layout_on_a_parser_answering_no_content_is_refused_as_on_a_star() {
 }
 
 #[test]
-fn a_scoped_package_on_a_parser_answering_no_content_is_refused() {
-    let bang = ArgDef::named("bang", Bang(MarkerArgumentParser::new("!"))).scoped("nowhere");
-    let errors = mint_errors(vec![macro_with("t", "b", vec![bang])]);
-    assert!(
-        matches!(errors.as_slice(), [MintError::ScopeOnNonContentArgument { index: 0, .. }]),
-        "{errors:?}"
-    );
-}
-
-#[test]
-fn a_parser_answering_no_content_parses_under_its_declaration() {
+fn a_parser_of_ones_own_parses_under_its_declaration() {
     let lang = lang(vec![macro_with(
         "t",
         "b",
@@ -404,19 +391,14 @@ fn a_parser_answering_no_content_parses_under_its_declaration() {
 }
 
 #[test]
-fn a_layout_or_a_scoped_package_on_a_verbatim_body_is_refused() {
-    let layout = env_def("t", "code", BodyDef::new().verbatim().blocks());
+fn a_layout_on_an_opaque_wrapped_body_is_refused() {
+    let layout = env_def("t", "code", BodyDef::new().with_opaque_wrapper().blocks());
     assert_eq!(
         mint_errors(vec![layout]),
-        [MintError::LayoutOnNonContentBody { owner: "t".into(), element: "t.code".into() }]
-    );
-    let scoped = env_def("t", "code", BodyDef::new().verbatim().scoped("nowhere"));
-    assert_eq!(
-        mint_errors(vec![scoped]),
-        [MintError::ScopeOnNonContentBody { owner: "t".into(), element: "t.code".into() }]
+        [MintError::LayoutOnOpaqueWrappedBody { owner: "t".into(), element: "t.code".into() }]
     );
     // The body's layout following the element's role is no declaration.
-    assert!(mint_errors(vec![env_def("t", "code", BodyDef::new().verbatim())]).is_empty());
+    assert!(mint_errors(vec![env_def("t", "code", BodyDef::new().with_opaque_wrapper())]).is_empty());
 }
 
 // --- scoped packages --------------------------------------------------------------------

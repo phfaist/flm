@@ -11,7 +11,7 @@ flm:
 \docsummary{`\ref[options]{type:label}`: a reference to the labeled place, showing its number, else its content, else the label.}
 
 \begin{docparams}
-\docparam{[options]}{options}{}{Display options: the name of a wording variant of the word before a number, `S` for the capitalized wording, or `noprefix` to leave the word out.}
+\docparam{[options]}{options}{}{Display options: the name of a wording variant of the word before a number, `S` for the capitalized wording, or `noprefix` to leave the word out. (content kept as written)}
 \docparam{{target}}{target}{flm.refs.target}{The target label, `type:label`, or several separated by commas.}
 \end{docparams}
 

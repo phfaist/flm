@@ -38,8 +38,8 @@
 //!   source maps are requested and the run carries one;
 //! - a comment: `{"kind": "comment", "text": "…"}`;
 //! - a group: `{"elem": "flm.group", "children": […]}` (or `flm.math`,
-//!   `flm.verbatim`, `flm.paragraph`; a math group adds `"form": "inline"` or
-//!   `"display"` before its children);
+//!   `flm.verbatim`, `flm.opaque-wrapper`, `flm.paragraph`; a math group adds
+//!   `"form": "inline"` or `"display"` before its children);
 //! - a callable: `{"elem": "<element>", "name": "<callable name>", "args":
 //!   {"<argument name or index>": […]}, "body": […], "slots": {"<slot name or
 //!   index>": […]}, "payload": <projection>}`: the name only for callables

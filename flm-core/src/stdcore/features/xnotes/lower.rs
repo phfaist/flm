@@ -31,7 +31,7 @@ use techy::core::node::{BuildId, NodeRef};
 use crate::core::lowering::{Lower, LowerCx, LowerError, Lowerer, Lowering, NodeRegion};
 use crate::core::run::MissingEntry;
 use crate::lang::rewrites::blocks::{argument_holds_blocks, slot_holds_blocks, stands_in_blocks};
-use crate::lang::text::plain_text;
+use crate::lang::text::{is_blank, plain_text};
 use crate::lang::{Flm, FlmGroupType};
 use crate::model::aspects::{BlockRole, PointId, block_role_of};
 use crate::model::element::element_value;
@@ -133,9 +133,9 @@ impl<'t> Content<'t> {
         }
     }
 
-    /// Whether the content holds nothing but whitespace and comments. An
-    /// argument a parse recovery left absent is not empty: the parse has
-    /// reported it.
+    /// Whether the content holds nothing but whitespace (`~` and `\ `
+    /// included) and comments. An argument a parse recovery left absent is
+    /// not empty: the parse has reported it.
     fn is_empty(&self) -> bool {
         match self {
             Content::Region(_, None) => false,
@@ -156,10 +156,11 @@ impl<'t> Content<'t> {
     }
 }
 
-/// Whether `node` is content: anything but a comment and whitespace-only
-/// text.
+/// Whether `node` is content: anything but a comment and a blank node
+/// ([`is_blank`]: whitespace-only text, and a node that is whitespace, such as
+/// `~` and `\ `), so `\footnote{~}` is as empty as `\footnote{ }`.
 fn is_content(node: &NodeRef<'_, Flm>) -> bool {
-    !node.is_comment() && node.chars().is_none_or(|text| !text.trim().is_empty())
+    !(node.is_comment() || is_blank(node))
 }
 
 /// Whether `node` is a paragraph that the block-structure pass built.

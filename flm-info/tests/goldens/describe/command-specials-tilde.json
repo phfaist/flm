@@ -15,9 +15,10 @@
       "docs": "The character ` `, written `~`.",
       "summary": "The character ` `, written `~`.",
       "aspects": [
-        "flm_core::model::aspects::BlockRoleAspect"
+        "flm_core::model::aspects::BlockRoleAspect",
+        "flm_core::model::aspects::Whitespace"
       ],
-      "number": 23
+      "number": 24
     }
   }
 ]

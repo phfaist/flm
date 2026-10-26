@@ -33,12 +33,22 @@
 //! lone `%` is refused as ambiguous unless it starts a comment
 //! ([`FlmParsing::percent_forbidden`](crate::lang::FlmParsing::percent_forbidden)).
 //!
-//! `\ ` produces a space that whitespace processing does not change. The
-//! block-structure pass ([`blocks`](crate::lang::rewrites::blocks)) collapses
-//! every run of whitespace in the source to one space before any lowering rule
-//! runs; the space of `\ ` is produced later, by the lowering rule, and is kept as
-//! written. `~` produces the non-breaking space U+00A0, a character like any other
-//! in the document, which a backend that lays text out keeps from breaking.
+//! `\ ` produces a space, and `~` the non-breaking space U+00A0, which a backend
+//! that lays text out keeps from breaking. The two are whitespace to the
+//! layout of paragraphs (their element values carry the [`Whitespace`]
+//! aspect): to the block-structure pass
+//! ([`blocks`](crate::lang::rewrites::blocks)), and to the lowering helper
+//! that trims the paragraphs and lines a rule writes over content it cuts out
+//! itself
+//! ([`stage_trimmed`](crate::stdcore::backends::lowering::stage_trimmed)).
+//! They are removed where whitespace is removed: beside an element that
+//! absorbs the whitespace next to it (`\cite` removes the whitespace written
+//! before it), and at the start and at the end of a paragraph and of a line of
+//! a quotation; and they start no paragraph. Everywhere else they are kept as
+//! written. The pass collapses every run of whitespace in the source to one
+//! space before any lowering rule runs, but it never merges a literal into the
+//! text beside it: `a~~b` keeps its two non-breaking spaces, and `a\ \ b` its
+//! two spaces. The lowering rule produces the character of each literal kept.
 //!
 //! `\@` adjusts the space after a period. Written after a period (`cf.\@ the
 //! appendix`), it says that the period ends an abbreviation, not a sentence;
@@ -55,7 +65,8 @@
 //!   one element value per command ([elements and
 //!   aspects](crate::guide::concepts_overview#elements-and-aspects)): each
 //!   element value carries a [`LiteralElement`], whose [`Literal`] says which
-//!   character the literal stands for;
+//!   character the literal stands for, and the element values of `\ ` and `~`
+//!   carry the [`Whitespace`] aspect too;
 //! - the element [`SENTENCE_SPACING`] (`flm.sentence-spacing`) for `\@`, with no
 //!   data of its own;
 //! - the default lowering rules [`RULE`] and [`SENTENCE_SPACING_RULE`], and the
@@ -98,7 +109,7 @@ use crate::core::lowering::{
 use crate::core::registry::{BuildError, FeatureBuilder, FeatureInfo, FlmFeature};
 use crate::lang::mint::{ElementDef, SyntaxDef};
 use crate::lang::Flm;
-use crate::model::aspects::{BlockRole, BlockRoleAspect, FixedBlockRole};
+use crate::model::aspects::{BlockRole, BlockRoleAspect, FixedBlockRole, IsWhitespace, Whitespace};
 use crate::model::element::{ElementSpec, element_value};
 
 /// The feature's registered name, `literals`.
@@ -138,8 +149,8 @@ pub enum Literal {
     Ampersand,
     /// `\$` — a dollar sign.
     Dollar,
-    /// `\ ` (a backslash and a space) — a space that whitespace processing
-    /// does not change.
+    /// `\ ` (a backslash and a space) — a space that is never collapsed with
+    /// the whitespace around it.
     Space,
     /// `\{` — an opening brace.
     OpenBrace,
@@ -249,14 +260,19 @@ pub struct LiteralElement {
 }
 
 /// The element value of one literal: a `flm.literal` element value carrying
-/// `literal`, inline (the default block role).
+/// `literal`, inline (the default block role), and whitespace ([`Whitespace`])
+/// for the two space literals, `\ ` and `~`.
 fn element(literal: Literal) -> Arc<ElementSpec> {
-    Arc::new(
-        ElementSpec::new(LITERAL)
-            .docs(format!("The character `{}`, written `{}`.", literal.text(), literal.source()))
-            .with::<dyn BlockRoleAspect>(Arc::new(FixedBlockRole(BlockRole::DEFAULT)))
-            .with_value(Arc::new(LiteralElement { literal })),
-    )
+    let element = ElementSpec::new(LITERAL)
+        .docs(format!("The character `{}`, written `{}`.", literal.text(), literal.source()))
+        .with::<dyn BlockRoleAspect>(Arc::new(FixedBlockRole(BlockRole::DEFAULT)))
+        .with_value(Arc::new(LiteralElement { literal }));
+    match literal {
+        Literal::Space | Literal::NonBreakingSpace => {
+            Arc::new(element.with::<dyn Whitespace>(Arc::new(IsWhitespace)))
+        }
+        _ => Arc::new(element),
+    }
 }
 
 /// The element value of `\@`: a `flm.sentence-spacing` element, inline (the

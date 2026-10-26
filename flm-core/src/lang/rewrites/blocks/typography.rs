@@ -6,9 +6,9 @@
 //! The substitutions are applied inside the normalization scan over a merged
 //! text run (the private `text` module), after the merge, so a quote at the
 //! start of a run can look at the node before the run (the `\(A_j\)'s` case).
-//! Mathematics and verbatim content never reach this module: text resolution
-//! applies only to text-mode content outside the [opaque
-//! regions](crate::guide::concepts_overview#opaque-regions).
+//! Mathematics, verbatim content and the content of an opaque wrapper never
+//! reach this module: text resolution applies only to text-mode content
+//! outside the [opaque regions](crate::guide::concepts_overview#opaque-regions).
 //!
 //! When both quote families are on, the ligature family takes the TeX spellings
 //! ``` `` ```, `''` and `` ` ``, and the position test decides a **single**
@@ -29,19 +29,14 @@
 //! accented letters, curly quotes and East Asian text are copied unchanged.
 
 use super::config::BlocksConfig;
-
-/// Whether `byte` is one of the ASCII whitespace characters that text
-/// resolution collapses: space, tab, carriage return, line feed.
-pub(crate) fn is_ascii_space(byte: u8) -> bool {
-    matches!(byte, b' ' | b'\t' | b'\r' | b'\n')
-}
+use crate::lang::text::is_space;
 
 /// Whether the character `prev`, immediately before a straight quote, puts that
-/// quote in an opening position: whitespace, an opening bracket, or a dash. The
-/// dash rule holds for the straight `"` as for the straight `'`, so that
-/// `a--'q'` opens rather than closes.
+/// quote in an opening position: whitespace ([`is_space`]), an opening bracket,
+/// or a dash. The dash rule holds for the straight `"` as for the straight `'`,
+/// so that `a--'q'` opens rather than closes.
 fn opens_after(prev: char) -> bool {
-    matches!(prev, ' ' | '\t' | '\r' | '\n' | '(' | '[' | '{' | '-' | '\u{2013}' | '\u{2014}')
+    is_space(prev) || matches!(prev, '(' | '[' | '{' | '-' | '\u{2013}' | '\u{2014}')
 }
 
 /// Whether `c` is a word character for the position test: a letter, a digit or
@@ -90,7 +85,8 @@ fn opening_position(text: &str, at: usize, prev_is_content: bool, single: bool) 
 /// in the order dashes, ellipses, quote ligatures (the pairs and the backtick),
 /// the single `'` (decided by position, otherwise the ligature `’`), the `"`
 /// decided by position. `prev_is_content` says whether a content sibling (not a
-/// comment) precedes the run the text belongs to.
+/// comment, and not a whitespace node such as `~`) precedes the run the text
+/// belongs to.
 pub(crate) fn substitution_at(
     text: &str,
     at: usize,

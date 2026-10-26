@@ -58,11 +58,12 @@ pub const DEFAULT_STYLE_STEM: &str = "flmx";
 pub const FONTSPEC: &str = "flm.latex.pkg.fontspec";
 
 /// The structural elements that this backend's emitter writes natively,
-/// without a lowering rule: `flm.text`, `flm.group`, `flm.comment`,
-/// `flm.container` and `flm.parbreak`.
-pub const FLOW_THROUGH: [&str; 5] = [
+/// without a lowering rule: `flm.text`, `flm.group`, `flm.opaque-wrapper`,
+/// `flm.comment`, `flm.container` and `flm.parbreak`.
+pub const FLOW_THROUGH: [&str; 6] = [
     structural::TEXT,
     structural::GROUP,
+    structural::OPAQUE_WRAPPER,
     structural::COMMENT,
     structural::CONTAINER,
     structural::PARBREAK,
@@ -70,8 +71,8 @@ pub const FLOW_THROUGH: [&str; 5] = [
 
 /// The backend's native element set, the elements its emitter writes without
 /// a lowering rule: the twenty-two presentation elements ([`pres::ALL`]), the
-/// four LaTeX construct elements ([`construct::ALL`]) and the five structural
-/// elements of [`FLOW_THROUGH`], thirty-one in all.
+/// four LaTeX construct elements ([`construct::ALL`]) and the six structural
+/// elements of [`FLOW_THROUGH`], thirty-two in all.
 ///
 /// # Examples
 ///
@@ -79,7 +80,7 @@ pub const FLOW_THROUGH: [&str; 5] = [
 /// use flm_core::stdcore::backends::latex_rendered::native_elements;
 ///
 /// let native = native_elements();
-/// assert_eq!(native.len(), 31);
+/// assert_eq!(native.len(), 32);
 /// assert!(native.iter().any(|element| element.as_str() == "flm.pres.par"));
 /// assert!(native.iter().any(|element| element.as_str() == "flm.pres.latex.macro"));
 /// ```

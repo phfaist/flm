@@ -188,6 +188,11 @@
         "summary": "a verbatim group, the parent of a run of raw text"
       },
       {
+        "name": "flm.opaque-wrapper",
+        "owner": "flm",
+        "summary": "a group with no delimiters that holds parsed content kept as written"
+      },
+      {
         "name": "flm.paragraph",
         "owner": "flm",
         "summary": "a paragraph"

@@ -415,7 +415,7 @@ fn a_definition_reads_back_with_its_codes_modes_scoped_packages_and_extra_placeh
     use flm_ext::api::lang::mint::Mode;
     let data = json!({
         "kind": "macro", "name": "stamped",
-        "args": ["[", { "code": "{", "name": "formula", "layout": "inline", "docs": "", "mode": "math", "scoped": ["ex.hints"], "role": null }],
+        "args": ["[", { "code": "{", "name": "formula", "layout": "inline", "opaque_wrapper": false, "docs": "", "mode": "math", "scoped": ["ex.hints"], "role": null }],
         "content": "#{stamp} #{formula}", "modes": "text", "defaults": {}, "argument_number_offset": 0,
         "block_role": { "inline": { "absorb_before": false, "absorb_after": false } }, "expand": "per-plan",
         "overrides": false, "docs": "", "extra_placeholders": [{ "name": "stamp", "substitution": false }],
@@ -428,7 +428,7 @@ fn a_definition_reads_back_with_its_codes_modes_scoped_packages_and_extra_placeh
     assert_eq!(definition.extra_placeholders.len(), 1);
     assert_eq!((definition.extra_placeholders[0].name.as_str(), definition.extra_placeholders[0].substitution), ("stamp", false));
     let written = definition_to_value(&definition);
-    assert_eq!(written["args"][0], json!({ "code": "[", "name": null, "layout": "inline", "docs": "", "mode": null, "scoped": [], "role": null }));
+    assert_eq!(written["args"][0], json!({ "code": "[", "name": null, "layout": "inline", "opaque_wrapper": false, "docs": "", "mode": null, "scoped": [], "role": null }));
     assert_eq!(written["args"][1], data["args"][1]);
     assert_eq!(written["extra_placeholders"], data["extra_placeholders"]);
     let again = definition_from_value(&written, &mut no_handles).expect("it reads back");
@@ -440,6 +440,22 @@ fn a_definition_reads_back_with_its_codes_modes_scoped_packages_and_extra_placeh
 }
 
 #[test]
+fn a_definition_writes_each_argument_back_in_the_form_it_was_read_from() {
+    use flm_ext::adapter::values::{definition_from_value, definition_to_value, no_handles};
+    let data = json!({
+        "kind": "macro", "name": "sized", "content": "#{size}#{other}",
+        "args": [{ "syntax": "delimited-group", "delimiters": ["(", ")"], "name": "size" }, { "code": "r()", "name": "other" }],
+    });
+    let definition = definition_from_value(&data, &mut no_handles).expect("a definition");
+    let written = definition_to_value(&definition);
+    let (structured, coded) = (&written["args"][0], &written["args"][1]);
+    assert_eq!((&structured["syntax"], &structured["delimiters"], structured.get("code")), (&json!("delimited-group"), &json!(["(", ")"]), None));
+    assert_eq!((&coded["code"], coded.get("syntax")), (&json!("r()"), None));
+    let again = definition_from_value(&written, &mut no_handles).expect("it reads back");
+    assert_eq!(again.args, definition.args);
+}
+
+#[test]
 fn the_dispatcher_reads_a_definition_and_writes_it_back_with_its_codes() {
     use flm_ext::adapter::dispatch;
     use flm_ext::adapter::handles::CallTable;
@@ -448,7 +464,7 @@ fn the_dispatcher_reads_a_definition_and_writes_it_back_with_its_codes() {
     let userdefs = common::json_double::module("lang/rewrites/userdefs");
     let data = json!({
         "kind": "macro", "name": "stamped",
-        "args": [{ "code": "{", "name": "formula", "layout": "inline", "docs": "", "mode": "math", "scoped": [], "role": null }],
+        "args": [{ "code": "{", "name": "formula", "layout": "inline", "opaque_wrapper": false, "docs": "", "mode": "math", "scoped": [], "role": null }],
         "content": "#{stamp} #1", "extra_placeholders": [{ "name": "stamp", "substitution": true }],
     });
     let ud = dispatch::call(&mut table, handle_from_value(&userdefs).expect("a handle"), "UserDefinition::new", &json!([data]))

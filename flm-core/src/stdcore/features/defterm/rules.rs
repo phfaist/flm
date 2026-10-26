@@ -83,8 +83,8 @@ pub const TERM_ROLE: &str = "flm.defterm.term";
 /// opening with its lead-in. See the [module
 /// documentation](self#a-term-definition).
 ///
-/// A term definition whose term is empty or only whitespace is reported as
-/// [`EmptyTerm`] and still written.
+/// A term definition whose term is empty or only whitespace (`~` and `\ ` are
+/// part of a term as written) is reported as [`EmptyTerm`] and still written.
 ///
 /// The rule requires the feature's style identifier [`STYLE`]
 /// (`flm.defterm.style`) at every term definition it stages, which each
@@ -165,9 +165,10 @@ fn span(
 /// The lowering rule [`TERM_RULE`]: a term link as a link to its term
 /// definition. See the [module documentation](self#a-term-link).
 ///
-/// A term link whose term is empty or only whitespace is reported as
-/// [`EmptyTerm`] and shows its text marked as unresolved. A term link whose
-/// term holds a placeholder in the template of a kept definition ([kept
+/// A term link whose term is empty or only whitespace (`~` and `\ ` are part
+/// of a term as written) is reported as [`EmptyTerm`] and shows its text
+/// marked as unresolved. A term link whose term holds a placeholder in the
+/// template of a kept definition ([kept
 /// definitions](crate::stdcore::features::userdefs::kept)) shows its text and reports
 /// nothing. A resolution that the resolutions table does not hold (content
 /// that nobody resolved, or a synthesized value that its consumer did not

@@ -304,9 +304,9 @@ impl ParseDriver<Flm> for FlmDriver {
         data
     }
 
-    /// Runs the preset's checks at the start of a parse, which report a warning
-    /// for definitions registered in a way that makes them unreachable. See
-    /// [`Flm::check_parse_start`].
+    /// Runs the language's checks at the start of a parse,
+    /// [`Flm::check_parse_start`], which FLM leaves at the family's default:
+    /// no check.
     fn observe_parse_start(
         &self,
         source: &Arc<Source<FlmOrigin>>,

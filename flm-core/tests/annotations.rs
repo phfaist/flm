@@ -302,7 +302,6 @@ fn an_unclosed_bracket_is_the_ordinary_group_error() {
 #[test]
 fn the_parser_answers_the_languages_questions() {
     let parser = AnnotationParser::new("phf");
-    assert!(parser.holds_content());
     assert!(!parser.can_match_empty());
     assert_eq!(parser.identity(), b"flm.annotations.text:phf");
     assert_ne!(parser.identity(), AnnotationParser::new("abc").identity());

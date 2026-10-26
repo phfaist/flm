@@ -13,6 +13,9 @@
     "arguments": [
       {
         "form": "an optional `*` marker",
+        "syntax": {
+          "syntax": "star"
+        },
         "written": "*",
         "name": "star",
         "layout": "inline",
@@ -21,6 +24,9 @@
       },
       {
         "form": "an optional `[key=value,…]` group",
+        "syntax": {
+          "syntax": "key-vals"
+        },
         "written": "[options]",
         "name": "options",
         "layout": "inline",
@@ -29,15 +35,39 @@
       },
       {
         "form": "a mandatory `{…}` group",
+        "syntax": {
+          "syntax": "mandatory"
+        },
         "written": "{title}",
         "name": "title",
         "layout": "inline",
         "docs": "The heading's title.",
-        "summary": "The heading's title.",
-        "holds_content": true
+        "summary": "The heading's title."
       },
       {
         "form": "the fields `\\label` written after the command",
+        "syntax": {
+          "syntax": "tack-on",
+          "fields": [
+            {
+              "name": "label",
+              "args": [
+                {
+                  "syntax": "chars-group",
+                  "name": "target",
+                  "layout": "inline",
+                  "opaque_wrapper": false,
+                  "docs": "The label, written `type:label` (`sec:intro`).",
+                  "mode": null,
+                  "scoped": [],
+                  "role": "flm.refs.defined-label"
+                }
+              ],
+              "repeatable": true,
+              "docs": "Attaches a label to the construct, which a reference can point at; may be repeated."
+            }
+          ]
+        },
         "written": "\\label{target}",
         "name": "fields",
         "layout": "inline",
@@ -51,7 +81,10 @@
             "summary": "Attaches a label to the construct, which a reference can point at; may be repeated.",
             "arguments": [
               {
-                "form": "a `{…}` group read as plain characters",
+                "form": "a `{…}` group read as plain characters, kept as written",
+                "syntax": {
+                  "syntax": "chars-group"
+                },
                 "written": "{target}",
                 "name": "target",
                 "layout": "inline",
@@ -73,7 +106,7 @@
         "flm_core::model::aspects::Sectioning",
         "flm_core::model::aspects::Referenceable"
       ],
-      "number": 48
+      "number": 49
     }
   }
 ]

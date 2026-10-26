@@ -12,7 +12,7 @@
 //! This module defines:
 //!
 //! - [`FlmGroupType`] — the group classes: content groups, mathematics,
-//!   verbatim text and paragraphs.
+//!   verbatim text, opaque wrappers and paragraphs.
 //! - [`FlmCallableType`] — the forms a callable node takes: macro, environment,
 //!   special character sequence, and two forms the library creates itself.
 //! - [`FlmNodeExts`] — which data is attached to nodes, to arguments and to
@@ -32,36 +32,40 @@
 use std::sync::Arc;
 
 use techy::core::node::{NodeBuildError, NodeKind, StagedChildren};
-use techy::core::specs::{check_provider_commands_shadowed_by_escape, ScopeStack};
+use techy::core::specs::ScopeStack;
 use techy::core::token::{SpecialsMatch, SpecialsScanError, StdTokenization, TriggerChars};
 use techy::core::{
     AllLangFeatures, ClosedVocabulary, FinalizeError, Lang, NodeExtTypes, ParsingState,
     StateData,
 };
-use techy::error::Diagnostics;
 use techy::latexlike::{
     builtin_package, default_token_rules, BodyMarker, Event, InvocationSyntaxData,
     LatexlikeCallableType, LatexlikeGroupType, LatexlikeLang, MathGroupForm, Mode,
     StdEnvironmentSyntax,
 };
 use techy::serialize::{DeserializableValue, SerializableValue};
-use techy::source::{Source, SourceSpan};
+use techy::source::SourceSpan;
 
 use crate::lang::driver::FlmDriver;
 use crate::lang::ext::{FlmNodeExt, FlmStateExt};
 use crate::lang::mint::resolve_element;
 use crate::lang::origin::FlmOrigin;
 
-/// The group classes: what a group node holds (content, mathematics, raw text
-/// or a paragraph).
+/// The group classes: what a group node holds (content, mathematics, raw text,
+/// content kept as written, or a paragraph).
 ///
 /// A group node records its class separately from the delimiters it was
 /// written with. Which delimiter pairs exist is a setting of the tokenizer
 /// ([`crate::lang::rules`]), and several delimiter pairs may open groups of the
 /// same class (`\(…\)` opens inline mathematics, and so does `$…$` when `$`
 /// is enabled as a delimiter). Because the class is recorded on the node, code
-/// anywhere in the library can ask whether a node is mathematics, verbatim text
-/// or a paragraph without looking at its delimiters.
+/// anywhere in the library can ask whether a node is mathematics, verbatim text,
+/// an opaque wrapper or a paragraph without looking at its delimiters.
+///
+/// The content of a verbatim group and of an opaque wrapper is an [opaque
+/// region](crate::guide::concepts_overview#opaque-regions) whatever the parsing
+/// mode of anything inside it
+/// ([`is_opaque_in_any_mode`](FlmGroupType::is_opaque_in_any_mode)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(SerializableValue, DeserializableValue)]
 pub enum FlmGroupType {
@@ -76,10 +80,48 @@ pub enum FlmGroupType {
     /// of this class; see [`crate::lang::verbatim`].
     #[serial(name = "verbatim")]
     Verbatim,
+    /// A group with no delimiters of its own that holds parsed content kept as
+    /// written.
+    ///
+    /// Minting stages one around the content of an argument or a body whose
+    /// declaration asks for it
+    /// ([`ArgDef::opaque_wrapper`](crate::lang::mint::ArgDef::opaque_wrapper),
+    /// [`BodyDef::opaque_wrapper`](crate::lang::mint::BodyDef::opaque_wrapper)),
+    /// and around every characters-only group, whose reader always places one
+    /// ([`ArgStdKind::CharsGroup`](crate::lang::mint::ArgStdKind::CharsGroup)).
+    /// A feature's own reader may also place one around content it keeps as
+    /// written: on a theorem kind whose class reads back-references, such as
+    /// a proof, the title's reader places one around a title that begins with
+    /// a star
+    /// ([`theorems`](crate::stdcore::features::theorems::elements#a-starred-title-is-kept-as-typed)).
+    /// The block-structure pass ([`crate::lang::rewrites::blocks`]) carries
+    /// its content over untouched: no whitespace is collapsed and no
+    /// typographic substitution is made inside it, so the element that
+    /// declared the argument reads it as typed.
+    #[serial(name = "opaque-wrapper")]
+    OpaqueWrapper,
     /// A paragraph. Paragraphs are created by the block-structure rewrite pass
     /// ([`crate::lang::rewrites::blocks`]); no delimiter in the source opens one.
     #[serial(name = "paragraph")]
     Paragraph,
+}
+
+impl FlmGroupType {
+    /// Returns whether the content of a group of this class is an [opaque
+    /// region](crate::guide::concepts_overview#opaque-regions) whatever the
+    /// parsing mode of anything inside it: `true` for
+    /// [`Verbatim`](FlmGroupType::Verbatim) and
+    /// [`OpaqueWrapper`](FlmGroupType::OpaqueWrapper).
+    ///
+    /// A mathematics group is opaque too, but not in every mode: inside it, a
+    /// region read in text mode, such as the argument of `\text{…}`, is
+    /// document content
+    /// ([`reads_text_in_math`](crate::lang::mint::reads_text_in_math)). Inside
+    /// a group of a class for which this method returns `true`, no region is
+    /// content, whatever mode it was read in.
+    pub fn is_opaque_in_any_mode(self) -> bool {
+        matches!(self, FlmGroupType::Verbatim | FlmGroupType::OpaqueWrapper)
+    }
 }
 
 impl LatexlikeGroupType for FlmGroupType {
@@ -109,6 +151,7 @@ impl ClosedVocabulary for FlmGroupType {
         FlmGroupType::Math(MathGroupForm::Inline),
         FlmGroupType::Math(MathGroupForm::Display),
         FlmGroupType::Verbatim,
+        FlmGroupType::OpaqueWrapper,
         FlmGroupType::Paragraph,
     ];
 }
@@ -331,19 +374,9 @@ impl Lang for Flm {
     }
 }
 
-impl LatexlikeLang for Flm {
-    /// Checks the registered names once, when a parse starts, and reports a
-    /// warning for each provider whose definitions can never be reached because
-    /// their names were registered with the escape character included (`\emph`
-    /// instead of `emph`). The warnings are added to the parse's diagnostics.
-    fn check_parse_start(
-        source: &Arc<Source<FlmOrigin>>,
-        seed: &Arc<ParsingState<Self>>,
-        diagnostics: &mut Diagnostics<FlmOrigin>,
-    ) {
-        check_provider_commands_shadowed_by_escape(seed, source, diagnostics);
-    }
-}
+/// FLM keeps every default of the language family: in particular, no check runs
+/// when a parse starts ([`LatexlikeLang::check_parse_start`]).
+impl LatexlikeLang for Flm {}
 
 #[cfg(test)]
 mod tests {

@@ -55,24 +55,49 @@
 //! references feature resolves as it resolves `\ref`. Every other title is a
 //! title, whether it begins with a star or not ([`title_reading`]).
 //!
-//! A title on such a kind that begins with a star but is not one run of
-//! characters (`[*\emph{x}]`), or whose text after the stars is not of the
-//! form `type:label`, is malformed ([`TitleReading::Malformed`]): it declares
+//! A title on such a kind that begins with a star, comments and whitespace
+//! aside, but is not one run of characters (`[*\emph{x}]`, `[~*lem:key]`), or
+//! whose text after the stars is not of the form `type:label`, is malformed ([`TitleReading::Malformed`]): it declares
 //! no reference site, the feature's check reports it
 //! ([`check`](super::check)), and the theorem's rules show the title as
 //! written.
+//!
+//! # A starred title is kept as typed
+//!
+//! The references feature compares a back-reference's label with the labels
+//! of `\label` as typed. On a kind whose class reads back-references, the
+//! title's reader ([`theorem_args`]) therefore places a title that begins with
+//! a star, comments and whitespace aside, under an opaque wrapper (see [opaque
+//! regions](crate::guide::concepts_overview#opaque-regions)): the
+//! block-structure pass carries it over as written, so `[*lem:a--b]` refers to
+//! the statement labeled `lem:a--b`, and a malformed back-reference is shown as
+//! typed. Every other title is content, laid out and shown as any optional
+//! argument is, with the typographic substitutions applied.
+//!
+//! The reader sees the star only where the theorem's own source writes it. A
+//! star written in a user definition's template (`[*#1]`) is seen, and the
+//! title is kept as typed whatever the use site writes after it. A star that
+//! arrives through a placeholder (a template `[#1]` used as `\pf{*lem:a--b}`)
+//! is not seen: that title is laid out as content, and a label holding `--`,
+//! quotes, an apostrophe or `...` does not resolve through it.
 
 use std::sync::Arc;
 
-use techy::core::node::NodeRef;
+use techy::core::constructs::{ArgumentParser, ConstructParserResult, ParseContext, ParsedArgumentNodes};
+use techy::core::node::{BuildId, ContentNodes, NodeKind, NodeRef, StagedNodeView, StagedNodes};
+use techy::core::specs::ArgumentSpec;
 
-use crate::lang::mint::{ArgDef, ArgStdKind, TackOnField, field_name};
-use crate::lang::text::{CharsSegment, read_chars};
-use crate::lang::Flm;
+use crate::lang::mint::opaque::wrap_argument;
+use crate::lang::mint::{
+    ArgDef, ArgStdKind, DefinitionShape, FlmArgumentParser, IntoFlmArgumentParser, TackOnField,
+    field_name,
+};
+use crate::lang::text::{CharsSegment, is_blank, is_blank_text, is_space, read_chars};
+use crate::lang::{Flm, FlmCallableType, FlmGroupType};
 use crate::model::aspects::{
     AcceptedRefTypes, AnchorPolicy, ApartFromText, BlockRole, BlockRoleAspect, ContentRef,
     FixedBlockRole, Label, NumberSource, PointId, RefDisplayOptions, RefPoint, RefSite,
-    Referenceable, Referencing,
+    Referenceable, Referencing, Whitespace,
 };
 use crate::model::addr::NodeAddr;
 use crate::model::element::{ElementSpec, element_of, element_value};
@@ -189,9 +214,15 @@ pub enum TitleReading {
 /// theorem. On a kind whose class does not read back-references, every
 /// written title is a [`Title`](TitleReading::Title).
 ///
-/// This is the only function that reads a title: the theorem's reference
-/// site, its rules, the feature's check and every later reader of the
-/// relation call it, so they all agree.
+/// This is the only function that says what a title is: the theorem's
+/// reference site, its rules, the feature's check and every later reader of
+/// the relation call it, so they all agree. The title's reader that
+/// [`theorem_args`] gives a class reading back-references decides, while it
+/// parses the title, whether to keep the title as typed; the tree does not
+/// exist yet, so that reader holds a copy of this function's test for a star,
+/// run over the nodes it stages. A change to the test here is made there
+/// too, so that a title is kept as typed exactly where this function reads it
+/// as starred.
 pub fn title_reading(node: &NodeRef<'_, Flm>) -> Option<TitleReading> {
     let value = element_value::<TheoremElement>(node)?;
     let Ok(Some(title)) = node.argument_content_nodes_named(TITLE_ARG) else {
@@ -200,17 +231,18 @@ pub fn title_reading(node: &NodeRef<'_, Flm>) -> Option<TitleReading> {
     if !value.class.relation_ref {
         return Some(TitleReading::Title);
     }
+    // The title's reader makes the same test for a star over the nodes it
+    // stages (`begins_with_star`); the two tests change together.
     let Ok(read) = read_chars(title.iter()) else {
         // Not one run of characters: a back-reference only where the title's
-        // first node, comments and blank characters aside, is characters
-        // beginning with a star; a title opening with a command, a group or
-        // a formula is a title.
+        // first node, comments, blank characters and whitespace nodes (`~`)
+        // aside, is characters beginning with a star; a title opening with a
+        // command, a group or a formula is a title.
         let starred = title
             .iter()
-            .filter(|node| !node.is_comment())
-            .find(|node| node.chars().is_none_or(|text| !text.trim().is_empty()))
+            .find(|node| !(node.is_comment() || is_blank(node)))
             .and_then(|node| node.chars())
-            .is_some_and(|text| text.trim_start().starts_with('*'));
+            .is_some_and(|text| text.trim_start_matches(is_space).starts_with('*'));
         return Some(if starred { TitleReading::Malformed } else { TitleReading::Title });
     };
     // The characters before the first placeholder, if any stands.
@@ -219,7 +251,7 @@ pub fn title_reading(node: &NodeRef<'_, Flm>) -> Option<TitleReading> {
         .iter()
         .map_while(|segment| segment.as_text())
         .collect();
-    let leading = leading.trim_start();
+    let leading = leading.trim_start_matches(is_space);
     let placeholder = read.segments().iter().any(|segment| matches!(segment, CharsSegment::Placeholder(_)));
     if placeholder && (leading.is_empty() || leading.starts_with('*')) {
         return Some(TitleReading::Unknown);
@@ -231,7 +263,7 @@ pub fn title_reading(node: &NodeRef<'_, Flm>) -> Option<TitleReading> {
         Some(rest) => (rest, false),
         None => (starred, true),
     };
-    let text = rest.trim().to_string();
+    let text = rest.trim_matches(is_space).to_string();
     Some(match Label::parse(&text) {
         Some(label) => TitleReading::Relation { text, label, shown },
         None => TitleReading::Malformed,
@@ -343,19 +375,33 @@ pub(super) fn theorem_element(value: TheoremElement) -> Arc<ElementSpec> {
     )
 }
 
-/// The arguments of every theorem environment, in order: the optional title
-/// ([`TITLE_ARG`]), then the tack-on argument (the trailing argument that
-/// absorbs field macros; [`ArgStdKind::TackOn`]) under the references
-/// feature's argument name ([`FIELDS_ARG`](refs::FIELDS_ARG)), holding the
-/// fields `\label{…}` (the references feature's declaration,
+/// The arguments of the theorem environments of a class, in order: the
+/// optional title ([`TITLE_ARG`]), then the tack-on argument (the trailing
+/// argument that absorbs field macros; [`ArgStdKind::TackOn`]) under the
+/// references feature's argument name ([`FIELDS_ARG`](refs::FIELDS_ARG)),
+/// holding the fields `\label{…}` (the references feature's declaration,
 /// [`label_field`](refs::label_field)), repeatable, and `\noproofref`
 /// ([`NOPROOFREF_FIELD`]).
-pub fn theorem_args() -> Vec<ArgDef> {
+///
+/// `relation_ref` is the class's
+/// [`relation_ref`](super::TheoremClass::relation_ref). Where it is false, the
+/// title is an optional argument of the standard kind
+/// ([`ArgStdKind::Optional`]). Where it is true, the title is read by the
+/// feature's own reader, which reads the same optional `[…]` group and places
+/// a title that begins with a star under an opaque wrapper, so that a
+/// back-reference is read as typed (see the [module
+/// documentation](self#a-starred-title-is-kept-as-typed)).
+pub fn theorem_args(relation_ref: bool) -> Vec<ArgDef> {
     let noproofref = TackOnField::new(NOPROOFREF_FIELD, Vec::new())
         .docs("Says that no proof of the statement is coming.");
     let fields = ArgStdKind::TackOn { fields: vec![refs::label_field(), noproofref] };
-    vec![
+    let title = if relation_ref {
+        ArgDef::named(TITLE_ARG, RelationTitleParser::new())
+    } else {
         ArgDef::named(TITLE_ARG, ArgStdKind::Optional)
+    };
+    vec![
+        title
             .docs(
                 "The theorem's title, or, on a proof, a back-reference `*type:label` to the \
                  statement it proves.",
@@ -366,6 +412,152 @@ pub fn theorem_args() -> Vec<ArgDef> {
                  the theorem and mark it as having no proof.",
             ),
     ]
+}
+
+/// The identity of the title reader of a class that reads back-references
+/// ([`RelationTitleParser`]) in the registry digest,
+/// `flm.theorems.relation-title`.
+const RELATION_TITLE_IDENTITY: &str = "flm.theorems.relation-title";
+
+/// The reader of the title of a theorem whose class reads back-references
+/// ([`relation_ref`](super::TheoremClass::relation_ref)): an optional `[…]`
+/// group, read by the reader of an optional argument of the standard kind
+/// ([`ArgStdKind::Optional`]), and placed under an opaque wrapper when it
+/// begins with a star ([`begins_with_star`]). See the [module
+/// documentation](self#a-starred-title-is-kept-as-typed).
+///
+/// The content designation names the same nodes with or without the
+/// wrapper, so [`title_reading`] reads the title the same way in both cases.
+/// An argument that is not written is absent.
+///
+/// What it states through [`FlmArgumentParser`]: its identity is
+/// [`RELATION_TITLE_IDENTITY`]; it is written as a value in a recomposed user
+/// definition, as an optional argument is; its description is "an optional
+/// `[…]` group, kept as written when it begins with `*`".
+#[derive(Debug)]
+struct RelationTitleParser {
+    /// The parser of an optional argument of the standard kind.
+    optional: Arc<dyn FlmArgumentParser>,
+}
+
+impl RelationTitleParser {
+    /// Creates the reader.
+    fn new() -> RelationTitleParser {
+        RelationTitleParser { optional: ArgStdKind::Optional.into_flm_argument_parser() }
+    }
+}
+
+impl ArgumentParser<Flm> for RelationTitleParser {
+    fn parse_argument(
+        &self,
+        cx: &mut ParseContext<'_, '_, Flm>,
+        spec: &ArgumentSpec<Flm>,
+    ) -> ConstructParserResult<Flm, Option<ParsedArgumentNodes<Flm>>> {
+        let Some(read) = self.optional.parse_argument(cx, spec)? else {
+            return Ok(None);
+        };
+        let staged = cx.staged_nodes();
+        let content = match &read.content {
+            ContentNodes::InRegion(range) => read.nodes.get(range.start as usize..range.end as usize),
+            ContentNodes::InChildrenOf(parent, range) => staged
+                .get(*parent)
+                .and_then(|view| view.children().get(range.start as usize..range.end as usize)),
+        };
+        if !begins_with_star(staged, content.unwrap_or_default()) {
+            return Ok(Some(read));
+        }
+        wrap_argument(cx, read).map(Some)
+    }
+
+    fn can_match_empty(&self) -> bool {
+        self.optional.can_match_empty()
+    }
+}
+
+impl FlmArgumentParser for RelationTitleParser {
+    fn identity(&self) -> Vec<u8> {
+        RELATION_TITLE_IDENTITY.as_bytes().to_vec()
+    }
+
+    fn definition_shape(&self) -> DefinitionShape {
+        DefinitionShape::Value
+    }
+
+    fn description(&self) -> String {
+        String::from("an optional `[…]` group, kept as written when it begins with `*`")
+    }
+}
+
+/// Whether the staged nodes `content`, the content of a title just read,
+/// begin with a star as [`title_reading`] reads a title: where they are one
+/// run of characters (characters, comments, placeholders and groups that are
+/// not formulas), whether their characters before the first placeholder,
+/// whitespace aside, begin with a star; otherwise, whether their first node,
+/// comments, blank characters and whitespace nodes (`~`) aside, is
+/// characters beginning with a star.
+/// So the wrapper stands over exactly the titles that [`title_reading`] reads
+/// as a back-reference, a malformed one, or a placeholder after a star.
+///
+/// This is a copy of [`title_reading`]'s test for a star, and
+/// [`leading_characters`] walks the nodes as [`read_chars`] does: the reader
+/// runs before the tree exists, so it has no [`NodeRef`] to give
+/// [`title_reading`]. A change to either test is made to both.
+fn begins_with_star(staged: StagedNodes<'_, Flm>, content: &[BuildId]) -> bool {
+    match leading_characters(staged, content) {
+        Some(leading) => leading.trim_start_matches(is_space).starts_with('*'),
+        None => content
+            .iter()
+            .filter_map(|id| staged.get(*id))
+            .filter(|view| {
+                !matches!(view.kind(), NodeKind::Comment(_))
+                    && !view.ext().element.has_aspect::<dyn Whitespace>()
+            })
+            .find(|view| staged_chars(view).is_none_or(|text| !is_blank_text(text)))
+            .and_then(|view| staged_chars(&view))
+            .is_some_and(|text| text.trim_start_matches(is_space).starts_with('*')),
+    }
+}
+
+/// The characters of the staged nodes `content` before their first
+/// placeholder, in document order, where the nodes are one run of
+/// characters as [`read_chars`] reads one; `None` where they hold a command
+/// other than a placeholder, or a formula.
+fn leading_characters(staged: StagedNodes<'_, Flm>, content: &[BuildId]) -> Option<String> {
+    let mut leading = String::new();
+    let mut at_placeholder = false;
+    // Document order without recursion, as in `read_chars`.
+    let mut pending: Vec<BuildId> = content.iter().rev().copied().collect();
+    while let Some(id) = pending.pop() {
+        let view = staged.get(id)?;
+        match view.kind() {
+            NodeKind::Chars { .. } => {
+                if !at_placeholder {
+                    leading.push_str(staged_chars(&view).unwrap_or_default());
+                }
+            }
+            NodeKind::Comment(_) => {}
+            NodeKind::Group(group) if matches!(group.group_type, Some(FlmGroupType::Math(_))) => {
+                return None;
+            }
+            NodeKind::Group(_) | NodeKind::List => pending.extend(view.children().iter().rev()),
+            NodeKind::Callable(callable) => {
+                if callable.callable_type != FlmCallableType::Placeholder {
+                    return None;
+                }
+                at_placeholder = true;
+            }
+        }
+    }
+    Some(leading)
+}
+
+/// The characters of the staged node `view`, where it is a node of
+/// characters.
+fn staged_chars<'b>(view: &StagedNodeView<'b, Flm>) -> Option<&'b str> {
+    match view.kind() {
+        NodeKind::Chars { content } => Some(content.resolve(view.span().source())),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

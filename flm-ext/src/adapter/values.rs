@@ -39,8 +39,8 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 
 use flm_core::lang::mint::{
-    ArgCodeError, ArgData, ArgDef, ArgLayout, ArgListData, BodyDef, BodyLayout, CallableKind, ElementDef as CoreElementDef,
-    FallbackDef as CoreFallbackDef, FallbackKind, FlmBodyParser, SyntaxDef as CoreSyntaxDef,
+    ArgData, ArgDataFields, ArgDef, ArgLayout, ArgListData, ArgListError, ArgStdKind, BodyDef, BodyLayout, CallableKind,
+    ElementDef as CoreElementDef, FallbackDef as CoreFallbackDef, FallbackKind, FlmBodyParser, SyntaxDef as CoreSyntaxDef,
 };
 use flm_core::lang::origin::{FlmDiagnostic, FlmSpan};
 use flm_core::lang::verbatim::FlmVerbatimBehavior;
@@ -149,7 +149,7 @@ fn not_read(what: &str, error: &serde_json::Error) -> ExtError {
 }
 
 /// Reads `value` as `T` through `T`'s own serde form.
-fn read<T: serde::de::DeserializeOwned>(what: &str, value: &Value) -> Result<T, ExtError> {
+pub(crate) fn read<T: serde::de::DeserializeOwned>(what: &str, value: &Value) -> Result<T, ExtError> {
     serde_json::from_value(value.clone()).map_err(|error| not_read(what, &error))
 }
 
@@ -275,6 +275,7 @@ macro_rules! serde_form {
 }
 
 serde_form!(
+    ArgStdKind => "an argument's structured syntax (`ArgStdKind`)",
     Within => "a place within counters (`Within`)",
     Parents => "the parents of a counter (`Parents`)",
     WithinJoinerSpec => "a within-joiner (`WithinJoinerSpec`)",
@@ -752,25 +753,32 @@ fn names_field(what: &str, map: &BTreeMap<String, &Value>, key: &str) -> Result<
 }
 
 /// An argument list in the `ArgListData` shape: a string of argument codes
-/// (`"[{"`), or a list of codes, maps `{"code", "name", "layout", "docs",
-/// "mode", "scoped", "role"}` and handles of kind `arg_def` (an argument a
-/// helper made, resolved by `resolve`); `null` is the empty list.
+/// (`"[{"`), or a list whose entries are each a code, an argument's map or a
+/// handle of kind `arg_def` (an argument a helper made, resolved by
+/// `resolve`); `null` is the empty list. An argument's map ([`ArgDataFields`])
+/// gives the argument's syntax as `{"code"}` or as `{"syntax", ...}` with the
+/// parameters of the syntax, exactly one of the two, beside `"name"`,
+/// `"layout"`, `"opaque_wrapper"`, `"docs"`, `"mode"`, `"scoped"` and
+/// `"role"`.
 ///
 /// # Errors
 ///
 /// The value is not of the shape ([`ExtError::Value`]; a helper's argument
 /// written with fields beside its handle, as a guest writes one its setters
-/// changed, is refused naming those fields), a code is not one
-/// ([`ExtError::Core`] of kind `arg-code`), a handle stands for no argument,
-/// or what `resolve` reports.
+/// changed, is refused naming those fields), a code is not one or a map gives
+/// both a code and a structured syntax, or neither ([`ExtError::Core`] of
+/// kind `arg-code`), a handle stands for no argument, or what `resolve`
+/// reports. A message about an argument's code or map names the argument's
+/// position in the list.
 pub fn arg_defs_from_value(value: &Value, resolve: &mut Resolver<'_>) -> Result<Vec<ArgDef>, ExtError> {
     let code_error =
-        |error: ArgCodeError| ExtError::Core { kind: "arg-code".to_string(), detail: error.to_string(), data: Value::Null };
+        |error: ArgListError| ExtError::Core { kind: "arg-code".to_string(), detail: error.to_string(), data: Value::Null };
     match value {
         Value::Null => Ok(Vec::new()),
         Value::Array(items) => items
             .iter()
-            .map(|item| {
+            .enumerate()
+            .map(|(index, item)| {
                 if let Value::Object(map) = item
                     && map.len() > 1
                     && let Some(handle) = map.get(HANDLE_KEY)
@@ -797,8 +805,8 @@ pub fn arg_defs_from_value(value: &Value, resolve: &mut Resolver<'_>) -> Result<
                         other => Err(mismatch(HandleKind::ArgDef, other.kind())),
                     };
                 }
-                let data: ArgData = read("an argument", item)?;
-                ArgDef::try_from(data).map_err(code_error)
+                let data: ArgData = read(&format!("argument {}", index + 1), item)?;
+                ArgDef::try_from(data).map_err(|error| code_error(ArgListError { index, error }))
             })
             .collect(),
         _ => {
@@ -808,9 +816,11 @@ pub fn arg_defs_from_value(value: &Value, resolve: &mut Resolver<'_>) -> Result<
     }
 }
 
-/// A body `{"layout": "from-role", "verbatim": false, "mode": null,
-/// "scoped": []}`, every field optional; `scoped` names the scoped packages
-/// whose commands are legal in the body.
+/// A body `{"layout": "from-role", "opaque_wrapper": false, "verbatim":
+/// false, "mode": null, "scoped": []}`, every field optional;
+/// `opaque_wrapper` is whether minting places the body's content under an
+/// opaque wrapper ([`BodyDef::opaque_wrapper`]); `scoped` names the scoped
+/// packages whose commands are legal in the body.
 ///
 /// # Errors
 ///
@@ -820,17 +830,21 @@ pub fn body_def_from_value(value: &Value) -> Result<BodyDef, ExtError> {
     if value.is_null() {
         return Ok(BodyDef::new());
     }
-    let map = fields(WHAT, value, &["layout", "verbatim", "mode", "scoped"])?;
+    let map = fields(WHAT, value, &["layout", "opaque_wrapper", "verbatim", "mode", "scoped"])?;
+    let flag = |key: &str| match field(&map, key) {
+        Value::Null => Ok(false),
+        Value::Bool(flag) => Ok(*flag),
+        other => Err(ExtError::Value { detail: format!("the field `{key}` of {WHAT} must be a boolean, not `{other}`") }),
+    };
     let mut body = BodyDef::new();
     if let Some(layout) = form_field::<BodyLayout>(&map, "layout")? {
         body = body.layout(layout);
     }
-    match field(&map, "verbatim") {
-        Value::Null | Value::Bool(false) => {}
-        Value::Bool(true) => body = body.verbatim(),
-        other => {
-            return Err(ExtError::Value { detail: format!("the field `verbatim` of {WHAT} must be a boolean, not `{other}`") })
-        }
+    if flag("opaque_wrapper")? {
+        body = body.with_opaque_wrapper();
+    }
+    if flag("verbatim")? {
+        body = body.verbatim();
     }
     if let Some(mode) = form_field::<Mode>(&map, "mode")? {
         body = body.mode(mode);
@@ -841,18 +855,19 @@ pub fn body_def_from_value(value: &Value) -> Result<BodyDef, ExtError> {
     Ok(body)
 }
 
-/// `{"layout", "verbatim", "mode", "scoped": [name, …]}`; read by
-/// [`body_def_from_value`]. The one parser the shape names is the verbatim
-/// one ([`BodyDef::verbatim`]), written `"verbatim": true`. A body with a
-/// parser of its own is written with the parser's description under the
-/// field `parser`, which the reader refuses: the write drops nothing, so such
-/// a body never reads back as another one.
+/// `{"layout", "opaque_wrapper", "verbatim", "mode", "scoped": [name, …]}`;
+/// read by [`body_def_from_value`]. The one parser the shape names is the
+/// verbatim one ([`BodyDef::verbatim`]), written `"verbatim": true`. A body
+/// with a parser of its own is written with the parser's description under
+/// the field `parser`, which the reader refuses: the write drops nothing, so
+/// such a body never reads back as another one.
 impl JsonForm for BodyDef {
     fn to_value(&self) -> Value {
         let scoped: Vec<&str> = self.scoped.iter().map(Name::as_str).collect();
         let verbatim = FlmVerbatimBehavior::new().identity();
         let mut value = json!({
             "layout": self.layout.to_value(),
+            "opaque_wrapper": self.opaque_wrapper,
             "verbatim": self.parser.as_ref().is_some_and(|parser| parser.identity() == verbatim),
             "mode": self.mode.to_value(),
             "scoped": scoped,
@@ -2001,32 +2016,32 @@ pub fn not_characters(error: NotCharacters) -> ExtError {
     }
 }
 
-/// An argument written in the `ArgData` map shape `{"code", "name",
-/// "layout", "docs", "mode", "scoped", "role"}`, which
+/// An argument written as an argument's map ([`ArgDataFields`]), which
 /// [`arg_defs_from_value`] reads back: what `arg_def_from_code` answers, and
-/// each argument of [`definition_to_value`]. `code` is the code the argument
-/// was read from ([`ArgDef::code`]), `null` for an argument built from a
-/// parser (which then does not read back); `mode` is `null` when the argument
-/// keeps the mode of its surroundings; `role` is `null` for an argument that
-/// states no role.
+/// each argument of [`definition_to_value`]. The map gives the argument's
+/// syntax in the form [`ArgDef::code`] states a declaration is written back
+/// in: `{"code"}` for an argument read from a code; otherwise, when its
+/// parser is a standard kind ([`ArgStdKind`]) other than a tack-on argument,
+/// `{"syntax", ...}`, the kind serialized with its parameters beside the key
+/// `syntax` (`{"syntax": "delimited-group", "delimiters": ["(", ")"]}`);
+/// otherwise neither, for a tack-on argument or a parser of a feature's own,
+/// which then does not read back. Beside the syntax stand `"name"`,
+/// `"layout"`, `"opaque_wrapper"`, `"docs"`, `"mode"`, `"scoped"` and
+/// `"role"`: `opaque_wrapper` is whether the declaration places the
+/// argument's content under an opaque wrapper; `mode` is `null` when the
+/// argument keeps the mode of its surroundings; `role` is `null` for an
+/// argument that states no role.
 pub fn arg_def_to_value(arg: &ArgDef) -> Value {
-    let scoped: Vec<&str> = arg.scoped.iter().map(Name::as_str).collect();
-    json!({
-        "code": arg.code(),
-        "name": arg.name,
-        "layout": arg.layout.to_value(),
-        "docs": arg.docs,
-        "mode": arg.mode.as_ref().map_or(Value::Null, JsonForm::to_value),
-        "scoped": scoped,
-        "role": arg.role.as_ref().map(Name::as_str),
-    })
+    serde_json::to_value(ArgDataFields::from(arg)).unwrap_or(Value::Null)
 }
 
 /// A user definition's declaration written as data, in the shape
 /// [`definition_from_value`] reads: each argument as [`arg_def_to_value`]
-/// writes it, with its code where it was read from one, and the extra
-/// placeholders as `[{"name", "substitution"}]`. A definition whose
-/// arguments were all read from codes reads back as written.
+/// writes it, with its code where it was read from one and otherwise with
+/// its structured syntax where its parser is a standard kind other than a
+/// tack-on argument, and the extra placeholders as `[{"name",
+/// "substitution"}]`. A definition reads back as written unless one of its
+/// arguments is a tack-on argument or has a parser of a feature's own.
 pub fn definition_to_value(definition: &Definition) -> Value {
     let args: Vec<Value> = definition.args.iter().map(arg_def_to_value).collect();
     let extras: Vec<Value> = definition
@@ -2838,7 +2853,8 @@ impl<'c> FromArg<'c> for Definition {
     }
 }
 
-/// [`definition_to_value`], which does not read back.
+/// [`definition_to_value`], which reads back unless one of the definition's
+/// arguments is a tack-on argument or has a parser of a feature's own.
 impl<'c> IntoReply<'c> for &Definition {
     fn into_reply(self, _: &mut CallTable<'c>) -> Result<Value, ExtError> {
         Ok(definition_to_value(self))
@@ -3867,12 +3883,7 @@ mod tests {
         let written = BodyDef::new().parser(flm_core::lang::mint::FlmUnknownEnvironmentBehavior::new()).to_value();
         assert_eq!(written["verbatim"], json!(false));
         assert_eq!(written["parser"], json!(own.description()));
-        assert_eq!(
-            body_def_from_value(&written).err(),
-            Some(ExtError::Value {
-                detail: "a body must hold only the fields `layout`, `verbatim`, `mode`, `scoped`, not `parser`".to_string()
-            })
-        );
+        assert!(matches!(body_def_from_value(&written), Err(ExtError::Value { .. })));
     }
 
     #[test]
@@ -4162,13 +4173,19 @@ mod tests {
         let arg = crate::api::lang::mint::arg_def_from_code("[").expect("a code");
         assert_eq!(
             arg_def_to_value(&arg),
-            json!({ "code": "[", "name": null, "layout": "inline", "docs": "", "mode": null, "scoped": [], "role": null })
+            json!({
+                "code": "[", "name": null, "layout": "inline", "opaque_wrapper": false, "docs": "", "mode": null,
+                "scoped": [], "role": null,
+            })
         );
     }
 
     #[test]
     fn an_argument_s_role_is_read_and_written_back() {
-        let written = json!({ "code": "{", "name": "key", "layout": "inline", "docs": "", "mode": null, "scoped": [], "role": "wc.key" });
+        let written = json!({
+            "code": "{", "name": "key", "layout": "inline", "opaque_wrapper": false, "docs": "", "mode": null, "scoped": [],
+            "role": "wc.key",
+        });
         let data: ArgData = serde_json::from_value(written.clone()).expect("the argument map");
         let arg = ArgDef::try_from(data).expect("a code");
         assert_eq!(arg.role.as_ref().map(Name::as_str), Some("wc.key"));

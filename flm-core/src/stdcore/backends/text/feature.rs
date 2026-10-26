@@ -13,10 +13,11 @@
 //! # The elements the backend writes natively
 //!
 //! The backend's native set ([`native_elements`]) is the whole [presentation
-//! vocabulary](crate::stdcore::backends::pres) plus the five [structural
+//! vocabulary](crate::stdcore::backends::pres) plus the six [structural
 //! elements](crate::lang::structural::StructuralElements) of [`FLOW_THROUGH`],
 //! whose meaning plain text does not need to translate: `flm.text`,
-//! `flm.group`, `flm.comment`, `flm.container` and `flm.parbreak`. The
+//! `flm.group`, `flm.opaque-wrapper`, `flm.comment`, `flm.container` and
+//! `flm.parbreak`. The
 //! paragraph-break element `flm.parbreak` is in that list because the
 //! block-structure pass carries an [opaque
 //! region](crate::guide::concepts_overview#opaque-regions), such as
@@ -98,13 +99,14 @@ fn settings() -> SettingsDecl {
         .markup("run_in_stop")
 }
 
-/// The five [structural elements](crate::lang::structural::StructuralElements)
+/// The six [structural elements](crate::lang::structural::StructuralElements)
 /// the text backend writes natively, beside the presentation vocabulary:
-/// `flm.text`, `flm.group`, `flm.comment`, `flm.container` and `flm.parbreak`
-/// (see the module documentation).
-pub const FLOW_THROUGH: [&str; 5] = [
+/// `flm.text`, `flm.group`, `flm.opaque-wrapper`, `flm.comment`,
+/// `flm.container` and `flm.parbreak` (see the module documentation).
+pub const FLOW_THROUGH: [&str; 6] = [
     structural::TEXT,
     structural::GROUP,
+    structural::OPAQUE_WRAPPER,
     structural::COMMENT,
     structural::CONTAINER,
     structural::PARBREAK,

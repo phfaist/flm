@@ -195,6 +195,14 @@
 //!   (`inline`, `blocks`, `inline-or-blocks`) and
 //!   [`BodyLayout`](crate::lang::mint::BodyLayout) (`inline`, `blocks`,
 //!   `from-role`). A parsing mode is `text` or `math`.
+//! - A standard argument kind ([`ArgStdKind`](crate::lang::mint::ArgStdKind))
+//!   is an object whose key `syntax` holds the kind's name, in lowercase with
+//!   hyphens, beside the kind's parameters, as the kind's documentation lists
+//!   them ([the kind as data](crate::lang::mint::ArgStdKind#the-kind-as-data)).
+//!   An argument written as a map
+//!   ([`ArgDataFields`](crate::lang::mint::ArgDataFields)) holds the keys of
+//!   that object among its own, and leaves out `code` when it gives a
+//!   structured syntax instead.
 //! - A [`PeerName`] is `{"kind", "name"}`, the kind the word that
 //!   [`PeerName::kind`] gives (`scoped package`), as in the data of the
 //!   condition [`UnresolvedPeer`]; a
@@ -230,6 +238,7 @@
 //! [`Excluded`](crate::core::plan::Excluded) and
 //! [`PlanWarning`](crate::core::plan::PlanWarning); and the language's
 //! [`ArgDataFields`](crate::lang::mint::ArgDataFields),
+//! [`ArgStdKind`](crate::lang::mint::ArgStdKind),
 //! [`ArgLayout`](crate::lang::mint::ArgLayout),
 //! [`BodyLayout`](crate::lang::mint::BodyLayout),
 //! [`CallableKind`](crate::lang::mint::CallableKind) and

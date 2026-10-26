@@ -78,7 +78,12 @@
 //! A back-reference is a [reference site](crate::model::aspects::RefSite),
 //! which the [references](crate::stdcore::features::refs) feature resolves as
 //! it resolves `\ref`. [`title_reading`] is the function that decides whether
-//! a title is a back-reference.
+//! a title is a back-reference. On a class that reads back-references, a title
+//! that begins with a star is kept as typed: its reader places it under an
+//! opaque wrapper, so that its label meets the label of a `\label` as written,
+//! and `[*lem:a--b]` refers to `\label{lem:a--b}`. Every other title is content
+//! (see [a starred title is kept as
+//! typed](elements#a-starred-title-is-kept-as-typed)).
 //!
 //! # The check of proofs
 //!
@@ -172,7 +177,12 @@
 //!   set aside (excluded from rule selection; see
 //!   [`PeerName`](crate::core::registry::PeerName)).
 //! - **User definitions.** A theorem written in a user definition's template is
-//!   checked and numbered where the template is expanded in the tree. A
+//!   checked and numbered where the template is expanded in the tree. The
+//!   title's reader sees a star written in the template (`[*#1]`), and keeps
+//!   that title as typed. It does not see a star that arrives through a
+//!   placeholder (a template `[#1]` used as `\pf{*lem:a--b}`): that title is
+//!   laid out as content, and a label holding `--`, quotes, an apostrophe or
+//!   `...` does not resolve through it. A
 //!   theorem in the template of a kept definition (a user definition whose use
 //!   sites the plan leaves in the tree; see [kept
 //!   definitions](crate::stdcore::features::userdefs::kept)) whose title holds
@@ -318,11 +328,12 @@ impl FlmFeature for Theorems {
         for name in self.config.kinds.keys() {
             // Every kind names a declared class: the configuration was checked.
             let Some(value) = TheoremElement::of(&self.config, name) else { continue };
+            let args = theorem_args(value.class.relation_ref);
             b.element(
                 ElementDef::new(
                     owner.clone(),
                     [name.as_str()],
-                    SyntaxDef::Environment { args: theorem_args(), body: BodyDef::new().blocks() },
+                    SyntaxDef::Environment { args, body: BodyDef::new().blocks() },
                     elements::theorem_element(value),
                 )
                 .docs(format!(

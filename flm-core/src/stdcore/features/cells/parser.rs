@@ -30,11 +30,11 @@ pub const IDENTITY: &str = "flm.cells.styles";
 /// `<…>` group of document content, built on techy's optional group parser
 /// with the delimiters `<` and `>`. See the [module documentation](self).
 ///
-/// What it states through [`FlmArgumentParser`]: the argument holds content;
-/// its identity is [`IDENTITY`]; it has no shape in a recomposed user
-/// definition, since no user definition declares such an argument; its
-/// description is "an optional `<…>` group of style tokens". An argument
-/// that is not written is absent.
+/// What it states through [`FlmArgumentParser`]: its identity is
+/// [`IDENTITY`]; it has no shape in a recomposed user definition, since no
+/// user definition declares such an argument; its description is "an
+/// optional `<…>` group of style tokens". An argument that is not written is
+/// absent.
 pub struct CellStylesParser {
     angles: OptionalGroupArgumentParser<Flm>,
 }
@@ -74,10 +74,6 @@ impl ArgumentParser<Flm> for CellStylesParser {
 }
 
 impl FlmArgumentParser for CellStylesParser {
-    fn holds_content(&self) -> bool {
-        true
-    }
-
     fn identity(&self) -> Vec<u8> {
         IDENTITY.as_bytes().to_vec()
     }

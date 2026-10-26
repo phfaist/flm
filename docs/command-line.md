@@ -25,7 +25,8 @@ The program has six commands:
   check them. See [Printing the schema of the settings](#printing-the-schema-of-the-settings).
 - `flm info [PATH…]` describes the environment in which a document is processed (the
   packages, the features and the commands they declare, the settings, the workflows, the
-  program itself) as pages of documentation, printed as text or as JSON. See
+  program itself) as pages of documentation, printed as text or as JSON, or written one
+  page at a time as an FLM document. See
   [Describing the environment: `flm info`](#describing-the-environment-flm-info).
 - `flm dump FILE` is an inspection tool: it processes one file with the library alone and
   prints one view of the result as JSON (a tree at a chosen point of the processing, a
@@ -1616,9 +1617,10 @@ setting that is set on the document; `render` for a setting that is set per rend
 a workflow's `settings` in an extension's package may also write; `either` for a setting that is
 set on the document and that a render may set again. For a collection of named entries, the schema
 also says that it is combined entry by entry (`x-flm-marks`) and gives its default
-entries. The arguments of a user definition are written as one-character codes, and the
-schema describes each code by the form of argument it represents (`{`: a mandatory `{…}`
-group).
+entries. The arguments of a user definition are written as maps that give a structured
+syntax (the key `syntax` with the name of a kind of argument, and its parameters) or as
+argument codes, their shorthands; the schema describes each kind and each code by the
+form of argument it represents (`mandatory` and `{`: a mandatory `{…}` group).
 
 To have an editor check the files while they are written, write the schema to a file and
 point the editor to it. With the YAML extension of Visual Studio Code, for example, after
@@ -1880,6 +1882,7 @@ flm info features/headings        # one page, by its path
 flm info '\section'               # the pages of a command, looked up by name
 flm info -d paper.flm settings/   # the settings in effect for paper.flm
 flm info --json features/refs     # one page as JSON
+flm info --write-flm refs.flm features/refs   # one page as an FLM document
 ```
 
 ### The pages and their paths
@@ -1956,8 +1959,8 @@ program renders with the profile `text`, using the markup of the extension `flmd
 [Writing documentation pages: the extension `flmdoc`](crate::guide::extending#writing-documentation-pages-the-extension-flmdoc));
 the program carries that extension compiled in, among its bundled extensions. A program
 built without its bundled extensions does not carry `flmdoc` and can print the pages only
-with `--json`, which renders nothing; asked for text, it reports that the page cannot be
-rendered and exits with status 3. A link to another page is printed as its text followed
+with `--json`, which renders nothing; asked for text, or for an FLM document with
+`--write-flm`, it reports that the page cannot be rendered and exits with status 3. A link to another page is printed as its text followed
 by the command that shows that page: `headings <flm info features/headings>`.
 
 The width of the lines depends on where standard output goes:
@@ -2015,15 +2018,45 @@ written, for example), is a file, a line counted from 1 and a column counted fro
 bytes, as in the records of
 [`--json-diagnostics`](#problems-as-json-records---json-diagnostics).
 
+### A page as an FLM document: `--write-flm`
+
+With `--write-flm FILE`, `flm info` writes the page asked for to the file FILE as an FLM
+document, in place of printing it. This document is the source that `flm info` renders
+to print the page as text (previous sections). `flm render -p text` renders it to the text
+that `flm info` prints when its standard output is not a terminal, and `flm render` renders
+it to any other output as well:
+
+```sh
+flm info --write-flm section.flm '\section'
+flm render section.flm -o section.html
+```
+
+- The file `-` prints the document on standard output.
+- The document's front matter gives the page's title, uses the extension `flmdoc`, in
+  whose markup the page is written, and no math processor. `flm render` finds `flmdoc`
+  among the program's bundled extensions, unless a folder of extensions holds an extension
+  of that name.
+- A link to another page points at the command that shows that page, `flm info
+  features/headings`, in HTML too. The setting `flmdoc.link_style` changes that address
+  when the document is rendered: `flm render section.flm -O flmdoc.link_style=path` makes
+  it `features/headings.html` (see
+  [Writing documentation pages: the extension `flmdoc`](crate::guide::extending#writing-documentation-pages-the-extension-flmdoc)).
+- A documentation text that is not valid FLM is written as plain text, after a warning, as
+  for the text of the pages (next section), so that the document renders.
+- The paths given must choose exactly one page: several pages are an error (exit status
+  2), and `--write-flm` cannot be combined with `-r` or `--json`.
+- A file that cannot be written gives the exit status 1.
+
 ### Documentation texts that are not valid FLM
 
 Every documentation text a page shows is written in FLM, and the program's own texts are
 tested to be valid. A text that an extension wrote, or one written as data in a front
 matter or with `-O` (the documentation of a user definition or of a workflow, for
-example), may not be. Before rendering a page, `flm info` parses each documentation text
-the page shows; a text that is not valid FLM is printed as it is written, as plain text,
-and a warning on standard error shows the text, the page, whose text it is and the
-problems found. The exit status stays 0.
+example), may not be. Before rendering a page, or writing it as an FLM document with
+`--write-flm`, `flm info` parses each documentation text the page shows; a text that is
+not valid FLM is printed as it is written, as plain text, and a warning on standard error
+shows the text, the page, whose text it is and the problems found. The exit status stays
+0.
 
 ```text
 warning: the documentation text declared by the feature `loud` (package `loud/_flmextensions/loud/flmextension.yaml#_`) on the page `features/loud/macros/shout` must be valid FLM:
@@ -2051,8 +2084,9 @@ The warning says whose text it is:
 
 | status | when |
 |---|---|
-| 0 | every page asked for was shown, with or without warnings (a documentation text shown as plain text is one) |
-| 2 | the arguments are wrong, the document given with `-d` cannot be read or prepared, the environment cannot be prepared, or a path is no page's path and no name it looks up |
+| 0 | every page asked for was shown, or written with `--write-flm`, with or without warnings (a documentation text shown as plain text is one) |
+| 1 | the file given with `--write-flm` cannot be written |
+| 2 | the arguments are wrong, the document given with `-d` cannot be read or prepared, the environment cannot be prepared, a path is no page's path and no name it looks up, or the paths given with `--write-flm` do not choose exactly one page |
 | 3 | a failure of the program itself, such as a page that does not render |
 
 ## Inspecting the processing with `flm dump`

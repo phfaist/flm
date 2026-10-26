@@ -77,7 +77,6 @@ fn the_verbatimcode_environment_with_its_raw_body_is_a_golden() {
     let view = views.last().expect("`verbatimcode` is declared");
     assert_eq!(view.kind, Some(CallableKind::Environment));
     let body = view.body.as_ref().expect("an environment has a body");
-    assert!(body.raw, "{body:?}");
     assert!(body.reader.is_some(), "{body:?}");
     golden("command-environment-verbatimcode.json", &views);
 }

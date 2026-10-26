@@ -169,11 +169,6 @@ impl ArgumentParser<Flm> for FormulaArgument {
 }
 
 impl FlmArgumentParser for FormulaArgument {
-    /// The argument is document content: an inline formula.
-    fn holds_content(&self) -> bool {
-        true
-    }
-
     fn identity(&self) -> Vec<u8> {
         b"flm.math.ensuremath.formula".to_vec()
     }

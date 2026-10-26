@@ -13,16 +13,17 @@
 //!
 //! - **An object per view.** Each view is written as a JSON object whose keys are its
 //!   field names. The declaration types of `flm-core` that a view holds (a workflow's
-//!   definition, a plan's records of ruled-out stages and of warnings) are written in the
-//!   serialized forms `flm-core` states for them.
+//!   definition, a plan's records of ruled-out stages and of warnings, an argument's
+//!   structured syntax) are written in the serialized forms `flm-core` states for them.
 //! - **Nothing to show, no key.** A key whose value has nothing to show is absent: an empty
 //!   documentation text or summary, a value that does not apply (an argument's name for an
-//!   argument read by position, the trigger of a macro), and the lists and maps that only
+//!   argument read by position, the structured syntax of an argument whose parser is a
+//!   feature's own, the trigger of a macro), and the lists and maps that only
 //!   some instances have (an argument's tack-on fields, the scoped packages available in an
 //!   argument, the places that make a scoped package's command available, the places where
 //!   the entries of a setting merged entry by entry were written).
 //! - **Flags are written when `true`.** A flag, a key whose value is `true` or `false`
-//!   (`holds_content`, `synthesized`, `raw`, …), is absent when it is `false`: a reader
+//!   (`opaque_wrapper`, `repeatable`, `synthesized`, …), is absent when it is `false`: a reader
 //!   takes an absent flag as `false`.
 //! - **Lists that always exist are always written.** A list that every instance of a view
 //!   has is present even when it is empty: a command's names, modes and arguments, an

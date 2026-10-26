@@ -67,7 +67,10 @@
 //! The key-value options argument holds the display options, read with
 //! [`ref_display_options`]: a bare key requests a wording variant of the word
 //! before a number, and the key [`NO_PREFIX_KEY`] (`noprefix`) leaves that
-//! word out. They are recorded as the document wrote them: the key
+//! word out. The argument is declared with an opaque wrapper
+//! ([`ArgDef::with_opaque_wrapper`]), because its keys are read as data: the
+//! typographic substitutions of the document's text do not apply to them.
+//! They are recorded as the document wrote them: the key
 //! [`CAPITAL_KEY`] (`S`) is kept as written, and the `\ref` lowering rule
 //! turns it into a request for the variant [`CAPITAL_VARIANT`] where the
 //! counter style declares it, and for the usual wording otherwise. The
@@ -89,13 +92,15 @@
 //! without the word before a number, so that nothing is placed before the
 //! author's text, and the command takes no display options.
 //!
-//! The brackets are an *optional* argument, so their content is ordinary
-//! content rather than the characters-only group a `\ref` target is written
-//! in. [`hyperref_target`] still reads it as characters: a target that holds
-//! anything but characters (a command, or a special character such as `~`)
-//! reads as the empty text, and so does an absent argument. The empty text is
-//! not spelled `type:label`, so it declares no site, and the label scan
-//! reports it as it reports any other text that is not a label.
+//! The brackets are an *optional* argument, parsed as FLM code rather than as
+//! the characters-only group a `\ref` target is written in, and declared with
+//! an opaque wrapper ([`ArgDef::with_opaque_wrapper`]), so that the label in
+//! them is kept as typed, as a `\ref` target is. [`hyperref_target`] reads it
+//! as characters: a target that holds anything but characters (a command, or
+//! a special character such as `~`) reads as the empty text, and so does an
+//! absent argument. The empty text is not spelled `type:label`, so it declares
+//! no site, and the label scan reports it as it reports any other text that is
+//! not a label.
 //!
 //! [`reference_targets`] reads the targets of either element. The places that
 //! walk every referencing node of the document call it: the label scan, the
@@ -111,7 +116,7 @@ use crate::model::aspects::{
     RefDisplayOptions, RefSite, Referencing,
 };
 use crate::model::element::{ElementSpec, element_value};
-use crate::lang::text::{chars_text, read_chars};
+use crate::lang::text::{chars_text, is_space, read_chars};
 use crate::lang::{Flm, FlmSpan};
 use crate::lang::mint::{
     ArgDef, ArgStdKind, ElementDef, ScopedPackageDef, SyntaxDef, TackOnField, field_element,
@@ -311,7 +316,7 @@ pub fn field_text(node: &NodeRef<'_, Flm>) -> Option<String> {
         return None;
     }
     let content = node.argument_content_nodes_named(TARGET_ARG).ok()??;
-    chars_text(content.iter()).map(|text| text.trim().to_string())
+    chars_text(content.iter()).map(|text| text.trim_matches(is_space).to_string())
 }
 
 /// Every `\label` field written on `node`, in its [`FIELDS_ARG`] argument, in
@@ -524,7 +529,7 @@ pub struct RefTargetText {
 pub fn split_targets(text: &str) -> Vec<RefTargetText> {
     text.split(',')
         .map(|piece| {
-            let text = piece.trim().to_string();
+            let text = piece.trim_matches(is_space).to_string();
             let label = Label::parse(&text);
             RefTargetText { text, label }
         })
@@ -582,10 +587,10 @@ pub fn ref_display_options(node: &NodeRef<'_, Flm>) -> RefDisplayOptions {
 /// target has no text to read, declares no site, and nothing is reported for
 /// it.
 ///
-/// The brackets are an optional argument that holds ordinary content, so a
-/// target that is not made of characters (a command, a special character such
-/// as `~`) reads as the empty text, and so does an absent argument
-/// (`\hyperref{text}`). The empty text is not a label: the label scan
+/// The brackets are an optional argument parsed as FLM code and kept as
+/// typed, so a target that is not made of characters (a command, a special
+/// character such as `~`) reads as the empty text, and so does an absent
+/// argument (`\hyperref{text}`). The empty text is not a label: the label scan
 /// ([`SCAN`](super::SCAN)) reports it, and the reference is shown unresolved.
 /// See the module documentation.
 pub fn hyperref_target(node: &NodeRef<'_, Flm>) -> Option<RefTargetText> {
@@ -593,7 +598,7 @@ pub fn hyperref_target(node: &NodeRef<'_, Flm>) -> Option<RefTargetText> {
     let text = match node.argument_content_nodes_named(TARGET_ARG) {
         Ok(Some(content)) => match read_chars(content.iter()) {
             Ok(read) if read.has_placeholder() => return None,
-            Ok(read) => read.text().unwrap_or_default().trim().to_string(),
+            Ok(read) => read.text().unwrap_or_default().trim_matches(is_space).to_string(),
             Err(_) => String::new(),
         },
         _ => String::new(),
@@ -704,7 +709,8 @@ pub fn ref_args() -> Vec<ArgDef> {
             .docs(
                 "Display options: the name of a wording variant of the word before a number, \
                  `S` for the capitalized wording, or `noprefix` to leave the word out.",
-            ),
+            )
+            .with_opaque_wrapper(),
         ArgDef::named(TARGET_ARG, ArgStdKind::CharsGroup)
             .docs("The target label, `type:label`, or several separated by commas.")
             .role(TARGET_ARG_ROLE),
@@ -734,7 +740,8 @@ pub fn hyperref_args() -> Vec<ArgDef> {
     vec![
         ArgDef::named(TARGET_ARG, ArgStdKind::Optional)
             .docs("The target label, `type:label`.")
-            .role(TARGET_ARG_ROLE),
+            .role(TARGET_ARG_ROLE)
+            .with_opaque_wrapper(),
         ArgDef::named(TEXT_ARG, ArgStdKind::Mandatory).docs("The text shown for the target."),
     ]
 }

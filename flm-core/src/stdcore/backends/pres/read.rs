@@ -44,6 +44,7 @@ use techy::recompose::{
 
 use crate::lang::copy::{ValueContent, copy_run_into_value};
 use crate::lang::guard::{self, GuardPolicy};
+use crate::lang::text::collapse_whitespace;
 use crate::lang::{Flm, FlmCallableType, PresPayload};
 use crate::layout::is_breakable_space;
 
@@ -457,9 +458,10 @@ impl<A> Recomposer<Flm, A> for Spelling {
 
 /// The identity of the run written as `nodes` (the top-level nodes of an
 /// argument), computed from its source text: each node's own source text, in
-/// order, with comments left out, every run of whitespace made one space and
-/// the ends trimmed. The result is the empty text when the run is empty or
-/// holds only whitespace. Two runs written alike (the same text and the same
+/// order, with comments left out, every run of whitespace ([the whitespace of
+/// FLM text](crate::lang::text#whitespace)) made one space and the ends
+/// trimmed. The result is the empty text when the run is empty or holds only
+/// whitespace. Two runs written alike (the same text and the same
 /// markup, however the whitespace is laid out) have the same identity; case
 /// and markup count.
 ///
@@ -508,7 +510,7 @@ pub fn spelling_identity<'t>(nodes: impl IntoIterator<Item = NodeRef<'t, Flm>>) 
     let nodes: Vec<NodeRef<'t, Flm>> = nodes.into_iter().filter(|node| !node.is_comment()).collect();
     // Each node re-emitted from what it records of its own spelling, never a
     // slice of a source: see decision rationale at [§flm-dd-dr:std-defterm-identity].
-    recompose_source(&nodes).split_whitespace().collect::<Vec<_>>().join(" ")
+    collapse_whitespace(&recompose_source(&nodes))
 }
 
 /// Whether the slot at `index` is the node's body slot: the content slot an

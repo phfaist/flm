@@ -44,6 +44,7 @@
 //! |---|---|
 //! | `flm.text` | the text, escaped ([`escape`](crate::stdcore::backends::latex::escape)) |
 //! | `flm.group` | `{`, the children, `}` (a group written with brackets keeps them) |
+//! | `flm.opaque-wrapper` | its children (the group has no delimiters) |
 //! | `flm.comment` | the comment prefix the document was parsed with, the comment's text, the newline that ends the comment's line, and the whitespace that followed it in the source minus that newline; nothing at all, whitespace included, under [`drop_comments`](super::LatexRecomposedRenderOptions::drop_comments) |
 //! | `flm.container` | its children |
 //! | `flm.pres.latex.macro` | `\name`, then each argument in its shape (below) |
@@ -750,6 +751,9 @@ impl Emitter<'_> {
         }
         if !is_presentation(node) {
             match node.kind() {
+                NodeKind::Group(data) if data.group_type == Some(FlmGroupType::OpaqueWrapper) => {
+                    self.children(node);
+                }
                 NodeKind::Group(data) => {
                     let source = node.span().source();
                     let brackets =

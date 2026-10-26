@@ -21,17 +21,31 @@
 //!   leaves) are removed;
 //! - **inline**: no paragraph is built; a block-level node or a blank line found
 //!   there is reported;
-//! - **opaque**: the content is copied unchanged (mathematics and verbatim
-//!   content; see [opaque
-//!   regions](crate::guide::concepts_overview#opaque-regions)).
+//! - **opaque**: the content is copied unchanged; see [opaque
+//!   regions](crate::guide::concepts_overview#opaque-regions). The opaque
+//!   regions are the content of a mathematics group, of a verbatim group and
+//!   of an opaque wrapper (the group without delimiters that minting places
+//!   around an argument's or a body's content to keep it as written), a
+//!   verbatim body, and any run parsed in mathematics mode. Inside
+//!   mathematics, an argument or a body read in text mode (the argument of
+//!   `\text{…}`) is content again and is laid out; the exception does not
+//!   reach inside a verbatim group or an opaque wrapper, where nothing is laid
+//!   out, whatever its parsing mode.
 //!
 //! **Text resolution** happens in the same pass, in every content region that
 //! is not opaque: adjacent text nodes are merged into one, every run of
 //! whitespace becomes one space, the whitespace at the edges of a paragraph is
 //! removed, and the typographic substitutions that [`BlocksConfig`] enables
-//! are applied (`--` becomes an en dash, for example). A merged text node whose
-//! text no longer matches its source byte for byte records where each part came
-//! from ([`TextSourceMap`](crate::lang::TextSourceMap)).
+//! are applied (`--` becomes an en dash, for example). An inline node whose
+//! element absorbs the whitespace beside it
+//! ([`InlineSpacing`](crate::model::aspects::InlineSpacing), as a citation mark
+//! does) has that whitespace removed, whitespace nodes included: a node whose
+//! element carries the [`Whitespace`](crate::model::aspects::Whitespace)
+//! aspect, such as `~`, is whitespace to these rules, removed beside such a
+//! node and at the edges of a paragraph, and kept as a node of its own
+//! elsewhere (see [`pass`]). A merged text node whose text no longer matches
+//! its source byte for byte records where each part came from
+//! ([`TextSourceMap`](crate::lang::TextSourceMap)).
 //!
 //! # What decides the layout
 //!

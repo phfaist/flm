@@ -27,9 +27,11 @@
 //! written, and [`ArgDef`], which declares one argument: the parser that reads
 //! it ([`FlmArgumentParser`], most often one of the standard kinds of
 //! [`ArgStdKind`]) and what the declaration says around the parser (name,
-//! parsing mode, layout, scoped packages, documentation). [`BodyDef`] does the
+//! parsing mode, layout, opaque wrapper, scoped packages, documentation).
+//! [`BodyDef`] does the
 //! same for an environment's body. Settings given as data write an argument
-//! declaration as a short text; see [`super::codes`].
+//! declaration as a map, whose syntax is a standard kind written as data or a
+//! short text standing for one, an argument code; see [`super::codes`].
 
 use std::fmt;
 use std::sync::Arc;
@@ -176,6 +178,22 @@ impl fmt::Debug for TackOnField {
     }
 }
 
+/// Two fields are equal when they have the same name, the same arguments
+/// (compared as [`ArgDef`]'s `PartialEq` states), the same repetition and the
+/// same documentation. Their elements are not compared: a field's element is
+/// created from its name, and the registry build replaces it only with the
+/// value that carries the aspects attached to the field element.
+impl PartialEq for TackOnField {
+    fn eq(&self, other: &TackOnField) -> bool {
+        self.name == other.name
+            && self.args == other.args
+            && self.repeatable == other.repeatable
+            && self.docs == other.docs
+    }
+}
+
+impl Eq for TackOnField {}
+
 /// How the [block-structure pass](crate::lang::rewrites::blocks) lays out an
 /// argument's content: as inline
 /// content, as a region of blocks, or as whichever of the two the content
@@ -187,16 +205,20 @@ impl fmt::Debug for TackOnField {
 /// the command's declaration ([`ArgDef::layout`]); an author cannot choose it
 /// where the command is written.
 ///
-/// Only an argument that holds document content
-/// ([`FlmArgumentParser::holds_content`]; among the standard kinds, every
-/// group of content, mandatory or optional, and embellishments) may take a
-/// layout other than [`Inline`](ArgLayout::Inline). An argument read in
-/// mathematics mode is an [opaque
+/// An argument declared with an opaque wrapper ([`ArgDef::opaque_wrapper`])
+/// takes only [`Inline`](ArgLayout::Inline): the block-structure pass carries
+/// its content over as written, so no other layout could take effect. An
+/// argument read in mathematics mode is an [opaque
 /// region](crate::guide::concepts_overview#opaque-regions), which the
 /// block-structure pass carries over untouched, so it may not be declared
 /// [`Blocks`](ArgLayout::Blocks). Minting reports a declaration that breaks
-/// either rule as
-/// [`MintError::LayoutOnNonContentArgument`](super::MintError::LayoutOnNonContentArgument).
+/// either rule
+/// ([`MintError::LayoutOnOpaqueWrappedArgument`](super::MintError::LayoutOnOpaqueWrappedArgument),
+/// [`MintError::BlocksOnMathArgument`](super::MintError::BlocksOnMathArgument)).
+/// A layout declared on an argument whose reader yields raw text or places
+/// its content under an opaque wrapper by construction (a verbatim argument, a
+/// characters-only group) is not reported; it has no effect, since the
+/// argument's content is an opaque region.
 ///
 /// [`arg_layout_of`](super::arg_layout_of) returns the declared layout of an
 /// argument of a parsed node;
@@ -225,15 +247,15 @@ pub enum ArgLayout {
 
 /// The declaration of one argument of a macro, an environment or a special
 /// character sequence: the parser that reads it, the name it can be read by,
-/// the parsing mode it is read in, how its content is laid out, the scoped
-/// packages available inside it, documentation, and what it holds (its
-/// role).
+/// the parsing mode it is read in, how its content is laid out, whether its
+/// content is kept as written under an opaque wrapper, the scoped packages
+/// available inside it, documentation, and what it holds (its role).
 ///
 /// The parser is one field among the others ([`ArgDef::kind`]): one of the
 /// standard argument kinds ([`ArgStdKind`]) for the forms FLM provides, or a
 /// parser of a feature's own ([`FlmArgumentParser`]) for a syntax they cannot
-/// express. Either way, minting applies the name, mode, layout and scoped
-/// packages declared here around the parser.
+/// express. Either way, minting applies the name, mode, layout, opaque wrapper
+/// and scoped packages declared here around the parser.
 ///
 /// Give an argument a name whenever anything reads it: reading by name keeps
 /// working when the argument list changes later, reading by position does not.
@@ -247,13 +269,20 @@ pub enum ArgLayout {
 /// [`ArgDef::new`], [`ArgDef::named`], [`ArgDef::mandatory`] and
 /// [`ArgDef::optional`] create a declaration; the builder methods
 /// [`mode`](ArgDef::mode), [`layout`](ArgDef::layout),
-/// [`blocks`](ArgDef::blocks), [`scoped`](ArgDef::scoped),
-/// [`docs`](ArgDef::docs) and [`role`](ArgDef::role) each change one thing.
-/// Settings given as data write an argument as its argument code, or as a map
-/// of the code with the argument's name, parsing mode, layout, scoped
-/// packages, documentation and role ([`ArgData`], which converts into an
-/// `ArgDef` through `TryFrom` and whose code
-/// [`arg_def_from_code`](super::arg_def_from_code) reads).
+/// [`blocks`](ArgDef::blocks), [`with_opaque_wrapper`](ArgDef::with_opaque_wrapper),
+/// [`scoped`](ArgDef::scoped), [`docs`](ArgDef::docs) and
+/// [`role`](ArgDef::role) each change one thing. Settings given as data write
+/// an argument as its argument code, or as a map of its syntax (a structured
+/// syntax, the standard kind written as data, or a code) with the argument's
+/// name, parsing mode, layout, opaque wrapper, scoped packages, documentation
+/// and role ([`ArgData`], which converts into an `ArgDef` through `TryFrom`;
+/// see [`super::codes`]).
+///
+/// Two declarations are equal (`PartialEq`) when every field is equal, the
+/// code they were read from included ([`ArgDef::code`]). Their parsers are
+/// compared by the bytes that identify them
+/// ([`FlmArgumentParser::identity`]), which differ for any two parsers that
+/// read differently.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[derive(schemars::JsonSchema)]
 #[serde(try_from = "ArgData")]
@@ -273,6 +302,30 @@ pub struct ArgDef {
     /// How the [block-structure pass](crate::lang::rewrites::blocks) lays out
     /// the argument's content; inline by default. See [`ArgDef::layout`].
     pub layout: ArgLayout,
+    /// Whether minting places the argument's content under an **opaque
+    /// wrapper**: a group of the class
+    /// [`FlmGroupType::OpaqueWrapper`](crate::lang::FlmGroupType::OpaqueWrapper),
+    /// with no delimiters of its own, staged over what the argument's reader
+    /// read. The [block-structure pass](crate::lang::rewrites::blocks) carries
+    /// the content of such a group over as written, with no whitespace
+    /// collapsed and no typographic substitution made, so the element that
+    /// declared the argument reads it as typed; it reads it through the same
+    /// content nodes as without the wrapper. `false` by default; set it with
+    /// [`ArgDef::with_opaque_wrapper`].
+    ///
+    /// The wrapper is placed around whatever the argument's reader read, for
+    /// every kind and for a parser of one's own. The reader of a
+    /// characters-only group ([`ArgStdKind::CharsGroup`]) places one by
+    /// construction, whatever this field says. A verbatim argument places its
+    /// content under a verbatim group, which the block-structure pass carries
+    /// over in the same way.
+    ///
+    /// An argument declared with an opaque wrapper may not take a layout other
+    /// than [`ArgLayout::Inline`]; minting reports one as
+    /// [`MintError::LayoutOnOpaqueWrappedArgument`](super::MintError::LayoutOnOpaqueWrappedArgument).
+    /// A scoped package declared on it is attached as on any argument
+    /// ([`ArgDef::scoped`]).
+    pub opaque_wrapper: bool,
     /// The names of the [scoped packages](ScopedPackageDef) whose
     /// declarations are available inside this argument. See
     /// [`ArgDef::scoped`].
@@ -294,8 +347,9 @@ pub struct ArgDef {
 impl ArgDef {
     /// Creates the declaration of an argument read by `kind`, with no name, so
     /// that it can be read only by position. Its content is inline
-    /// ([`ArgLayout::Inline`]), it is read in the mode the command is written
-    /// in, and no scoped package is available inside it.
+    /// ([`ArgLayout::Inline`]) and not placed under an opaque wrapper by the
+    /// declaration, it is read in the mode the command is written in, and no
+    /// scoped package is available inside it.
     ///
     /// `kind` is a standard kind (`ArgDef::new(ArgStdKind::Star)`), a parser
     /// of one's own passed by value, or a parser already shared as
@@ -307,6 +361,7 @@ impl ArgDef {
             kind: kind.into_flm_argument_parser(),
             mode: None,
             layout: ArgLayout::Inline,
+            opaque_wrapper: false,
             scoped: Vec::new(),
             docs: String::new(),
             role: None,
@@ -318,14 +373,28 @@ impl ArgDef {
     /// ([`arg_def_from_code`](super::arg_def_from_code), and every reader of
     /// settings given as data, which reads its codes through it): `"["`,
     /// `"r()"`. `None` for a declaration built from a standard kind or a
-    /// parser ([`ArgDef::new`] and the constructors built on it).
+    /// parser ([`ArgDef::new`] and the constructors built on it), and for one
+    /// read from a structured syntax, whose standard kind the parser returns
+    /// ([`FlmArgumentParser::std_kind`]).
     ///
-    /// A program that writes a declaration back as data writes this code,
-    /// so that the declaration reads back as it was written: the parser
-    /// object alone does not say which code chose it (`{` and `m` choose the
-    /// same parser). The builder methods leave the code as it is; a caller
-    /// that replaces [`kind`](ArgDef::kind) after reading a code makes the
-    /// code describe a parser the declaration no longer holds.
+    /// A program that writes a declaration back as data writes it in the
+    /// form it was read from, so that it reads back the same:
+    ///
+    /// - a declaration read from a code writes this code: the parser object
+    ///   alone does not say which code chose it (`{` and `m` choose the same
+    ///   parser);
+    /// - any other declaration whose parser is a standard kind writes the
+    ///   structured syntax, the kind written as data under the key `syntax`
+    ///   (see [`ArgStdKind`]); this covers a declaration read from a
+    ///   structured syntax and one built in Rust from a standard kind;
+    /// - a declaration whose parser is a feature's own, and a tack-on
+    ///   argument ([`ArgStdKind::TackOn`]), writes neither, and does not read
+    ///   back.
+    ///
+    /// [`ArgDataFields`](super::ArgDataFields)' conversion from an `ArgDef`
+    /// follows this rule. The builder methods leave the code as it is; a
+    /// caller that replaces [`kind`](ArgDef::kind) after reading a code makes
+    /// the code describe a parser the declaration no longer holds.
     ///
     /// ```
     /// use flm_core::lang::mint::{arg_def_from_code, ArgDef, ArgStdKind};
@@ -374,12 +443,13 @@ impl ArgDef {
     /// content (the default), a region of blocks, or whichever of the two the content
     /// calls for. See [`ArgLayout`].
     ///
-    /// Only an argument that holds document content
-    /// ([`FlmArgumentParser::holds_content`]) may take a layout other than
+    /// An argument declared with an opaque wrapper
+    /// ([`ArgDef::with_opaque_wrapper`]) may not take a layout other than
     /// [`ArgLayout::Inline`], and an argument read in mathematics mode may not
     /// take [`ArgLayout::Blocks`]. Minting reports a declaration that breaks
-    /// either rule as
-    /// [`MintError::LayoutOnNonContentArgument`](super::MintError::LayoutOnNonContentArgument)
+    /// either rule
+    /// ([`MintError::LayoutOnOpaqueWrappedArgument`](super::MintError::LayoutOnOpaqueWrappedArgument),
+    /// [`MintError::BlocksOnMathArgument`](super::MintError::BlocksOnMathArgument))
     /// and lays the argument out inline.
     ///
     /// ```
@@ -399,6 +469,16 @@ impl ArgDef {
     /// `.layout(ArgLayout::Blocks)`.
     pub fn blocks(self) -> ArgDef {
         self.layout(ArgLayout::Blocks)
+    }
+
+    /// Builder: places the argument's content under an opaque wrapper
+    /// ([`ArgDef::opaque_wrapper`], which states what the wrapper does and
+    /// what the declaration then admits), for an argument whose text the
+    /// element reads as typed, such as a citation key or the target of a
+    /// link.
+    pub fn with_opaque_wrapper(mut self) -> ArgDef {
+        self.opaque_wrapper = true;
+        self
     }
 
     /// Builder: makes the declarations of one more [scoped
@@ -423,11 +503,11 @@ impl ArgDef {
     /// the package would define is an unknown command there. Scoped packages
     /// that refer to each other in a cycle are reported as
     /// [`MintError::ScopedPackageCycle`](super::MintError::ScopedPackageCycle).
-    /// Only an argument that holds document content
-    /// ([`FlmArgumentParser::holds_content`]) may use a scoped package; on
-    /// any other argument, minting reports the declaration as
-    /// [`MintError::ScopeOnNonContentArgument`](super::MintError::ScopeOnNonContentArgument)
-    /// and does not use the package.
+    ///
+    /// The package is attached to the parsing state of the argument whatever
+    /// its reader. Inside a reading that recognizes no command, such as a
+    /// characters-only group or a verbatim argument, its declarations are not
+    /// reachable, and nothing is reported.
     ///
     /// ```
     /// use flm_core::lang::mint::ArgDef;
@@ -509,17 +589,36 @@ impl ArgDef {
     }
 }
 
+impl PartialEq for ArgDef {
+    fn eq(&self, other: &ArgDef) -> bool {
+        self.name == other.name
+            && self.kind.identity() == other.kind.identity()
+            && self.mode == other.mode
+            && self.layout == other.layout
+            && self.opaque_wrapper == other.opaque_wrapper
+            && self.scoped == other.scoped
+            && self.docs == other.docs
+            && self.role == other.role
+            && self.code == other.code
+    }
+}
+
+impl Eq for ArgDef {}
+
 /// How the [block-structure pass](crate::lang::rewrites::blocks) lays out an
 /// environment's body: as inline content, as a region of blocks, or according
 /// to the element's block role.
 ///
 /// [`Inline`](BodyLayout::Inline) and [`Blocks`](BodyLayout::Blocks) take
 /// precedence over the element's block role; [`FromRole`](BodyLayout::FromRole)
-/// follows it. A
-/// body that does not hold document content ([`BodyDef::holds_content`]) or
-/// that is read in mathematics mode is an [opaque
-/// region](crate::guide::concepts_overview#opaque-regions): the
-/// block-structure pass carries it over untouched, regardless of its layout.
+/// follows it. A verbatim body ([`BodyDef::verbatim`]), a body declared with
+/// an opaque wrapper ([`BodyDef::opaque_wrapper`]) and a body read in
+/// mathematics mode are [opaque
+/// regions](crate::guide::concepts_overview#opaque-regions): the
+/// block-structure pass carries them over untouched, regardless of their
+/// layout. A body declared with an opaque wrapper may not declare a layout
+/// other than [`FromRole`](BodyLayout::FromRole)
+/// ([`MintError::LayoutOnOpaqueWrappedBody`](super::MintError::LayoutOnOpaqueWrappedBody)).
 ///
 /// It is written to data with `Serialize`; see [serialized
 /// forms](crate::core::registry#serialized-forms).
@@ -541,18 +640,20 @@ pub enum BodyLayout {
 }
 
 /// The declaration of an environment's body: how it is laid out, which parser
-/// reads it, which parsing mode it is read in, and which scoped packages are
-/// available inside it.
+/// reads it, which parsing mode it is read in, whether its content is kept as
+/// written under an opaque wrapper, and which scoped packages are available
+/// inside it.
 ///
 /// [`BodyDef::new`] (the same as `BodyDef::default()`) declares a body laid
 /// out by the element's block role, read the ordinary way, read in the mode
-/// the environment is written in, and with no scoped package; each builder
-/// method changes one of these.
+/// the environment is written in, with no opaque wrapper and with no scoped
+/// package; each builder method changes one of these.
 ///
 /// The body parser is one field among the others ([`BodyDef::parser`]): a body
 /// that is not read the ordinary way (raw text, or content a feature checks as
 /// it reads it) holds the object that reads it, and minting applies the
-/// layout, mode and scoped packages declared here around that object.
+/// layout, mode, opaque wrapper and scoped packages declared here around that
+/// object.
 #[derive(Debug, Clone, Default)]
 pub struct BodyDef {
     /// How the [block-structure pass](crate::lang::rewrites::blocks) lays out
@@ -567,6 +668,21 @@ pub struct BodyDef {
     /// non-mathematics context that encloses the mathematics, `None` to read
     /// the body in the mode the environment is written in.
     pub mode: Option<Mode>,
+    /// Whether minting places the body's content under an opaque wrapper, as
+    /// [`ArgDef::opaque_wrapper`] does for an argument: a group of the class
+    /// [`FlmGroupType::OpaqueWrapper`](crate::lang::FlmGroupType::OpaqueWrapper),
+    /// whose content the [block-structure pass](crate::lang::rewrites::blocks)
+    /// carries over as written. The wrapper is placed around whatever reads
+    /// the body, the declared parser or the ordinary reading, and the content
+    /// designated as the body's stays the same nodes. `false` by default; set
+    /// it with [`BodyDef::with_opaque_wrapper`].
+    ///
+    /// A body declared with an opaque wrapper may not declare a layout other
+    /// than [`BodyLayout::FromRole`]; minting reports one as
+    /// [`MintError::LayoutOnOpaqueWrappedBody`](super::MintError::LayoutOnOpaqueWrappedBody).
+    /// A scoped package declared on it is attached as on any body
+    /// ([`BodyDef::scoped`]).
+    pub opaque_wrapper: bool,
     /// The names of the [scoped packages](ScopedPackageDef) whose
     /// declarations are available inside this body, such as the package that
     /// defines `\item` inside a list environment. See [`BodyDef::scoped`].
@@ -576,8 +692,8 @@ pub struct BodyDef {
 impl BodyDef {
     /// Creates the declaration of a body read the ordinary way, laid out by
     /// the element's block role ([`BodyLayout::FromRole`]), read in the mode
-    /// the environment is written in, with no scoped package. The same as
-    /// `BodyDef::default()`.
+    /// the environment is written in, with no opaque wrapper and no scoped
+    /// package. The same as `BodyDef::default()`.
     pub fn new() -> BodyDef {
         BodyDef::default()
     }
@@ -608,14 +724,10 @@ impl BodyDef {
     /// reads the ordinary content and then checks it.
     ///
     /// Only the parser's reading of the body is used: the environment's
-    /// arguments are those of the declaration, and the body is read under the
-    /// mode and the scoped packages declared here. A body whose parser does
-    /// not hold document content ([`FlmBodyParser::holds_content`]) may
-    /// declare neither a layout other than [`BodyLayout::FromRole`] nor a
-    /// scoped package; minting reports either declaration
-    /// ([`MintError::LayoutOnNonContentBody`](super::MintError::LayoutOnNonContentBody),
-    /// [`MintError::ScopeOnNonContentBody`](super::MintError::ScopeOnNonContentBody))
-    /// and uses no scoped package.
+    /// arguments are those of the declaration, the body is read under the
+    /// mode and the scoped packages declared here, and what the parser read
+    /// is placed under an opaque wrapper when the declaration asks for one
+    /// ([`BodyDef::with_opaque_wrapper`]).
     ///
     /// `parser` is a parser passed by value, or one already shared as
     /// `Arc<dyn FlmBodyParser>` by several declarations; [`IntoFlmBodyParser`]
@@ -625,18 +737,18 @@ impl BodyDef {
         self
     }
 
-    /// Returns whether the body holds document content: what its parser's
-    /// [`FlmBodyParser::holds_content`] returns, and `true` for a body read
-    /// the ordinary way. The block-structure pass carries a body that does not
-    /// hold content (raw text) over untouched, as an opaque region.
-    pub fn holds_content(&self) -> bool {
-        self.parser.as_ref().is_none_or(|parser| parser.holds_content())
-    }
-
     /// Builder: sets the parsing mode the body is read in. `Mode::Math` and
     /// `Mode::Text` mean what they mean for an argument ([`ArgDef::mode`]).
     pub fn mode(mut self, mode: Mode) -> BodyDef {
         self.mode = Some(mode);
+        self
+    }
+
+    /// Builder: places the body's content under an opaque wrapper
+    /// ([`BodyDef::opaque_wrapper`], which states what the wrapper does and
+    /// what the declaration then admits).
+    pub fn with_opaque_wrapper(mut self) -> BodyDef {
+        self.opaque_wrapper = true;
         self
     }
 

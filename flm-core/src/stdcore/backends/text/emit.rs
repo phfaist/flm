@@ -32,7 +32,7 @@
 //! | `unknown` (environment) | its begin and end lines around its body blocks (see below) |
 //! | `image` (block) | `[image: <alt or src>]` |
 //! | `subtree` | the placed tree's lowered blocks, printed at this node |
-//! | `flm.container`, `flm.group` | their children: as a run of blocks when a block-shaped node is among their descendants, otherwise as inline content filled with the text around them |
+//! | `flm.container`, `flm.group`, `flm.opaque-wrapper` | their children: as a run of blocks when a block-shaped node is among their descendants, otherwise as inline content filled with the text around them |
 //! | `flm.comment`, `flm.parbreak` | nothing; the blocks on either side of them are separate |
 //!
 //! The rows that need more room:
