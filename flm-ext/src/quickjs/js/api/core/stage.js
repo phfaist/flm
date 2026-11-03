@@ -76,7 +76,7 @@ export class RewriteDecl {
 export class TreesTable extends Handle {
   // The table's trees, by id, in id order.
   trees() { return call(this, "trees", []); }
-  // The root of the tree of id `id`, if the table holds it.
+  // The tree of id `id`, if the table holds it.
   tree(id) { return call(this, "tree", [id]); }
 }
 register_class("trees_table", TreesTable);

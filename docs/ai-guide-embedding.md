@@ -1164,8 +1164,8 @@ build(prepared: &Prepared) -> Result<Built, PrepareError>
 - **`prepare`** does the work that depends on the request and the front matter, not on
   the content: it reads the input's front matter and the metadata there, finds the
   packages the document uses (`compiled` are the compiled packages your program carries
-  besides `stdcore`, `stdmain`, `std` and `math-passthrough`, such as
-  `flm_phfpack::factory()?`), combines the settings,
+  besides `stdcore`, `stdmain`, `std` and `math-passthrough`, such as the factory of the
+  package `shout` that the example `own_package` of `flm-cli` writes), combines the settings,
   builds the registry, chooses the workflow and the output, and builds the plan.
 - **`build`** reads the input again, parses its content with `assemble` (positions
   counted from the top of the file, front matter included) and the host's input resolver

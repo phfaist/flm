@@ -166,7 +166,7 @@ fn latex_of(text: &str, files: Memory) -> String {
     common::latex::output(&run)
 }
 
-// --- acceptance 1: one paragraph across the files ----------------------------------------
+// --- one paragraph across the files ------------------------------------------------------
 
 #[test]
 fn a_paragraph_begun_in_one_file_and_ended_in_the_other_is_one_paragraph() {
@@ -190,7 +190,7 @@ fn the_command_works_inside_an_environment_and_inside_a_list_item() {
     assert_eq!(html_of(included, files), html_of(in_place, Memory::default()));
 }
 
-// --- acceptance 2: one document ----------------------------------------------------------
+// --- one document ------------------------------------------------------------------------
 
 #[test]
 fn labels_and_numbers_run_through_the_files_in_document_order() {
@@ -226,7 +226,7 @@ fn equations_and_headings_are_numbered_through_a_content_input_in_document_order
     assert!(marks.windows(2).all(|pair| pair[0] < pair[1]), "{out}");
 }
 
-// --- acceptance 3: the parsing settings of an included file ------------------------------
+// --- the parsing settings of an included file --------------------------------------------
 
 #[test]
 fn the_parsing_settings_of_an_included_file_hold_inside_it_and_not_after_it() {
@@ -304,7 +304,7 @@ fn the_report_of_a_lone_percent_names_the_comment_start_of_the_file_it_stands_in
     assert!(lines.contains("‘!!’ to start a comment") && !lines.contains(";;"), "{lines}");
 }
 
-// --- acceptance 6: lists -------------------------------------------------------------------
+// --- lists ---------------------------------------------------------------------------------
 
 #[test]
 fn a_list_in_a_content_input_inside_a_list_item_is_nested() {
@@ -319,7 +319,7 @@ fn a_list_in_a_content_input_inside_a_list_item_is_nested() {
     assert_eq!(html_of(included, files), html_of(&in_place, Memory::default()));
 }
 
-// --- acceptance 7 and 8: where a problem is reported ---------------------------------------
+// --- where a problem is reported -----------------------------------------------------------
 
 #[test]
 fn a_problem_in_an_included_file_is_reported_at_its_line_with_the_chain() {
@@ -365,7 +365,7 @@ fn a_problem_of_an_included_front_matter_is_reported_at_its_place() {
     assert!(common::lowering::text(&run).contains("words"));
 }
 
-// --- acceptance 9 and 12: the conditions, and no input that loops --------------------------
+// --- the conditions, and no input that loops -----------------------------------------------
 
 fn conditions(text: &str, resolver: Option<Arc<dyn InputResolver>>) -> (Vec<String>, String) {
     let registry = std();
@@ -417,7 +417,7 @@ fn an_empty_file_brings_in_nothing() {
     assert_eq!(out, "A B\n");
 }
 
-// --- acceptance 4 and 5: a heading input -----------------------------------------------------
+// --- a heading input -------------------------------------------------------------------------
 
 fn numbered() -> Arc<FlmRegistry> {
     common::stdcore::registry(StdcoreConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered)))
@@ -677,7 +677,7 @@ fn the_document_holds_one_tree_per_heading_input_placed_at_its_node_and_walked_i
     );
 }
 
-// --- acceptance 2: a user definition used in an included file ------------------------------
+// --- a user definition used in an included file --------------------------------------------
 
 #[test]
 fn a_user_definition_used_in_an_included_file_is_expanded() {
@@ -692,7 +692,7 @@ fn a_user_definition_used_in_an_included_file_is_expanded() {
     assert!(out.contains("Hello, you!") && out.contains("Hello, there!"), "{out}");
 }
 
-// --- acceptance 6: a list in a heading input -------------------------------------------------
+// --- a list in a heading input ---------------------------------------------------------------
 
 #[test]
 fn a_list_in_a_heading_input_inside_a_list_item_is_an_outermost_list() {
@@ -706,7 +706,7 @@ fn a_list_in_a_heading_input_inside_a_list_item_is_an_outermost_list() {
     assert!(!out.contains("(i) Inner"), "{out}");
 }
 
-// --- acceptance 8: a problem in a title ----------------------------------------------------
+// --- a problem in a title ------------------------------------------------------------------
 
 #[test]
 fn a_problem_in_the_title_of_a_heading_input_is_reported_in_its_front_matter() {
@@ -722,7 +722,7 @@ fn a_problem_in_the_title_of_a_heading_input_is_reported_in_its_front_matter() {
     assert_eq!(chain.last(), Some(&Some(String::from("main.flm"))));
 }
 
-// --- acceptance 9 and 12: the conditions of a heading input ----------------------------------
+// --- the conditions of a heading input -------------------------------------------------------
 
 #[test]
 fn a_heading_command_that_is_no_command_name_is_reported_and_nothing_brought_in() {

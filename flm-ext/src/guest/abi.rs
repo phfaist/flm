@@ -1,7 +1,12 @@
 //! The guest's side of the ABI between a WebAssembly module and the engine
 //! `wasm` (the host): the two imports of the module `flm`, the guest's
 //! buffers, the requests a guest sends (the natives), and the conversion of
-//! an argument to JSON ([`ToArg`]).
+//! an argument to JSON ([`ToArg`]); and, beside it, the typed route that
+//! takes the ABI's place when the guest client is compiled into a program
+//! (the cargo feature `native`): the typed route of a request and of a
+//! lending (`in_frame`, `typed`), and the console sink [`console`] writes
+//! to. One extension's source uses either; the feature `native` alone
+//! chooses which.
 //!
 //! # The ABI
 //!
@@ -19,7 +24,7 @@
 //!   answers its reply's buffer ([`keep`]); `flm_last_panic() -> i64`
 //!   ([`last_panic`]), the message of the last panic, which the panic hook
 //!   [`entry`] installs keeps.
-//! - **A request** is `{"native": NAME, …}` ([`native`]); its reply is the
+//! - **A request** is `{"native": NAME, …}` (the function `native`); its reply is the
 //!   envelope `{"ok": value}` or `{"err": data, "message": text}`, `data`
 //!   being an [`ExtError`]'s data ([`ExtError::data`]), read back by
 //!   [`ExtError::from_data`].
@@ -46,6 +51,8 @@
 //! (`flm_alloc`, `flm_entry`, `flm_free`). So no borrow of the guest's own
 //! state (the buffers, the module handles) is held across a call of
 //! `flm.call`: each is taken, released, and only then is the request sent.
+//! The module handles are kept for a module alone: compiled into a program,
+//! the guest client calls a module's functions with no handle.
 //!
 //! # Where the imports are compiled
 //!
@@ -70,28 +77,86 @@
 //! the feature `native`), the guest client runs inside the program that
 //! carries it. With the feature `native`, an extension's requests are
 //! answered in the same process while one of its native instances has its
-//! state current on the thread ([`native`]): during one of the instance's
-//! entries, and while the engine `native` drops the objects the instance
-//! recorded. Every other request answers [`ExtError::Unsupported`]: in the
-//! client's own tests and the tests of its types, on a thread the extension
-//! started, and while a thread's native instances are dropped at its end. The
-//! module's unit tests install a hook that answers in their place. The buffer
-//! functions serve a module's exports alone: in a program built for another
-//! target an address need not fit the ABI's 32 bits.
+//! state current on the thread: during one of the instance's entries, and
+//! while the engine `native` drops the objects the instance recorded. Every
+//! other request answers [`ExtError::Unsupported`]: in the client's own
+//! tests and the tests of its types, on a thread the extension started, and
+//! while a thread's native instances are dropped at its end. Built for
+//! another target without the feature `native`, every request answers
+//! [`ExtError::Unsupported`]; the module's unit tests install a hook that
+//! answers in its place. The buffer functions serve a module's exports
+//! alone: in a program built for another target an address need not fit the
+//! ABI's 32 bits.
+//!
+//! # The typed route
+//!
+//! With the feature `native`, every crossing between the guest and the host
+//! is a direct call, and the function `native` is not compiled. No JSON value
+//! is built or read but the data that is JSON by nature: a feature's
+//! settings, which its `register` and its template modules' `describe`
+//! receive as a `serde_json::Value`, and the reports of `packages`, the
+//! declarations of the extension's packages. The crossings:
+//!
+//! - **A request.** A method of a façade and a function of a module reach
+//!   the extension API by a direct call: their body (generated, or written
+//!   by hand for the guest's own types) runs inside `typed`, which hands it
+//!   the table of the handler call the request was sent from, the innermost
+//!   frame of the current state's loaded extension
+//!   (`binding::frames::with_current`). The body is the dispatcher's arm for
+//!   the same method with the conversions swapped: the guest's values
+//!   converted into the API's and the answer back (the crate's module
+//!   `adapter::typed`), a handle resolved and an answered object lent in the
+//!   same table.
+//! - **A lending.** A record-and-lend method (`FeatureBuilder::stage`,
+//!   `ElementSpec::with`, …) records its object, reads from it what its
+//!   lending takes, then runs inside `in_frame`, which hands it the frame:
+//!   the natives' body (`binding::natives`) builds the host's handler object
+//!   over the frame's registration, and the method hands it to the API
+//!   method that takes it, in the same closure (one access to the frame per
+//!   call); `ElementSpec::with` lends it into the table and keeps its handle.
+//! - **A line of `console` output** goes to the console sink of the current
+//!   state's loaded extension, which the engine `native` gave when it created
+//!   the instance.
+//! - **An entry** comes the other way: the engine `native` calls the guest's
+//!   routing directly (the crate's module `guest::entry`), the entry's
+//!   arguments and reply the guest's values, where a module's export
+//!   `flm_entry` reads the same request from JSON text ([`entry`]) and
+//!   writes the reply as JSON text.
+//!
+//! Outside a handler call of the extension, `in_frame` refuses in the words
+//! the host refuses the first native the same item sends as JSON: a request
+//! as the native `call`, a lending as its lending native. With no native
+//! instance's state current, it answers [`ExtError::Unsupported`].
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::sync::Once;
 
-use serde_json::{json, Value};
+use serde_json::Value;
+#[cfg(not(feature = "native"))]
+use serde_json::json;
 
+#[cfg(feature = "native")]
+use crate::adapter::dispatch;
+#[cfg(not(feature = "native"))]
+use crate::adapter::durable::DurableToken;
+#[cfg(feature = "native")]
+use crate::adapter::handles::CallTable;
 use crate::adapter::handles::{Handle, HandleKind};
-use crate::adapter::values::{handle_from_value, handle_to_value, mismatch, JsonForm};
+use crate::adapter::values::{bytes_to_value, handle_from_value, mismatch, JsonForm};
+#[cfg(not(feature = "native"))]
+use crate::adapter::values::{durable_to_value, handle_to_value};
+#[cfg(feature = "native")]
+use crate::binding::frames::{self, FrameView};
+#[cfg(feature = "native")]
+use crate::binding::natives::{self, Act};
 use crate::guest::Extension;
 use crate::host::ConsoleLevel;
 use crate::runtime::ExtError;
 
-// See decision rationale at [§flm-dd-dr:ext-native-engine]
+// Not compiled with the feature `native`: a program built for `wasm32` that carries
+// extensions compiled in answers their requests itself, and its module must import nothing
+// that its host does not provide.
 #[cfg(all(target_arch = "wasm32", not(feature = "native")))]
 #[link(wasm_import_module = "flm")]
 unsafe extern "C" {
@@ -111,15 +176,18 @@ thread_local! {
     /// address.
     static BUFFERS: RefCell<BTreeMap<usize, Vec<u8>>> = const { RefCell::new(BTreeMap::new()) };
 
-    /// The handle of each API module asked for, by the module's path: asked
-    /// once, then kept (a module handle is valid in every call, and the same
-    /// for every extension: compiled into a program, the extensions on a
-    /// thread share this map).
-    static MODULES: RefCell<BTreeMap<String, Handle>> = const { RefCell::new(BTreeMap::new()) };
-
     /// The message of the last panic, kept by the panic hook for
     /// `flm_last_panic`.
     static LAST_PANIC: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+
+#[cfg(not(feature = "native"))]
+thread_local! {
+    /// The handle of each API module asked for, by the module's path: asked
+    /// once, then kept (a module handle is valid in every call). Compiled
+    /// into a program, the guest client calls a module's functions directly,
+    /// with no handle.
+    static MODULES: RefCell<BTreeMap<String, Handle>> = const { RefCell::new(BTreeMap::new()) };
 }
 
 /// Installs the panic hook once.
@@ -250,9 +318,9 @@ fn send(mut request: Vec<u8>) -> Result<Vec<u8>, ExtError> {
     Ok(reply)
 }
 
-/// Without the module's import, with no native instance's host current: no host to send
-/// to ([`UNANSWERED`]).
-#[cfg(any(not(target_arch = "wasm32"), feature = "native"))]
+/// Without the module's import (a crate built for another target): no host to send to
+/// ([`UNANSWERED`]).
+#[cfg(all(not(target_arch = "wasm32"), not(feature = "native")))]
 fn send(request: Vec<u8>) -> Result<Vec<u8>, ExtError> {
     #[cfg(test)]
     if let Some(reply) = hook::answer(&request) {
@@ -272,6 +340,7 @@ pub(crate) const UNANSWERED: &str = "a request of the guest client sent neither 
                               a thread ends)";
 
 /// The error of a reply that is not an envelope.
+#[cfg(not(feature = "native"))]
 fn not_an_envelope(reply: &str) -> ExtError {
     ExtError::Handler {
         detail: format!("the host's reply must be `{{\"ok\": value}}` or `{{\"err\": data, \"message\": text}}`, not `{reply}`"),
@@ -281,17 +350,10 @@ fn not_an_envelope(reply: &str) -> ExtError {
 
 /// The value of the envelope `reply`, JSON text: its `ok`, or its `err` read
 /// back as the [`ExtError`] whose data it is.
+#[cfg(not(feature = "native"))]
 fn open(reply: &[u8]) -> Result<Value, ExtError> {
     let text = String::from_utf8_lossy(reply);
-    match serde_json::from_str::<Value>(&text) {
-        Ok(envelope) => open_value(envelope),
-        Err(_) => Err(not_an_envelope(&text)),
-    }
-}
-
-/// The value of the envelope `envelope`: its `ok`, or its `err` read back as
-/// the [`ExtError`] whose data it is.
-fn open_value(envelope: Value) -> Result<Value, ExtError> {
+    let envelope = serde_json::from_str::<Value>(&text).map_err(|_| not_an_envelope(&text))?;
     let Value::Object(mut fields) = envelope else { return Err(not_an_envelope(&envelope.to_string())) };
     if let Some(value) = fields.remove("ok") {
         return Ok(value);
@@ -304,25 +366,72 @@ fn open_value(envelope: Value) -> Result<Value, ExtError> {
 }
 
 /// Sends the request `request` (`{"native": NAME, …}`, the shape the host's
-/// natives take) and answers the value of its reply. With the cargo feature
-/// `native` (a program that carries the engine `native`, on any target), a
-/// request made while a native instance's state is current on this thread
-/// (during one of its entries, or while the engine drops the objects it
-/// recorded) is answered in the same process, by the host that state holds,
-/// the request and the envelope passed as values. Without the feature, in a
-/// crate built for `wasm32`, a request goes through the module's import.
+/// natives take) through the module's import and answers the value of its
+/// reply: the route of every request of an extension's own WebAssembly
+/// module. Compiled into a program (the cargo feature `native`), the
+/// requests take the typed route instead, and this function is not compiled.
 ///
 /// # Errors
 ///
 /// The host's refusal or the dispatcher's error, read back from the reply's
-/// `err` ([`ExtError::from_data`]); without the module's import and with no
-/// native instance's state current, [`ExtError::Unsupported`].
+/// `err` ([`ExtError::from_data`]); without the module's import (a crate
+/// built for another target), [`ExtError::Unsupported`].
+#[cfg(not(feature = "native"))]
 pub fn native(request: &Value) -> Result<Value, ExtError> {
-    #[cfg(feature = "native")]
-    if let Some(host) = crate::guest::state::current().host.clone() {
-        return open_value(host(request));
-    }
     open(&send(request.to_string().into_bytes())?)
+}
+
+/// Runs `body`, the typed route of a request or of a lending (the cargo
+/// feature `native`), on the frame of the handler call it was sent from: the
+/// innermost frame of the current state's loaded extension
+/// ([`frames::with_current`]). `body`
+/// resolves the handles in the frame's table and lends the answered objects
+/// into it, as the dispatcher's arm does for a request sent as JSON; a
+/// lending builds its handler object over the frame's registration with the
+/// native's body (`binding::natives`), as the native does for a lending sent
+/// as JSON. `act` is what the refusal outside a handler call names: the
+/// first native the same item sends as JSON, a lending's or the call of the
+/// method.
+///
+/// # Errors
+///
+/// What `body` answers, an argument error naming `method` as the
+/// dispatcher names it; the refusal of `act` when no handler call of the
+/// extension is the innermost one on this thread (sent from `define`, from a
+/// `Drop` while the engine drops the instance, or while another extension's
+/// instance is created): "the extension `S` must declare a stage from a
+/// feature's `register` or from a handler that `register` declared";
+/// [`ExtError::Unsupported`] when no native instance's state is current (on a
+/// thread the extension started, while a thread ends).
+#[cfg(feature = "native")]
+pub(crate) fn in_frame<T>(
+    act: Act<'_>,
+    method: &str,
+    body: impl for<'v, 'c> FnOnce(&mut FrameView<'v, 'c>) -> Result<T, ExtError>,
+) -> Result<T, ExtError> {
+    let state = crate::guest::state::current();
+    let Some(loaded) = state.loaded.as_ref() else {
+        return Err(ExtError::Unsupported { what: UNANSWERED.to_string() });
+    };
+    // A typed request runs inside the frame's closure, as `dispatch::call` runs for one sent
+    // as JSON, so the invariants of `binding::frames` hold for both routes.
+    frames::with_current(loaded.load, |view| body(view).map_err(|error| dispatch::named(method, error)))
+        .unwrap_or_else(|| Err(natives::outside(&loaded.extension.stem, act)))
+}
+
+/// [`in_frame`] for a request of the method or function `method`, whose
+/// `body` takes the frame's table alone: a request needs nothing else of the
+/// frame. Outside a handler call of the extension, the request is refused in
+/// the words the native `call` refuses one sent as JSON: "the extension `S`
+/// must call `M` of the extension API from a feature's `register` or from a
+/// handler that `register` declared".
+///
+/// # Errors
+///
+/// As [`in_frame`].
+#[cfg(feature = "native")]
+pub(crate) fn typed<T>(method: &str, body: impl for<'c> FnOnce(&mut CallTable<'c>) -> Result<T, ExtError>) -> Result<T, ExtError> {
+    in_frame(Act::Call(method), method, |view| body(view.table))
 }
 
 /// Calls `method` on the object `handle` stands for, with `args`; answers
@@ -331,8 +440,22 @@ pub fn native(request: &Value) -> Result<Value, ExtError> {
 /// # Errors
 ///
 /// As [`native`].
+#[cfg(not(feature = "native"))]
 pub fn call(handle: Handle, method: &str, args: Vec<Value>) -> Result<Value, ExtError> {
     native(&json!({ "native": "call", "handle": handle_to_value(handle), "method": method, "args": args }))
+}
+
+/// Calls `method` on the durable object `token` names (a compiled template),
+/// with `args`: the host lends the object into the running call and calls
+/// the method on it, as on a handle's object; answers the dispatcher's
+/// answer.
+///
+/// # Errors
+///
+/// As [`native`].
+#[cfg(not(feature = "native"))]
+pub fn call_durable(token: DurableToken, method: &str, args: Vec<Value>) -> Result<Value, ExtError> {
+    native(&json!({ "native": "call", "handle": durable_to_value(token), "method": method, "args": args }))
 }
 
 /// Calls the function `function` of the API module `path` (`"lang/text"`,
@@ -341,20 +464,20 @@ pub fn call(handle: Handle, method: &str, args: Vec<Value>) -> Result<Value, Ext
 /// # Errors
 ///
 /// As [`native`].
+#[cfg(not(feature = "native"))]
 pub fn call_module(path: &str, function: &str, args: Vec<Value>) -> Result<Value, ExtError> {
     call(module_handle(path)?, function, args)
 }
 
 /// The handle of the API module `path`: the one kept, or asked for (the
-/// map's borrow released before the request is sent) and kept. Once the map's
-/// thread-local is destroyed (code of a native extension run at the thread's
-/// end, [`crate::guest::state`]), the handle is asked for and not kept.
+/// map's borrow released before the request is sent) and kept.
+#[cfg(not(feature = "native"))]
 fn module_handle(path: &str) -> Result<Handle, ExtError> {
-    if let Some(handle) = MODULES.try_with(|modules| modules.borrow().get(path).copied()).ok().flatten() {
+    if let Some(handle) = MODULES.with(|modules| modules.borrow().get(path).copied()) {
         return Ok(handle);
     }
     let handle = handle_of(&native(&json!({ "native": "module_handle", "path": path }))?, HandleKind::Module)?;
-    let _ = MODULES.try_with(|modules| modules.borrow_mut().insert(path.to_string(), handle));
+    MODULES.with(|modules| modules.borrow_mut().insert(path.to_string(), handle));
     Ok(handle)
 }
 
@@ -374,66 +497,69 @@ pub fn handle_of(value: &Value, kind: HandleKind) -> Result<Handle, ExtError> {
     }
 }
 
-/// One line of `console` output, at `level`.
+/// One line of `console` output, at `level`: in a WebAssembly module, the
+/// native `console`; compiled into a program (the cargo feature `native`),
+/// written to the console sink of the current state's loaded extension.
 ///
 /// # Errors
 ///
-/// As [`native`].
+/// In a WebAssembly module, as the function `native`; compiled into a program,
+/// [`ExtError::Unsupported`] when no native instance's state is current (on
+/// a thread the extension started, while a thread ends).
 pub fn console(level: ConsoleLevel, text: &str) -> Result<(), ExtError> {
-    native(&json!({ "native": "console", "level": level.to_string(), "text": text })).map(|_| ())
+    #[cfg(not(feature = "native"))]
+    {
+        native(&json!({ "native": "console", "level": level.to_string(), "text": text })).map(|_| ())
+    }
+    #[cfg(feature = "native")]
+    {
+        let state = crate::guest::state::current();
+        let Some(loaded) = state.loaded.as_ref() else {
+            return Err(ExtError::Unsupported { what: UNANSWERED.to_string() });
+        };
+        (loaded.console)(level, text);
+        Ok(())
+    }
 }
 
 /// How a value is passed as an argument of a forwarded call: its JSON.
 pub trait ToArg {
     /// The value as JSON.
-    ///
-    /// # Errors
-    ///
-    /// The value cannot cross ([`ExtError::Argument`]: bytes that are not a
-    /// UTF-8 text). The error's `method` is empty: the stub that forwards
-    /// the call knows the method's name and fills it.
-    fn arg(&self) -> Result<Value, ExtError>;
+    fn arg(&self) -> Value;
 }
 
 /// A value of a type with a JSON form: that form.
 impl<T: JsonForm> ToArg for T {
-    fn arg(&self) -> Result<Value, ExtError> {
-        Ok(self.to_value())
+    fn arg(&self) -> Value {
+        self.to_value()
     }
 }
 
 /// A text: a string.
 impl ToArg for str {
-    fn arg(&self) -> Result<Value, ExtError> {
-        Ok(Value::String(self.to_string()))
+    fn arg(&self) -> Value {
+        Value::String(self.to_string())
     }
 }
 
 /// A slice: a list, each item in its JSON form.
 impl<T: JsonForm> ToArg for [T] {
-    fn arg(&self) -> Result<Value, ExtError> {
-        Ok(Value::Array(self.iter().map(JsonForm::to_value).collect()))
+    fn arg(&self) -> Value {
+        Value::Array(self.iter().map(JsonForm::to_value).collect())
     }
 }
 
-/// Bytes: the text they are, as a string (a script can pass a text alone);
-/// bytes that are not a UTF-8 text are refused, with the method left for
-/// the forwarding stub to fill.
+/// Bytes: a string when they are a UTF-8 text, `{"base64": text}` otherwise,
+/// forms of an artifact's content, which the host reads as bytes.
 impl ToArg for [u8] {
-    fn arg(&self) -> Result<Value, ExtError> {
-        match std::str::from_utf8(self) {
-            Ok(text) => Ok(Value::String(text.to_string())),
-            Err(error) => Err(ExtError::Argument {
-                method: String::new(),
-                detail: format!("bytes passed as an argument must be a UTF-8 text: {error}"),
-            }),
-        }
+    fn arg(&self) -> Value {
+        bytes_to_value(self)
     }
 }
 
 /// The test hook: answers the requests in place of the host, where the module's import is not
-/// compiled.
-#[cfg(test)]
+/// compiled and the requests are sent as JSON (without the cargo feature `native`).
+#[cfg(all(test, not(feature = "native")))]
 pub(crate) mod hook {
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -472,9 +598,11 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::adapter::values::handle_to_value;
     use crate::api::lang::mint::Mode;
 
     /// Runs `body` with `hook` installed, then removes it.
+    #[cfg(not(feature = "native"))]
     fn with_hook(hook: impl Fn(&Value) -> Value + 'static, body: impl FnOnce()) {
         hook::install(hook);
         body();
@@ -482,6 +610,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn without_a_host_a_request_is_unsupported() {
         hook::remove();
         let error = native(&json!({ "native": "console", "level": "log", "text": "x" })).expect_err("no host");
@@ -494,6 +623,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn an_ok_reply_answers_its_value() {
         with_hook(
             |request| {
@@ -509,6 +639,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn an_err_reply_reads_back_as_the_error_whose_data_it_is() {
         let error = ExtError::Argument { method: "option".to_string(), detail: "argument 1 must be a string, not `3`".to_string() };
         let data = error.data();
@@ -520,6 +651,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn a_reply_that_is_not_an_envelope_is_refused() {
         with_hook(
             |_| json!({ "neither": 1 }),
@@ -534,6 +666,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn a_module_handle_is_asked_once() {
         let asked = std::rc::Rc::new(std::cell::Cell::new(0));
         let counted = std::rc::Rc::clone(&asked);
@@ -595,6 +728,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn a_console_line_is_a_request() {
         with_hook(
             |request| {
@@ -623,13 +757,10 @@ mod tests {
 
     #[test]
     fn the_arguments_are_their_json() {
-        assert_eq!("a text".arg(), Ok(json!("a text")));
-        assert_eq!(String::from("b").arg(), Ok(json!("b")));
-        assert_eq!([Mode::Text, Mode::Math][..].arg(), Ok(json!(["text", "math"])));
-        assert_eq!(vec![1usize, 2].arg(), Ok(json!([1, 2])));
-        assert_eq!(b"bytes"[..].arg(), Ok(json!("bytes")));
-        let error = [0xffu8, 0xfe][..].arg().expect_err("not a text");
-        assert!(matches!(error, ExtError::Argument { .. }), "{error:?}");
-        assert!(error.to_string().contains("bytes passed as an argument must be a UTF-8 text"), "{error}");
+        assert_eq!("a text".arg(), json!("a text"));
+        assert_eq!(String::from("b").arg(), json!("b"));
+        assert_eq!([Mode::Text, Mode::Math][..].arg(), json!(["text", "math"]));
+        assert_eq!(vec![1usize, 2].arg(), json!([1, 2]));
+        assert_eq!(b"bytes"[..].arg(), json!("bytes"));
     }
 }

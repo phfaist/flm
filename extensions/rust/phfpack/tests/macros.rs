@@ -1,6 +1,6 @@
 //! Each built-in macro, in one formula: what the three outputs hold, and that
-//! the recomposed LaTeX compiles (acceptance test 7). The expected replacements
-//! are what the Python package writes for the same formulas.
+//! the recomposed LaTeX compiles. The expected replacements are what the Python
+//! package writes for the same formulas.
 //!
 //! **The compilation test is skipped unless the environment variable
 //! `FLM_TESTS_LATEX_COMPILE` is set** (to anything but the empty string or
@@ -8,7 +8,7 @@
 //! `pdflatex` and `lualatex` must both run from the `PATH`:
 //!
 //! ```text
-//! FLM_TESTS_LATEX_COMPILE=1 cargo test -p flm-phfpack --test macros
+//! FLM_TESTS_LATEX_COMPILE=1 cargo test -p phfpack --test macros
 //! ```
 //!
 //! It writes every macro's recomposed LaTeX into one minimal `article` that

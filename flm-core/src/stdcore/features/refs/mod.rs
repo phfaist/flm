@@ -109,9 +109,10 @@
 //!   declares its reference sites through the
 //!   [`Referencing`](crate::model::aspects::Referencing) aspect, one per
 //!   target, and goes through the same stages; the two differ in what they
-//!   display. The feature registers no element for `\label`: like every field,
-//!   its node carries the language layer's field element
-//!   ([`FIELD`](crate::lang::mint::FIELD)).
+//!   display. The feature registers no element for the `\label` written after
+//!   a construct: like every tack-on field,
+//!   its node carries the language's field element
+//!   ([`FIELD`](crate::lang::structural::FIELD)).
 //! - **A scoped package.** A scoped package
 //!   ([`ScopedPackageDef`](crate::lang::mint::ScopedPackageDef)) is a set of
 //!   element declarations that can be written only inside the environment
@@ -279,7 +280,7 @@
 //! argument that refers to the scoped package [`LABEL_PACKAGE`] (a construct
 //! whose labels are written in an argument of their own, as in
 //! `\footnote[\label{fn:x}]{…}`), this feature's package declares it. Both
-//! nodes carry the same field element with the same name: [`label_use`] reads
+//! are field nodes of the same field name: [`label_use`] reads
 //! one such node, and [`label_uses_in`] reads every one of a run of nodes.
 //!
 //! # Recomposing to LaTeX
@@ -323,11 +324,18 @@
 //!   [`read_target_at_lowering`], [`reference_type_words`],
 //!   [`stage_reference_type_setup`].
 
-// Why the label is a declared field a construct reads rather than an element
-// of this feature's: see design rationale at [§flm-dd-dr:std-label-field].
-// Anchors: [§flm-dd-dr:std-anchor-encoding], [§flm-dd-dr:std-anchor-collision],
-// [§flm-dd-dr:std-anchor-policies], [§flm-dd-dr:std-anchor-counters].
-// Severities: [§flm-dd-dr:std-check-unresolved], [§flm-dd-dr:std-refs-unresolved].
+// The label is a declared field that the labeled construct reads, not an element
+// of this feature: a construct declares its labels as it declares any other
+// argument, and a label is read by the construct that carries it and by nothing
+// else.
+// The element of a point chooses how its anchor is formed, because what a point
+// is reachable at depends on what kind of thing it is, which only the element
+// knows. An anchor from a label that another point already holds is reported,
+// never made unique by a suffix: a label is a name the author chose, and a
+// suffix would make its anchor depend on document order.
+// An unresolved reference is an Error by default because a dangling reference
+// in a finished document is worse than a failed render; a draft allows it
+// through the render options.
 
 mod content;
 mod elements;

@@ -77,7 +77,8 @@ pub(crate) fn watch(args: &WatchArgs, packages: &[PackageFactory]) -> u8 {
             return CANNOT_START;
         }
     };
-    // See decision rationale at [§flm-dd-dr:host-watch-serving].
+    // The output is named as in a folder (`index.html` and the files beside it), so that the
+    // preview's addresses do not depend on the document's name.
     request.naming = Naming::Folder;
     let document = args.build.input.clone().unwrap_or_default();
     // The *Settings* tool starts with the front matter's schema made without a document,
@@ -105,7 +106,7 @@ pub(crate) fn watch(args: &WatchArgs, packages: &[PackageFactory]) -> u8 {
     // programs that the host service `programs` runs are stopped: the preview writes no file,
     // and the system closes the connections and releases the watcher with the process. The
     // handling exists for those programs and for the status, which the system's own end of the
-    // process makes non-zero. See decision rationale at [§flm-dd-dr:cli-watch-interrupt].
+    // process makes non-zero.
     if let Err(error) = crate::signals::stop_programs_on_signals(crate::signals::OnInterrupt::ExitDone) {
         reporter().error(&format!("the preview cannot be set to end on Ctrl+C: {error}"));
         return CANNOT_START;
@@ -141,7 +142,8 @@ pub(crate) fn watch(args: &WatchArgs, packages: &[PackageFactory]) -> u8 {
 /// The folders in which the editors' application bundles are looked for
 /// ([`Editors::find`]): on macOS, `/Applications` and the folder `Applications` of the home
 /// folder (the environment variable `HOME`, when it is set); none elsewhere.
-// See decision rationale at [§flm-dd-dr:host-watch-editor-menu].
+// The program, not the host library, gives these folders: where a platform keeps its
+// applications stays out of the library, and the library's tests can use folders of their own.
 fn application_folders() -> Vec<PathBuf> {
     if !cfg!(target_os = "macos") {
         return Vec::new();

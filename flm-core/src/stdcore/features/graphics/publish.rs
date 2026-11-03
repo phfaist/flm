@@ -561,7 +561,9 @@ impl Publishing<'_> {
 /// type and the options of the rule that converted it. See the [module
 /// documentation](self#the-three-strategies).
 fn copy_name(path: &str, original: &[u8], content: &Content) -> String {
-    // See decision rationale at [§flm-dd-dr:std-graphics-copy-identity]
+    // The name is computed from the file and its conversion alone, with no
+    // counter, so that a file shown twice, in one tree or two, on one thread or
+    // several, is one copy.
     let mut digest = Fnv1a64::new();
     digest.write_bytes(original);
     digest.write_str(&content.media_type);
@@ -674,7 +676,6 @@ impl Stage for PublishStage {
         }
         // A value states no fact about the document: its images' copies are
         // the document's own trees'.
-        // See decision rationale at [§flm-dd-dr:std-graphics-copy-identity]
         if let (Some(table), false) = (publishing.holds.artifacts, id.is_value()) {
             match out.table(table) {
                 Ok(written) => *written = copies,

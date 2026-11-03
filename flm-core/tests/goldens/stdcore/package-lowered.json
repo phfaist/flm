@@ -37,43 +37,49 @@
     "payload": {}
   },
   {
-    "elem": "flm.pres.math-passthrough",
+    "elem": "flm.pres.par",
     "body": [
       {
-        "elem": "flm.pres.math-text",
-        "body": [],
-        "payload": {
-          "anchor": "eq--1opqm"
-        }
-      },
-      {
-        "chars": "\n  E = mc^2"
-      },
-      {
-        "chars": "\\tag*{"
-      },
-      {
-        "elem": "flm.pres.math-text",
+        "elem": "flm.pres.math-passthrough",
         "body": [
           {
-            "chars": "(1)"
+            "elem": "flm.pres.math-text",
+            "body": [],
+            "payload": {
+              "anchor": "eq--1opqm"
+            }
+          },
+          {
+            "chars": "\n  E = mc^2"
+          },
+          {
+            "chars": "\\tag*{"
+          },
+          {
+            "elem": "flm.pres.math-text",
+            "body": [
+              {
+                "chars": "(1)"
+              }
+            ],
+            "payload": {
+              "at_tag": true
+            }
+          },
+          {
+            "chars": "}"
+          },
+          {
+            "chars": "\n"
           }
         ],
         "payload": {
-          "at_tag": true
+          "display": "display",
+          "env": "equation"
         }
-      },
-      {
-        "chars": "}"
-      },
-      {
-        "chars": "\n"
       }
     ],
-    "payload": {
-      "display": "display",
-      "env": "equation"
-    }
+    "payload": {}
   },
   {
     "elem": "flm.pres.par",

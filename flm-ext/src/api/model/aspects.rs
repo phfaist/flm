@@ -6,7 +6,7 @@ pub use flm_core::model::aspects::{AcceptedRefTypes, BlockRole, FixedBlockRole, 
 
 use flm_core::model::names::{Name, RefKind};
 
-use crate::api::techy::node::{Node, Span};
+use crate::api::techy::node::{Node, Span, Tree};
 use crate::runtime::ExtError;
 
 /// Mirrors [`Referenceable`](flm_core::model::aspects::Referenceable): the
@@ -172,8 +172,7 @@ pub enum AnchorPolicy<'t> {
 /// Mirrors [`ContentRef`](flm_core::model::aspects::ContentRef): content a
 /// reference point names, with the variants of `flm-core` by their names.
 /// What differs: a node of the point's tree is its façade, in place of its
-/// identifier; a synthesized tree is its root node's façade (the root node of
-/// a tree the handler holds), in place of the shared tree.
+/// identifier; a synthesized tree is its façade, which shares the tree.
 pub enum ContentRef<'t> {
     /// The content of the argument at this position, counted from zero.
     Argument(usize),
@@ -183,8 +182,8 @@ pub enum ContentRef<'t> {
     Body,
     /// One node of the point's tree.
     Node(Box<dyn Node<'t> + 't>),
-    /// The root node of a tree of its own, which the handler built.
-    Synthesized(Box<dyn Node<'t> + 't>),
+    /// A tree of its own, which the handler built.
+    Synthesized(Box<dyn Tree>),
 }
 
 fn _object_safe(_: &dyn Referenceable, _: &dyn Sectioning) {}

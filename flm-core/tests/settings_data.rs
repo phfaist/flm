@@ -1,5 +1,5 @@
-//! Settings declared from data (`SettingsDecl::config_data`, `options_data`,
-//! `merge_entries_data`) and the reads by name that go with them
+//! Settings declared from data (`SettingsDecl::config_data`,
+//! `config_data_read`, `options_data`, `merge_entries_data`) and the reads by name that go with them
 //! (`OptionKey::Data`, `Needs::option_named`, `StageCx::option_named`,
 //! `RewriteCx::option_named`, `LoweringDecl::option_named`, the lowering
 //! façade's `option_named`): the keys a schema gives, the values kept as
@@ -16,7 +16,7 @@ use flm_core::core::lowering::{DefaultMark, Lowering};
 use flm_core::core::plan::{Overrides, Plan, PlanError, PlanRequest};
 use flm_core::core::registry::{BuildError, BuildPhase, FeatureBuilder, FeatureInfo, FlmFeature};
 use flm_core::core::run::RunOptions;
-use flm_core::core::settings::{SettingsDecl, SettingsError, SettingsErrorKind};
+use flm_core::core::settings::{ReadError, SettingsDecl, SettingsError, SettingsErrorKind};
 use flm_core::core::stage::{Effect, Needs, RewriteDecl, Scope, StageDecl};
 use flm_core::model::addr::TreeId;
 use flm_core::model::options::{Bind, DataValue, OptionKey, OptionValues};
@@ -110,6 +110,35 @@ fn a_data_configuration_keeps_the_keys_written_and_reads_as_an_empty_map_otherwi
     // Nothing written: the empty map, not the schema's defaults.
     let empty = decl.read(&Map::new()).expect("nothing to refuse");
     assert_eq!(empty.config::<DataValue>(), Some(&DataValue(json!({}))));
+}
+
+#[test]
+fn a_data_configuration_s_reader_answers_the_value_kept_or_the_value_at_fault() {
+    let read = |data: Value| match &data["min_length"] {
+        Value::Null => Ok(json!({ "min_length": 1 })),
+        Value::Number(_) => Ok(data),
+        other => Err(ReadError { path: "min_length".to_string(), detail: format!("must be a number, not `{other}`") }),
+    };
+    let decl = SettingsDecl::new("wc")
+        .config_data_read(object_schema(&["min_length"]), "The word count.", Arc::new(read))
+        .expect("a sound declaration");
+
+    // The configuration kept is the reader's answer.
+    let empty = decl.read(&Map::new()).expect("nothing to refuse");
+    assert_eq!(empty.config::<DataValue>(), Some(&DataValue(json!({ "min_length": 1 }))));
+
+    // A value at fault: its path below the feature's name, the reader's detail.
+    let errors = decl.read(&map(json!({ "min_length": "three" }))).expect_err("a value at fault");
+    let found: Vec<(&str, SettingsErrorKind, &str)> =
+        errors.iter().map(|error| (error.path.as_str(), error.kind, error.detail.as_str())).collect();
+    assert_eq!(
+        found,
+        [(
+            "wc.min_length",
+            SettingsErrorKind::InvalidValue,
+            "the value of `wc.min_length` is invalid: must be a number, not `\"three\"`"
+        )]
+    );
 }
 
 #[test]

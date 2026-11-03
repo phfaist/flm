@@ -449,7 +449,7 @@
             "name": "splice",
             "doc": "Mirrors [`Lowerer::splice`](flm_core::core::lowering::Lowerer::splice).",
             "receiver": "&mut self",
-            "params": ["cx: &mut dyn LowerCx", "value: &dyn Node"],
+            "params": ["cx: &mut dyn LowerCx", "value: &dyn Tree"],
             "output": "Result<Vec<Staged>, ExtError>"
           },
           {
@@ -891,28 +891,28 @@
             "doc": "Mirrors [`StageCx::tree`](flm_core::core::run::StageCx::tree): the current state of the tree of id `id`.",
             "receiver": "&self",
             "params": ["id: &str"],
-            "output": "Option<Box<dyn Node>>"
+            "output": "Option<Box<dyn Tree>>"
           },
           {
             "name": "frozen_tree",
             "doc": "Mirrors [`StageCx::frozen_tree`](flm_core::core::run::StageCx::frozen_tree): the frozen tree of id `id`.",
             "receiver": "&self",
             "params": ["id: &str"],
-            "output": "Option<Box<dyn Node>>"
+            "output": "Option<Box<dyn Tree>>"
           },
           {
             "name": "my_tree",
             "doc": "Mirrors [`StageCx::my_tree`](flm_core::core::run::StageCx::my_tree): the tree a per-tree stage runs on.",
             "receiver": "&self",
             "params": [],
-            "output": "Option<Box<dyn Node>>"
+            "output": "Option<Box<dyn Tree>>"
           },
           {
             "name": "trees",
             "doc": "Mirrors [`StageCx::trees`](flm_core::core::run::StageCx::trees): every frozen tree of the document.",
             "receiver": "&self",
             "params": [],
-            "output": "Vec<(String, Box<dyn Node>)>"
+            "output": "Vec<(String, Box<dyn Tree>)>"
           },
           {
             "name": "walk",
@@ -1021,6 +1021,19 @@
         "class": "core_reexport",
         "doc": "Mirrors [`flm_core::core::services::Arity`].",
         "path": "flm_core::core::services::Arity"
+      }
+    ]
+  },
+  {
+    "module": "core/settings",
+    "file": "src/api/core/settings.rs",
+    "doc": "Mirrors [`flm_core::core::settings`]: the fault a feature's configuration reader answers.",
+    "items": [
+      {
+        "name": "ReadError",
+        "class": "core_reexport",
+        "doc": "Mirrors [`flm_core::core::settings::ReadError`].",
+        "path": "flm_core::core::settings::ReadError"
       }
     ]
   },
@@ -1260,14 +1273,14 @@
             "doc": "The table's trees, by id, in id order.",
             "receiver": "&self",
             "params": [],
-            "output": "Vec<(String, Box<dyn Node>)>"
+            "output": "Vec<(String, Box<dyn Tree>)>"
           },
           {
             "name": "tree",
-            "doc": "The root of the tree of id `id`, if the table holds it.",
+            "doc": "The tree of id `id`, if the table holds it.",
             "receiver": "&self",
             "params": ["id: &str"],
-            "output": "Option<Box<dyn Node>>"
+            "output": "Option<Box<dyn Tree>>"
           }
         ]
       }
@@ -1408,6 +1421,12 @@
         "class": "core_reexport",
         "doc": "",
         "path": "flm_core::lang::mint::FallbackKind"
+      },
+      {
+        "name": "TackOnField",
+        "class": "core_reexport",
+        "doc": "",
+        "path": "flm_core::lang::mint::TackOnField"
       },
       {
         "name": "Mode",
@@ -1570,6 +1589,12 @@
         "class": "core_reexport",
         "doc": "",
         "path": "flm_core::lang::rewrites::userdefs::ExpandPolicy"
+      },
+      {
+        "name": "PlaceholderTarget",
+        "class": "core_reexport",
+        "doc": "",
+        "path": "flm_core::lang::rewrites::userdefs::PlaceholderTarget"
       },
       {
         "name": "PlaceholderVocabulary",
@@ -1748,6 +1773,13 @@
             "receiver": "&self",
             "params": [],
             "output": "Box<dyn CompiledTemplate>"
+          },
+          {
+            "name": "defaults",
+            "doc": "Mirrors [`ModeVariant::defaults`](flm_core::lang::rewrites::userdefs::ModeVariant::defaults): the compiled default values of the optional arguments, with their argument indices, in increasing order of index.",
+            "receiver": "&self",
+            "params": [],
+            "output": "Vec<(usize, Box<dyn CompiledTemplate>)>"
           }
         ]
       },
@@ -1756,6 +1788,22 @@
         "class": "sealed_trait",
         "doc": "Mirrors [`CompiledTemplate`](flm_core::lang::rewrites::userdefs::CompiledTemplate): a compiled replacement text.",
         "supertraits": ["CompiledTemplateCore"],
+        "methods": [
+          {
+            "name": "placeholders",
+            "doc": "Mirrors [`CompiledTemplate::placeholders`](flm_core::lang::rewrites::userdefs::CompiledTemplate::placeholders): every placeholder of the template, in the tree's storage order.",
+            "receiver": "&self",
+            "params": [],
+            "output": "Vec<PlaceholderRef>"
+          }
+        ]
+      },
+      {
+        "name": "PlaceholderRef",
+        "class": "data_type",
+        "doc": "Mirrors [`PlaceholderRef`](flm_core::lang::rewrites::userdefs::PlaceholderRef): one placeholder of a compiled template ([`CompiledTemplate::placeholders`]).",
+        "derives": ["Debug", "Clone", "PartialEq", "Eq"],
+        "fields": ["pub written: String", "pub target: PlaceholderTarget", "pub substitution: Option<String>"],
         "methods": []
       },
       {
@@ -1842,10 +1890,58 @@
           },
           {
             "name": "with",
-            "doc": "Mirrors [`ValueBindings::with`](flm_core::lang::rewrites::userdefs::ValueBindings::with): gives the extra placeholder `name` the tree whose root is `node`.",
+            "doc": "Mirrors [`ValueBindings::with`](flm_core::lang::rewrites::userdefs::ValueBindings::with): gives the extra placeholder `name` the tree `tree`.",
             "receiver": "self",
-            "params": ["name: &str", "node: &dyn Node"],
-            "output": "Result<ValueBindings, ExtError>",
+            "params": ["name: &str", "tree: &dyn Tree"],
+            "output": "ValueBindings",
+            "first": "other"
+          }
+        ]
+      },
+      {
+        "name": "ExtraValues",
+        "class": "data_type",
+        "doc": "Mirrors [`ExtraValues`](flm_core::lang::rewrites::userdefs::ExtraValues): the values an expansion hook computed for the extra placeholders of a template, each held under the placeholder's name and the text of its substitution argument ([`PlaceholderRef::substitution`]); a pair given twice keeps the later value.",
+        "derives": ["Default"],
+        "fields": ["entries: Vec<(String, Option<String>, ExtraValue)>"],
+        "methods": [
+          {
+            "name": "new",
+            "doc": "Mirrors [`ExtraValues::new`](flm_core::lang::rewrites::userdefs::ExtraValues::new): values that hold nothing.",
+            "params": [],
+            "output": "ExtraValues",
+            "first": "other"
+          },
+          {
+            "name": "template",
+            "doc": "Mirrors [`ExtraValues::template`](flm_core::lang::rewrites::userdefs::ExtraValues::template): gives the extra placeholder `name`, written with the substitution argument whose text is `substitution` (`None` for a placeholder written without one), the compiled template `template`, instantiated in place.",
+            "receiver": "self",
+            "params": ["name: &str", "substitution: Option<&str>", "template: &dyn CompiledTemplate"],
+            "output": "ExtraValues",
+            "first": "other"
+          },
+          {
+            "name": "tree",
+            "doc": "Mirrors [`ExtraValues::tree`](flm_core::lang::rewrites::userdefs::ExtraValues::tree): gives the extra placeholder `name`, written with the substitution argument whose text is `substitution`, the tree `tree`, whose root's children are substituted.",
+            "receiver": "self",
+            "params": ["name: &str", "substitution: Option<&str>", "tree: &dyn Tree"],
+            "output": "ExtraValues",
+            "first": "other"
+          },
+          {
+            "name": "no_value",
+            "doc": "Mirrors [`ExtraValues::no_value`](flm_core::lang::rewrites::userdefs::ExtraValues::no_value): gives the extra placeholder `name`, written with the substitution argument whose text is `substitution`, no value.",
+            "receiver": "self",
+            "params": ["name: &str", "substitution: Option<&str>"],
+            "output": "ExtraValues",
+            "first": "other"
+          },
+          {
+            "name": "over",
+            "doc": "Mirrors [`ExtraValues::over`](flm_core::lang::rewrites::userdefs::ExtraValues::over): the bindings that answer an extra placeholder from these values, as [`Unresolvable`](flm_core::lang::rewrites::userdefs::PlaceholderValue::Unresolvable) when they hold none for its name and substitution text, and every other placeholder from `base`.",
+            "receiver": "&self",
+            "params": ["base: &dyn PlaceholderBindings"],
+            "output": "Box<dyn PlaceholderBindings>",
             "first": "other"
           }
         ]
@@ -1855,7 +1951,7 @@
         "class": "function",
         "doc": "Mirrors [`instantiate`](fn@flm_core::lang::rewrites::userdefs::instantiate): instantiates `template` under `bindings` as a new tree, attributed to the span of `site`.",
         "params": ["site: &dyn Node", "template: &dyn CompiledTemplate", "bindings: &dyn PlaceholderBindings"],
-        "output": "Result<Box<dyn Node>, ExtError>"
+        "output": "Result<Box<dyn Tree>, ExtError>"
       }
     ]
   },
@@ -1925,6 +2021,12 @@
         "type": "&str"
       },
       {
+        "name": "FIELD",
+        "class": "constant",
+        "doc": "Mirrors [`FIELD`](names::FIELD): `flm.field`, the element of a field node, a macro that a construct reads as data.",
+        "type": "&str"
+      },
+      {
         "name": "UNKNOWN_MACRO",
         "class": "constant",
         "doc": "Mirrors [`UNKNOWN_MACRO`](names::UNKNOWN_MACRO): `flm.unknown.macro`, the element of a macro no feature defines.",
@@ -1940,7 +2042,7 @@
         "name": "NAMES",
         "class": "constant",
         "doc": "Mirrors [`NAMES`](names::NAMES): every structural element name, in the fixed order of the set.",
-        "type": "[&str; 12]"
+        "type": "[&str; 13]"
       }
     ]
   },
@@ -2109,7 +2211,7 @@
         "class": "data_type",
         "doc": "Mirrors [`ContentRef`](flm_core::model::aspects::ContentRef): content a reference point names, with the variants of `flm-core` by their names.",
         "derives": [],
-        "variants": ["Argument { 0: usize }", "ArgumentNamed { 0: String }", "Body", "Node { 0: Box<dyn Node> }", "Synthesized { 0: Box<dyn Node> }"],
+        "variants": ["Argument { 0: usize }", "ArgumentNamed { 0: String }", "Body", "Node { 0: Box<dyn Node> }", "Synthesized { 0: Box<dyn Tree> }"],
         "methods": []
       }
     ]
@@ -2544,14 +2646,14 @@
             "doc": "Mirrors the field [`LoweredTrees::trees`](flm_core::stdcore::backends::lowering::LoweredTrees::trees): every lowered tree, by the id of the document tree it was lowered from, in id order.",
             "receiver": "&self",
             "params": [],
-            "output": "Vec<(String, Box<dyn Node>)>"
+            "output": "Vec<(String, Box<dyn Tree>)>"
           },
           {
             "name": "tree",
-            "doc": "Mirrors [`LoweredTrees::get`](flm_core::stdcore::backends::lowering::LoweredTrees::get) and the field [`LoweredTree::tree`](flm_core::stdcore::backends::lowering::LoweredTree::tree): the root of the lowered form of the document tree `id`, or `None` when the backend has none for it (or `id` names no tree).",
+            "doc": "Mirrors [`LoweredTrees::get`](flm_core::stdcore::backends::lowering::LoweredTrees::get) and the field [`LoweredTree::tree`](flm_core::stdcore::backends::lowering::LoweredTree::tree): the lowered form of the document tree `id`, or `None` when the backend has none for it (or `id` names no tree).",
             "receiver": "&self",
             "params": ["id: &str"],
-            "output": "Option<Box<dyn Node>>"
+            "output": "Option<Box<dyn Tree>>"
           },
           {
             "name": "requires",
@@ -3158,7 +3260,7 @@
         "class": "data_type",
         "doc": "Mirrors [`LineShows`](flm_core::stdcore::features::math::frame::LineShows): what an equation line shows at its tag's place.",
         "derives": [],
-        "variants": ["Nothing", "Number { segments: Vec<Box<dyn Node>>, text: String }", "Tag { starred: bool, content: Vec<Box<dyn Node>> }"],
+        "variants": ["Nothing", "Number { segments: Vec<Box<dyn Tree>>, text: String }", "Tag { starred: bool, content: Vec<Box<dyn Node>> }"],
         "methods": []
       },
       {
@@ -3367,7 +3469,7 @@
         "class": "data_type",
         "doc": "Mirrors [`NumberSegment`](flm_core::stdcore::features::numbering::NumberSegment): one stretch of a number, its content and the reference point it links to.",
         "derives": [],
-        "fields": ["pub content: Box<dyn Node>", "pub link: Option<PointId>"],
+        "fields": ["pub content: Box<dyn Tree>", "pub link: Option<PointId>"],
         "methods": []
       },
       {
@@ -3708,7 +3810,7 @@
   {
     "module": "techy/node",
     "file": "src/api/techy/node.rs",
-    "doc": "Mirrors techy's node module, reached as [`flm_core::techy::core::node`]: the node reader.",
+    "doc": "Mirrors techy's node module, reached as [`flm_core::techy::core::node`]: the node reader, and the trees `flm-core` shares.",
     "items": [
       {
         "name": "Node",
@@ -3925,6 +4027,21 @@
             "receiver": "&self",
             "params": ["i: usize"],
             "output": "Option<Vec<Box<dyn Node>>>"
+          }
+        ]
+      },
+      {
+        "name": "Tree",
+        "class": "sealed_trait",
+        "doc": "Mirrors `Arc<NodeTree<Flm>>`, techy's [`NodeTree`](flm_core::techy::core::node::NodeTree) over the FLM language shared through an `Arc`: a whole tree, as `flm-core` answers one (a document's tree, a rewrite's output tree, a lowered tree, a synthesized value, an instantiated template) and takes one (the value of an extra placeholder, a value to splice).",
+        "supertraits": ["TreeCore"],
+        "methods": [
+          {
+            "name": "root",
+            "doc": "Mirrors [`NodeTree::root`](flm_core::techy::core::node::NodeTree::root): the tree's root node.",
+            "receiver": "&self",
+            "params": [],
+            "output": "Box<dyn Node>"
           }
         ]
       },

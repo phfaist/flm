@@ -99,7 +99,7 @@ pub(crate) fn slot_layout(node: &NodeRef<'_, Flm>, index: usize) -> Region {
     }
     let from_role = || match block_role_of(node) {
         BlockRole::Block => Region::Blocks,
-        BlockRole::Inline(_) | BlockRole::BlockDecorator(_) => Region::Inline,
+        BlockRole::Inline(_) | BlockRole::Displayed | BlockRole::BlockDecorator(_) => Region::Inline,
     };
     match body_def_of(node) {
         Some(body) => match body.layout {
@@ -492,7 +492,9 @@ pub(crate) fn argument_opacity(
 /// assert_eq!(answers(r"\aside{a}", FragmentLayout::Inline), [false]);
 /// ```
 pub fn stands_in_blocks(node: &NodeRef<'_, Flm>, root: FragmentLayout) -> bool {
-    // See decision rationale at [§flm-dd-dr:lang-stands-in-blocks].
+    // The tree alone cannot tell a top level laid out inline that holds only a
+    // kept block from a top level laid out as blocks that holds that block, so
+    // the caller passes the root's layout.
     let Some(parent) = node.parent() else { return top_level_holds_blocks(std::slice::from_ref(node), root) };
     // The content of an argument or of a slot sits directly under the
     // callable, or under the group that delimits it.

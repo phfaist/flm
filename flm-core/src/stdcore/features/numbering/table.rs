@@ -297,8 +297,8 @@ impl Counters {
     /// Returns the part of `record`'s number that comes from the counters it
     /// is numbered within, or `None` for a counter numbered within nothing.
     // The joiner belongs to the counter and to the run's options, not to the
-    // point, so it is held once per counter here rather than in every record.
-    // See decision rationale at [§flm-dd-dr:std-numbering-table-hierarchy].
+    // point, so it is held once per counter here rather than in every record,
+    // where two copies could disagree.
     fn parent_of<'a>(&'a self, record: &'a CounterRecord) -> Option<Parent<'a>> {
         let joiner = self.joiner_of(record)?;
         Some(Parent::new(joiner.as_ref(), &record.ancestors))

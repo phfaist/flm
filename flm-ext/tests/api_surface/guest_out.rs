@@ -1,5 +1,5 @@
-//! The emitter of the guest client's generated surface (refresh section 6.2,
-//! `dev-docs/ext/e7`): one file, `src/guest/generated.rs`, which
+//! The emitter of the guest client's generated surface: one file,
+//! `src/guest/generated.rs`, which
 //! `src/guest/mod.rs` includes as `mod generated; pub use generated::*;`.
 //!
 //! # The shape of the output
@@ -22,7 +22,7 @@
 //! method per dispatched method that is not in `GUEST_HAND`, plus the kind's
 //! `EXTRA_METHODS` in their Rust signature; an empty enum per opaque type
 //! without a kind of its own, holding its constructor; one function per free
-//! function. Last, after the modules, the block of compile-time assertions
+//! function that is not in `GUEST_OMITTED`. Last, after the modules, the block of compile-time assertions
 //! of the hand-written items (`mod assertions`): one per item of
 //! `GUEST_HAND` and per method of each extension trait, binding the item
 //! written in `src/guest/hand/` to the signature the type mapping derives
@@ -44,14 +44,34 @@
 //!
 //! # The forwarding bodies
 //!
-//! A method sends `abi::call(self.handle, "<method>", vec![…])`, a function
-//! or a constructor `abi::call_module("<path>", "<function>", vec![…])` (a
-//! constructor's function is `Type::new`), each argument converted by
-//! `arg(value, "<method>")` (`ToArg`, with the method's name filled in on an
-//! `ExtError::Argument`), the reply read by its type's `JsonForm`, a unit
-//! reply dropped. On `FeatureBuilder`, whose kind is rehearsable, a method
-//! answers `Ok(())` without a call when the builder is a rehearsal's (its
-//! handle `None`). An extra with a stub of its own (`Lowerer::pres_tree`)
+//! A method or a function has two bodies, chosen by `flm-ext`'s cargo
+//! feature `native`, its signature and its documentation written once.
+//!
+//! - **The JSON body** (`cfg(not(feature = "native"))`): a method sends
+//!   `abi::call(self.handle, "<method>", vec![…])`, a function or a
+//!   constructor `abi::call_module("<path>", "<function>", vec![…])` (a
+//!   constructor's function is `Type::new`), each argument converted by
+//!   `ToArg::arg(value)`, the reply read by its type's `JsonForm`, a unit
+//!   reply dropped.
+//! - **The typed body** (`cfg(feature = "native")`): `abi::typed("<method>",
+//!   |table| { … })`, the closure the dispatcher's arm for the same method
+//!   with the conversions swapped, rendered from the arm's plan
+//!   ([`rust_out::plan`]): every value argument converted by `IntoApi` into a
+//!   local `a<i>` (a value of a type of `GUEST_OWN` by reference; an `impl
+//!   Into<T>` converted and an `impl IntoIterator` collected before the
+//!   closure), the receiver and the borrowed façade arguments taken from the
+//!   table by the handles their structs hold, the api's method or function
+//!   called (a module function by its path: no module handle), the answer
+//!   converted by `FromApi` (`Ok(())` for a unit answer). A method or a
+//!   function whose dispatcher arm is hand-written (`HAND_ARMS`,
+//!   `EXTRA_METHODS`) has the typed body the mapping table writes for it,
+//!   which calls the function of `dispatch.rs`'s module `extra` that the arm
+//!   calls. A parameter named as a local of the body (`table`) is bound to
+//!   `<name>_arg` before the closure.
+//!
+//! On `FeatureBuilder`, whose kind is rehearsable, a method answers `Ok(())`
+//! without a request when the builder is a rehearsal's (its handle `None`),
+//! before either body. An extra with a stub of its own (`Lowerer::pres_tree`)
 //! forwards to the module's function of its name, the receiver first.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -59,7 +79,8 @@ use std::fmt::Write as _;
 
 use crate::inventory::{Function, Inventory, Item, ItemClass, ItemKind, Module};
 use crate::js_out::{defined_elsewhere, plain};
-use crate::mapping::{self, Shape, Ts};
+use crate::mapping::{self, KindRow, Shape, Ts};
+use crate::rust_out::{self, ArmPlan, Param, Source, Target};
 
 /// The generated surface, from the crate's root.
 pub const GENERATED_RS: &str = "src/guest/generated.rs";
@@ -70,7 +91,7 @@ pub const GENERATED_RS: &str = "src/guest/generated.rs";
 const PRELUDE: &[&str] = &["Value", "Handle", "HandleKind", "JsonForm", "ExtError", "Result", "Option", "Vec", "String", "Self", "Into", "IntoIterator", "Item"];
 
 /// The guest's own type a row of `GUEST_OWN` stands for: its own name, but
-/// for the two rows of the one own `CompiledTemplate` (ruling S7).
+/// for the two rows of the one own `CompiledTemplate`.
 fn own_name(row: &str) -> &str {
     match row {
         "Box<dyn CompiledTemplate>" | "DurableTemplateFacade" => "CompiledTemplate",
@@ -145,8 +166,9 @@ impl Sig {
         format!("{}({}) -> {}", self.name, parts.join(", "), self.output)
     }
 
-    /// The argument list of the request: each parameter converted by `arg`.
-    fn args(&self, method: &str) -> String {
+    /// The argument list of the request: each parameter converted by
+    /// `ToArg::arg`.
+    fn args(&self) -> String {
         let args: Vec<String> = self
             .params
             .iter()
@@ -162,7 +184,7 @@ impl Sig {
                 } else {
                     format!("&{name}")
                 };
-                format!("arg({value}, \"{method}\")?")
+                format!("ToArg::arg({value})")
             })
             .collect();
         format!("vec![{}]", args.join(", "))
@@ -398,22 +420,35 @@ pub fn emit(inventory: &Inventory) -> String {
          //! not edit. `UPDATE_GOLDEN=1 cargo test -p flm-ext --test api_surface`\n\
          //! rewrites it.\n\
          //!\n\
-         //! The guest client's surface (refresh section 6.2): per module of the\n\
-         //! extension API, the re-exports of its data types, unit enums and constants,\n\
+         //! The guest client's surface: per module of the extension API, the\n\
+         //! re-exports of its data types, unit enums and constants,\n\
          //! of the guest's own types and of the handler traits (`src/guest/hand/`), one\n\
          //! struct per handle kind with its forwarding methods, and the module's\n\
-         //! functions and constructors, each forwarding through `abi`; last, the\n\
-         //! compile-time assertions of the hand-written items.\n\
+         //! functions and constructors, each forwarding through `abi` (as a JSON\n\
+         //! request, or with the cargo feature `native` as a typed call through\n\
+         //! `abi::typed`); last, the compile-time assertions of the hand-written items.\n\
          \n\
-         /// The names every module with code uses.\n\
+         /// The names every module with code uses: those of both routes, of the\n\
+         /// JSON route (`ToArg`), and of the typed route (the cargo feature `native`).\n\
          mod prelude {\n\
          \x20   pub(crate) use serde_json::Value;\n\
          \n\
          \x20   pub(crate) use crate::adapter::handles::{Handle, HandleKind};\n\
          \x20   pub(crate) use crate::adapter::values::{handle_to_value, JsonForm};\n\
          \x20   pub(crate) use crate::guest::abi;\n\
-         \x20   pub(crate) use crate::guest::hand::arg;\n\
          \x20   pub(crate) use crate::runtime::ExtError;\n\
+         \n\
+         \x20   #[cfg(not(feature = \"native\"))]\n\
+         \x20   pub(crate) use crate::guest::abi::ToArg;\n\
+         \n\
+         \x20   #[cfg(feature = \"native\")]\n\
+         \x20   pub(crate) use crate::adapter::dispatch::{entry, extra};\n\
+         \x20   #[cfg(feature = \"native\")]\n\
+         \x20   pub(crate) use crate::adapter::handles::Entry;\n\
+         \x20   #[cfg(feature = \"native\")]\n\
+         \x20   pub(crate) use crate::adapter::typed::{FromApi, IntoApi};\n\
+         \x20   #[cfg(feature = \"native\")]\n\
+         \x20   pub(crate) use crate::adapter::values::mismatch;\n\
          }\n",
     );
     // Every module path and the folders above it.
@@ -493,7 +528,7 @@ fn trait_output(surface: &Surface<'_>, output: &str, used: &mut BTreeSet<String>
     surface.ty(output, true, used)
 }
 
-/// The block of compile-time assertions (refresh section 6.2): one per item
+/// The block of compile-time assertions: one per item
 /// of `GUEST_HAND` (a method, a constructor, or a whole type's
 /// constructors) and per method of each extension trait, binding the
 /// hand-written item to the signature the type mapping derives from the
@@ -555,11 +590,11 @@ fn assertions(surface: &Surface<'_>) -> String {
         let _ = writeln!(traits, "    }}");
     }
     let mut out = String::from(
-        "/// The compile-time assertions of the hand-written items (refresh section\n\
-         /// 6.2): one per item of `GUEST_HAND` and per method of each extension\n\
-         /// trait, binding the item written in `src/guest/hand/` to the signature the\n\
-         /// type mapping derives from the api, so that a hand-written item that is\n\
-         /// missing or whose types drifted fails the build.\n\
+        "/// The compile-time assertions of the hand-written items: one per item of\n\
+         /// `GUEST_HAND` and per method of each extension trait, binding the item\n\
+         /// written in `src/guest/hand/` to the signature the type mapping derives\n\
+         /// from the api, so that a hand-written item that is missing or whose types\n\
+         /// drifted fails the build.\n\
          #[allow(dead_code, clippy::type_complexity, reason = \"the assertions are checked when the crate compiles, nothing calls them, and each writes a whole signature\")]\n\
          mod assertions {\n",
     );
@@ -626,7 +661,7 @@ fn emit_module(surface: &Surface<'_>, module: &Module, indent: &str) -> String {
     let mut used = BTreeSet::new();
     let mut local = BTreeSet::new();
     for item in &module.items {
-        if !offered(item) {
+        if !offered(item) || (item.class == ItemClass::Function && mapping::is_guest_omitted(&module.path, &item.name)) {
             continue;
         }
         local.insert(item.name.clone());
@@ -701,18 +736,190 @@ fn emit_module(surface: &Surface<'_>, module: &Module, indent: &str) -> String {
     out
 }
 
-/// A method's or a function's text: its doc, `pub fn`, its body.
-fn function_text(sig: &Sig, doc_text: &str, request: &str, guard: Option<&str>, attrs: &str, indent: &str) -> String {
+/// The locals a typed body binds: the closure's table, the receiver, the
+/// answer (and the value arguments, `a<i>`). A parameter of one of these
+/// names is bound to `<name>_arg` before the closure ([`typed_name`]).
+const TYPED_LOCALS: &[&str] = &["table", "this", "answer"];
+
+/// The name a typed body reaches the parameter `name` by: its own, or
+/// `<name>_arg` for the name of a local of the body.
+fn typed_name(name: &str) -> String {
+    let numbered = name.len() > 1 && name.starts_with('a') && name[1..].chars().all(|c| c.is_ascii_digit());
+    if numbered || TYPED_LOCALS.contains(&name) { format!("{name}_arg") } else { name.to_string() }
+}
+
+/// The typed body of a request (the cargo feature `native`): the method's
+/// or the function's name as the JSON request sends it, and the lines inside
+/// `abi::typed`'s closure.
+struct Typed {
+    /// The name, which `abi::typed` gives the errors and the refusal.
+    method: String,
+    /// The lines inside the closure.
+    lines: Vec<String>,
+}
+
+impl Typed {
+    /// A typed body written in the mapping table (an arm of `HAND_ARMS` or an
+    /// extra of `EXTRA_METHODS`): its lines.
+    fn written(method: &str, text: &str) -> Typed {
+        Typed { method: method.to_string(), lines: text.lines().map(str::to_string).collect() }
+    }
+
+    /// The typed body of the request `plan`, the dispatcher's arm with the
+    /// conversions swapped: each value argument of `sig` converted by
+    /// `IntoApi`, the receiver's handle `receiver` and each borrowed façade
+    /// argument's handle taken from the table as the arm takes them, the
+    /// answer converted by `FromApi`. `display` names the item in the
+    /// generator's messages.
+    fn planned(plan: &ArmPlan, sig: &Sig, receiver: &str, method: &str, display: &str) -> Typed {
+        let mut lines = Vec::new();
+        for (i, (param, (name, ty))) in plan.params.iter().zip(&sig.params).enumerate() {
+            if let Param::Value { .. } = param {
+                lines.push(format!("let a{i} = IntoApi::into_api({}, table)?;", guest_value(&typed_name(name), ty)));
+            }
+        }
+        let handle = |source: &Source| match source {
+            Source::Receiver => receiver.to_string(),
+            Source::Arg(i) => {
+                let (name, ty) = &sig.params[*i];
+                let bare = ty.trim_start_matches("&mut ").trim_start_matches('&');
+                assert!(
+                    !is_own(bare),
+                    "the borrowed façade `{name}` of `{display}` is of the guest's own type `{bare}`: the method must have a hand arm with a \
+                     typed body (`HAND_ARMS`)"
+                );
+                format!("{}.handle", typed_name(name))
+            }
+        };
+        let passed: Vec<String> = plan
+            .passed
+            .iter()
+            .zip(&sig.params)
+            .map(|(pass, (_, ty))| if borrowed_plain(ty) { pass.trim_start_matches('&').to_string() } else { pass.clone() })
+            .collect();
+        lines.extend(plan.take_and_call(handle, &passed, &format!("\"{method}\"")));
+        lines.push(if plan.unit { "Ok(())".to_string() } else { "FromApi::from_api(answer, table)".to_string() });
+        Typed { method: method.to_string(), lines }
+    }
+}
+
+/// The line that prepares the parameter `name` of the guest's type `ty`
+/// before the typed body's closure, if it needs one: an `impl Into<T>`
+/// converted to `T` and an `impl IntoIterator<Item = T>` collected into a
+/// `Vec<T>` (the types the arm's `FromArg` reads), since the extension's code
+/// may run in either and the frame's closure runs none (`binding/frames.rs`,
+/// invariant 2); a parameter named as a local of the body rebound
+/// ([`typed_name`]).
+fn prepared(name: &str, ty: &str) -> Option<String> {
+    let local = typed_name(name);
+    if let Some(target) = ty.strip_prefix("impl Into<").and_then(|rest| rest.strip_suffix('>')) {
+        return Some(format!("let {local} = Into::<{target}>::into({name});"));
+    }
+    if let Some(item) = ty.strip_prefix("impl IntoIterator<Item = ").and_then(|rest| rest.strip_suffix('>')) {
+        return Some(format!("let {local} = {name}.into_iter().collect::<Vec<{item}>>();"));
+    }
+    (local != name).then(|| format!("let {local} = {name};"))
+}
+
+/// Whether the guest's borrowed type `ty` (`&T`, `&[T]`) is plain data,
+/// neither a type of `GUEST_OWN` nor the struct of a handle kind: its
+/// `IntoApi` answers the same reference, which the call takes as it is,
+/// where the dispatcher's arm borrows the owned value it read.
+fn borrowed_plain(ty: &str) -> bool {
+    let Some(inner) = ty.strip_prefix('&') else { return false };
+    if inner.starts_with("mut ") {
+        return false;
+    }
+    let inner = inner.strip_prefix('[').and_then(|rest| rest.strip_suffix(']')).unwrap_or(inner);
+    !is_own(inner) && mapping::kind_of(inner).is_none()
+}
+
+/// The value a typed body converts for the parameter `name` (as the body
+/// reaches it) of the guest's type `ty`: the parameter, reborrowed when
+/// `&mut`, borrowed when it is a value of a type of `GUEST_OWN`, which may
+/// hold handler objects of the extension and is then dropped after the
+/// call, outside the frame's closure.
+fn guest_value(name: &str, ty: &str) -> String {
+    if ty.starts_with("&mut ") {
+        return format!("&*{name}");
+    }
+    if is_own(ty) {
+        return format!("&{name}");
+    }
+    name.to_string()
+}
+
+/// A method's or a function's text: its doc, `pub fn`, the guard, then its
+/// two bodies: the JSON one (`request`, then the reply read) under
+/// `cfg(not(feature = "native"))`, the typed one (`typed`, inside
+/// `abi::typed`) under `cfg(feature = "native")`.
+fn function_text(sig: &Sig, doc_text: &str, request: &str, typed: &Typed, guard: Option<&str>, attrs: &str, indent: &str) -> String {
     let mut out = doc(doc_text, indent);
     out.push_str(attrs);
     let _ = writeln!(out, "{indent}pub fn {} {{", sig.text());
     if let Some(guard) = guard {
         let _ = writeln!(out, "{indent}    {guard}");
     }
-    let body = sig.finish(request).replace("\n        ", &format!("\n{indent}    "));
-    let _ = writeln!(out, "{indent}    {body}");
+    let _ = writeln!(out, "{indent}    #[cfg(not(feature = \"native\"))]");
+    let _ = writeln!(out, "{indent}    {{");
+    let body = sig.finish(request).replace("\n        ", &format!("\n{indent}        "));
+    let _ = writeln!(out, "{indent}        {body}");
+    let _ = writeln!(out, "{indent}    }}");
+    let _ = writeln!(out, "{indent}    #[cfg(feature = \"native\")]");
+    let _ = writeln!(out, "{indent}    {{");
+    for line in sig.params.iter().filter_map(|(name, ty)| prepared(name, ty)) {
+        let _ = writeln!(out, "{indent}        {line}");
+    }
+    let table = if typed.lines.iter().any(|line| line.contains("table")) { "table" } else { "_" };
+    let _ = writeln!(out, "{indent}        abi::typed(\"{}\", |{table}| {{", typed.method);
+    for line in &typed.lines {
+        let _ = writeln!(out, "{indent}            {line}");
+    }
+    let _ = writeln!(out, "{indent}        }})");
+    let _ = writeln!(out, "{indent}    }}");
     let _ = writeln!(out, "{indent}}}");
     out
+}
+
+/// The typed body written in the mapping table for the hand-written arm or
+/// the extra of `owner` (a kind, or a module's path) named `name`, if it has
+/// one.
+fn written_typed(owner: &str, name: &str) -> Option<Typed> {
+    let extra = mapping::EXTRA_METHODS.iter().find(|extra| extra.owner == owner && extra.name == name).map(|extra| extra.typed);
+    let hand = mapping::HAND_ARMS.iter().find(|entry| entry.kind == owner && entry.method == name).map(|entry| entry.typed);
+    let text = extra.or(hand)?;
+    let text = text.unwrap_or_else(|| panic!("the hand-written arm or the extra `{owner}.{name}` must have a typed body in the mapping table"));
+    Some(Typed::written(name, text))
+}
+
+/// The typed body of the method `method` of the kind `kind` in the guest's
+/// signature `sig`: the one the mapping table writes for a hand-written arm
+/// or an extra, or the method's planned one, its receiver's handle
+/// `receiver`.
+fn method_typed(kind: &'static KindRow, owner: &str, method: &Function, sig: &Sig, file: &str, receiver: &str) -> Typed {
+    if let Some(typed) = written_typed(kind.kind, &method.name) {
+        return typed;
+    }
+    assert!(
+        matches!(kind.receiver, mapping::Receiver::LentRef | mapping::Receiver::LentMut | mapping::Receiver::Boxed | mapping::Receiver::Cloned),
+        "the method `{owner}::{}` of the kind `{}` must have a hand-written arm with a typed body: the dispatcher generates no arm for its kind",
+        method.name,
+        kind.kind
+    );
+    let mode = method.receiver.as_deref().unwrap_or("&self");
+    let plan = rust_out::plan(Some(owner), method, file, &Target::Method { kind, receiver: mode });
+    Typed::planned(&plan, sig, receiver, &sig.name, &format!("{owner}::{}", method.name))
+}
+
+/// The typed body of the free function or constructor `function` of the
+/// module `module` (a constructor's name `Type::new`, its `owner` the type).
+fn module_typed(module: &Module, owner: Option<&str>, function: &Function, name: &str, sig: &Sig) -> Typed {
+    if let Some(typed) = written_typed(&module.path, name) {
+        return typed;
+    }
+    let path = format!("crate::api::{}::{name}", module.path.replace('/', "::"));
+    let plan = rust_out::plan(owner, function, &module.file, &Target::Path(path));
+    Typed::planned(&plan, sig, "", name, name)
 }
 
 /// The struct of a handle kind, its `JsonForm` and its methods.
@@ -763,8 +970,9 @@ fn handle_struct(surface: &Surface<'_>, module: &Module, item: &Item, indent: &s
         if method.is_constructor() {
             let sig = surface.sig(method, used);
             let function = format!("{name}::{}", method.name);
-            let request = format!("abi::call_module(\"{}\", \"{function}\", {})", module.path, sig.args(&function));
-            body.push(function_text(&sig, &method.doc, &request, None, "", &inner));
+            let request = format!("abi::call_module(\"{}\", \"{function}\", {})", module.path, sig.args());
+            let typed = module_typed(module, Some(name), method, &function, &sig);
+            body.push(function_text(&sig, &method.doc, &request, &typed, None, "", &inner));
             continue;
         }
         let extra = mapping::EXTRA_METHODS.iter().find(|extra| extra.owner == kind.kind && extra.name == method.name);
@@ -777,7 +985,9 @@ fn handle_struct(surface: &Surface<'_>, module: &Module, item: &Item, indent: &s
             }
             None => surface.sig(method, used),
         };
-        body.push(method_text(&sig, &method.doc, kind.rehearsable, &inner));
+        let receiver = if kind.rehearsable { "handle" } else { "self.handle" };
+        let typed = method_typed(kind, name, method, &sig, &module.file, receiver);
+        body.push(method_text(&sig, &method.doc, kind.rehearsable, &typed, &inner));
     }
     for extra in mapping::EXTRA_METHODS.iter().filter(|extra| extra.owner == kind.kind) {
         if methods(item).iter().any(|method| method.name == extra.name) {
@@ -797,7 +1007,8 @@ fn handle_struct(surface: &Surface<'_>, module: &Module, item: &Item, indent: &s
             let _ = writeln!(text, "{inner}}}");
             body.push(text);
         } else {
-            body.push(method_text(&sig, &doc_text, kind.rehearsable, &inner));
+            let typed = written_typed(kind.kind, extra.name).unwrap_or_else(|| panic!("the extra `{}.{}` must have a typed body", kind.kind, extra.name));
+            body.push(method_text(&sig, &doc_text, kind.rehearsable, &typed, &inner));
         }
     }
     if !body.is_empty() {
@@ -809,16 +1020,16 @@ fn handle_struct(surface: &Surface<'_>, module: &Module, item: &Item, indent: &s
     out
 }
 
-/// A forwarding method on `self.handle`.
-fn method_text(sig: &Sig, doc_text: &str, rehearsable: bool, indent: &str) -> String {
-    let args = sig.args(&sig.name);
+/// A forwarding method on `self.handle`, its typed body `typed`.
+fn method_text(sig: &Sig, doc_text: &str, rehearsable: bool, typed: &Typed, indent: &str) -> String {
+    let args = sig.args();
     if rehearsable {
         assert_eq!(sig.output, "Result<(), ExtError>", "a method of a rehearsable kind must answer nothing: `{}`", sig.name);
         let request = format!("abi::call(handle, \"{}\", {args})", sig.name);
-        return function_text(sig, doc_text, &request, Some("let Some(handle) = self.handle else { return Ok(()) };"), "", indent);
+        return function_text(sig, doc_text, &request, typed, Some("let Some(handle) = self.handle else { return Ok(()) };"), "", indent);
     }
     let request = format!("abi::call(self.handle, \"{}\", {args})", sig.name);
-    function_text(sig, doc_text, &request, None, "", indent)
+    function_text(sig, doc_text, &request, typed, None, "", indent)
 }
 
 /// An opaque type without a kind of its own: an empty enum holding its
@@ -833,9 +1044,10 @@ fn kindless(surface: &Surface<'_>, module: &Module, item: &Item, indent: &str, u
     for method in methods(item).iter().filter(|method| method.is_constructor() && !mapping::is_excluded(name, &method.name)) {
         let sig = surface.sig(method, used);
         let function = format!("{name}::{}", method.name);
-        let request = format!("abi::call_module(\"{}\", \"{function}\", {})", module.path, sig.args(&function));
+        let request = format!("abi::call_module(\"{}\", \"{function}\", {})", module.path, sig.args());
+        let typed = module_typed(module, Some(name), method, &function, &sig);
         let attrs = format!("{inner}#[allow(clippy::new_ret_no_self, reason = \"the type has no object of its own: its constructor answers one of another kind\")]\n");
-        body.push(function_text(&sig, &method.doc, &request, None, &attrs, &inner));
+        body.push(function_text(&sig, &method.doc, &request, &typed, None, &attrs, &inner));
     }
     if !body.is_empty() {
         out.push('\n');
@@ -859,8 +1071,9 @@ fn function_item(surface: &Surface<'_>, module: &Module, item: &Item, function: 
         }
         None => surface.sig(function, used),
     };
-    let request = format!("abi::call_module(\"{}\", \"{}\", {})", module.path, function.name, sig.args(&function.name));
-    function_text(&sig, &item.doc, &request, None, "", indent)
+    let request = format!("abi::call_module(\"{}\", \"{}\", {})", module.path, function.name, sig.args());
+    let typed = module_typed(module, None, function, &function.name, &sig);
+    function_text(&sig, &item.doc, &request, &typed, None, "", indent)
 }
 
 /// The counts of the output: its structs, the methods of its impl blocks

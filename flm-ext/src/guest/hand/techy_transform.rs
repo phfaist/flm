@@ -4,6 +4,12 @@
 use serde_json::Value;
 
 use super::{emit_from_value, emit_to_value};
+#[cfg(feature = "native")]
+use crate::adapter::handles::CallTable;
+#[cfg(feature = "native")]
+use crate::adapter::typed::IntoApi;
+#[cfg(feature = "native")]
+use crate::api;
 use crate::adapter::values::JsonForm;
 use crate::guest::lang::rewrites::userdefs::Staged;
 use crate::runtime::ExtError;
@@ -30,5 +36,19 @@ impl JsonForm for Restage {
 
     fn from_value(value: &Value) -> Result<Self, ExtError> {
         Ok(emit_from_value("a rewrite handler's answer", "descend", value)?.map_or(Restage::Descend, Restage::Emit))
+    }
+}
+
+/// The api's `Restage`, each staged node the entry of its handle; the host's
+/// `restage_from_value`.
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for Restage {
+    type Api = api::techy::transform::Restage;
+
+    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        Ok(match self {
+            Restage::Descend => api::techy::transform::Restage::Descend,
+            Restage::Emit(staged) => api::techy::transform::Restage::Emit(staged.into_api(table)?),
+        })
     }
 }

@@ -170,7 +170,6 @@ fn written_text<'t>(nodes: impl IntoIterator<Item = NodeRef<'t, Flm>>) -> String
 /// the template compiler reads back as FLM. The compiler makes the same
 /// typographic substitutions the block-structure pass makes, so `label=--` and
 /// `label={--}` both write a dash.
-// See decision rationale at [§flm-dd-dr:std-list-reading].
 fn template_text<'t>(nodes: impl IntoIterator<Item = NodeRef<'t, Flm>>) -> String {
     nodes
         .into_iter()

@@ -245,6 +245,13 @@ pub const SCRIPT_MATHJAX: &str = "flm.html.mathjax";
 pub enum TagRule {
     /// Always this tag.
     Fixed(&'static str),
+    /// By what the paragraph holds: `<p>` when everything inside it is
+    /// **phrasing content**, the only content HTML allows inside a `<p>`, and
+    /// a [`PARAGRAPH_FLOW_TAG`] (`<div>`) carrying the role
+    /// [`PARAGRAPH_ROLE`] when it holds **flow content**: an element written
+    /// with a tag at whose start an HTML parser closes an open `<p>`, such as
+    /// a `<div>`, a `<ul>`, a `<table>`, a `<pre>` or a heading.
+    ParagraphContent,
     /// The tag the render options map the heading kind's name to
     /// ([`HtmlRenderOptions::heading_tags`](super::HtmlRenderOptions::heading_tags)),
     /// else by the heading's level counted from the root heading level
@@ -292,6 +299,10 @@ impl TagRule {
     pub fn describe(self) -> String {
         match self {
             TagRule::Fixed(tag) => format!("`<{tag}>`"),
+            TagRule::ParagraphContent => format!(
+                "`<p>`; `<{PARAGRAPH_FLOW_TAG}>` with `role=\"{PARAGRAPH_ROLE}\"` when the \
+                 paragraph holds flow content"
+            ),
             TagRule::HeadingLevel => String::from(
                 "`<h1>`–`<h6>` by level counted from `root_heading_level`, `<h6>` five levels \
                  below it and deeper; a render option maps a heading kind to a tag of its own",
@@ -318,6 +329,16 @@ impl TagRule {
         }
     }
 }
+
+/// The tag of a `flm.pres.par` that holds flow content
+/// ([`TagRule::ParagraphContent`]): `div`, which HTML allows to hold anything.
+pub const PARAGRAPH_FLOW_TAG: &str = "div";
+
+/// The value of the `role` attribute of a paragraph written as a
+/// [`PARAGRAPH_FLOW_TAG`]: `paragraph`, the accessibility role of a paragraph,
+/// so that assistive technology reads the `<div>` as the paragraph it is. A
+/// paragraph written as a `<p>` carries no `role`, the tag saying as much.
+pub const PARAGRAPH_ROLE: &str = "paragraph";
 
 /// One row of [`BLOCK_TAGS`]: the tag a block of one role is written with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -595,7 +616,6 @@ const fn data(field: &'static str) -> Field {
 /// that a stylesheet selects a kind token the same way whichever field carried
 /// it; and a heading's `name` and `in_toc`, written as `data-flm-heading` and
 /// `data-flm-toc`, after what an author writes.
-// See decision rationale at [§flm-dd-dr:rend-html-role].
 const fn data_as(field: &'static str, stem: &'static str) -> Field {
     Field { field, written: Written::Data(stem) }
 }
@@ -641,7 +661,7 @@ const fn dropped(field: &'static str, why: &'static str) -> Field {
 pub static CONVENTIONS: &[Convention] = &[
     Convention {
         element: pres::PAR,
-        tag: TagRule::Fixed("p"),
+        tag: TagRule::ParagraphContent,
         fields: &[own("anchor", "id")],
         style: Some(STYLE_CORE),
     },
@@ -743,8 +763,7 @@ pub static CONVENTIONS: &[Convention] = &[
     Convention {
         element: pres::MATH_PASSTHROUGH,
         // One tag for both displays: a displayed formula can stand inside a
-        // paragraph, where HTML allows no block element. See decision
-        // rationale at [§flm-dd-dr:rend-html-math-embedding].
+        // paragraph, where HTML allows no block element.
         tag: TagRule::Fixed("span"),
         fields: &[data("display"), data("env")],
         style: Some(STYLE_MATH_PASSTHROUGH),
@@ -786,7 +805,9 @@ pub static CONVENTIONS: &[Convention] = &[
             own("srcset", "srcset"),
             style("width"),
             style("height"),
-            // See decision rationale at [§flm-dd-dr:rend-html-image-size].
+            // CSS cannot divide one length by another, so the image's proportions
+            // reach the stylesheet as a ratio of their own, which keeps them on a
+            // page narrower than the image.
             ratio("aspect_ratio", "width", "height"),
         ],
         style: Some(STYLE_CORE),

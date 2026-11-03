@@ -1,7 +1,10 @@
-//! The reading of package objects: the JSON an extension's `packages()`
-//! entry answers (one object per `ext.package(name, object)` call), read
-//! into [`PackageReport`]s, every problem found. Shared by the bindings: the
-//! shape is the prelude's and the guest client's alike.
+//! The reading of package objects: the JSON values an extension's
+//! `packages()` entry answers (one object per `ext.package(name, object)`
+//! call), read into [`PackageReport`]s, every problem found. Shared by the
+//! bindings: the shape is the prelude's and the guest client's alike.
+
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
+use std::fmt::Display;
 
 use serde_json::Value;
 
@@ -11,20 +14,16 @@ use crate::entry::{is_segment, UseEntry};
 use crate::source::ExtensionFiles;
 use crate::templates;
 
-/// The package objects of `define`'s answer `defined`, read into reports;
-/// every problem found.
+/// The package objects `items` of the answer of `packages`, read into
+/// reports; every problem found.
 pub(crate) fn read_packages(
     extension: &ExtensionIdentity,
-    defined: &str,
+    items: &[Value],
     files: &dyn ExtensionFiles,
 ) -> Result<Vec<PackageReport>, Vec<LoadError>> {
-    let stem = &extension.stem;
-    let items: Vec<Value> = serde_json::from_str(defined).map_err(|error| {
-        vec![LoadError::Load { detail: format!("the package objects of the extension `{stem}` cannot be read: {error}") }]
-    })?;
     let mut errors = Vec::new();
     let mut packages = Vec::new();
-    for item in &items {
+    for item in items {
         let mut problems = Vec::new();
         let report = read_package(extension, item, files, &mut problems);
         if problems.is_empty() {
@@ -33,6 +32,15 @@ pub(crate) fn read_packages(
         errors.extend(problems.into_iter().map(|detail| LoadError::Load { detail }));
     }
     if errors.is_empty() { Ok(packages) } else { Err(errors) }
+}
+
+/// The load's failure when the answer of `packages` that a text binding
+/// holds cannot be read as a list of package objects; `error` is the
+/// reading's.
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
+pub(crate) fn unreadable(extension: &ExtensionIdentity, error: impl Display) -> Vec<LoadError> {
+    let stem = &extension.stem;
+    vec![LoadError::Load { detail: format!("the package objects of the extension `{stem}` cannot be read: {error}") }]
 }
 
 /// One package object, read into a report; each problem a text in `problems`.

@@ -336,10 +336,10 @@ pub fn lower_value(
     value: &Arc<NodeTree<Flm>>,
 ) -> Result<LoweringOutcome, CatchUpError> {
     let caught = cx.resolve_value(value)?;
-    // The value is lowered as a tree of its own: its nodes answer the value's
-    // addresses from the first round on, and its scratch store stays the
-    // overlay of every read for all the rounds. See decision rationale at
-    // [§flm-dd-dr:rend-pieces-composer].
+    // The value is lowered as a tree of its own, since no node splices it in
+    // and lends its nodes an origin: its nodes answer the value's addresses
+    // from the first round on, and its scratch store stays the overlay of
+    // every read for all the rounds.
     let mut pass = Pass::new(cx, inputs, caught.id, caught.tree.root().id());
     pass.stores.push((caught.id, Arc::clone(&caught.tree), caught.scratch));
     let lowered = lower_rounds(&mut pass, inputs, &caught.tree);
@@ -559,8 +559,8 @@ pub fn read_verbatim_content<'t>(
     nodes: NodeSlice<'t, Flm>,
     lw: &mut dyn Lowerer,
 ) -> Result<VerbatimContent<'t>, LowerError> {
-    // Content that is not characters, its reading and its recovery: see
-    // decision rationale at [§flm-dd-dr:std-verbatim-not-characters].
+    // Content that is not characters is shown as its source spelling rather
+    // than dropped, so that the author sees what was passed there.
     if chars_at_lowering(nodes.iter())?.is_ok() {
         return Ok(VerbatimContent::Characters(nodes));
     }
@@ -1637,7 +1637,7 @@ impl<'r> Lowerer for Pass<'r> {
         // A value's results are read at that value's addresses only: a read
         // at a document address — a region of the document lowered inside a
         // value, in any round, which reads by the recorded origin — reads the
-        // run's store. See decision rationale at [§flm-dd-dr:rend-lower-region].
+        // run's store.
         let at = self.addr.map(|addr| addr.tree);
         for (id, _, scratch) in self.stores.iter().rev() {
             if Some(*id) != at {

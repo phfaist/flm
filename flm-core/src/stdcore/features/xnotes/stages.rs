@@ -298,7 +298,6 @@ impl Stage for Collect {
     /// every plan that schedules this stage. It is made only where the
     /// numbering feature is registered, because the construction of a plan
     /// fails for a stage that reads a table no feature declares.
-    // See decision rationale at [§flm-dd-dr:std-xnote-collect].
     fn needs(&self, cx: &PlanCx<'_>) -> Needs {
         let needs = Needs::new().reads(REFPOINTS);
         if cx.has_feature(numbering::FEATURE) { needs.reads(COUNTERS) } else { needs }
@@ -322,8 +321,9 @@ impl Stage for Collect {
             .services_named::<XnoteKind>(KINDS_SLOT)
             .map(|kind| (kind.name.as_str(), (kind, mark_point_kind(kind.name.as_str()))))
             .collect();
-        // Every kind of the slot has an entry, empty where no xnote is of it.
-        // See decision rationale at [§flm-dd-dr:std-xnote-every-kind].
+        // Every kind of the slot has an entry, empty where no xnote is of it:
+        // a reader tells "no xnote of this kind" from "no such kind" by the
+        // slot, and a kind's list finds its entry with no special case.
         let mut xnotes = Xnotes {
             by_kind: kinds.keys().map(|name| (Name::from(*name), Vec::new())).collect(),
             fixed_marks: self.marks.compiled(),
@@ -337,14 +337,17 @@ impl Stage for Collect {
             let Some(index) = record.id.index.checked_add(1) else { continue };
             let mark = PointId { addr: record.id.addr, index };
             // A point of a kind's name with no mark point after it is no
-            // xnote: `ref_points` answers the two together.
-            // See decision rationale at [§flm-dd-dr:std-xnote-pairing].
+            // xnote: `ref_points` answers the two together, and reading them
+            // back as a pair checks that the point is an xnote without reading
+            // its element.
             if points.point(mark).is_none_or(|next| next.point.kind != *mark_kind) {
                 continue;
             }
             let name = kind.name.as_str();
             let nth = &mut met.entry((record.id.addr, name)).or_insert_with(|| (0, record.span.clone())).0;
-            // See decision rationale at [§flm-dd-dr:std-xnote-several].
+            // The node's n-th xnote of a kind takes the node's n-th content of
+            // that kind; the pairing is made once, here, and stored with the
+            // xnote, so that no reader repeats it.
             let content = cx
                 .frozen_tree(record.id.addr.tree)
                 .and_then(|tree| tree.get(record.id.addr.node))
@@ -482,8 +485,9 @@ impl ListBuilder {
             nodes.push(node);
         }
         // One pointer per record, naming the region the record pairs it
-        // with; nothing of the content is copied.
-        // See decision rationale at [§flm-dd-dr:rend-lower-region].
+        // with; nothing of the content is copied, so the content is lowered at
+        // its addresses in the document and reads what the stages wrote for it
+        // there (its numbers, its anchors), which a copy's nodes would not.
         let pointers: Vec<Option<SynthesizedPiece<'_, '_>>> = records
             .iter()
             .zip(&nodes)

@@ -732,14 +732,13 @@ impl Stage for ResolveDefinitionsStage {
         let registry = cx.registry();
         // Of the registrations of one identifier, the one of the feature
         // placed last is the definition (of one feature's, its first), at its
-        // own place: two features asking for the same stylesheet ask for it
-        // once, and the two rosters are walked one after the other because
-        // the registry keeps them apart and the page writes them in two
-        // places. The choice therefore runs within a kind: where one
+        // own place: the order of the features, which the user states, decides
+        // which definition applies, and two features asking for the same
+        // stylesheet ask for it once. The two rosters are walked one after the
+        // other because the registry keeps them apart and the page writes them
+        // in two places. The choice therefore runs within a kind: where one
         // identifier names a style definition and a script definition, the
         // style one is the definition, whichever was registered last.
-        // See decision rationale at [§flm-dd-dr:rend-html-definition-delivery]
-        // and [§flm-dd-dr:feat-order].
         let mut declared: BTreeMap<&str, (DefinitionKind, &FeatureName, &Vec<DefContent>)> =
             BTreeMap::new();
         let mut order: Vec<&str> = Vec::new();

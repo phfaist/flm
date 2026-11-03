@@ -1,6 +1,5 @@
-//! The data-valued slots (plan E4, section 5.3): `peer_slot` and
-//! `contribute_to` with a value written as data (`Contributed::Data`, E6's
-//! route), typed at the call by the slot's name. That a counter numbers a point, that a style's words appear
+//! The data-valued slots: `peer_slot` and `contribute_to` with a value
+//! written as data (`Contributed::Data`), typed at the call by the slot's name. That a counter numbers a point, that a style's words appear
 //! in a `\ref` and that a parent set resolves a `Within.parent_set` is shown
 //! end to end in `tests/numbering.rs`; here, each reader's value as the
 //! registry holds it, the preamble piece in the style file, the package
@@ -129,7 +128,7 @@ fn a_value_named_outside_the_stem_is_refused() {
 }
 
 /// A slot outside the table of standard data-valued slots takes data as it
-/// is (E6's route, the merge's join): a standard slot whose values are not
+/// is: a standard slot whose values are not
 /// data then fails the build with `flm-core`'s type check.
 #[test]
 fn data_for_a_standard_slot_outside_the_table_fails_the_build_with_the_two_types() {
@@ -206,7 +205,7 @@ fn peer_slot_from_a_finalizer_is_contribution_after_assembly() {
 
 #[test]
 fn a_finalizer_and_a_collection_member_through_the_dispatcher() {
-    // S13: the arms `finalizer` and `collection_member`, driven through the
+    // The arms `finalizer` and `collection_member`, driven through the
     // JSON double; the finalizer declares a table in the second round.
     let package = common::json_double::JsonDouble::new("ex").feature("late", |js, b| {
         js.call(b, "capability", json!(["ex.counted", "A capability of the extension.", null]))?;
@@ -229,7 +228,7 @@ fn a_finalizer_and_a_collection_member_through_the_dispatcher() {
 
 #[test]
 fn contribute_to_piece_id_and_package_id_through_the_dispatcher() {
-    // S18: the generated arms `contribute_to`, `piece_id` and `package_id`,
+    // The generated arms `contribute_to`, `piece_id` and `package_id`,
     // driven through the JSON double.
     use common::json_double::{module, JsonDouble};
     let ids = Arc::new(std::sync::Mutex::new(Vec::new()));

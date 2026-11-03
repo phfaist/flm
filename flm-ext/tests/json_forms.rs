@@ -165,6 +165,7 @@ fn the_values_a_node_answers_round_trip() {
     round_trips::<BlockRole>(&[
         json!("block"),
         json!({ "inline": { "absorb_before": false, "absorb_after": true } }),
+        json!("displayed"),
         json!({ "block-decorator": "trails" }),
     ]);
 }

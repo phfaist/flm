@@ -1,11 +1,8 @@
-//! The exports of the generated prelude (step E2b, the plan's section
-//! 11.3): every API module imported from a test package, its exports listed
-//! and compared with the inventory golden (each export is an item of the
-//! module's Rust source, or a submodule of the surface exported as a
-//! namespace) and with the exports of the hand-written stubs the
-//! generated ones replaced (the same names, but for the differences the
-//! plan's section 5.2 allows: the empty class `Lower` is gone, and the new
-//! module `flm:techy/error` exports `Severity`).
+//! The exports of the generated prelude: every API module imported from a
+//! test package, its exports listed and compared with the inventory golden
+//! (each export is an item of the module's Rust source, or a submodule of
+//! the surface exported as a namespace) and with the exports listed below,
+//! module by module.
 
 #![cfg(feature = "quickjs")]
 
@@ -17,8 +14,7 @@ use serde_json::Value;
 /// The inventory golden, the surface as the generator read it.
 const INVENTORY: &str = include_str!("goldens/api_surface/inventory.json");
 
-/// The exports of the hand-written stubs before E2b, by module (`flm:` left
-/// out), with the allowed differences applied.
+/// The exports of each module (`flm:` left out), listed by hand.
 const EXPECTED: &[(&str, &[&str])] = &[
     ("core/artifact", &["media_type_of", "Artifact", "ArtifactId"]),
     ("core/data/store", &["StageOut", "TablePiece"]),
@@ -36,10 +32,11 @@ const EXPECTED: &[(&str, &[&str])] = &[
     ),
     ("core/run", &["StageCx", "RewriteCx"]),
     ("core/services", &["Arity"]),
+    // `ReadError` is a type alone: `flm.d.ts` declares it, and the module exports nothing.
+    ("core/settings", &[]),
     ("core/stage", &["StageDecl", "Needs", "Effect", "Scope", "Severity", "TreesTable", "RewriteDecl"]),
     ("host", &["HostService", "FilesScope", "Files"]),
-    // WP-4a: the submodules `mint` and `text` as namespaces (and, since the
-    // merge with E6, `structural`).
+    // The submodules `mint`, `structural` and `text`, as namespaces.
     ("lang", &["BuiltLang", "FlmDiagnostics", "mint", "structural", "text"]),
     (
         "lang/mint",
@@ -51,10 +48,12 @@ const EXPECTED: &[(&str, &[&str])] = &[
         &[
             "DefinitionKind", "DefinitionModes", "ExpandPolicy", "Definition", "Expansion", "UserDefinition", "ModeVariant", "CompiledTemplate",
             "PlaceholderBindings", "DefinitionBindings", "Staged", "ExpandCx", "Expander",
-            // WP-3: the templates a handler compiles.
+            // The templates a handler compiles.
             "TemplateLanguage", "ValueBindings", "compile_template_with", "instantiate",
-            // WP-4b: the class of a template specification.
+            // The class of a template specification.
             "TemplateSpec",
+            // The values of the extra placeholders a hook computes.
+            "ExtraValues",
         ],
     ),
     (
@@ -62,6 +61,8 @@ const EXPECTED: &[(&str, &[&str])] = &[
         &[
             "TEXT", "COMMENT", "CONTAINER", "GROUP", "MATH", "VERBATIM", "OPAQUE_WRAPPER", "PARAGRAPH", "PARBREAK", "PLACEHOLDER",
             "UNKNOWN_MACRO", "UNKNOWN_ENVIRONMENT", "NAMES",
+            // The name of the language's field element.
+            "FIELD",
         ],
     ),
     ("lang/text", &["chars_text", "read_chars"]),
@@ -73,7 +74,7 @@ const EXPECTED: &[(&str, &[&str])] = &[
         "stdcore/backends/latex",
         &[
             "ALL", "ARG_SLOT", "BEGIN_SLOT", "DEFINITION", "END_SLOT", "ENVIRONMENT", "LatexArgShape", "MACRO", "RAW", "RECOMPOSED_BACKEND",
-            // WP-4a: the payloads' classes and the two slots' declarations.
+            // The payloads' classes and the two slots' declarations.
             "LatexDefinitionKind", "LatexMacroPayload", "LatexEnvironmentPayload", "LatexRawPayload", "LatexDefinitionPayload",
             "LatexPreambleDef", "LatexPackageDef", "packages", "preamble",
         ],
@@ -117,7 +118,7 @@ const EXPECTED: &[(&str, &[&str])] = &[
         "stdcore/features/numbering",
         &[
             "COUNTERS", "COUNTERS_SLOT", "STYLES_SLOT", "WITHIN_JOINERS_SLOT", "NUMBER_WRITERS_SLOT", "PARENT_SETS_SLOT", "Counters",
-            // WP-4a: the declarations' classes.
+            // The declarations' classes.
             "CounterDecl", "CounterStyleDecl", "ParentSetDecl", "Within", "PluralWords", "PrefixWords", "Delimiters", "NumberTemplate",
             "FormatOptions",
         ],
@@ -133,7 +134,7 @@ const EXPECTED: &[(&str, &[&str])] = &[
     ("stdcore/features/userdefs", &["element_name_under", "expand_in_tree_rule_for", "write_math_run", "LoweringRule"]),
     ("techy/error", &["Severity"]),
     ("techy/extract", &["parse_keyval_drop_annotations", "KeyVals", "KeyValEntry"]),
-    ("techy/node", &["Node", "NodeKindName"]),
+    ("techy/node", &["Node", "NodeKindName", "Tree"]),
     ("techy/transform", &["Staged", "Restage", "Restager", "RestagedArgument", "RestagedSlot"]),
 ];
 

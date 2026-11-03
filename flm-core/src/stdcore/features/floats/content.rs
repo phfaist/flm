@@ -217,8 +217,7 @@ impl Finalizer for CollectHandlers {
             }
         }
         // The rule keeps the shared values themselves: it has no access to the
-        // registry's services while it runs. See decision rationale at
-        // [§flm-dd-dr:std-floats-slots].
+        // registry's services while it runs.
         let mut by_name: BTreeMap<String, Arc<dyn FloatContentHandler>> = BTreeMap::new();
         for handler in services.shared_named::<dyn FloatContentHandler>(CONTENT_SLOT) {
             let name = handler.name().to_string();

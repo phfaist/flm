@@ -28,7 +28,8 @@ use flm_core::techy::latexlike::Mode;
 
 use crate::adapter::durable::{DurableTable, DurableTemplateFacade, DurableToken};
 use crate::api::core::data::table::TableValue;
-use crate::api::techy::node::Node;
+use crate::api::lang::rewrites::userdefs::PlaceholderBindings;
+use crate::api::techy::node::{Node, Tree};
 use crate::runtime::ExtError;
 
 /// The proof that a caller is inside this crate: the argument of every
@@ -45,8 +46,7 @@ impl Token {
 /// The seal of a façade trait that carries no accessor.
 pub trait Sealed {}
 
-/// The seal of [`Node`](crate::api::techy::node::Node), with its two
-/// accessors (plan A, A16).
+/// The seal of [`Node`], with its two accessors.
 pub trait NodeCore<'t> {
     /// The `flm-core` node behind the façade, borrowing the façade: a façade
     /// over a tree it owns (an `Arc` or an `Rc`) can lend its node only for as
@@ -68,11 +68,19 @@ pub trait NodeCore<'t> {
     /// the function found in the tree of a node it was given. `id` must be a
     /// node of that tree.
     fn relative(&self, token: Token, id: NodeId) -> Box<dyn Node<'t> + 't>;
+}
 
-    /// The tree of the node, when the façade shares it through an `Arc` (a
-    /// frozen tree, a synthesized value): the mirror hands such a tree back to
-    /// `flm-core` as the same value, never a copy.
-    fn shared_tree(&self, token: Token) -> Option<Arc<NodeTree<Flm>>>;
+/// The seal of [`Tree`], with its two accessors.
+pub trait TreeCore {
+    /// The `flm-core` tree behind the façade, shared: the mirror hands it back
+    /// to `flm-core` wherever a function takes a tree, as the same value,
+    /// never a copy.
+    fn shared(&self, token: Token) -> Arc<NodeTree<Flm>>;
+
+    /// An owned copy of the façade, for whoever must keep the tree beyond one
+    /// borrow: the dispatcher, copying a tree out of its table as it copies a
+    /// node. The façade holds an `Arc`, so the copy is cheap.
+    fn clone_box(&self, token: Token) -> Box<dyn Tree>;
 }
 
 /// The seal of [`StageCx`](crate::api::core::run::StageCx), with its
@@ -106,28 +114,41 @@ pub trait ModeVariantCore {
 
     /// An owned copy of what the façade holds, the definition's `Arc` and the
     /// mode: what the façade of a use site's bindings keeps from the variant
-    /// it is built for (plan A, A23).
+    /// it is built for.
     fn definition_and_mode(&self, token: Token) -> (Arc<CoreUserDefinition>, Mode);
 }
 
 /// The seal of
 /// [`CompiledTemplate`](crate::api::lang::rewrites::userdefs::CompiledTemplate),
-/// with its accessor.
+/// with its accessors.
 pub trait CompiledTemplateCore {
     /// Calls `f` with the `flm-core` template behind the façade.
     fn with_core(&self, token: Token, f: &mut dyn FnMut(&CoreCompiledTemplate));
+
+    /// The `flm-core` template behind the façade, shared: what the values of
+    /// [`ExtraValues`](crate::api::lang::rewrites::userdefs::ExtraValues) hold
+    /// for a template, whichever façade gave it.
+    fn shared(&self, token: Token) -> Arc<CoreCompiledTemplate>;
 }
 
-/// The seal of
-/// [`PlaceholderBindings`](crate::api::lang::rewrites::userdefs::PlaceholderBindings),
-/// with its accessor.
+/// The seal of [`PlaceholderBindings`], with its accessor.
 pub trait PlaceholderBindingsCore {
     /// Calls `f` with the `flm-core` bindings behind the façade.
     fn with_core(&self, token: Token, f: &mut dyn FnMut(&dyn CorePlaceholderBindings));
+
+    /// An owned copy of the façade, for as long as what it holds lives: the
+    /// base that the façade of
+    /// [`ExtraValues::over`](crate::api::lang::rewrites::userdefs::ExtraValues::over)
+    /// keeps, so that the dispatcher can lend that façade into the call's
+    /// table beside its base. Every façade holds owned values or `Arc`s (a
+    /// use site's bindings own a copy of the site's node), so the copy is
+    /// cheap.
+    fn clone_box<'a>(&self, token: Token) -> Box<dyn PlaceholderBindings + 'a>
+    where
+        Self: 'a;
 }
 
-/// The seal of [`LowerCx`](crate::api::core::lowering::LowerCx), with its
-/// accessor.
+/// The seal of [`LowerCx`], with its accessor.
 pub trait LowerCxCore {
     /// Calls `f` with the `flm-core` context behind the façade.
     fn with_core(&mut self, token: Token, f: &mut dyn FnMut(&mut CoreLowerCx<'_>));
@@ -139,7 +160,7 @@ pub trait LowerCxCore {
 pub trait LowererCore: DurableOwner {
     /// The table `name`, as [`Lowerer::get`](crate::api::core::lowering::Lowerer::get)
     /// answers it, but owning what it holds (an extension's own table as a
-    /// copy of its items, a rewrite's trees as their shared roots), so that the
+    /// copy of its items, a rewrite's trees as shared trees), so that the
     /// dispatcher can lend it into the call's table beside the lowerer it was
     /// asked on.
     ///

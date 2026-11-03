@@ -13,7 +13,7 @@ use flm_core::core::registry::FlmRegistry;
 use flm_core::dump::session::PayloadReaders;
 use flm_core::model::addr::TreeId;
 use flm_core::stdcore::CHECK_WORKFLOW;
-use flm_core::lang::rewrites::blocks::{BlocksConfig, structure};
+use flm_core::lang::rewrites::blocks::{BlocksConfig, check_block_contract, structure};
 use flm_core::lang::{Flm, FlmDiagnostics, FlmGroupType, FlmOrigin, FlmSource, ParseOptions, parse_fragment};
 use flm_core::model::aspects::{BlockRole, block_role_of};
 use flm_core::model::doc::{Fragment, FragmentLayout};
@@ -204,6 +204,33 @@ fn a_list_in_a_passage_is_a_block_piece_between_two_inline_pieces() {
     assert_eq!(top[2], "P[phf#0.2/3(\" here \")]");
     let block_piece = tree.root().child(1).expect("a second block");
     assert_eq!(block_role_of(&block_piece), BlockRole::Block);
+}
+
+#[test]
+fn an_annotation_over_a_display_math_environment_is_not_cut() {
+    // A displayed formula is inline content of its paragraph, not a block: the
+    // annotation spanning it is one span, and the whitespace beside the
+    // formula is removed.
+    for (text, expected) in [
+        (
+            "see \\phf{this \\begin{equation}x\\end{equation} here} end",
+            "P[\"see \" phf(\"this\" equation(\"x\") \"here\") \" end\"]",
+        ),
+        (
+            "see \\phf this \\begin{equation*}x\\end{equation*} here\\endphf end",
+            "P[\"see \" phf(\"this\" equation*(\"x\") \"here\") \"end\"]",
+        ),
+        (
+            "see \\phf[this \\[x\\] here] end",
+            "P[\"see \" phf(\"this\" {\"x\"} \"here\") \" end\"]",
+        ),
+    ] {
+        let (tree, reports) = structured(text);
+        assert_eq!(reports, Vec::<String>::new(), "{text}");
+        assert_eq!(records(&tree), Vec::<AnnotationPiece>::new(), "{text}");
+        assert_eq!(top(&tree), [expected], "{text}");
+        assert_eq!(check_block_contract(&tree), Vec::new(), "{text}");
+    }
 }
 
 #[test]

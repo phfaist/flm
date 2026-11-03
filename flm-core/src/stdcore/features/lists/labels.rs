@@ -114,7 +114,6 @@ fn at_depth(templates: &[CompiledLabel], depth: usize) -> Option<&CompiledLabel>
 /// instead. An item's reference point has no language to compile the
 /// template against, and uses this test to decide whether the label beside
 /// its item is the list's own.
-// See decision rationale at [§flm-dd-dr:std-list-item-reference].
 pub(crate) fn holds_placeholder(text: &str) -> bool {
     let mut chars = text.chars();
     while let Some(ch) = chars.next() {
@@ -209,7 +208,6 @@ impl CompileLabels {
     /// templates are compiled too, to be checked. Returns the error of the
     /// first template that does not compile, or of a label template of an
     /// unnumbered list kind that writes a number format.
-    // See decision rationale at [§flm-dd-dr:std-item-labels].
     fn compile_kinds(
         &self,
         lang: &BuiltLang,

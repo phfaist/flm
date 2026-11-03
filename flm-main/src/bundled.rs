@@ -118,7 +118,6 @@ impl BundledSource {
     /// the locator `written`: its manifest, the one of its WebAssembly form, given to the
     /// engine `native` in place of the engine `wasm`, without the module.
     fn compiled_in(&self, written: &str, extension: &'static NativeExtension) -> Result<FoundExtension, SourceError> {
-        // See decision rationale at [§flm-dd-dr:ext-bundled]
         let identity = format!("bundled:rust/{}", extension.stem);
         let (mut manifest, place_of) = self.manifests.parse(written, extension.stem, &identity, extension.manifest)?;
         // A block that is not a map is left as written, for the loader to report.

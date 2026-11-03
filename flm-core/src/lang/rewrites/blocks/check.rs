@@ -83,9 +83,14 @@
 //! - **Paragraphs and content regions.** No paragraph-break marker remains
 //!   outside an opaque region. A paragraph has empty delimiters and holds
 //!   content (something other than comments and whitespace). No block-level
-//!   node is inside a paragraph. A [content region](super) (a run of sibling
-//!   nodes laid out together) laid out as blocks holds nothing inline, only paragraphs, block-level nodes
-//!   and comments. A content region is laid out as blocks when it holds a
+//!   node is inside a paragraph. A displayed item, a node of block role
+//!   [`Displayed`](crate::model::aspects::BlockRole::Displayed), is inline
+//!   content: it may stand in a paragraph and wherever content is laid out
+//!   inline. What it holds is checked as for any callable, by the layouts of
+//!   its own arguments and body. A [content region](super) (a run of sibling
+//!   nodes laid out together) laid out as blocks holds nothing inline, a
+//!   displayed item included, only paragraphs, block-level nodes and
+//!   comments. A content region is laid out as blocks when it holds a
 //!   paragraph; when it is a body that its declaration lays out as blocks
 //!   (declared so, or following the block role `Block` of its element under
 //!   the default [`FromRole`](crate::lang::mint::BodyLayout::FromRole)), even
@@ -107,9 +112,12 @@
 //!   whitespace: the text at its edges neither starts nor ends with whitespace,
 //!   and no node at its edges is a node whose element carries the
 //!   [`Whitespace`](crate::model::aspects::Whitespace) aspect (such as `~`);
-//!   and no two text nodes are adjacent siblings. The typographic
-//!   substitutions are not checked, because the options that decide them are
-//!   not recorded in the tree.
+//!   no whitespace stands beside a displayed item, wherever the item stands:
+//!   looking past comments, the text before it does not end with whitespace,
+//!   the text after it does not start with whitespace, and the node on either
+//!   side is not a whitespace node; and no two text nodes are adjacent
+//!   siblings. The typographic substitutions are not checked, because the
+//!   options that decide them are not recorded in the tree.
 //! - **Source maps are consistent.** A source map is attached to a text node
 //!   only, and its pieces cover exactly that node's text.
 //!
@@ -267,8 +275,8 @@ pub enum ContractViolationKind {
     },
     /// A [content region](super) laid out as blocks (one holding a paragraph, or a body
     /// or an argument that its declaration lays out as blocks) also holds
-    /// something inline: a text node, a node of inline or decorator role, a
-    /// `{…}` group.
+    /// something inline: a text node, a node of inline, displayed or decorator
+    /// role, a `{…}` group.
     InlineInBlocksRegion {
         /// The name of the node's element.
         element: ElementName,
@@ -301,6 +309,16 @@ pub enum ContractViolationKind {
     /// is a node whose element carries the
     /// [`Whitespace`](crate::model::aspects::Whitespace) aspect.
     ParagraphEdgeNotTrimmed,
+    /// Whitespace stands beside a node of block role
+    /// [`Displayed`](BlockRole::Displayed), looking past comments: the text
+    /// before the node ends with whitespace, the text after it starts with
+    /// whitespace, or the node before or after it is a node whose element
+    /// carries the [`Whitespace`](crate::model::aspects::Whitespace) aspect.
+    /// The violation concerns that text or whitespace node.
+    WhitespaceBesideDisplayed {
+        /// The name of the displayed node's element.
+        element: ElementName,
+    },
     /// Two text nodes outside an opaque region are adjacent siblings.
     AdjacentText,
     /// The pieces of a text node's source map do not cover its text exactly.
@@ -341,6 +359,7 @@ impl ContractViolationKind {
             ContractViolationKind::TrailsNotLast { .. } => "TrailsNotLast",
             ContractViolationKind::WhitespaceNotCollapsed => "WhitespaceNotCollapsed",
             ContractViolationKind::ParagraphEdgeNotTrimmed => "ParagraphEdgeNotTrimmed",
+            ContractViolationKind::WhitespaceBesideDisplayed { .. } => "WhitespaceBesideDisplayed",
             ContractViolationKind::AdjacentText => "AdjacentText",
             ContractViolationKind::SourceMapDoesNotTile { .. } => "SourceMapDoesNotTile",
             ContractViolationKind::SourceMapOnNonText => "SourceMapOnNonText",
@@ -447,6 +466,12 @@ impl fmt::Display for ContractViolationKind {
             }
             ContractViolationKind::ParagraphEdgeNotTrimmed => {
                 write!(f, "a paragraph begins or ends with whitespace")
+            }
+            ContractViolationKind::WhitespaceBesideDisplayed { element } => {
+                write!(
+                    f,
+                    "the displayed item ‘{element}’ must have no whitespace beside it"
+                )
             }
             ContractViolationKind::AdjacentText => write!(f, "two text nodes follow each other without a node between them"),
             ContractViolationKind::SourceMapDoesNotTile { mapped, text_len } => {
@@ -874,13 +899,13 @@ pub fn check_block_contract(tree: &NodeTree<Flm>) -> Vec<ContractViolation> {
         if node.is_callable() {
             check_callable_regions(&node, &facts, &mut out);
         } else if node.group_type() == Some(FlmGroupType::Paragraph) {
-            check_paragraph(&node, &mut out);
+            check_paragraph(&node, &facts, &mut out);
         } else if node.group_type() == Some(FlmGroupType::Content) {
             if !facts.is_content_parent(&node) {
-                check_inline_container(&node, element, &mut out);
+                check_inline_container(&node, element, &facts, &mut out);
             }
         } else if node.is_list() && !facts.is_content_parent(&node) {
-            check_list(&node, &mut out);
+            check_list(&node, &facts, &mut out);
         }
         // Text is final.
         if is_resolved_text(&node, &facts) {
@@ -927,8 +952,13 @@ pub fn check_block_contract(tree: &NodeTree<Flm>) -> Vec<ContractViolation> {
     out
 }
 
-/// The checks on one paragraph: delimiters, content, block roles, edges.
-fn check_paragraph(paragraph: &NodeRef<'_, Flm>, out: &mut Vec<ContractViolation>) {
+/// The checks on one paragraph: delimiters, content, block roles, the
+/// whitespace beside its displayed items, edges.
+fn check_paragraph(
+    paragraph: &NodeRef<'_, Flm>,
+    facts: &Facts,
+    out: &mut Vec<ContractViolation>,
+) {
     if let Some((open, close)) = paragraph.group_delimiters() {
         if !open.is_empty() || !close.is_empty() {
             let kind = ContractViolationKind::ParagraphDelimiters {
@@ -972,6 +1002,7 @@ fn check_paragraph(paragraph: &NodeRef<'_, Flm>, out: &mut Vec<ContractViolation
                     out.push(ContractViolation::at(child, kind));
                 }
             }
+            BlockRole::Displayed => check_beside_displayed(&children, index, facts, out),
             BlockRole::BlockDecorator(Placement::Free) | BlockRole::Inline(_) => {}
         }
     }
@@ -1051,9 +1082,10 @@ fn check_callable_regions(
 
 /// Checks the content of one of `node`'s arguments or node slots (techy's
 /// `ParsedSlot`, the parts of its content outside the arguments) against the rule of
-/// `layout`: nothing inline when laid out as blocks, no paragraph when laid
-/// out inline, nothing checked when opaque. Children inside an opaque region
-/// are skipped regardless of the layout.
+/// `layout`: nothing inline when laid out as blocks; no paragraph, and no
+/// whitespace beside a displayed item, when laid out inline; nothing checked
+/// when opaque. Children inside an opaque region are skipped regardless of
+/// the layout.
 fn check_region<'t>(
     node: &NodeRef<'t, Flm>,
     content: impl Iterator<Item = NodeRef<'t, Flm>>,
@@ -1061,62 +1093,121 @@ fn check_region<'t>(
     facts: &Facts,
     out: &mut Vec<ContractViolation>,
 ) {
-    for child in content.filter(|child| !facts.opaque(child)) {
+    let content: Vec<NodeRef<'t, Flm>> = content.collect();
+    for (index, child) in content.iter().enumerate() {
+        if facts.opaque(child) {
+            continue;
+        }
         match layout {
-            Region::Blocks if !is_block_child(&child) => {
+            Region::Blocks if !is_block_child(child) => {
                 let kind = ContractViolationKind::InlineInBlocksRegion {
-                    element: element_of(&child).name.clone(),
+                    element: element_of(child).name.clone(),
                 };
-                out.push(ContractViolation::at(&child, kind));
+                out.push(ContractViolation::at(child, kind));
             }
-            Region::Inline if is_paragraph(&child) => {
+            Region::Inline if is_paragraph(child) => {
                 let kind = ContractViolationKind::ParagraphInInlineContainer {
                     element: element_of(node).name.clone(),
                 };
-                out.push(ContractViolation::at(&child, kind));
+                out.push(ContractViolation::at(child, kind));
+            }
+            Region::Inline if is_displayed(child) => {
+                check_beside_displayed(&content, index, facts, out);
             }
             Region::Blocks | Region::Inline | Region::Raw(_) => {}
         }
     }
 }
 
-/// The check on a `{…}` group, whose content is inline: no paragraph among its
-/// children.
+/// The checks on a `{…}` group, whose content is inline: no paragraph among
+/// its children, and no whitespace beside a displayed item.
 fn check_inline_container(
     group: &NodeRef<'_, Flm>,
     element: &ElementSpec,
+    facts: &Facts,
     out: &mut Vec<ContractViolation>,
 ) {
-    for child in group.children().iter() {
-        if is_paragraph(&child) {
+    let children: Vec<NodeRef<'_, Flm>> = group.children().iter().collect();
+    for (index, child) in children.iter().enumerate() {
+        if is_paragraph(child) {
             let kind = ContractViolationKind::ParagraphInInlineContainer {
                 element: element.name.clone(),
             };
-            out.push(ContractViolation::at(&child, kind));
+            out.push(ContractViolation::at(child, kind));
+        } else if is_displayed(child) {
+            check_beside_displayed(&children, index, facts, out);
         }
     }
 }
 
-/// The check on a container whose layout the tree does not record (the root, a
-/// container a hook built): when it holds a paragraph, it is laid out as
-/// blocks, and then it must hold nothing inline.
-fn check_list(list: &NodeRef<'_, Flm>, out: &mut Vec<ContractViolation>) {
+/// The checks on a container whose layout the tree does not record (the root,
+/// a container a hook built): when it holds a paragraph, it is laid out as
+/// blocks, and then it must hold nothing inline; otherwise no whitespace
+/// stands beside a displayed item among its children.
+fn check_list(list: &NodeRef<'_, Flm>, facts: &Facts, out: &mut Vec<ContractViolation>) {
     let children: Vec<NodeRef<'_, Flm>> = list.children().iter().collect();
-    if !children.iter().any(is_paragraph) {
-        return;
-    }
-    for child in &children {
-        if !is_block_child(child) {
+    let blocks = children.iter().any(is_paragraph);
+    for (index, child) in children.iter().enumerate() {
+        if blocks && !is_block_child(child) {
             let kind = ContractViolationKind::InlineInBlocksRegion {
                 element: element_of(child).name.clone(),
             };
             out.push(ContractViolation::at(child, kind));
+        } else if !blocks && is_displayed(child) {
+            check_beside_displayed(&children, index, facts, out);
+        }
+    }
+}
+
+/// The check beside the displayed item `run[index]`, a node of block role
+/// [`Displayed`](BlockRole::Displayed) among the sibling content nodes `run`:
+/// the nearest node on each side, looking past comments, is neither text
+/// with whitespace on the side facing the item nor a whitespace node. A
+/// violation is placed at that text or whitespace node. A neighbor inside an
+/// opaque region is exempt, as it is from every text rule.
+fn check_beside_displayed(
+    run: &[NodeRef<'_, Flm>],
+    index: usize,
+    facts: &Facts,
+    out: &mut Vec<ContractViolation>,
+) {
+    let before = run[..index]
+        .iter()
+        .rev()
+        .find(|node| !node.is_comment())
+        .filter(|node| {
+            is_whitespace_of(node)
+                || node
+                    .chars()
+                    .is_some_and(|text| text.bytes().next_back().is_some_and(is_space_byte))
+        });
+    let after = run[index + 1..]
+        .iter()
+        .find(|node| !node.is_comment())
+        .filter(|node| {
+            is_whitespace_of(node)
+                || node
+                    .chars()
+                    .is_some_and(|text| text.bytes().next().is_some_and(is_space_byte))
+        });
+    for neighbor in before.into_iter().chain(after) {
+        if !facts.opaque(neighbor) {
+            let kind = ContractViolationKind::WhitespaceBesideDisplayed {
+                element: element_of(&run[index]).name.clone(),
+            };
+            out.push(ContractViolation::at(neighbor, kind));
         }
     }
 }
 
 fn is_paragraph(node: &NodeRef<'_, Flm>) -> bool {
     node.group_type() == Some(FlmGroupType::Paragraph)
+}
+
+/// Whether a node is a displayed item: a node of block role
+/// [`Displayed`](BlockRole::Displayed).
+fn is_displayed(node: &NodeRef<'_, Flm>) -> bool {
+    block_role_of(node) == BlockRole::Displayed
 }
 
 /// Whether a node may be a child of a content region laid out as blocks: a

@@ -9,6 +9,7 @@ use flm_core::core::registry::{PackageEntry, PackageFactory};
 use flm_core::core::settings::PackageSettings;
 use flm_ext::api::core::data::store::StageOut;
 use flm_ext::api::core::registry::FeatureBuilder;
+use flm_ext::api::core::settings::ReadError;
 use flm_ext::api::core::run::StageCx;
 use flm_ext::api::core::stage::{Needs, Stage, StageDecl};
 use flm_ext::api::lang::rewrites::userdefs::{Expand, ExpandCx, ExpandPolicy, Expander, Expansion};
@@ -163,6 +164,10 @@ impl ExtRuntime for Double {
         }
     }
 
+    fn read_settings(&self, _: &str, feature: &str, _: &Value) -> Result<Result<Value, ReadError>, ExtError> {
+        Err(ExtError::Handler { detail: format!("the feature `{feature}` has no configuration reader"), data: Value::Null })
+    }
+
     fn digest_input(&self) -> Vec<u8> {
         self.digest.clone()
     }
@@ -234,7 +239,7 @@ pub fn expand(
     Arc::new(ExpandFn { policy, expand: Box::new(f) })
 }
 
-// ---- WP-4: expansion ----
+// ---- expansion ----
 
 /// The package `package` with one feature, `defs`, declaring each of
 /// `definitions`: its element under the helper's name

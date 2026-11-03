@@ -94,7 +94,8 @@ export function revive(value) {
 }
 
 // One call into Rust: `target` is a handle (a façade instance or a module's
-// token), `args` a list; answers the revived result.
+// token) or a durable object (a compiled template), `args` a list; answers
+// the revived result.
 export function call(target, method, args) {
   return revive(native("call", JSON.stringify(target), method, JSON.stringify(args)));
 }
@@ -152,9 +153,6 @@ function registering(what) {
 
 // The feature whose `register` runs.
 export function registering_feature() { return registering("the builder's `feature()` must be called").feature; }
-
-// Whether the running `register` is a rehearsal.
-export function rehearsing() { return REGISTERING !== null && REGISTERING.rehearsal; }
 
 // Records the stage object `stage` under `name`.
 export function record_stage(name, stage) { registering(`the stage \`${name}\` must be declared`).stages.set(name, stage); }

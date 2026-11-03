@@ -1,6 +1,6 @@
 //! The emitter of `src/quickjs/api_modules.md`, the table of the API modules
 //! that the module page of `flm_ext::quickjs` includes under its heading
-//! "The API modules" (the plan's section 5.4, `dev-docs/ext/e2b`): one row per
+//! "The API modules": one row per
 //! module, with the `api` module it mirrors as an intra-doc link and its
 //! exports in the stub's order.
 

@@ -82,8 +82,9 @@
 //!   word before it: a space written before `\footnote` is removed.
 //! - An **in-place** xnote is shown where it is written, in brackets, with its
 //!   mark at the head: as inline content where its content is inline, and as
-//!   a block of its own where its content holds paragraphs, interrupting its
-//!   paragraph as a displayed formula does.
+//!   a block of its own where its content holds paragraphs. Such a block ends
+//!   the paragraph it is written in, as a list does, and the text after it is
+//!   a new paragraph.
 //!
 //! The block-structure pass ([`crate::lang::rewrites::blocks`]) decides
 //! whether an in-place xnote is a block, from the xnote kind and the node
@@ -980,8 +981,8 @@ impl FlmFeature for XnotesFeature {
         )?;
         // The label package belongs to the references feature, which may be
         // absent: the optional argument then accepts no `\label`. Declared
-        // once here, not per kind.
-        // See decision rationale at [§flm-dd-dr:std-xnote-label-peer].
+        // once here, not per kind: a contributed kind has no command, so no
+        // argument of the contributing feature names the package.
         b.peer_scoped_package(
             refs::LABEL_PACKAGE,
             "the `\\label` an xnote's optional argument accepts",
@@ -1053,7 +1054,6 @@ impl FlmFeature for XnotesFeature {
         // anchors table to the references feature, either of which may be
         // absent. `contribute_kind` declares the same names again for each
         // kind's list rule, which the registry merges.
-        // See decision rationale at [§flm-dd-dr:std-xnote-pres-peers].
         list::declare_peers(b)?;
         // The element `flm.xnotes.xnote` exists only where a kind has a
         // command, and a rule names a registered element.

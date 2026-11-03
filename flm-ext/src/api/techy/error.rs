@@ -16,7 +16,10 @@ pub use flm_core::techy::error::Severity;
 /// value — where `flm-core` takes a typed condition; the place is a node's span
 /// ([`at`](Diagnostic::at)), or nothing, in which case the adapter places the
 /// diagnostic at the use site of an expansion hook or at the tree of a stage.
-/// The identifier must begin with the extension's stem and a dot.
+/// The identifier is any text: one of the extension's own
+/// (`wordcount.shout.not-characters`) or a library condition's
+/// (`flm.userdefs.bad-definition`, for a hook that reports a user
+/// definition's condition at the use).
 #[derive(Debug, Clone)]
 pub struct Diagnostic {
     /// The condition's identifier (`wordcount.shout.not-characters`).

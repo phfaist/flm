@@ -121,7 +121,6 @@ pub fn read_over<T: Serialize + DeserializeOwned>(
     data: Value,
 ) -> Result<T, String> {
     // The defaults stay the Rust constructor's, stated once.
-    // See decision rationale at [§flm-dd-dr:feat-settings-named]
     let written = entry_object(name, data)?;
     if written.contains_key(field) {
         return Err(format!(

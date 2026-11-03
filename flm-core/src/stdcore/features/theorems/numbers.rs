@@ -127,7 +127,10 @@ fn tied(words: &PrefixWords) -> PrefixWords {
 /// The counter style of the numbered kind `name`: its words tied to the
 /// number, the configuration's number format, no delimiters.
 fn style_of(config: &TheoremsConfig, name: &str, kind: &TheoremKind) -> CounterStyleDecl {
-    // See decision rationale at [§flm-dd-dr:std-theorem-counters].
+    // One style per kind lets a reference to a lemma read `Lemma~4` while
+    // several kinds count in one shared counter. The style adds the tie, so
+    // the words configured hold none and a word written alone (an unnumbered
+    // `Proof`) ends with none.
     let mut style = CounterStyleDecl::new(style_name(name));
     style.number_format = config.number_format.clone();
     style.prefix_words = tied(&kind.words);

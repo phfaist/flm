@@ -10,7 +10,7 @@ use crate::api::lang::rewrites::userdefs::Expand;
 use crate::api::model::element::ElementSpec;
 use crate::runtime::ExtError;
 
-pub use flm_core::lang::mint::{ArgDef, ArgLayout, ArgStdKind, BodyDef, BodyLayout, CallableKind, FallbackKind};
+pub use flm_core::lang::mint::{ArgDef, ArgLayout, ArgStdKind, BodyDef, BodyLayout, CallableKind, FallbackKind, TackOnField};
 pub use flm_core::techy::latexlike::Mode;
 
 /// Mirrors [`ElementDef`](flm_core::lang::mint::ElementDef): an element and the
@@ -245,8 +245,7 @@ impl FallbackDef {
 ///
 /// `code` is not an argument code ([`ExtError::Core`] of kind `arg-code`).
 pub fn arg_def_from_code(code: &str) -> Result<ArgDef, ExtError> {
-    flm_core::lang::mint::arg_def_from_code(code)
-        .map_err(|error| ExtError::Core { kind: "arg-code".to_string(), detail: error.to_string(), data: serde_json::Value::Null })
+    flm_core::lang::mint::arg_def_from_code(code).map_err(crate::adapter::values::arg_code_error)
 }
 
 /// Mirrors [`ScopedPackageDef`](flm_core::lang::mint::ScopedPackageDef): a

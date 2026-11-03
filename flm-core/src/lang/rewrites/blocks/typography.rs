@@ -85,8 +85,8 @@ fn opening_position(text: &str, at: usize, prev_is_content: bool, single: bool) 
 /// in the order dashes, ellipses, quote ligatures (the pairs and the backtick),
 /// the single `'` (decided by position, otherwise the ligature `’`), the `"`
 /// decided by position. `prev_is_content` says whether a content sibling (not a
-/// comment, and not a whitespace node such as `~`) precedes the run the text
-/// belongs to.
+/// comment, not a whitespace node such as `~`, and not a displayed item such
+/// as `\[…\]`) precedes the run the text belongs to.
 pub(crate) fn substitution_at(
     text: &str,
     at: usize,

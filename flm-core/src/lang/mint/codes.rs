@@ -17,11 +17,13 @@
 //! This module reads both forms, and no other part of the library does:
 //! [`ArgData`] reads one argument in either form, [`ArgListData`] reads a
 //! whole argument list written in any of the three shapes that settings may
-//! use, and [`arg_def_from_code`] turns one code into an argument declaration
-//! ([`ArgDef`]). Every feature whose settings declare macros or environments
-//! reads its argument lists through these, so that one syntax means one form
-//! of argument in every settings file; the `userdefs` feature is one of them
-//! ([`deserialize_arg_list`] reads its `args` settings key).
+//! use, [`ArgCode::read`] reads one code, which keeps its text with the
+//! standard kind it stands for, and [`arg_def_from_code`] turns one code into
+//! an argument declaration ([`ArgDef`]). Every feature whose settings declare
+//! macros or environments reads its argument lists through these, so that one
+//! syntax means one form of argument in every settings file; the `userdefs`
+//! feature is one of them ([`deserialize_arg_list`] reads its `args` settings
+//! key).
 //!
 //! # The structured syntax
 //!
@@ -33,26 +35,35 @@
 //! `terminator`). The [documentation of `ArgStdKind`](ArgStdKind#the-kind-as-data)
 //! lists each kind's name and parameters, and what reading a kind refuses.
 //!
-//! Every kind can be written this way except a tack-on argument
-//! ([`TackOn`](ArgStdKind::TackOn)), which a feature declares in Rust. Three
-//! of the forms that the structured syntax writes have no code: a group read
-//! as plain characters (`chars-group`), a group of `key=value` pairs
-//! (`key-vals`), and a terminated argument with an opener or a terminator
-//! head (`terminated` with `opener` or `head`).
+//! Every kind can be written this way. Four of the forms that the structured
+//! syntax writes have no code: a group read as plain characters
+//! (`chars-group`), a group of `key=value` pairs (`key-vals`), a tack-on
+//! argument with its fields (`tack-on`, [`TackOn`](ArgStdKind::TackOn)), and
+//! a terminated argument with an opener or a terminator head (`terminated`
+//! with `opener` or `head`).
+//!
+//! A tack-on argument lists its fields under `fields`, each a map of the
+//! field's `name` (without the backslash), its `args` (an argument list in any
+//! of the three shapes below), whether it is `repeatable` (`false` by
+//! default) and its `docs` (empty by default): `{syntax: tack-on, fields:
+//! [{name: label, args: [{syntax: chars-group}], repeatable: true}]}` accepts
+//! any number of `\label{…}` after the command.
 //!
 //! # The codes
 //!
 //! The codes are those of techy's table of argument codes
-//! ([`argument_specs`](techy::latexlike::argument_specs)), plus four of FLM's
-//! own for a terminated argument (`u`, `U`, `f` and `F`, described below the
-//! table); techy is the parser toolkit FLM is built on. Each code is a
+//! ([`argument_specs`](techy::latexlike::argument_specs)), plus FLM's own:
+//! `t{<chars>}`, a marker made of the characters between the braces, and four
+//! codes for a terminated argument (`u`, `U`, `f` and `F`, described below
+//! the table); techy is the parser toolkit FLM is built on. Each code is a
 //! shorthand for one structured syntax, a standard kind with its parameters,
 //! which the last column of the table gives. Every code of techy's table
-//! means what it means there, except the code `v` alone: it selects FLM's own verbatim reader, the one
-//! FLM's verbatim commands use, which closes `{` with `}`, `[` with `]`, `(`
-//! with `)`, `<` with `>` and any other character with itself, whereas techy's
-//! `v` closes on the same character that opened. Each example shows a use of a
-//! macro `\m` declared with that code as its only argument.
+//! means what it means there, except the code `v` alone: it selects FLM's own
+//! verbatim reader, the one FLM's verbatim commands use, which closes `{` with
+//! `}`, `[` with `]`, `(` with `)`, `<` with `>` and any other character with
+//! itself, whereas techy's `v` closes on the same character that opened. Each
+//! example shows a use of a macro `\m` declared with that code as its only
+//! argument.
 //!
 //! | code | the argument | example | structured syntax |
 //! |---|---|---|---|
@@ -60,6 +71,7 @@
 //! | `[` or `o` | an optional `[…]` group | `\m[arg]` | [`optional`](ArgStdKind::Optional) |
 //! | `*` or `s` | an optional `*` marker | `\m*` | [`star`](ArgStdKind::Star) |
 //! | `t<c>` | an optional marker made of the one character `<c>` (`t*` is the same as `*`) | `t!` reads `\m!` | [`marker`](ArgStdKind::Marker) with `marker: <c>` |
+//! | `t{<chars>}` | an optional marker made of the characters `<chars>`, one or more, matched as written (`t{*}` is the same as `*`) | `t{\big}` reads `\m\big` | [`marker`](ArgStdKind::Marker) with `marker: <chars>` |
 //! | `r<c1><c2>` | a mandatory group between `<c1>` and `<c2>` | `r()` reads `\m(arg)` | [`delimited-group`](ArgStdKind::DelimitedGroup) with `delimiters: [<c1>, <c2>]` |
 //! | `d<c1><c2>` | an optional group between `<c1>` and `<c2>` | `d<>` reads `\m<arg>` | [`optional-delimited-group`](ArgStdKind::OptionalDelimitedGroup) with `delimiters: [<c1>, <c2>]` |
 //! | `v` | verbatim text between two delimiters, matched to the opening one | `\m+raw %text+` | [`verbatim`](ArgStdKind::Verbatim) |
@@ -117,9 +129,9 @@
 //! "key"}` and `{code: "{", name: "target", role: "flm.refs.target"}` are
 //! maps too.
 //
-// Why an argument's syntax in data is its standard kind, with the parser
-// toolkit's codes as shorthands, and why both have one reader here: see
-// decision rationale at [§flm-dd-dr:lang-arg-codes].
+// An argument's syntax in data is the standard kind itself, so that settings
+// and the Rust interface share one vocabulary and every kind can be declared
+// from settings; the codes are shorthands, for short declarations.
 
 use std::fmt;
 
@@ -144,9 +156,12 @@ use crate::model::names::Name;
 /// It converts into an argument declaration ([`ArgDef`]) through `TryFrom`,
 /// which reads a code with [`arg_def_from_code`]; the [module
 /// documentation](self) describes both forms of a syntax.
-#[derive(Debug, Clone, PartialEq, Eq)]
+//
+// It is also written to data (`Serialize`): a code as its text, a map as
+// [`ArgDataFields`] writes it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[derive(schemars::JsonSchema)]
-#[schemars(untagged)]
+#[serde(untagged)]
 pub enum ArgData {
     /// The argument code alone: the argument has no name and its content is
     /// laid out inline.
@@ -251,8 +266,7 @@ pub struct ArgDataFields {
 /// Writes a declaration as an argument's map, as [`ArgDef::code`] states a
 /// declaration is written back: with the code it was read from, when it has
 /// one; otherwise with the structured syntax of its parser's standard kind
-/// ([`FlmArgumentParser::std_kind`](super::FlmArgumentParser::std_kind)),
-/// unless the kind is a tack-on argument, which settings cannot declare;
+/// ([`FlmArgumentParser::std_kind`](super::FlmArgumentParser::std_kind));
 /// otherwise with neither, for a parser of a feature's own. A map written
 /// with neither does not read back. The declaration's other fields are
 /// copied.
@@ -260,7 +274,7 @@ impl From<&ArgDef> for ArgDataFields {
     fn from(arg: &ArgDef) -> ArgDataFields {
         let code = arg.code().map(str::to_string);
         let syntax = match (&code, arg.kind.std_kind()) {
-            (None, Some(kind)) if !matches!(kind, ArgStdKind::TackOn { .. }) => Some(kind.clone()),
+            (None, Some(kind)) => Some(kind.clone()),
             _ => None,
         };
         ArgDataFields {
@@ -388,9 +402,12 @@ impl std::error::Error for ArgListError {
 /// [`deserialize_arg_list`] reads a settings field of type `Vec<ArgDef>` in any
 /// of the shapes. The [module documentation](self) describes the shapes and
 /// the forms of an argument's syntax.
-#[derive(Debug, Clone, PartialEq, Eq)]
+//
+// It is also written to data (`Serialize`), in the shape it holds; the
+// fields of a tack-on argument write their arguments as a list of maps.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[derive(schemars::JsonSchema)]
-#[schemars(untagged)]
+#[serde(untagged)]
 pub enum ArgListData {
     /// One text in which each character is one argument code: `"[{{"`.
     Codes(#[schemars(schema_with = "arg_codes_text_schema")] String),
@@ -545,10 +562,10 @@ pub(crate) enum ArgStdKindData {
     Optional {},
     /// An optional `*` marker.
     Star {},
-    /// An optional marker made of one character.
+    /// An optional marker made of one or more characters.
     Marker {
-        /// The marker's character.
-        #[schemars(pattern(ONE_CHARACTER))]
+        /// The marker's characters.
+        #[schemars(pattern(CHARACTERS))]
         marker: String,
     },
     /// A mandatory group between a pair of characters.
@@ -590,12 +607,11 @@ pub(crate) enum ArgStdKindData {
         #[schemars(length(equal = 2), inner(pattern(ONE_CHARACTER)))]
         delimiters: Option<Vec<String>>,
     },
-    /// The fields a command accepts after its other arguments. A feature
-    /// declares them; settings cannot.
-    #[serde(deserialize_with = "refuse_tack_on")]
-    #[schemars(skip_deserializing)]
+    /// The fields a command accepts at this argument's position in a call:
+    /// macros written after the arguments declared before it, which the
+    /// command reads as data.
     TackOn {
-        /// The fields.
+        /// The fields, each with a distinct name.
         fields: Vec<TackOnFieldData>,
     },
     /// An argument that runs up to a terminator: an optional run of a
@@ -625,34 +641,45 @@ pub(crate) enum ArgStdKindData {
     },
 }
 
-/// A tack-on field written as data, in the structured syntax `tack-on`: the
-/// field's name, its arguments, whether it may repeat, and its
-/// documentation.
-#[derive(serde::Serialize, schemars::JsonSchema)]
+/// A field that the command accepts at the position of its `tack-on`
+/// argument: a macro, which the command reads as data.
+//
+// A tack-on field ([`TackOnField`]) written as data, in the structured syntax
+// `tack-on`: its name, its arguments, whether it may repeat, and its
+// documentation. This is a plain comment, not documentation, because the
+// documentation of this type and of its fields is the description of each
+// key in the settings' JSON Schema.
+#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct TackOnFieldData {
-    /// The field's name, without the backslash.
+    /// The field's name, without the backslash: `label` for a field written
+    /// `\label{…}`.
     name: String,
-    /// The field's arguments, each written as an argument's map.
-    args: Vec<ArgDataFields>,
-    /// Whether the field may be written more than once.
+    /// The field's own arguments, an argument list in any of its shapes. None
+    /// by default.
+    #[serde(default = "no_arguments")]
+    args: ArgListData,
+    /// Whether the field may be written more than once after one command.
+    /// `false` by default.
+    #[serde(default)]
     repeatable: bool,
-    /// The field's documentation.
+    /// The field's documentation. Empty by default.
+    #[serde(default)]
     docs: String,
+}
+
+/// The argument list of a field that gives none: no argument.
+fn no_arguments() -> ArgListData {
+    ArgListData::List(Vec::new())
 }
 
 /// The pattern of a character in a structured syntax: one character, not
 /// whitespace.
 const ONE_CHARACTER: &str = r"^\S$";
 
-/// The message that refuses the structured syntax `tack-on`.
-const TACK_ON_REFUSED: &str = "an argument of the syntax `tack-on` is declared by a feature, not in settings";
-
-/// Refuses the structured syntax `tack-on` when it is read, whatever its
-/// fields: they are declarations a feature makes in Rust, each with an
-/// element of its own ([`TackOnField`]).
-fn refuse_tack_on<'de, D: Deserializer<'de>>(_deserializer: D) -> Result<Vec<TackOnFieldData>, D::Error> {
-    Err(D::Error::custom(TACK_ON_REFUSED))
-}
+/// The pattern of a run of characters in a structured syntax: one or more
+/// characters, none of them whitespace.
+const CHARACTERS: &str = r"^\S+$";
 
 impl From<ArgStdKind> for ArgStdKindData {
     fn from(kind: ArgStdKind) -> ArgStdKindData {
@@ -661,7 +688,7 @@ impl From<ArgStdKind> for ArgStdKindData {
             ArgStdKind::Mandatory => ArgStdKindData::Mandatory {},
             ArgStdKind::Optional => ArgStdKindData::Optional {},
             ArgStdKind::Star => ArgStdKindData::Star {},
-            ArgStdKind::Marker { marker } => ArgStdKindData::Marker { marker: String::from(marker) },
+            ArgStdKind::Marker { marker } => ArgStdKindData::Marker { marker },
             ArgStdKind::DelimitedGroup { open, close } => {
                 ArgStdKindData::DelimitedGroup { delimiters: pair(open, close) }
             }
@@ -684,7 +711,9 @@ impl From<ArgStdKind> for ArgStdKindData {
                     .iter()
                     .map(|field: &TackOnField| TackOnFieldData {
                         name: field.name.clone(),
-                        args: field.args.iter().map(ArgDataFields::from).collect(),
+                        args: ArgListData::List(
+                            field.args.iter().map(|arg| ArgData::Declared(ArgDataFields::from(arg))).collect(),
+                        ),
                         repeatable: field.repeatable,
                         docs: field.docs.clone(),
                     })
@@ -709,12 +738,14 @@ impl TryFrom<ArgStdKindData> for ArgStdKind {
             ArgStdKindData::Mandatory {} => ArgStdKind::Mandatory,
             ArgStdKindData::Optional {} => ArgStdKind::Optional,
             ArgStdKindData::Star {} => ArgStdKind::Star,
-            // As with the code `t*`, the `*` marker is the star kind, so that
-            // one form has one kind.
-            ArgStdKindData::Marker { marker } => match character("`marker`", &marker)? {
-                '*' => ArgStdKind::Star,
-                marker => ArgStdKind::Marker { marker },
-            },
+            ArgStdKindData::Marker { marker } => {
+                if marker.is_empty() || marker.chars().any(char::is_whitespace) {
+                    return Err(format!(
+                        "`marker` must be one or more characters other than whitespace, not {marker:?}"
+                    ));
+                }
+                marker_kind(marker)
+            }
             ArgStdKindData::DelimitedGroup { delimiters } => {
                 let (open, close) = delimiter_pair(&delimiters)?;
                 ArgStdKind::DelimitedGroup { open, close }
@@ -741,7 +772,7 @@ impl TryFrom<ArgStdKindData> for ArgStdKind {
             ArgStdKindData::Verbatim { delimiters } => ArgStdKind::Verbatim {
                 delimiters: delimiters.as_deref().map(delimiter_pair).transpose()?,
             },
-            ArgStdKindData::TackOn { .. } => return Err(String::from(TACK_ON_REFUSED)),
+            ArgStdKindData::TackOn { fields } => ArgStdKind::TackOn { fields: tack_on_fields(fields)? },
             ArgStdKindData::Terminated { terminator, repeat_char, opener, head, raw } => {
                 let repeat_char = repeat_char.as_deref().map(|text| character("`repeat_char`", text)).transpose()?;
                 match repeat_char {
@@ -762,6 +793,33 @@ impl TryFrom<ArgStdKindData> for ArgStdKind {
                 ArgStdKind::Terminated { terminator, repeat_char, opener, head, raw }
             }
         })
+    }
+}
+
+/// Reads the fields of a structured syntax `tack-on`: each field's name; its
+/// arguments, read as an argument list ([`ArgListData::arg_defs`]); whether it
+/// repeats; and its documentation. That the fields' names are distinct is
+/// checked by the minting, as for fields declared in Rust
+/// ([`MintError::FieldDeclaredTwice`](crate::lang::mint::MintError::FieldDeclaredTwice)).
+fn tack_on_fields(fields: Vec<TackOnFieldData>) -> Result<Vec<TackOnField>, String> {
+    fields
+        .into_iter()
+        .map(|data| {
+            let args = data.args.arg_defs().map_err(|error| format!("in the field `{}`, {error}", data.name))?;
+            let field = TackOnField::new(data.name, args).docs(data.docs);
+            Ok(if data.repeatable { field.repeatable() } else { field })
+        })
+        .collect()
+}
+
+/// The kind of an optional marker made of the characters `marker`: as with
+/// the code `t*`, the `*` marker is the star kind, so that one form has one
+/// kind.
+fn marker_kind(marker: String) -> ArgStdKind {
+    if marker == "*" {
+        ArgStdKind::Star
+    } else {
+        ArgStdKind::Marker { marker }
     }
 }
 
@@ -804,10 +862,11 @@ fn deserialize_syntax<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Opti
         };
     };
     ArgStdKind::deserialize(Value::Object(keys.clone())).map(Some).map_err(|error| {
-        // The kind's own message for a name that is no kind's also lists
-        // `tack-on`; for a key it does not take, it lists the kind's
-        // parameters alone, not the keys of the map around them; for a
-        // parameter's value of another type, it does not name the parameter.
+        // The kind's own message for a name that is no kind's lists the names
+        // without stating the condition; for a key it does not take, it lists
+        // the kind's parameters alone, not the keys of the map around them;
+        // for a parameter's value of another type, it does not name the
+        // parameter.
         D::Error::custom(syntax_problem(syntax, &keys).unwrap_or_else(|| error.to_string()))
     })
 }
@@ -824,8 +883,7 @@ fn syntax_problem(syntax: &Value, keys: &serde_json::Map<String, Value>) -> Opti
     let forms = map_forms();
     let name = syntax.as_str();
     let Some(form) = name.and_then(|name| map_form(&forms, Some(name))) else {
-        // The kind `tack-on` is refused by a message of its own.
-        return (name != Some("tack-on")).then(|| unknown_syntax(syntax, &forms));
+        return Some(unknown_syntax(syntax, &forms));
     };
     if let Some(key) = keys.keys().find(|key| !form.contains_key(*key)) {
         return Some(unknown_key(key, name, Some(form)));
@@ -901,16 +959,18 @@ fn admits(schema: &Value, value: &Value) -> bool {
 
 /// What a value that the schema `schema` of a parameter of a structured
 /// syntax admits is, in a message: one character (a text of the pattern
-/// [`ONE_CHARACTER`]), a text, a list, or `true` or `false`. `None` for a
-/// schema of another type.
+/// [`ONE_CHARACTER`]), one or more characters (a text of the pattern
+/// [`CHARACTERS`]), a text, a list, or `true` or `false`. `None` for a schema
+/// of another type.
 fn expected(schema: &Value) -> Option<&'static str> {
     let name = match schema.get("type")? {
         Value::Array(names) => names.iter().filter_map(Value::as_str).find(|name| *name != "null")?,
         name => name.as_str()?,
     };
-    let one_character = schema.get("pattern").and_then(Value::as_str) == Some(ONE_CHARACTER);
+    let pattern = schema.get("pattern").and_then(Value::as_str);
     match name {
-        "string" if one_character => Some("one character other than whitespace"),
+        "string" if pattern == Some(ONE_CHARACTER) => Some("one character other than whitespace"),
+        "string" if pattern == Some(CHARACTERS) => Some("one or more characters other than whitespace"),
         "string" => Some("a text"),
         "array" => Some("a list"),
         "boolean" => Some("`true` or `false`"),
@@ -963,7 +1023,8 @@ pub enum ArgCodeProblem {
 }
 
 /// The error of reading a text that is not a complete argument code, returned
-/// by [`arg_def_from_code`] and held by an [`ArgDataError`].
+/// by [`ArgCode::read`] and [`arg_def_from_code`] and held by an
+/// [`ArgDataError`].
 ///
 /// Its `Display` text states the problem for the person who wrote the
 /// settings: for an unknown code it lists every code.
@@ -982,7 +1043,7 @@ impl fmt::Display for ArgCodeError {
                 let codes: Vec<String> = FIXED_CODES
                     .iter()
                     .map(|(code, _)| *code)
-                    .chain(CODE_FORMS.iter().map(|form| form.written))
+                    .chain(CODE_FORMS.iter().flat_map(|form| form.written.iter().copied()))
                     .map(|code| format!("`{code}`"))
                     .collect();
                 write!(f, "`{}` is not an argument code; the codes are {}", self.code, codes.join(", "))
@@ -1004,12 +1065,96 @@ impl fmt::Display for ArgCodeError {
 
 impl std::error::Error for ArgCodeError {}
 
+/// An argument code that has been read: the code's text, as written, and the
+/// standard argument kind ([`ArgStdKind`]) it stands for. An argument code is
+/// a short text, such as `{` or `r()`, that settings given as data write for
+/// the syntax of an argument; the [module documentation](self) lists the
+/// codes.
+///
+/// [`ArgCode::read`] is the only way to make one, so its text and its kind
+/// always agree. An argument declaration ([`ArgDef`]) is made from it through
+/// `From`, without reading the code again, and keeps it: [`ArgDef::code`]
+/// gives the code's text and [`ArgDef::arg_code`] the `ArgCode` itself. A
+/// declaration keeps the text as well as the kind because several codes
+/// stand for one kind (`{` and `m`, `*` and `t*`), and a declaration written
+/// back as data shows the code its author wrote.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArgCode {
+    /// The code as written.
+    code: String,
+    /// The standard kind the code stands for.
+    kind: ArgStdKind,
+}
+
+impl ArgCode {
+    /// Reads `code` as an argument code, one of those listed in the [module
+    /// documentation](self).
+    ///
+    /// This is the only reader of the codes: [`arg_def_from_code`], and
+    /// through it every reader of settings given as data, reads its codes
+    /// with it.
+    ///
+    /// # Errors
+    ///
+    /// An [`ArgCodeError`] for a text that is no code
+    /// ([`ArgCodeProblem::Unknown`]) and for a code lacking the characters it
+    /// takes ([`ArgCodeProblem::Incomplete`]: `r(`, `t`, `e{}`).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use flm_core::lang::mint::{ArgCode, ArgCodeProblem, ArgDef, ArgStdKind};
+    ///
+    /// let code = ArgCode::read("r()").unwrap();
+    /// assert_eq!(code.as_str(), "r()");
+    /// assert_eq!(code.kind(), &ArgStdKind::DelimitedGroup { open: '(', close: ')' });
+    /// assert_eq!(ArgDef::from(code).code(), Some("r()"));
+    /// assert_eq!(ArgCode::read("q").unwrap_err().problem, ArgCodeProblem::Unknown);
+    /// assert_eq!(ArgCode::read("r(").unwrap_err().problem, ArgCodeProblem::Incomplete);
+    /// ```
+    pub fn read(code: &str) -> Result<ArgCode, ArgCodeError> {
+        let read = |kind: ArgStdKind| ArgCode { code: code.to_string(), kind };
+        if let Some((_, kind)) = FIXED_CODES.iter().find(|(known, _)| *known == code) {
+            return Ok(read(kind.clone()));
+        }
+        let error = |problem| ArgCodeError { code: code.to_string(), problem };
+        let mut chars = code.chars();
+        let Some(letter) = chars.next() else {
+            return Err(error(ArgCodeProblem::Unknown));
+        };
+        let Some(form) = CODE_FORMS.iter().find(|form| form.letter == letter) else {
+            return Err(error(ArgCodeProblem::Unknown));
+        };
+        let rest: Vec<char> = chars.collect();
+        (form.read)(&rest).map(read).map_err(error)
+    }
+
+    /// The code as written: `"["`, `"r()"`.
+    pub fn as_str(&self) -> &str {
+        &self.code
+    }
+
+    /// The standard kind the code stands for.
+    pub fn kind(&self) -> &ArgStdKind {
+        &self.kind
+    }
+}
+
+/// The declaration of an argument read by the standard kind `code` stands
+/// for, with no name, inline layout and no scoped package, which keeps the
+/// code ([`ArgDef::code`], [`ArgDef::arg_code`]). The code is not read again.
+impl From<ArgCode> for ArgDef {
+    fn from(code: ArgCode) -> ArgDef {
+        let mut arg = ArgDef::new(code.kind.clone());
+        arg.code = Some(code);
+        arg
+    }
+}
+
 /// Converts one argument code into an argument declaration ([`ArgDef`]) with
 /// no name, inline layout and no scoped package, which keeps the code it was
-/// read from ([`ArgDef::code`]).
-///
-/// This is the only reader of the codes, which are listed in the [module
-/// documentation](self).
+/// read from ([`ArgDef::code`]): the code is read by [`ArgCode::read`], and
+/// the declaration made from it through `From`.
 ///
 /// # Errors
 ///
@@ -1030,26 +1175,7 @@ impl std::error::Error for ArgCodeError {}
 /// assert_eq!(arg_def_from_code("r(").unwrap_err().problem, ArgCodeProblem::Incomplete);
 /// ```
 pub fn arg_def_from_code(code: &str) -> Result<ArgDef, ArgCodeError> {
-    let mut arg = ArgDef::new(arg_kind_from_code(code)?);
-    arg.code = Some(code.to_string());
-    Ok(arg)
-}
-
-/// The standard kind an argument code corresponds to.
-fn arg_kind_from_code(code: &str) -> Result<ArgStdKind, ArgCodeError> {
-    if let Some((_, kind)) = FIXED_CODES.iter().find(|(known, _)| *known == code) {
-        return Ok(kind.clone());
-    }
-    let error = |problem| ArgCodeError { code: code.to_string(), problem };
-    let mut chars = code.chars();
-    let Some(letter) = chars.next() else {
-        return Err(error(ArgCodeProblem::Unknown));
-    };
-    let Some(form) = CODE_FORMS.iter().find(|form| form.letter == letter) else {
-        return Err(error(ArgCodeProblem::Unknown));
-    };
-    let rest: Vec<char> = chars.collect();
-    (form.read)(&rest).map_err(error)
+    ArgCode::read(code).map(ArgDef::from)
 }
 
 /// The codes written as one fixed text, each with its standard kind.
@@ -1071,15 +1197,16 @@ const FIXED_CODES: [(&str, ArgStdKind); 10] = [
 struct CodeForm {
     /// The code's letter.
     letter: char,
-    /// The code as the documentation and the messages show it (`r<c1><c2>`).
-    written: &'static str,
+    /// The code's shapes as the documentation and the messages show them
+    /// (`r<c1><c2>`; `t<c>` and `t{<chars>}`).
+    written: &'static [&'static str],
     /// What the letter must be followed by, for the message of an incomplete
     /// code.
     takes: &'static str,
     /// A complete code of the form.
     example: &'static str,
-    /// The regular expression a complete code of the form matches, for the
-    /// schema of the settings.
+    /// The regular expression a complete code of the form matches, in any of
+    /// its shapes, for the schema of the settings.
     pattern: &'static str,
     /// What the argument is, for the schema of the settings.
     description: &'static str,
@@ -1092,19 +1219,23 @@ struct CodeForm {
 const CODE_FORMS: [CodeForm; 9] = [
     CodeForm {
         letter: 't',
-        written: "t<c>",
-        takes: "one marker character",
+        written: &["t<c>", "t{<chars>}"],
+        takes: "one marker character, or by `{`, one or more marker characters and `}`",
         example: "t!",
-        pattern: r"^t\S$",
-        description: "an optional marker made of the one character after `t`",
+        pattern: r"^t(\S|\{[^\s}]+\})$",
+        description: "an optional marker made of the one character after `t`, or of the characters \
+                      between the braces after `t`",
         read: |rest| {
-            let [marker] = parameters::<1>(rest)?;
-            Ok(if marker == '*' { ArgStdKind::Star } else { ArgStdKind::Marker { marker } })
+            let marker: String = match rest {
+                ['{', _, ..] => braced(rest)?.iter().collect(),
+                _ => parameters::<1>(rest)?.iter().collect(),
+            };
+            Ok(marker_kind(marker))
         },
     },
     CodeForm {
         letter: 'r',
-        written: "r<c1><c2>",
+        written: &["r<c1><c2>"],
         takes: "an opening and a closing character",
         example: "r()",
         pattern: r"^r\S\S$",
@@ -1116,7 +1247,7 @@ const CODE_FORMS: [CodeForm; 9] = [
     },
     CodeForm {
         letter: 'd',
-        written: "d<c1><c2>",
+        written: &["d<c1><c2>"],
         takes: "an opening and a closing character",
         example: "d<>",
         pattern: r"^d\S\S$",
@@ -1128,7 +1259,7 @@ const CODE_FORMS: [CodeForm; 9] = [
     },
     CodeForm {
         letter: 'v',
-        written: "v<c1><c2>",
+        written: &["v<c1><c2>"],
         takes: "an opening and a closing character",
         example: "v||",
         pattern: r"^v\S\S$",
@@ -1140,33 +1271,18 @@ const CODE_FORMS: [CodeForm; 9] = [
     },
     CodeForm {
         letter: 'e',
-        written: "e{<chars>}",
+        written: &["e{<chars>}"],
         takes: "`{`, one or more marker characters and `}`",
         example: "e{_^}",
         pattern: r"^e\{[^\s}]+\}$",
         description: "embellishments: each character between the braces is a marker that is \
                       followed by one expression; the markers may be written in any order, \
                       each at most once",
-        read: |rest| {
-            let Some(('{', inner)) = rest.split_first().map(|(first, inner)| (*first, inner)) else {
-                return Err(ArgCodeProblem::Incomplete);
-            };
-            let Some(end) = inner.iter().position(|c| *c == '}') else {
-                return Err(ArgCodeProblem::Incomplete);
-            };
-            let markers = &inner[..end];
-            if markers.is_empty() || markers.iter().any(|c| c.is_whitespace()) {
-                return Err(ArgCodeProblem::Incomplete);
-            }
-            if end + 1 != inner.len() {
-                return Err(ArgCodeProblem::Unknown);
-            }
-            Ok(ArgStdKind::Embellishments { markers: markers.to_vec() })
-        },
+        read: |rest| Ok(ArgStdKind::Embellishments { markers: braced(rest)?.to_vec() }),
     },
     CodeForm {
         letter: 'u',
-        written: "u<terminator>",
+        written: &["u<terminator>"],
         takes: "the terminator, one or more characters",
         example: "u\\endm",
         pattern: r"^u\S+$",
@@ -1175,7 +1291,7 @@ const CODE_FORMS: [CodeForm; 9] = [
     },
     CodeForm {
         letter: 'U',
-        written: "U<terminator>",
+        written: &["U<terminator>"],
         takes: "the terminator, one or more characters",
         example: "U\\endm",
         pattern: r"^U\S+$",
@@ -1184,7 +1300,7 @@ const CODE_FORMS: [CodeForm; 9] = [
     },
     CodeForm {
         letter: 'f',
-        written: "f<c><terminator>",
+        written: &["f<c><terminator>"],
         takes: "a repeated character, then the rest of the terminator, if any",
         example: "f+",
         pattern: r"^f\S+$",
@@ -1194,7 +1310,7 @@ const CODE_FORMS: [CodeForm; 9] = [
     },
     CodeForm {
         letter: 'F',
-        written: "F<c><terminator>",
+        written: &["F<c><terminator>"],
         takes: "a repeated character, then the rest of the terminator, if any",
         example: "F+",
         pattern: r"^F\S+$",
@@ -1220,6 +1336,27 @@ fn terminated(rest: &[char], repeated: bool, raw: bool) -> Result<ArgStdKind, Ar
         head: String::new(),
         raw,
     })
+}
+
+/// The characters between the braces of a code that takes `{<chars>}` after
+/// its letter (`e{<chars>}`, `t{<chars>}`), given the characters after the
+/// letter: a missing `{` or `}`, nothing between them, or a space among the
+/// characters is an incomplete code; more after the `}` is no code.
+fn braced(rest: &[char]) -> Result<&[char], ArgCodeProblem> {
+    let Some(('{', inner)) = rest.split_first().map(|(first, inner)| (*first, inner)) else {
+        return Err(ArgCodeProblem::Incomplete);
+    };
+    let Some(end) = inner.iter().position(|c| *c == '}') else {
+        return Err(ArgCodeProblem::Incomplete);
+    };
+    let chars = &inner[..end];
+    if chars.is_empty() || chars.iter().any(|c| c.is_whitespace()) {
+        return Err(ArgCodeProblem::Incomplete);
+    }
+    if end + 1 != inner.len() {
+        return Err(ArgCodeProblem::Unknown);
+    }
+    Ok(chars)
 }
 
 /// The `N` characters a code takes after its letter: fewer, or one of them a
@@ -1250,7 +1387,7 @@ fn arg_code_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Sche
         serde_json::json!({
             "type": "string",
             "pattern": form.pattern,
-            "description": format!("`{}`: {}", form.written, form.description),
+            "description": format!("{}: {}", shapes(form), form.description),
         })
     });
     let codes: Vec<serde_json::Value> = fixed.chain(forms).collect();
@@ -1258,6 +1395,12 @@ fn arg_code_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Sche
         "description": "The argument code, which says what form the argument takes.",
         "anyOf": codes,
     })
+}
+
+/// The shapes of the code form `form`, each in backticks, joined by "or":
+/// `` `t<c>` or `t{<chars>}` ``.
+fn shapes(form: &CodeForm) -> String {
+    form.written.iter().map(|shape| format!("`{shape}`")).collect::<Vec<_>>().join(" or ")
 }
 
 /// The JSON schema of an argument's parsing mode in settings given as data:
@@ -1358,13 +1501,16 @@ mod tests {
     use super::*;
 
     fn kind(code: &str) -> Result<String, ArgCodeProblem> {
-        arg_kind_from_code(code).map(|kind| format!("{kind:?}")).map_err(|error| error.problem)
+        ArgCode::read(code).map(|code| format!("{:?}", code.kind())).map_err(|error| error.problem)
     }
 
     #[test]
     fn each_form_reads_its_characters() {
-        assert_eq!(kind("t!").unwrap(), "Marker { marker: '!' }");
+        assert_eq!(kind("t!").unwrap(), r#"Marker { marker: "!" }"#);
         assert_eq!(kind("t*").unwrap(), "Star");
+        assert_eq!(kind("t{").unwrap(), r#"Marker { marker: "{" }"#);
+        assert_eq!(kind("t{\\big}").unwrap(), r#"Marker { marker: "\\big" }"#);
+        assert_eq!(kind("t{*}").unwrap(), "Star");
         assert_eq!(kind("r()").unwrap(), "DelimitedGroup { open: '(', close: ')' }");
         assert_eq!(kind("d<>").unwrap(), "OptionalDelimitedGroup { open: '<', close: '>' }");
         assert_eq!(kind("v").unwrap(), "Verbatim { delimiters: None }");
@@ -1410,12 +1556,12 @@ mod tests {
     #[test]
     fn a_code_lacking_characters_is_incomplete_and_one_with_more_is_unknown() {
         for code in [
-            "t", "t ", "r", "r(", "r( ", "d<", "v|", "e", "e{", "e{}", "e{_", "e^", "e{ }", "u", "U", "f", "F",
-            "u ", "ua b", "F` ",
+            "t", "t ", "t{}", "t{ab", "t{a b}", "r", "r(", "r( ", "d<", "v|", "e", "e{", "e{}", "e{_", "e^", "e{ }",
+            "u", "U", "f", "F", "u ", "ua b", "F` ",
         ] {
             assert_eq!(kind(code), Err(ArgCodeProblem::Incomplete), "{code:?}");
         }
-        for code in ["", "q", " m", "m ", "mo", "t!!", "r()x", "e{^}x", "anydelimited"] {
+        for code in ["", "q", " m", "m ", "mo", "t!!", "t{ab}x", "r()x", "e{^}x", "anydelimited"] {
             assert_eq!(kind(code), Err(ArgCodeProblem::Unknown), "{code:?}");
         }
     }
@@ -1440,7 +1586,7 @@ mod tests {
     #[test]
     fn each_form_s_example_reads_and_matches_its_pattern() {
         for form in &CODE_FORMS {
-            assert!(arg_kind_from_code(form.example).is_ok(), "{}", form.example);
+            assert!(ArgCode::read(form.example).is_ok(), "{}", form.example);
             assert!(form.pattern.starts_with(&format!("^{}", form.letter)));
         }
     }
@@ -1494,5 +1640,29 @@ mod tests {
         );
         let read: ArgDataFields = serde_json::from_value(written).unwrap();
         assert_eq!(read, fields);
+    }
+
+    #[test]
+    fn a_tack_on_kind_reads_its_fields_and_writes_back_the_same() {
+        let arg = |data| ArgDef::try_from(serde_json::from_value::<ArgData>(data).unwrap()).unwrap();
+        let declared = arg(serde_json::json!({
+            "syntax": "tack-on",
+            "name": "fields",
+            "fields": [
+                { "name": "label", "args": [{ "syntax": "chars-group", "name": "target" }], "repeatable": true },
+                { "name": "nolink", "docs": "No link." },
+            ],
+        }));
+        assert_eq!(declared.name.as_deref(), Some("fields"));
+        let fields = declared.kind.tack_on_fields().expect("a tack-on argument");
+        assert_eq!(
+            fields,
+            [
+                TackOnField::new("label", vec![ArgDef::named("target", ArgStdKind::CharsGroup)]).repeatable(),
+                TackOnField::new("nolink", Vec::new()).docs("No link."),
+            ]
+        );
+        let written = serde_json::to_value(ArgDataFields::from(&declared)).unwrap();
+        assert_eq!(arg(written), declared);
     }
 }

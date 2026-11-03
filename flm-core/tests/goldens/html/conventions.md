@@ -1,6 +1,6 @@
 | element | tag | classes | attributes | dropped | style definition |
 |---|---|---|---|---|---|
-| `flm.pres.par` | `<p>` | `flm-pres-par` | `id` ← `anchor` | — | `flm.html.style.core` |
+| `flm.pres.par` | `<p>`; `<div>` with `role="paragraph"` when the paragraph holds flow content | `flm-pres-par` | `id` ← `anchor` | — | `flm.html.style.core` |
 | `flm.pres.block` | by role: `<blockquote>` for the role `flm.quote`, `<figure>` for the role `flm.floats.float`, `<figcaption>` for the role `flm.floats.float.caption`, `<nav>` for the role `flm.toc`; `<div>` otherwise | `flm-pres-block`, the role's own class | `id` ← `anchor`, `role` ← `doc_role`, `data-flm-kind` ← `kinds` | — | `flm.html.style.core` |
 | `flm.pres.block-heading` | `<h1>`–`<h6>` by level counted from `root_heading_level`, `<h6>` five levels below it and deeper; a render option maps a heading kind to a tag of its own | `flm-pres-block--heading` | `id` ← `anchor`, `data-flm-heading` ← `name`, `data-flm-level` ← `level`, `data-flm-toc` ← `in_toc` | `number` (the number stands in the content) | `flm.html.style.headings` |
 | `flm.pres.runin-heading` | `<span>` | `flm-pres-runin--heading` | `id` ← `anchor`, `data-flm-heading` ← `name`, `data-flm-level` ← `level`, `data-flm-toc` ← `in_toc` | `number` (the number stands in the content) | `flm.html.style.core` |

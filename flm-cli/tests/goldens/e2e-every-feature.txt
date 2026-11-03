@@ -12,7 +12,9 @@ footnoteᵃ, a user macro \(\mathcal{H}\) and (a, b). Some verbatim \text and a
 link to a page <https://example.com>, see Introduction and (1), with \(x = y\)
 in dollars. A remark [PhF] marked[PhF: check this].
 
-\begin{equation} a + b = c(1) \end{equation}
+  \begin{equation}
+    a + b = c(1)
+  \end{equation}
 
 Definitions and results
 -----------------------

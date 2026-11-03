@@ -1,28 +1,27 @@
-//! Plan A, A22: the compile-only proof of the contract, reduced to what the
-//! real code does not cover.
+//! The compile-only proof of the contract, reduced to what the real code does
+//! not cover.
 //!
 //! The binding's half of the proof (an `Expand::expand` and a `Stage::run`
-//! lending their arguments into one `CallTable<'c>`, A18) is the JSON double's
+//! lending their arguments into one `CallTable<'c>`) is the JSON double's
 //! (`tests/common/json_double.rs`), and the dispatcher's half (a child node, a
 //! table piece, a variant, a template and bindings lent back; nodes passed to
 //! `chars_text` through `clone_box`) is `adapter::dispatch`, both driven by
 //! `tests/boundary.rs`. What stays is a property of the Rust API alone: case
 //! 1's hook, written in Rust, keeps relatives beyond the borrow of the node it
-//! asked them on (A9, A16).
+//! asked them on.
 //!
-//! E2 (plan A, section 4) adds the first and the last sketch of its proof over
-//! the real types: a memory source's extension resolving through the loader in
-//! a catalog, and a host's template engine and template reaching the compose
-//! slots beside the library's.
+//! Two sketches over the real types prove the loader and the compose slots: a
+//! memory source's extension resolving through the loader in a catalog, and a
+//! host's template engine and template reaching the compose slots beside the
+//! library's.
 //!
-//! E6 adds one consumer of each new façade (a citation provider's context,
-//! the entries it makes, a template module's context): each answers values
-//! that own what they point at, which the consumers keep beyond the borrow of
-//! the context they asked.
+//! One consumer of each façade of the citation providers and the template
+//! modules (a citation provider's context, the entries it makes, a template
+//! module's context) proves that each answers values that own what they point
+//! at, which the consumers keep beyond the borrow of the context they asked.
 //!
-//! E4 (its plan, section 6.5) adds the six items of its proof, in the module
-//! `e4`: the durable handles, the handler aspects and a point read back from
-//! data.
+//! Six items, in the module `durable_and_aspects`, prove the durable handles,
+//! the handler aspects and a point read back from data.
 //!
 //! The lowering façade needs no sketch of its
 //! own: a rule's body lending its node, its `LowerCx` and its `Lowerer` into
@@ -31,11 +30,10 @@
 //! the context are taken together, a table read lent as an owned value) is
 //! `adapter::dispatch`, both driven by `tests/lowering.rs`.
 //!
-//! E5 adds the compile-only proof of the restage façade's contract: a rewrite
-//! stage written in Rust against the façade traits alone, written before the
-//! adapter implemented them, so that the compiler checked the shapes before
-//! an adapter was built on them. It is never run and asserts nothing; the
-//! rewrite stages that run are in `tests/rewrites.rs`.
+//! The compile-only proof of the restage façade's contract is a rewrite stage
+//! written in Rust against the façade traits alone, so that the compiler
+//! checks the shapes apart from the adapter. It is never run and asserts
+//! nothing; the rewrite stages that run are in `tests/rewrites.rs`.
 
 mod common;
 
@@ -81,7 +79,7 @@ fn shouting(hook: Arc<dyn Expand>) -> Arc<flm_core::core::registry::FlmRegistry>
 }
 
 #[test]
-fn a22_case_one_s_hook_keeps_relatives_beyond_their_borrow() {
+fn case_one_s_hook_keeps_relatives_beyond_their_borrow() {
     let registry = shouting(Arc::new(Shout));
     let (text, diagnostics) = common::text_of(&registry, "A \\shout{hey}.");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -91,13 +89,13 @@ fn a22_case_one_s_hook_keeps_relatives_beyond_their_borrow() {
     assert_eq!(text, "A \\shout{\\emph{hey}}.\n");
 }
 
-// --- E2 -----------------------------------------------------------------------------------
+// --- the loader and the compose slots -----------------------------------------------------
 
-/// Section 4's first sketch: a memory source answering an extension whose files
+/// The first sketch: a memory source answering an extension whose files
 /// are a map, a loader resolving an entry through it in a catalog, a factory;
 /// the factory name and both entry forms answer one factory, and the catalog
 /// answers what the factories reach.
-fn e2_consumer() -> Result<(), Vec<flm_core::core::registry::ResolveError>> {
+fn loader_consumer() -> Result<(), Vec<flm_core::core::registry::ResolveError>> {
     use flm_core::core::registry::{PackageCatalog, PackageResolver, ResolveError};
     use flm_ext::{ExtensionLoader, LoadedBlock, MemoryFiles, MemorySource};
     use serde_json::json;
@@ -128,8 +126,8 @@ fn e2_consumer() -> Result<(), Vec<flm_core::core::registry::ResolveError>> {
 }
 
 #[test]
-fn e2_a_memory_source_resolves_through_the_loader() {
-    e2_consumer().expect("the sketch runs");
+fn a_memory_source_resolves_through_the_loader() {
+    loader_consumer().expect("the sketch runs");
 }
 
 /// A host's template engine.
@@ -174,7 +172,7 @@ impl flm_core::core::registry::FlmFeature for ComposeStandard {
 }
 
 #[test]
-fn e2_a_host_engine_and_template_reach_the_compose_slots() {
+fn a_host_engine_and_template_reach_the_compose_slots() {
     use flm_core::core::registry::{build_registry, FlmFeature};
     use flm_core::stdcore::features::compose::{ComposeFeature, Template, TemplateEngine, ENGINES_SLOT, TEMPLATES_SLOT};
     use flm_ext::{ExtensionFiles, MemoryFiles};
@@ -202,7 +200,7 @@ fn e2_a_host_engine_and_template_reach_the_compose_slots() {
     assert_eq!((engines.len(), templates.len()), (2, 1));
 }
 
-// --- E5 -----------------------------------------------------------------------------------
+// --- the restage façade -------------------------------------------------------------------
 
 /// The proof's rewrite stage: dashes in characters (the first shape a rewrite
 /// takes), and `\sdquote{text}{kept}` rebuilt from its parts between quotes
@@ -282,21 +280,21 @@ impl flm_ext::api::core::stage::RewriteStage for Dashes {
 /// The registration of the proof's stage: the stage is a `dyn RewriteStage`
 /// held in an `Arc`, which `FeatureBuilder::rewrite_stage` takes.
 #[allow(dead_code, reason = "a compile-only proof: the stage is never registered")]
-fn e5_consumer(b: &mut dyn flm_ext::api::core::registry::FeatureBuilder) -> Result<(), ExtError> {
+fn restage_consumer(b: &mut dyn flm_ext::api::core::registry::FeatureBuilder) -> Result<(), ExtError> {
     let stage: Arc<dyn flm_ext::api::core::stage::RewriteStage> = Arc::new(Dashes);
     b.rewrite_stage(stage)
 }
 
-// E6: one consumer of each new façade. Each is written against the
-// extension API alone and proves, by compiling, that what a façade answers
-// owns what it points at: an entry a provider's context made, and a host
+// One consumer of each façade of the citation providers and the template
+// modules. Each is written against the extension API alone and proves, by
+// compiling, that what a façade answers owns what it points at: an entry a provider's context made, and a host
 // service a context lent, outlive the borrow of the context, so an answer
 // can carry them and a binding can lend them into the call's table beside
 // the context.
 
 /// A provider's body over [`ProviderCx`]: entries made through the context,
 /// kept beyond its borrow, answered with the requests' keys.
-fn e6_provider_consumer(
+fn provider_consumer(
     cx: &dyn flm_ext::api::stdcore::features::citations::ProviderCx,
     requests: &[flm_ext::api::stdcore::features::citations::CitationRequest],
 ) -> Result<Vec<flm_ext::api::stdcore::features::citations::CitationResult>, ExtError> {
@@ -316,7 +314,7 @@ fn e6_provider_consumer(
 
 /// A module's body over [`TemplateCx`]: the `files` handle kept beyond the
 /// borrow of the context, then read.
-fn e6_template_consumer(cx: &dyn flm_ext::api::stdcore::features::compose::TemplateCx) -> Result<Option<String>, ExtError> {
+fn template_consumer(cx: &dyn flm_ext::api::stdcore::features::compose::TemplateCx) -> Result<Option<String>, ExtError> {
     use flm_ext::api::host::{FilesScope, HostHandle};
     let handle: HostHandle = {
         let borrowed = cx;
@@ -330,7 +328,7 @@ fn e6_template_consumer(cx: &dyn flm_ext::api::stdcore::features::compose::Templ
 
 /// A binding's half over [`CitationEntry`]: the context and the entries it
 /// makes lent into one call table, an entry handed back by its handle.
-fn e6_binding_consumer<'c>(
+fn binding_consumer<'c>(
     cx: &'c dyn flm_ext::api::stdcore::features::citations::ProviderCx,
     table: &mut flm_ext::adapter::handles::CallTable<'c>,
 ) -> Result<Vec<flm_ext::api::stdcore::features::citations::CitationResult>, ExtError> {
@@ -344,24 +342,24 @@ fn e6_binding_consumer<'c>(
 }
 
 #[test]
-fn e6_the_consumers_of_the_new_facades_compile() {
-    let _ = e6_provider_consumer as fn(_, _) -> _;
-    let _ = e6_template_consumer as fn(_) -> _;
-    let _ = e6_binding_consumer as fn(_, _) -> _;
+fn the_consumers_of_the_provider_and_template_facades_compile() {
+    let _ = provider_consumer as fn(_, _) -> _;
+    let _ = template_consumer as fn(_) -> _;
+    let _ = binding_consumer as fn(_, _) -> _;
 }
 
-// --- E4 -----------------------------------------------------------------------------------
+// --- the durable handles, the handler aspects, a point read back from data ----------------
 //
-// The compile-only proof of E4's contract (plan E4, section 6.5): the durable
-// handles, the handler aspects, and a point read back from data. Items 1, 3
-// and 4 run; items 2 and 6 compile against the real items of WP-1 and WP-3
-// (the durable table, `lang()`, `TemplateLanguage`, `compile_template_with`,
-// `ValueBindings`, `instantiate`, and `durable_template` on the façades that
-// lend the table), which `tests/durable.rs` and `tests/expand.rs` run; item 5
-// compiles against the stand-in marked `// WP-2a` and runs through it, the
-// adapter's `ExtReferenceable` over the subset of points that name no node.
+// The compile-only proof of the durable handles, the handler aspects, and a
+// point read back from data. Items 1, 3 and 4 run; items 2 and 6 compile
+// against the real items (the durable table, `lang()`, `TemplateLanguage`,
+// `compile_template_with`, `ValueBindings`, `instantiate`, and
+// `durable_template` on the façades that lend the table), which
+// `tests/durable.rs` and `tests/expand.rs` run; item 5 compiles against the
+// stand-ins below and runs through them, the adapter's `ExtReferenceable`
+// over the subset of points that name no node.
 
-mod e4 {
+mod durable_and_aspects {
     use std::sync::{Arc, Mutex};
 
     use flm_core::core::registry::{BuildError, FeatureBuilder as CoreFeatureBuilder, FeatureInfo, FlmFeature, PackageEntry};
@@ -379,7 +377,7 @@ mod e4 {
     use flm_core::techy::latexlike::Mode;
 
     use flm_ext::adapter::durable::{DurableKind, DurableTable, DurableToken};
-    use flm_ext::adapter::node::NodeFacade;
+    use flm_ext::adapter::node::{NodeFacade, TreeFacade};
     use flm_ext::adapter::values::node_addr_to_value;
     use flm_ext::api::core::lowering::{DefaultMark, Lower, LowerCx, Lowerer, Lowering, LoweringDecl, LoweringRule};
     use flm_ext::api::lang::mint::{ArgDef, ElementDef, SyntaxDef};
@@ -420,7 +418,7 @@ mod e4 {
     // --- 1. A durable table shared across threads --------------------------------------
 
     #[test]
-    fn e4_1_a_durable_table_is_shared_across_threads() {
+    fn item_1_a_durable_table_is_shared_across_threads() {
         assert_send_sync::<CoreTemplateLanguage>();
         assert_send_sync::<CoreCompiledTemplate>();
         assert_send_sync::<DurableTable>();
@@ -458,7 +456,7 @@ mod e4 {
     // --- 3. A stale durable token ------------------------------------------------------
 
     #[test]
-    fn e4_3_a_token_of_another_table_is_stale() {
+    fn item_3_a_token_of_another_table_is_stale() {
         let registry = common::registry_with([]);
         let lang = registry.lang();
         let vocabulary = title_vocabulary();
@@ -490,7 +488,7 @@ mod e4 {
     // --- 4. A node found by its index --------------------------------------------------
 
     #[test]
-    fn e4_4_a_node_is_found_again_by_the_index_its_address_was_written_from() {
+    fn item_4_a_node_is_found_again_by_the_index_its_address_was_written_from() {
         let registry = common::registry_with([]);
         let source = Arc::new(FlmSource::new("A \\emph{b} and $x^2$.\n\nTwo.").with_origin(FlmOrigin::none()));
         let fragment = parse_fragment(registry.lang(), source, FragmentLayout::default(), &ParseOptions::default())
@@ -556,8 +554,8 @@ mod e4 {
                     template
                 }
             };
-            let number = NodeFacade::shared(Arc::clone(&self.number), self.number.root().id());
-            let bindings = ValueBindings::new().with("number", &number)?;
+            let number = TreeFacade::new(Arc::clone(&self.number));
+            let bindings = ValueBindings::new().with("number", &number);
             // The façade owns its `Arc`: `&dyn CompiledTemplate` borrows the
             // façade, not the expander or the table.
             let staged = xp.instantiate(cx, node, &template, &bindings)?;
@@ -566,7 +564,7 @@ mod e4 {
     }
 
     #[test]
-    fn e4_2_a_durable_template_meets_the_expander_s_borrow() {
+    fn item_2_a_durable_template_meets_the_expander_s_borrow() {
         // Compile-only: the hook is built, not run (`tests/expand.rs` and
         // `tests/durable.rs` run the same calls).
         let registry = common::registry_with([]);
@@ -593,17 +591,18 @@ mod e4 {
     impl Lower for TitleRule {
         fn lower<'c>(&self, node: &'c dyn Node<'c>, cx: &'c mut dyn LowerCx, lw: &'c mut dyn Lowerer) -> Result<Lowering, ExtError> {
             let template = lw.durable_template(self.template)?;
-            let number = NodeFacade::shared(Arc::clone(&self.number), self.number.root().id());
-            let bindings = ValueBindings::new().with("number", &number)?;
+            let number = TreeFacade::new(Arc::clone(&self.number));
+            let bindings = ValueBindings::new().with("number", &number);
             let title = instantiate(node, &template, &bindings)?;
             Ok(Lowering::Emit(lw.splice(cx, &*title)?))
         }
     }
 
     #[test]
-    fn e4_6_value_bindings_reach_instantiate_and_the_lowerer() {
-        // `flm-core`'s bindings (request 9) answer as the request sketches;
-        // the rule is built, not run (`tests/durable.rs` runs it).
+    fn item_6_value_bindings_reach_instantiate_and_the_lowerer() {
+        // `flm-core`'s value bindings answer a tree for a name they hold,
+        // nothing for another name, and leave the body unresolvable; the rule
+        // is built, not run (`tests/durable.rs` runs it).
         let registry = common::registry_with([]);
         let number = parse_fragment(
             registry.lang(),
@@ -648,8 +647,9 @@ mod e4 {
 
     /// A point that names no node, as `flm-core`'s; `None` for one that names
     /// a node.
-    // WP-2a: `ref_point_to_core` resolves the nodes through the sealed
-    // accessor, which code outside the crate cannot call.
+    // A stand-in for the adapter's `ref_point_to_core`, which resolves the
+    // nodes through the sealed accessor, which code outside the crate cannot
+    // call.
     fn ref_point_to_core_stand_in(point: RefPoint<'_>) -> Option<core_aspects::RefPoint> {
         let content = |content: ContentRef<'_>| match content {
             ContentRef::Argument(i) => Some(core_aspects::ContentRef::Argument(i)),
@@ -694,9 +694,9 @@ mod e4 {
         })
     }
 
-    // WP-2a: the adapter's `ExtReferenceable`; a stand-in that lends the node
-    // as the adapter does (`NodeFacade::lent`) and answers no point on a
-    // failure (plan section 4.3).
+    // A stand-in for the adapter's `ExtReferenceable`, which lends the node as
+    // the adapter does (`NodeFacade::lent`) and answers no point on a
+    // failure.
     struct ExtReferenceableStandIn {
         aspect: Arc<dyn Referenceable>,
     }
@@ -711,8 +711,8 @@ mod e4 {
         }
     }
 
-    // WP-2a: `Aspect::Referenceable` on the element's specification, or
-    // `attach`; a `flm-core` feature attaches the stand-in to the scripted
+    // In place of `Aspect::Referenceable` on the element's specification, or
+    // `attach`, a `flm-core` feature attaches the stand-in to the scripted
     // element here.
     struct AttachesPoints;
 
@@ -739,7 +739,7 @@ mod e4 {
     }
 
     #[test]
-    fn e4_5_a_rust_referenceable_on_a_scripted_element_gives_ref_its_target() {
+    fn item_5_a_rust_referenceable_on_a_scripted_element_gives_ref_its_target() {
         let exercises = common::double::Double::new("ex").feature("ex", |b| {
             let exercise = ElementDef::new(
                 b.feature(),

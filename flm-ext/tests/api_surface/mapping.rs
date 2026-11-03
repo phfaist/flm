@@ -1,6 +1,5 @@
 //! The mapping table: the generator's one table from the Rust types of the
-//! inventory to their conversions and their TypeScript shapes, kept by hand
-//! (the plan's sections 3.3 and 4, `dev-docs/ext/e2b`).
+//! inventory to their conversions and their TypeScript shapes, kept by hand.
 //!
 //! It holds the kind rows ([`KINDS`], one per handle kind), the opaque value
 //! types ([`OPAQUE_TYPES`]), the type rows ([`TYPES`], one per leaf type that
@@ -8,15 +7,15 @@
 //! enums ([`unit_enum_tokens`], evaluated through the crate), the frozen
 //! objects of static constructors ([`STATIC_OBJECTS`]), the six lists
 //! [`NOT_DISPATCHED`], [`OPTIONAL_IN_SCRIPTS`], [`CALL_OVERRIDES`],
-//! [`EXTRA_METHODS`], [`HAND_ARMS`] and [`HAND_WRITTEN`], and the three lists
+//! [`EXTRA_METHODS`], [`HAND_ARMS`] and [`HAND_WRITTEN`], and the four lists
 //! of the WebAssembly guest client ([`GUEST_OWN`], [`GUEST_HAND`],
-//! [`GUEST_ADDED`]). The test
+//! [`GUEST_ADDED`], [`GUEST_OMITTED`]). The test
 //! `the_mapping_table_matches_the_inventory` checks it against the inventory
 //! in both directions.
 //!
 //! A type is matched against the rows first; when no row names it, the
-//! structural rules of [`leaves`] apply (the plan's section 4.2), outermost
-//! first, and what is left must have a row.
+//! structural rules of [`leaves`] apply, outermost first, and what is left
+//! must have a row.
 
 #![allow(dead_code, reason = "the emitters of the generator's outputs read every field of the table; this part of the generator reads some")]
 
@@ -24,8 +23,7 @@ use serde_json::Value;
 
 use flm_ext::adapter::values::JsonForm;
 
-/// How the dispatcher takes the receiver of a method of a handle kind (the
-/// plan's section 5.1).
+/// How the dispatcher takes the receiver of a method of a handle kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Receiver {
     /// A shared borrow lent for the call, copied out of the entry
@@ -111,26 +109,25 @@ pub const KINDS: &[KindRow] = &[
     KindRow { kind: "module", rust: None, entry: None, receiver: Receiver::Module, rehearsable: false },
     kind("referenceable", "Referenceable", "Referenceable", Receiver::Arc),
     kind("sectioning", "Sectioning", "Sectioning", Receiver::Arc),
-    // An argument a helper made (`refs.label_fields_arg()`): `ArgDef` is a
-    // re-export of `flm-core`'s, so the row names no item under `src/api/`;
-    // it has no method, an argument list takes it in place of a code.
-    KindRow { kind: "arg_def", rust: None, entry: Some("ArgDef"), receiver: Receiver::Cloned, rehearsable: false },
     // The built language: lent to a late-init hook, or recorded as the
-    // lowerer or the expander whose `lang()` answered it (WP-3): every
+    // lowerer or the expander whose `lang()` answered it: every
     // function that takes it is a hand arm.
     kind("built_lang", "BuiltLang", "BuiltLang", Receiver::Recorded),
     kind("flm_diagnostics", "FlmDiagnostics", "FlmDiagnostics", Receiver::LentMut),
     kind("late_init", "LateInit", "LateInit", Receiver::Arc),
     kind("finalizer", "Finalizer", "Finalizer", Receiver::Arc),
-    // The tables a reader answers typed (WP-2b): every method is a hand
+    // The tables a reader answers typed: every method is a hand
     // arm, which reads the point back through the façade and asks a
     // recorded table of its lowerer again.
     kind("counters", "Counters", "Counters", Receiver::Recorded),
     kind("anchors", "Anchors", "Anchors", Receiver::Recorded),
-    // A template language, resolved for the call from its durable token
-    // (WP-3); no method of its own.
+    // A template language, resolved for the call from its durable token; no
+    // method of its own.
     kind("template_language", "TemplateLanguage", "TemplateLanguage", Receiver::Cloned),
     kind("value_bindings", "ValueBindings", "ValueBindings", Receiver::Cloned),
+    // A tree shared through an `Arc`; taken as an argument, it is copied out
+    // of the table, as a node is.
+    kind("tree", "Tree", "Tree", Receiver::Boxed),
 ];
 
 /// The kind row of the trait or type `rust`.
@@ -138,7 +135,7 @@ pub fn kind_of(rust: &str) -> Option<&'static KindRow> {
     KINDS.iter().find(|row| row.rust == Some(rust))
 }
 
-/// The opaque value types (rule 3 of the plan's section 3.2): `api` structs
+/// The opaque value types (rule 3 of `ItemClass`): `api` structs
 /// a binding cannot build from data. `DefinitionBindings` and `LoweringStage`
 /// have no kind of their own ([`KINDLESS`]): their constructors answer a
 /// `placeholder_bindings` and a `library_stage`.
@@ -218,7 +215,7 @@ const fn unit(rust: &'static str) -> TypeRow {
     both(rust, Ts::Union, "JsonForm (values.rs, string_form! or serde)")
 }
 
-/// The type rows (the plan's section 4.3), by group.
+/// The type rows, by group.
 pub const TYPES: &[TypeRow] = &[
     // Scalars and data.
     read("str", Ts::Text("string"), "Args::text, passed by reference"),
@@ -227,7 +224,13 @@ pub const TYPES: &[TypeRow] = &[
     both("usize", Ts::Text("number"), "Args::index; a number"),
     answered("u32", Ts::Text("number"), "a number"),
     both("bool", Ts::Text("boolean"), "Args::flag; a boolean"),
-    TypeRow { rust: "[u8]", from_arg: Some("Vec<u8>"), into_reply: None, ts: Ts::Text("string"), note: "Args::text, its UTF-8 bytes" },
+    TypeRow {
+        rust: "[u8]",
+        from_arg: Some("Vec<u8>"),
+        into_reply: None,
+        ts: Ts::Text("string | { text: string } | { base64: string }"),
+        note: "a form of an artifact's content (content_from_value): a text, its UTF-8 bytes, { text } or { base64 }",
+    },
     both("Value", Ts::Text("any"), "the argument as it is; check_data on the reply"),
     // The enums with one string per variant.
     unit("Effect"),
@@ -259,7 +262,7 @@ pub const TYPES: &[TypeRow] = &[
     ),
     answered("HostHandle", Ts::Text("Files | HostService"), "lent as Entry::Files or Entry::HostService"),
     read("Vec<Mode>", Ts::Text("Mode[]"), "Mode's JsonForm, per item"),
-    // The citation providers and the template modules (E6).
+    // The citation providers and the template modules.
     inside("CitationRequest", Ts::Text("interface CitationRequest { key: string }"), "citation_requests_to_value"),
     inside(
         "CitationProviderError",
@@ -270,6 +273,12 @@ pub const TYPES: &[TypeRow] = &[
         "CitationResult",
         Ts::Text("CitationAnswer | CitationProviderError | null"),
         "citation_results_from_value, one item per request",
+    ),
+    // The fault a feature's configuration reader answers (the entry `read_settings`).
+    inside(
+        "ReadError",
+        Ts::Text("interface ReadError { path?: string; detail: string }"),
+        "its serde form, the `error` of a configuration reader's answer, read by read_answer_from_value",
     ),
     inside(
         "CitationAnswer",
@@ -363,7 +372,7 @@ pub const TYPES: &[TypeRow] = &[
     answered("Span", Ts::Text("interface Span { start: number; end: number }"), "JsonForm for Span"),
     answered("CharsContent", Ts::Text("interface CharsContent { text: string | null; has_placeholder: boolean }"), "JsonForm for CharsContent"),
     answered("Option<(String, String)>", Ts::Text("[string, string] | null"), "Option, then the pair as a list"),
-    answered("Vec<(String, Box<dyn Node>)>", Ts::Text("[string, Node][]"), "each pair a list, the node lent"),
+    answered("Vec<(String, Box<dyn Tree>)>", Ts::Text("[string, Tree][]"), "each pair a list, the tree lent"),
     answered(
         "EquationLine",
         Ts::Text(
@@ -394,7 +403,7 @@ pub const TYPES: &[TypeRow] = &[
     inside(
         "LineShows",
         Ts::Text(
-            "type LineShows = { kind: \"nothing\" } | { kind: \"number\"; segments: Node[]; text: string } | { kind: \"tag\"; starred: boolean; content: Node[] }",
+            "type LineShows = { kind: \"nothing\" } | { kind: \"number\"; segments: Tree[]; text: string } | { kind: \"tag\"; starred: boolean; content: Node[] }",
         ),
         "line_frame_to_value, inside LineFrame",
     ),
@@ -405,16 +414,21 @@ pub const TYPES: &[TypeRow] = &[
         from_arg: None,
         into_reply: Some("ArgDef"),
         ts: Ts::Hand,
-        note: "lent as Entry::ArgDef (label_fields_arg); the hand-written arm arg_def_from_code writes it as data (arg_def_to_value)",
+        note: "written as data, with its code or its structured syntax (arg_def_to_value), which arg_defs_from_value reads back",
     },
     // The structured syntax of an argument: the kinds the host reads and
-    // writes; a tack-on argument crosses with neither a code nor a syntax.
+    // writes, a tack-on argument with its fields.
     inside(
         "ArgStdKind",
         Ts::Text(
-            "{ syntax: \"mandatory\" } | { syntax: \"optional\" } | { syntax: \"star\" } | { syntax: \"marker\"; marker: string } | { syntax: \"delimited-group\"; delimiters: [string, string] } | { syntax: \"optional-delimited-group\"; delimiters: [string, string] } | { syntax: \"any-delimited-group\" } | { syntax: \"optional-any-delimited-group\" } | { syntax: \"braced-only\" } | { syntax: \"embellishments\"; markers: string[] } | { syntax: \"key-vals\" } | { syntax: \"chars-group\" } | { syntax: \"verbatim\"; delimiters?: [string, string] } | { syntax: \"terminated\"; terminator: string; repeat_char?: string; opener?: string; head?: string; raw?: boolean }",
+            "{ syntax: \"mandatory\" } | { syntax: \"optional\" } | { syntax: \"star\" } | { syntax: \"marker\"; marker: string } | { syntax: \"delimited-group\"; delimiters: [string, string] } | { syntax: \"optional-delimited-group\"; delimiters: [string, string] } | { syntax: \"any-delimited-group\" } | { syntax: \"optional-any-delimited-group\" } | { syntax: \"braced-only\" } | { syntax: \"embellishments\"; markers: string[] } | { syntax: \"key-vals\" } | { syntax: \"chars-group\" } | { syntax: \"verbatim\"; delimiters?: [string, string] } | { syntax: \"tack-on\"; fields: TackOnField[] } | { syntax: \"terminated\"; terminator: string; repeat_char?: string; opener?: string; head?: string; raw?: boolean }",
         ),
         "JsonForm for ArgStdKind (serde), inside ArgDef: arg_def_to_value and arg_defs_from_value",
+    ),
+    inside(
+        "TackOnField",
+        Ts::Text("interface TackOnField { name: string; args?: ArgDef[] | string; repeatable?: boolean; docs?: string }"),
+        "inside ArgStdKind, its structured syntax tack-on",
     ),
     inside("BodyDef", Ts::Hand, "body_def_from_value, inside SyntaxDef"),
     both("UserDefinition", Ts::Handle, "the entry cloned; lent as Entry::UserDefinition"),
@@ -422,12 +436,27 @@ pub const TYPES: &[TypeRow] = &[
     answered("Box<dyn ModeVariant>", Ts::Handle, "lent as Entry::ModeVariant"),
     answered("Box<dyn CompiledTemplate>", Ts::Handle, "lent as Entry::CompiledTemplate"),
     answered("Box<dyn PlaceholderBindings>", Ts::Handle, "lent as Entry::PlaceholderBindings"),
-    // The templates a handler compiles (WP-3).
+    // The placeholders a compiled template lists, and the values of the
+    // extra placeholders a hook computes: `ExtraValues` is data, read as the
+    // receiver of the hand-written arm `ExtraValues::over`; its class is
+    // hand-written (`HAND_WRITTEN`).
+    answered(
+        "PlaceholderRef",
+        Ts::Text("interface PlaceholderRef { written: string; target: PlaceholderTarget; substitution: string | null }"),
+        "JsonForm for PlaceholderRef (answered_as_its_form)",
+    ),
+    inside(
+        "PlaceholderTarget",
+        Ts::Text("{ argument: number } | \"body\" | { extra: string }"),
+        "JsonForm for PlaceholderTarget, inside PlaceholderRef",
+    ),
+    read("ExtraValues", Ts::Hand, "extra_values_from_value"),
+    // The templates a handler compiles.
     both("TemplateLanguage", Ts::Handle, "the entry cloned (a durable token lent by the dispatcher); answered as its durable token"),
     answered("DurableTemplateFacade", Ts::Text("CompiledTemplate"), "answered as its durable token (durable_to_value)"),
     both("ValueBindings", Ts::Handle, "the entry cloned; lent as Entry::ValueBindings"),
-    // Its class (`new TemplateSpec({ … })`, plan section 3.6) is
-    // hand-written (`HAND_WRITTEN`, WP-4b); the row is its data form.
+    // Its class (`new TemplateSpec({ … })`) is hand-written
+    // (`HAND_WRITTEN`); the row is its data form.
     read(
         "TemplateSpec",
         Ts::Text("interface TemplateSpec { text: string; mode: Mode; vocabulary: PlaceholderVocabulary; definition: string; label: string; origin_label: string; user_definition?: boolean; offset?: number }"),
@@ -458,7 +487,7 @@ pub const TYPES: &[TypeRow] = &[
     ),
     inside(
         "BlockRole",
-        Ts::Text("\"block\" | { inline: InlineSpacing } | { \"block-decorator\": Placement }"),
+        Ts::Text("\"block\" | { inline: InlineSpacing } | \"displayed\" | { \"block-decorator\": Placement }"),
         "JsonForm for BlockRole",
     ),
     inside("InlineSpacing", Ts::Text("{ absorb_before: boolean; absorb_after: boolean }"), "JsonForm for InlineSpacing"),
@@ -466,7 +495,7 @@ pub const TYPES: &[TypeRow] = &[
     inside("FixedBlockRole", Ts::NotOffered, "the aspect { BlockRoleAspect: role } holds the block role itself"),
     inside("NotCharacters", Ts::NotOffered, "an error, rendered as ExtError::Core of kind not-characters"),
     inside("NodeRegion", Ts::NotOffered, "taken by lower_region only, which is not dispatched"),
-    // The artifacts of an output (E5's WP-1a): plain data, re-exported; an
+    // The artifacts of an output: plain data, re-exported; an
     // artifact crosses as the item of `TablePiece::push`, read by
     // artifact_from_value.
     inside("Artifact", Ts::Hand, "artifact_from_value, the item of TablePiece::push; the class is a fragment"),
@@ -476,14 +505,14 @@ pub const TYPES: &[TypeRow] = &[
         Ts::Text("{ bytes: string | { text: string } | { base64: string } } | { files: [string, string | { text: string } | { base64: string }][] }"),
         "artifact_from_value, inside Artifact",
     ),
-    // The backends and the outputs of E5 (WP-1b): a backend's stages are
+    // The backends and the outputs: a backend's stages are
     // objects of the kinds `library_stage` and `stage`, read from the table
     // by backend_def_from_table; an output is plain data.
     read("BackendDef", Ts::Hand, "backend_def_from_table, its stages taken out of the table; the class is a fragment"),
     inside("BackendStage", Ts::Text("LibraryStage | Stage"), "backend_def_from_table, inside BackendDef"),
     answered("LibraryStage", Ts::Handle, "lent as Entry::LibraryStage; read inside BackendDef"),
     read("OutputDef", Ts::Hand, "JsonForm for OutputDef; the class is a fragment"),
-    // The rewrite stages of E5 (WP-2): the declaration is data; the answer
+    // The rewrite stages: the declaration is data; the answer
     // of a handler is written as a lowering is; the bundles a restager
     // answers are lent as their entries and taken out of the table by
     // `restage_invocation`, each once.
@@ -501,12 +530,12 @@ pub const TYPES: &[TypeRow] = &[
     inside(
         "DurableOwner",
         Ts::NotOffered,
-        "the sealed trait of durable_template, a Rust handler's route to a kept token (S26); a script passes the token itself",
+        "the sealed trait of durable_template, a Rust handler's route to a kept token; a script passes the token itself",
     ),
     // The data of the handler aspects (`flm:model/aspects`), answered by a
-    // script's `Referenceable` and `Sectioning`; the binding's conversions are
-    // WP-2a's and WP-4a's.
-    inside("u32", Ts::Text("number"), "a number; read by the binding's aspect objects (WP-2a)"),
+    // script's `Referenceable` and `Sectioning` and read by the binding's
+    // aspect objects.
+    inside("u32", Ts::Text("number"), "a number; read by the binding's aspect objects"),
     inside(
         "RefPoint",
         Ts::Text(
@@ -522,21 +551,21 @@ pub const TYPES: &[TypeRow] = &[
     inside(
         "NumberSource",
         Ts::Text("interface NumberSource { counter: string; instances: Node[]; style: string; advance: number[]; number_format: string | null }"),
-        "inside RefPoint (WP-2a)",
+        "inside RefPoint",
     ),
     inside(
         "AnchorPolicy",
         Ts::Text(
             "type AnchorPolicy = \"from_first_label\" | { explicit: string } | { slug: { prefix: string; content: ContentRef } } | { from_value: { prefix: string } } | { auto: { prefix: string } }",
         ),
-        "inside RefPoint (WP-2a)",
+        "inside RefPoint",
     ),
     inside(
         "ContentRef",
         Ts::Text("type ContentRef = { argument: number } | { argument_named: string } | \"body\" | { node: Node } | { synthesized: Node }"),
-        "inside RefPoint; answered by Sectioning.toc_title (WP-2a)",
+        "inside RefPoint; answered by Sectioning.toc_title",
     ),
-    inside("AcceptedRefTypes", Ts::Text("type AcceptedRefTypes = \"any\" | { these: string[] }"), "inside RefPoint (WP-2a)"),
+    inside("AcceptedRefTypes", Ts::Text("type AcceptedRefTypes = \"any\" | { these: string[] }"), "inside RefPoint"),
     both(
         "Label",
         Ts::Text("interface Label { ref_type: string; ref_label: string }"),
@@ -545,23 +574,23 @@ pub const TYPES: &[TypeRow] = &[
     inside(
         "PointId",
         Ts::Text("interface PointId { addr: NodeAddr; index: number }"),
-        "point_id_to_value writes it; taken by the Counters and Anchors façades (WP-2b reads it back)",
+        "point_id_to_value writes it; the Counters and Anchors façades take it and read it back",
     ),
-    // The builder's rows of E4 (WP-2a).
+    // The builder's rows.
     read("ScopedPackageDef", Ts::Class, "scoped_package_def_from_table"),
     read("Arc<dyn LateInit>", Ts::Text("LateInit"), "the entry's Arc, cloned (Entry::LateInit)"),
     read("Arc<dyn Finalizer>", Ts::Text("Finalizer"), "the entry's Arc, cloned (Entry::Finalizer)"),
-    // The numbering library (WP-2b): the declarations are flm-core's own,
+    // The numbering library: the declarations are flm-core's own,
     // read by the service slots' readers (adapter/slots.rs) from the data
     // `contribute_to`, `contribute_first_to` and `peer_slot` take
     // (`Contributed::Data`, routed by the slot's name); their classes are the
-    // binding's (WP-4a).
+    // binding's.
     answered(
         "CounterRecord",
         Ts::Text("interface CounterRecord { counter: string; value: number[]; style: string; instance: NodeAddr | null }"),
         "counter_record_to_value",
     ),
-    answered("NumberSegment", Ts::Text("interface NumberSegment { content: Node; link: PointId | null }"), "the IntoReply of values.rs"),
+    answered("NumberSegment", Ts::Text("interface NumberSegment { content: Tree; link: PointId | null }"), "the IntoReply of values.rs"),
     read(
         "FormatOptions",
         Ts::Text("interface FormatOptions { variant?: string | null; with_word?: boolean; with_delimiters?: boolean }"),
@@ -591,7 +620,7 @@ pub const TYPES: &[TypeRow] = &[
     inside("PluralWords", Ts::Text("interface PluralWords { one: string; other: string }"), "its serde form, inside PrefixWords"),
     inside("Delimiters", Ts::Text("interface Delimiters { open: string; close: string }"), "its serde form, inside CounterStyleDecl"),
     inside("NumberTemplate", Ts::Text("type NumberTemplate = { formats: string } | { initial: string }"), "its serde form, inside CounterStyleDecl"),
-    // The LaTeX family (WP-2b): the payloads are given as data to `pres` and
+    // The LaTeX family: the payloads are given as data to `pres` and
     // `pres_slots` (adapter/payloads.rs reads them through their
     // `from_projection`).
     unit("LatexArgShape"),
@@ -630,8 +659,8 @@ pub fn row(rust: &str) -> Option<&'static TypeRow> {
 }
 
 /// The tokens of the unit enum `rust`, variant by variant, evaluated through
-/// the crate's own conversion ([`JsonForm::to_value`]; the plan's section
-/// 3.4): the variants are named here, the tokens come from `values.rs`.
+/// the crate's own conversion ([`JsonForm::to_value`]): the variants are
+/// named here, the tokens come from `values.rs`.
 pub fn unit_enum_tokens(rust: &str) -> Option<Vec<(&'static str, Value)>> {
     macro_rules! tokens {
         ($($name:literal => $type:path: [$($variant:ident),+ $(,)?]),+ $(,)?) => {
@@ -674,8 +703,8 @@ pub struct Member {
     pub ts: &'static str,
 }
 
-/// The frozen object of static constructors of a data enum (the plan's
-/// section 4.4), and of `InlineSpacing`, whose object holds a constant.
+/// The frozen object of static constructors of a data enum, and of
+/// `InlineSpacing`, whose object holds a constant.
 #[derive(Debug, Clone, Copy)]
 pub struct StaticObject {
     /// The type.
@@ -692,8 +721,7 @@ const fn member(name: &'static str, js: &'static str, ts: &'static str) -> Membe
     Member { name, js, ts }
 }
 
-/// The frozen objects: `Restage` (E5), the seven data enums of the plan's
-/// section 4.4, then
+/// The frozen objects: `Restage`, the seven data enums, then
 /// `InlineSpacing`.
 pub const STATIC_OBJECTS: &[StaticObject] = &[
     StaticObject {
@@ -779,6 +807,7 @@ pub const STATIC_OBJECTS: &[StaticObject] = &[
         members: &[
             member("Block", "Block: \"block\"", "Block: \"block\""),
             member("Inline", "Inline(spacing) { return { inline: spacing }; }", "Inline(spacing: InlineSpacing): { inline: InlineSpacing }"),
+            member("Displayed", "Displayed: \"displayed\"", "Displayed: \"displayed\""),
             member(
                 "BlockDecorator",
                 "BlockDecorator(placement) { return { \"block-decorator\": placement }; }",
@@ -836,7 +865,7 @@ const fn excluded(owner: &'static str, method: &'static str, reason: &'static st
 /// declaration.
 const RUST_READER: &str = "a reader for Rust callers";
 
-/// The methods not dispatched (the plan's section 3.3).
+/// The methods not dispatched.
 pub const NOT_DISPATCHED: &[Exclusion] = &[
     excluded("Lowerer", "lower_region", "an address crosses as data that nothing takes back"),
     excluded("ExtTableRead", "items_at", "reached through `Lowerer.get_at`"),
@@ -877,7 +906,7 @@ pub struct Optional {
     pub reason: &'static str,
 }
 
-/// The methods optional on a script's object (the plan's section 3.2, rule 2).
+/// The methods optional on a script's object (rule 2 of `ItemClass`).
 pub const OPTIONAL_IN_SCRIPTS: &[Optional] = &[
     Optional {
         owner: "Stage",
@@ -914,7 +943,7 @@ pub struct Override {
     pub reason: &'static str,
 }
 
-/// The overrides (the plan's section 3.3).
+/// The overrides.
 pub const CALL_OVERRIDES: &[Override] = &[];
 
 /// A dispatcher-only method or function with a hand-written arm, its
@@ -937,9 +966,16 @@ pub struct Extra {
     /// is the struct of its handle kind, a type of [`GUEST_OWN`] the guest's
     /// own, lifetimes dropped, the result a `Result<_, ExtError>`.
     pub rust: &'static str,
+    /// The typed body of the guest client's method or function (the cargo
+    /// feature `native`): the lines inside `abi::typed(…, |table| { … })`,
+    /// calling the function of `dispatch.rs`'s module `extra` that the
+    /// hand-written arm calls, the guest's values converted as a generated
+    /// typed body converts them; `None` for a method whose stub has a body of
+    /// its own ([`js`](Extra::js)), which the guest forwards likewise.
+    pub typed: Option<&'static str>,
 }
 
-/// The extras (the plan's sections 3.3 and 5.1).
+/// The extras.
 pub const EXTRA_METHODS: &[Extra] = &[
     Extra {
         owner: "stage_out",
@@ -948,6 +984,7 @@ pub const EXTRA_METHODS: &[Extra] = &[
         js: None,
         reason: "answers a borrow of the receiver, which cannot be lent beside it; the entry `TablePiece { out, name }` records how to ask again",
         rust: "fn table(&mut self, name: &str) -> Result<TablePiece, ExtError>",
+        typed: Some("Ok(TablePiece { handle: extra::stage_out_table(table, self.handle, name)? })"),
     },
     Extra {
         owner: "table_piece",
@@ -956,6 +993,7 @@ pub const EXTRA_METHODS: &[Extra] = &[
         js: None,
         reason: "resolves the piece anew through the output's entry on every push",
         rust: "fn push(&mut self, item: Value) -> Result<(), ExtError>",
+        typed: Some("extra::table_piece_push(table, self.handle, item)"),
     },
     Extra {
         owner: "lowerer",
@@ -964,6 +1002,8 @@ pub const EXTRA_METHODS: &[Extra] = &[
         js: None,
         reason: "no façade method: `addr_of`, then `get`, then `items_at`, composed in the dispatcher",
         rust: "fn get_at(&self, name: &str, node: &Node) -> Result<Option<Vec<Value>>, ExtError>",
+        typed: Some("let node = IntoApi::into_api(node, table)?;\n\
+                     extra::lowerer_get_at(table, self.handle, name, &*node)"),
     },
     Extra {
         owner: "lowerer",
@@ -972,14 +1012,7 @@ pub const EXTRA_METHODS: &[Extra] = &[
         js: Some("pres_tree(cx, tree) { return pres_tree(this, cx, tree); }"),
         reason: "a stub-only convenience forwarding to the free function `pres_tree`",
         rust: "fn pres_tree(&mut self, cx: &mut LowerCx, tree: &PresTree) -> Result<Staged, ExtError>",
-    },
-    Extra {
-        owner: "lang/mint",
-        name: "arg_def_from_code",
-        ts: "arg_def_from_code(code: string): ArgDef",
-        js: None,
-        reason: "its reply, an `ArgDef`, is written with the code it was read from",
-        rust: "fn arg_def_from_code(code: &str) -> Result<ArgDef, ExtError>",
+        typed: None,
     },
     Extra {
         owner: "stdcore/features/math",
@@ -988,6 +1021,9 @@ pub const EXTRA_METHODS: &[Extra] = &[
         js: None,
         reason: "its first argument is one of two kinds, the reader borrowing the entry across the call",
         rust: "fn line_frames(reader: FrameReader, anchors: bool, counters: bool, node: &Node) -> Result<Vec<LineFrame>, ExtError>",
+        typed: Some("let node = IntoApi::into_api(node, table)?;\n\
+                     let frames = extra::line_frames(table, reader.handle(), anchors, counters, &*node)?;\n\
+                     FromApi::from_api(frames, table)"),
     },
 ];
 
@@ -1009,6 +1045,10 @@ pub struct HandArm {
     pub method: &'static str,
     /// Why the arm is hand-written.
     pub reason: &'static str,
+    /// The typed body of the guest client's method or function, as
+    /// [`Extra::typed`]; `None` for an item of a type of [`GUEST_OWN`],
+    /// which `src/guest/hand/` writes with both its bodies.
+    pub typed: Option<&'static str>,
 }
 
 /// The hand-written arms of façade methods; the stub and the declarations
@@ -1018,54 +1058,84 @@ pub const HAND_ARMS: &[HandArm] = &[HandArm {
     method: "instantiate",
     reason: "an argument in the wrong place is reported at the first wrong position among the context, the use site, the template and \
              the bindings, which the generated arm, copying the use site first, would not do (`tests/boundary.rs`, \"wrong order\")",
+    typed: Some("let template = template.lent(table)?;\n\
+                 let staged = extra::expander_instantiate(table, [self.handle, cx.handle, site.handle, template, bindings.handle])?;\n\
+                 FromApi::from_api(staged, table)"),
 },
     HandArm {
         kind: "lowerer",
         method: "get",
         reason: "`get` answers a borrow of the lowerer, which cannot be lent beside it: an extension's own table and a rewrite's trees \
                  are answered as owned copies (`get_owned`), the counters and anchors tables recorded and asked of the lowerer again",
+        typed: Some("let got = extra::lowerer_get(table, self.handle, name)?;\n\
+                     FromApi::from_api(got, table)"),
     },
     HandArm {
         kind: "counters",
         method: "record",
         reason: "the point is read back from data by the façade, against the trees its reader sees",
+        typed: Some("let point = IntoApi::into_api(point, table)?;\n\
+                     let record = extra::counters_record(table, self.handle, &point)?;\n\
+                     FromApi::from_api(record, table)"),
     },
     HandArm {
         kind: "counters",
         method: "format",
         reason: "the point is read back from data by the façade, against the trees its reader sees",
+        typed: Some("let point = IntoApi::into_api(point, table)?;\n\
+                     let segments = extra::counters_format(table, self.handle, &point, options)?;\n\
+                     FromApi::from_api(segments, table)"),
     },
     HandArm {
         kind: "anchors",
         method: "id",
         reason: "the point is read back from data by the façade, against the trees its reader sees",
+        typed: Some("let point = IntoApi::into_api(point, table)?;\n\
+                     extra::anchors_id(table, self.handle, &point)"),
     },
     HandArm {
         kind: "lowerer",
         method: "lang",
         reason: "`lang` answers a borrow of the lowerer, which cannot be lent beside it: the language is recorded as the lowerer's \
-                 handle and asked of the lowerer again on every use (WP-3)",
+                 handle and asked of the lowerer again on every use",
+        typed: Some("Ok(BuiltLang { handle: extra::lowerer_lang(table, self.handle)? })"),
     },
     HandArm {
         kind: "expander",
         method: "lang",
         reason: "`lang` answers a borrow of the expander, which cannot be lent beside it: the language is recorded as the expander's \
-                 handle and asked of the expander again on every use (WP-3)",
+                 handle and asked of the expander again on every use",
+        typed: Some("Ok(BuiltLang { handle: extra::expander_lang(table, self.handle)? })"),
     },
     HandArm {
         kind: "lang/rewrites/userdefs",
         method: "TemplateLanguage::new",
-        reason: "takes a built language, which a recorded entry asks of its lowerer or expander again (WP-3)",
+        reason: "takes a built language, which a recorded entry asks of its lowerer or expander again",
+        typed: None,
     },
     HandArm {
         kind: "lang/rewrites/userdefs",
         method: "compile_template_with",
-        reason: "takes a built language, which a recorded entry asks of its lowerer or expander again (WP-3)",
+        reason: "takes a built language, which a recorded entry asks of its lowerer or expander again",
+        typed: Some("let language = IntoApi::into_api(language, table)?;\n\
+                     let template = extra::compile_template_with(table, spec, lang.handle, &language)?;\n\
+                     FromApi::from_api(template, table)"),
     },
     HandArm {
         kind: "lang/rewrites/userdefs",
         method: "instantiate",
-        reason: "the bindings are of one of two kinds, `placeholder_bindings` or `value_bindings` (WP-3)",
+        reason: "the bindings are of one of two kinds, `placeholder_bindings` or `value_bindings`",
+        typed: Some("let template = template.lent(table)?;\n\
+                     let site = IntoApi::into_api(site, table)?;\n\
+                     let tree = extra::instantiate(table, &*site, template, bindings.handle)?;\n\
+                     FromApi::from_api(tree, table)"),
+    },
+    HandArm {
+        kind: "lang/rewrites/userdefs",
+        method: "ExtraValues::over",
+        reason: "its receiver is data, read with the call's table, and its base is of one of two kinds, `placeholder_bindings` or \
+                 `value_bindings`",
+        typed: None,
 }];
 
 /// Whether the method `method` of the kind `kind` has an arm of
@@ -1074,8 +1144,8 @@ pub fn is_hand_arm(kind: &str, method: &str) -> bool {
     HAND_ARMS.iter().any(|entry| entry.kind == kind && entry.method == method)
 }
 
-/// An export or a method of a prelude module whose JavaScript is a fragment
-/// (the plan's section 3.5), with its TypeScript text.
+/// An export or a method of a prelude module whose JavaScript is a fragment,
+/// with its TypeScript text.
 #[derive(Debug, Clone, Copy)]
 pub struct Hand {
     /// The prelude module, without `flm:` (`core/registry`).
@@ -1088,28 +1158,37 @@ pub struct Hand {
     pub ts: &'static str,
 }
 
-/// The hand list (the plan's section 3.5): the four protocol methods, the
-/// three methods that take a handler object (`contribute_to`,
-/// `contribute_first_to`, `peer_slot`: E6), `FeatureBuilder.feature`, the
+/// The hand list: the four protocol methods, the three methods that take a
+/// handler object (`contribute_to`, `contribute_first_to`, `peer_slot`),
+/// `FeatureBuilder.feature`, the
 /// classes of `flm-core` types (`StyleDef` and `ScriptDef` among them: their row is the class) and the dual `ElementDef`,
-/// `DefinitionBindings`, and `arg_def_from_code`.
+/// `DefinitionBindings`, and the two functions that answer an `ArgDef`
+/// (`arg_def_from_code`, `label_fields_arg`), which read their answer back
+/// as one.
 pub const HAND_WRITTEN: &[Hand] = &[
     Hand { module: "core/registry", item: "FeatureBuilder.feature", ts: "feature(): string;" },
     Hand { module: "core/registry", item: "FeatureBuilder.stage", ts: "stage(stage: Stage): void;" },
     Hand { module: "core/registry", item: "FeatureBuilder.rewrite_stage", ts: "rewrite_stage(stage: RewriteStage): void;" },
+    Hand { module: "core/registry", item: "FeatureBuilder.backend", ts: "backend(def: BackendDef): void;" },
     Hand {
         module: "core/registry",
         item: "BackendDef",
         ts: "export class BackendDef {
-  /** Mirrors `BackendDef::new`; a stage object given as a stage is recorded and lent. */
+  /** Mirrors `BackendDef::new`. */
   constructor(name: string, native: string[], lowering: BackendStage, emit: BackendStage, final_stage: BackendStage);
   /** Mirrors the field `BackendDef::name`. */
   name: string;
   /** Mirrors the field `BackendDef::native`. */
   native: string[];
+  /** Mirrors the field `BackendDef::lowering`. */
+  lowering: BackendStage;
+  /** Mirrors the field `BackendDef::emit`. */
+  emit: BackendStage;
+  /** Mirrors the field `BackendDef::final_stage`. */
+  final_stage: BackendStage;
   /** Mirrors `BackendDef::docs`. */
   docs(docs: string): this;
-  /** No flm-core counterpart: the data form that crosses to the host. */
+  /** No flm-core counterpart: the data form, each stage as the backend holds it; `FeatureBuilder.backend` sends it with each stage object lent. */
   toJSON(): { name: string; native: string[]; lowering: BackendStage; emit: BackendStage; final_stage: BackendStage; docs: string };
 }",
     },
@@ -1228,6 +1307,9 @@ pub const HAND_WRITTEN: &[Hand] = &[
 }",
     },
     Hand { module: "lang/mint", item: "arg_def_from_code", ts: "export function arg_def_from_code(code: string): ArgDef;" },
+    // `refs.label_fields_arg()` reads its answer back as an `ArgDef`, as
+    // `arg_def_from_code` does.
+    Hand { module: "stdcore/features/refs", item: "label_fields_arg", ts: "export function label_fields_arg(): ArgDef;" },
     Hand {
         module: "lang/mint",
         item: "BodyDef",
@@ -1302,8 +1384,8 @@ pub const HAND_WRITTEN: &[Hand] = &[
   constructor(site: Node, variant: ModeVariant);
 }",
     },
-    // WP-4a: the protocol for handler objects (aspects, late-init hooks,
-    // finalizers) and the classes of the data the E4 modules take.
+    // The protocol for handler objects (aspects, late-init hooks, finalizers)
+    // and the classes of the data their modules take.
     Hand { module: "core/registry", item: "FeatureBuilder.attach", ts: "attach(element: string, aspect: Aspect): void;" },
     Hand { module: "core/registry", item: "FeatureBuilder.late_init", ts: "late_init(hook: LateInit): void;" },
     Hand { module: "core/registry", item: "FeatureBuilder.finalizer", ts: "finalizer(hook: Finalizer): void;" },
@@ -1365,9 +1447,9 @@ export type AnchorPolicy = \"from_first_label\" | { explicit: string } | { slug:
   ArgumentNamed(name: string): { argument_named: string };
   Body: \"body\";
   Node(node: Node): { node: Node };
-  Synthesized(root: Node): { synthesized: Node };
+  Synthesized(tree: Tree): { synthesized: Tree };
 }>;
-export type ContentRef = { argument: number } | { argument_named: string } | \"body\" | { node: Node } | { synthesized: Node };",
+export type ContentRef = { argument: number } | { argument_named: string } | \"body\" | { node: Node } | { synthesized: Tree };",
     },
     Hand {
         module: "model/aspects",
@@ -1566,9 +1648,9 @@ export type LatexDefinitionKind = \"macro\" | \"environment\" | \"declaration\";
   toJSON(): { id: string; package: string; options: string[]; docs: string };
 }",
     },
-    // WP-4b: the templates a handler compiles. `TemplateLanguage` is a
+    // The templates a handler compiles. `TemplateLanguage` is a
     // durable class (it extends the runtime's `Durable`, writing its token
-    // as `@durable`); `ValueBindings` extends `PlaceholderBindings` (S31), its
+    // as `@durable`); `ValueBindings` extends `PlaceholderBindings`, its
     // `with` answering the same instance; `TemplateSpec` is a data class.
     Hand {
         module: "lang/rewrites/userdefs",
@@ -1600,8 +1682,27 @@ export type LatexDefinitionKind = \"macro\" | \"environment\" | \"declaration\";
         ts: "export class ValueBindings extends PlaceholderBindings {
   /** Mirrors `ValueBindings::new`: bindings that hold no value. */
   constructor();
-  /** Mirrors `ValueBindings::with`: gives the extra placeholder `name` the tree whose root is `node`; answers the same instance. */
-  with(name: string, node: Node): this;
+  /** Mirrors `ValueBindings::with`: gives the extra placeholder `name` the tree `tree`; answers the same instance. */
+  with(name: string, tree: Tree): this;
+}",
+    },
+    // `ExtraValues` is a data class whose `over` is answered by the host.
+    Hand {
+        module: "lang/rewrites/userdefs",
+        item: "ExtraValues",
+        ts: "export class ExtraValues {
+  /** Mirrors `ExtraValues::new`: values that hold nothing. */
+  constructor();
+  /** Mirrors `ExtraValues::template`: gives the extra placeholder `name`, written with the substitution text `substitution` (`null` for none), the compiled template `template`, a variant's template or default value or a template that `compile_template_with` answered; answers the same instance. */
+  template(name: string, substitution: string | null, template: CompiledTemplate): this;
+  /** Mirrors `ExtraValues::tree`: gives the extra placeholder `name`, written with the substitution text `substitution`, the tree `tree`; answers the same instance. */
+  tree(name: string, substitution: string | null, tree: Tree): this;
+  /** Mirrors `ExtraValues::no_value`: gives the extra placeholder `name`, written with the substitution text `substitution`, no value; answers the same instance. */
+  no_value(name: string, substitution: string | null): this;
+  /** Mirrors `ExtraValues::over`: the bindings that answer an extra placeholder from these values and every other placeholder from `base`. */
+  over(base: PlaceholderBindings): PlaceholderBindings;
+  /** No flm-core counterpart: the data form that crosses to the host. */
+  toJSON(): { name: string; substitution: string | null; value: { template: CompiledTemplate } | { tree: Tree } | \"no-value\" }[];
 }",
     },
 ];
@@ -1637,6 +1738,11 @@ pub fn is_hand_written(owner: &str, method: &str) -> bool {
 /// tree makes, and `CounterRecord` holds a `NodeAddr`; `CitationRequest` has
 /// no public constructor), and one whose crossing form leaves out a field
 /// the api type holds (`LineBreak`'s span, which the line's span gives).
+/// `ArgDef` is the guest's own because the guest declares an argument by its
+/// standard kind or reads it from its code, where the api's holds the parser
+/// a kind or a code stands for, which `flm-core` makes from it; `ArgStdKind` and `TackOnField` are
+/// the guest's own with it, since a tack-on argument's fields hold
+/// arguments.
 /// `Box<dyn CompiledTemplate>` (a handle) and `DurableTemplateFacade` (a
 /// durable token) are both the guest's own `CompiledTemplate`, written back
 /// in the form it was read.
@@ -1663,12 +1769,18 @@ pub const GUEST_OWN: &[&str] = &[
     "CitationAnswer",
     "HostHandle",
     // The dual types, data or a handle.
-    "ArgDef",
     "ElementDef",
     "Box<dyn CompiledTemplate>",
     "DurableTemplateFacade",
     "TemplateLanguage",
+    // An argument declared by its kind or read from its code, where the api's
+    // holds the parser either stands for, and the kind whose tack-on fields
+    // hold arguments.
+    "ArgDef",
+    "ArgStdKind",
+    "TackOnField",
     // Data that holds one of these.
+    "ExtraValues",
     "Definition",
     "SyntaxDef",
     "ElementSpec",
@@ -1696,6 +1808,7 @@ pub const GUEST_HAND: &[&str] = &[
     "FeatureBuilder.feature",
     "FeatureBuilder.stage",
     "FeatureBuilder.rewrite_stage",
+    "FeatureBuilder.backend",
     "FeatureBuilder.contribute_to",
     "FeatureBuilder.contribute_first_to",
     "FeatureBuilder.peer_slot",
@@ -1705,19 +1818,32 @@ pub const GUEST_HAND: &[&str] = &[
     "ElementSpec.with",
     "UserDefinition.element_def_with",
     "LoweringRule.constructor",
-    "BackendDef",
 ];
 
 /// The types the guest client adds to a module (by its path), written by
 /// hand in the module's file of `src/guest/hand/` and re-exported from the
 /// module with its own types: a type that no item of the api names, which a
 /// constructor of a type of [`GUEST_OWN`] takes where the api's constructor
-/// takes a type that does not cross. `ArgSyntax` is what the guest's
-/// `ArgDef::new` and `ArgDef::named` take: an argument code or a standard
-/// kind, where the api's take a parser (`IntoFlmArgumentParser`).
-pub const GUEST_ADDED: &[(&str, &str)] = &[("lang/mint", "ArgSyntax")];
+/// takes a type that does not cross, or a data type that an extension's
+/// settings hold, which mirrors a `flm-core` type that the api does not name
+/// (`ArgListData`, an argument list written as data).
+pub const GUEST_ADDED: &[(&str, &str)] = &[("lang/mint", "ArgListData")];
 
-// --- the structural rules (the plan's section 4.2) ------------------------------------------
+/// The free functions of the api (by their module's path) that the guest
+/// client does not offer, because a constructor of a type of [`GUEST_OWN`]
+/// makes their answer where the guest runs, with no request; the dispatcher
+/// answers each for the JavaScript binding. `arg_def_from_code` is the
+/// guest's `ArgDef::from_code`, which reads the code with `flm-core`'s reader
+/// where the argument is made, `define` included.
+pub const GUEST_OMITTED: &[(&str, &str)] = &[("lang/mint", "arg_def_from_code")];
+
+/// Whether the free function `function` of the module `path` is in
+/// [`GUEST_OMITTED`].
+pub fn is_guest_omitted(path: &str, function: &str) -> bool {
+    GUEST_OMITTED.iter().any(|(omitted_path, name)| *omitted_path == path && *name == function)
+}
+
+// --- the structural rules -------------------------------------------------------------------
 
 /// A normalized type, split at its outermost shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1820,7 +1946,7 @@ pub struct Leaves {
     pub kinds: Vec<String>,
 }
 
-/// The leaves of the normalized type `text` (the plan's section 4.2): a row
+/// The leaves of the normalized type `text`: a row
 /// is matched first; then `Result<T, ExtError>` and `Result<T,
 /// NotCharacters>` are `T`; `Option<T>`, `Vec<T>`, `[T]` and `&T` are `T`;
 /// a tuple is its elements, `()` nothing; `impl Into<T>` is `T` and `impl
@@ -1884,7 +2010,7 @@ mod tests {
         assert_eq!((node.types.as_slice(), node.kinds.as_slice()), (&[][..], &["Node".to_string()][..]));
         assert_eq!(leaves("&[Box<dyn Node>]").kinds, ["Node"]);
         assert_eq!(leaves("&mut dyn LowerCx").kinds, ["LowerCx"]);
-        assert_eq!(leaves("Vec<(String, Box<dyn Node>)>").types, ["Vec<(String, Box<dyn Node>)>"]);
+        assert_eq!(leaves("Vec<(String, Box<dyn Tree>)>").types, ["Vec<(String, Box<dyn Tree>)>"]);
         assert_eq!(leaves("Result<Result<String, NotCharacters>, ExtError>").types, ["String"]);
         assert_eq!(leaves("impl IntoIterator<Item = Mode>").types, ["Vec<Mode>"]);
         assert_eq!(leaves("impl Into<String>").types, ["String"]);

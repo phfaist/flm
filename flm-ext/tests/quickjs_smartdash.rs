@@ -3,9 +3,10 @@
 //! goldens, its rewrite stage's table demanded beside the output (as the
 //! fixture's workflow `smartdash` demands it in a program); a nested
 //! `\sdquote` (a nested handler call); mathematics and verbatim untouched; a
-//! failing handler; the strict mode. Then the prelude's names of the
-//! modules E5 added against the library's, its classes' data forms, and a
-//! backend and an output declared from JavaScript (`BackendDef` lending its
+//! failing handler; the strict mode. Then the prelude's names (the structural
+//! elements, the lowered tables, the media types, the standard tables,
+//! `Restage`) against the library's, its classes' data forms, and a
+//! backend and an output declared from JavaScript (`b.backend` lending its
 //! stage objects).
 //!
 //! The registry switches the `blocks` feature's own dash ligatures off, so
@@ -44,7 +45,7 @@ const SMARTDASH_MAIN: &str = include_str!("js/smartdash/main.js");
 /// The capability the fixture's rewrite stage publishes.
 const DASHED: &str = "smartdash.dashed";
 
-/// The document of the goldens (plan section 10.2).
+/// The document of the goldens.
 const DOCUMENT: &str = "A dash -- an em dash --- and \\sdquote{a quote -- with a dash, and \\sdquote{one inside}}.\n\n\
                         Inside mathematics \\(a--b\\) and verbatim \\verbcode{c--d} nothing changes.";
 
@@ -242,7 +243,7 @@ fn names_of(main: &str) -> Value {
 }
 
 #[test]
-fn the_prelude_s_names_of_the_new_modules_are_the_library_s() {
+fn the_prelude_s_names_are_the_library_s() {
     let names = names_of(
         r#"
 import * as STRUCTURAL from "flm:lang/structural";
@@ -284,8 +285,8 @@ export function names() {
     assert_eq!(names["restage"], json!(["descend", { "emit": [] }]));
 }
 
-/// The data forms the classes of section 2 write (`toJSON`), in the
-/// argument orders the prelude's module headers pin.
+/// The data forms the classes of artifacts, outputs and rewrite stages write
+/// (`toJSON`), in the argument orders the prelude's module headers pin.
 #[test]
 fn the_prelude_s_classes_write_the_data_forms() {
     let names = names_of(
@@ -327,7 +328,7 @@ export function names() {
 
 /// A backend declared from JavaScript: `new BackendDef(name, native,
 /// lowering, emit, final_stage)` with the library's lowering stage
-/// (`new LoweringStage("bk")`) and two stage objects, which the constructor
+/// (`new LoweringStage("bk")`) and two stage objects, which `b.backend`
 /// records and lends as `b.stage` does; an output over the artifact set its
 /// final stage writes with `Artifact.bytes`. The plan demanding the output's
 /// table runs the three stages (on fresh engine instances, after the
@@ -353,8 +354,8 @@ const emit = {
   run(cx, out) {
     const lowered = cx.get(LOWERED).lowered;
     let text = "";
-    for (const [, root] of lowered.trees())
-      for (const node of root.descendants()) if (node.is_chars()) text += node.chars();
+    for (const [, tree] of lowered.trees())
+      for (const node of tree.root().descendants()) if (node.is_chars()) text += node.chars();
     out.table("bk.output").push({ text });
   },
 };
@@ -370,7 +371,7 @@ const final_stage = {
 
 // The native set: the presentation vocabulary, the six structural elements
 // plain text writes, and the one element of the standard package with no
-// rule for a backend of an extension (ruling S12), which this emitter skips.
+// rule for a backend of an extension, which this emitter skips.
 export default function (ext) {
   ext.package("_", {
     uses: ["stdcore"],

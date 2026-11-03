@@ -265,8 +265,8 @@ const RULE_LINE: &str = ".4pt,solid";
 ///
 /// This is the only place where a cell's facts become LaTeX, so that how a
 /// cell is written can be changed in one place.
-// A seam a later step may put behind a trait a host implements; nothing of
-// it is public. See decision rationale at [§flm-dd-dr:std-cells-latex].
+// Nothing of it is public; a trait a host implements could later stand in its
+// place.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LatexCell {
     /// The row and the column of the cell's top-left position, counted from 1.

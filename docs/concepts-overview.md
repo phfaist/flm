@@ -351,16 +351,68 @@ keys to write a citation mark.
   mathematics that no feature declares); [`text`](crate::stdcore::features::math::text) — the text
   commands of mathematics mode, whose argument is content inside an opaque region.
 
+## Paragraphs, blocks and displayed items
+
+A *block* is a piece of content laid out vertically among other blocks, such as a
+paragraph, a list, a heading or a float. A *paragraph* is the block that holds running
+text. A *displayed item* is content that stands inside a paragraph and is set on lines of
+its own, apart from the text before it and the text after it, such as a display equation.
+The [block-structure pass](crate::lang::rewrites::blocks), the rewrite that lays the
+content of a document out, builds the paragraphs according to the *block role* each
+element declares ([`BlockRole`](crate::model::aspects::BlockRole)):
+
+- `Block`: the node is a block of its own, between paragraphs;
+- `Inline`: the node is inline content inside a paragraph, such as emphasis or a
+  citation;
+- `Displayed`: the node is a displayed item, such as a displayed formula (`\[…\]`,
+  `$$…$$` and the six display-math environments);
+- `BlockDecorator`: the node is attached to the block it occurs in, such as a run-in
+  heading or the mark that closes a proof.
+
+A paragraph is one block, and it holds no block. A block ends the paragraph before it,
+and the text after a block is a new paragraph, whether a blank line separates them or
+not. A displayed item, by contrast, continues its paragraph: text written after it with
+no blank line between them is part of the same paragraph, and a blank line begins a new
+paragraph, as anywhere else. A displayed item is not a block, so content laid out
+according to what it holds (an argument declared "inline or blocks", a document's top
+level under the default layout) is made of paragraphs only when it holds a paragraph
+break or a block. The whitespace on both sides of a displayed item is removed, `~`
+included, as it is at the edges of a paragraph.
+
+The text between two displayed items is not a node of its own. A paragraph's content is
+one run of inline content, in which each displayed item stands among the other nodes; a
+lowering rule or a backend reads this run as it reads any inline content, and sets each
+displayed item on lines of its own where it stands. A node around each stretch of text
+would be one more kind of content for every reader of inline content to handle, and
+would carry no information.
+
+A displayed item may hold anything, paragraphs and blocks included; its own lowering rule
+lays its content out. Nothing checks what a displayed item holds: an argument or a body
+is not necessarily shown where it is written (a footnote's content is shown in the list
+of notes), so the tree cannot say what is shown inside the item. A backend whose output
+format restricts what a paragraph may hold meets that restriction itself: the HTML
+backend writes a paragraph as a `<div>` where it holds content that HTML does not allow
+inside a `<p>` ([when the page holds a
+paragraph](crate::guide::rendering#when-the-page-holds-a-paragraph)).
+
+- [`BlockRole`](crate::model::aspects::BlockRole) and
+  [`BlockRoleAspect`](crate::model::aspects::BlockRoleAspect) — an element's block role,
+  read with [`block_role_of`](crate::model::aspects::block_role_of).
+- [`structure`](crate::lang::rewrites::blocks::structure) — the block-structure pass,
+  and [`check_block_contract`](crate::lang::rewrites::blocks::check_block_contract),
+  the check of the tree contract its output satisfies, which includes that no
+  whitespace stands beside a displayed item.
+
 ## Block-transparent elements
 
-The [block-structure pass](crate::lang::rewrites::blocks) is the rewrite that lays the
-content of a document out in paragraphs and blocks. It does so according to the *block
-role* each element declares ([`BlockRole`](crate::model::aspects::BlockRole)): a node of
-block role is a block of its own between the paragraphs, and any other node is inline
-content inside a paragraph. A node is always one or the other. An ordinary element whose
-argument is laid out according to its content therefore becomes a block of its own when
-that argument holds a paragraph break, and its content is laid out as paragraphs inside
-it; an argument declared inline reports the paragraph break instead.
+The [block-structure pass](crate::lang::rewrites::blocks) lays the content of a document
+out in paragraphs and blocks according to the block role each element declares ([see
+above](#paragraphs-blocks-and-displayed-items)): a node of block role `Block` is a block
+of its own between the paragraphs, and any other node stands inside a paragraph. A node
+is always one or the other. An ordinary element whose argument is laid out according to
+its content therefore becomes a block of its own when that argument holds a paragraph
+break, and its content is laid out as paragraphs inside it; an argument declared inline
+reports the paragraph break instead.
 
 A *block-transparent* element is laid out as if its content were written directly
 in the content around it: a paragraph break inside its content is a paragraph break
@@ -396,15 +448,17 @@ no cut carries no record.
 A field is a macro that a construct absorbs as data rather than as content
 (`\label` after a heading; `\\`, `\label`, `\tag` and `\nonumber` in a display-math
 body); every field node carries the one element `flm.field`, and a construct takes
-its fields through its tack-on argument, a trailing argument that absorbs the field
-macros written after the construct's other arguments
+its fields through its tack-on argument, the argument that absorbs the field macros
+written at its position in a call, after the arguments declared before it
 ([`ArgStdKind::TackOn`](crate::lang::mint::ArgStdKind::TackOn)).
 
 A field says something about the construct that reads it — this heading carries
 this label, this equation line is not numbered — and means nothing at the place it
-is written, so its position in the content makes no difference. The value of the
-`flm.field` element is the field's name as written; the feature that declares a
-field chooses no element of its own.
+is written, so its position in the content makes no difference. A field node is a
+macro node whose name is the field's name as written. A field declared after a
+construct is data only (its name, its arguments, whether it may be repeated, and its
+documentation) and chooses no element: its node carries the language's own
+`flm.field` element, one of the structural elements.
 
 The construct that declared a field decides what the field means, and nothing else
 does: a user definition may declare a `\label` field and give it any meaning, and no
@@ -419,9 +473,8 @@ which is how `\label` is written after a heading; or as an ordinary command of a
 [scoped package](#scoped-packages), which is how the four commands of an [equation
 line](#equation-lines) are written inside a display-math environment's body.
 
-- [`FIELD`](crate::lang::mint::FIELD) and [`Field`](crate::lang::mint::Field) —
-  the element and its value; [`field_name`](crate::lang::mint::field_name) reads
-  the name of a field node.
+- [`FIELD`](crate::lang::structural::FIELD) — the element;
+  [`field_name`](crate::lang::mint::field_name) reads the name of a field node.
 - [`ArgStdKind::TackOn`](crate::lang::mint::ArgStdKind::TackOn) — the tack-on
   argument that absorbs fields.
 - [`FieldRule`](crate::stdcore::backends::lowering::FieldRule) — the only lowering
@@ -1411,7 +1464,8 @@ arguments then make no command available through that package.
 
 The structural elements are the elements of the node shapes no feature declares:
 text, comments, containers, groups of each class, paragraphs, paragraph breaks,
-template placeholders, and the macros and environments a parse could not attribute to
+template placeholders, the [fields](#fields-data-a-construct-reads) a construct absorbs
+after its arguments, and the macros and environments a parse could not attribute to
 any feature; there is one element value per shape, every backend's [native
 set](#backends-lowering-and-outputs) holds the ones it writes as they are, and the
 lowering feature registers their default rules.

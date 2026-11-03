@@ -6,10 +6,18 @@
 use serde_json::{json, Value};
 
 use super::{get, not_shape, object, single};
+#[cfg(feature = "native")]
+use crate::adapter::dispatch::extra::PointArg;
+#[cfg(feature = "native")]
+use crate::adapter::handles::CallTable;
+#[cfg(feature = "native")]
+use crate::adapter::typed::{FromApi, IntoApi};
 use crate::adapter::values::JsonForm;
+#[cfg(feature = "native")]
+use crate::api;
 use crate::api::model::aspects::{AcceptedRefTypes, Label, MalformedLabel};
 use crate::guest::core::lowering::NodeAddr;
-use crate::guest::techy::node::Node;
+use crate::guest::techy::node::{Node, Tree};
 use crate::runtime::ExtError;
 
 /// Mirrors [`Referenceable`](crate::api::model::aspects::Referenceable):
@@ -66,7 +74,7 @@ pub struct PointId {
     /// The address of the point's node.
     pub addr: NodeAddr,
     /// The point's index among its node's points.
-    pub index: usize,
+    pub index: u32,
 }
 
 /// `{"addr": {"tree", "node"}, "index"}`; the host's `point_id_to_value`.
@@ -82,6 +90,27 @@ impl JsonForm for PointId {
     }
 }
 
+/// `flm-core`'s `PointId`, its address written as the guest's; the host's
+/// `point_id_to_value`.
+#[cfg(feature = "native")]
+impl<'c> FromApi<'c, flm_core::model::aspects::PointId> for PointId {
+    fn from_api(api: flm_core::model::aspects::PointId, table: &mut CallTable<'c>) -> Result<Self, ExtError> {
+        Ok(PointId { addr: FromApi::from_api(api.addr, table)?, index: api.index })
+    }
+}
+
+/// The point by its parts (its tree's identifier, its node's index, its
+/// index), which a table's façade reads back against the trees its reader
+/// sees, as it reads the parts of the JSON form (`point_from_value`).
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for PointId {
+    type Api = PointArg<'static>;
+
+    fn into_api(self, _: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        Ok(PointArg::Parts { tree: self.addr.tree, node: self.addr.node, index: self.index })
+    }
+}
+
 /// Mirrors [`ContentRef`](crate::api::model::aspects::ContentRef): where the
 /// content a reference shows comes from.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,8 +123,8 @@ pub enum ContentRef {
     Body,
     /// A node of the point's tree.
     Node(Node),
-    /// The root of a tree the aspect built.
-    Synthesized(Node),
+    /// A tree the aspect built.
+    Synthesized(Tree),
 }
 
 /// `{"argument": n}`, `{"argument_named": name}`, `"body"`, `{"node":
@@ -108,7 +137,7 @@ impl JsonForm for ContentRef {
             ContentRef::ArgumentNamed(name) => json!({ "argument_named": name }),
             ContentRef::Body => Value::String("body".to_string()),
             ContentRef::Node(node) => json!({ "node": node.to_value() }),
-            ContentRef::Synthesized(node) => json!({ "synthesized": node.to_value() }),
+            ContentRef::Synthesized(tree) => json!({ "synthesized": tree.to_value() }),
         }
     }
 
@@ -125,6 +154,23 @@ impl JsonForm for ContentRef {
             "argument_named" => ContentRef::ArgumentNamed(JsonForm::from_value(inner)?),
             "node" => ContentRef::Node(JsonForm::from_value(inner)?),
             _ => ContentRef::Synthesized(JsonForm::from_value(inner)?),
+        })
+    }
+}
+
+/// The api's `ContentRef`, a node or a tree an owned copy out of the table;
+/// the host's `content_ref_from_value`.
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for ContentRef {
+    type Api = api::model::aspects::ContentRef<'c>;
+
+    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        Ok(match self {
+            ContentRef::Argument(position) => api::model::aspects::ContentRef::Argument(position),
+            ContentRef::ArgumentNamed(name) => api::model::aspects::ContentRef::ArgumentNamed(name),
+            ContentRef::Body => api::model::aspects::ContentRef::Body,
+            ContentRef::Node(node) => api::model::aspects::ContentRef::Node((&node).into_api(table)?),
+            ContentRef::Synthesized(tree) => api::model::aspects::ContentRef::Synthesized((&tree).into_api(table)?),
         })
     }
 }
@@ -191,6 +237,25 @@ impl JsonForm for AnchorPolicy {
     }
 }
 
+/// The api's `AnchorPolicy`, a slug's content converted; the host's reader
+/// of reference points.
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for AnchorPolicy {
+    type Api = api::model::aspects::AnchorPolicy<'c>;
+
+    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        Ok(match self {
+            AnchorPolicy::FromFirstLabel => api::model::aspects::AnchorPolicy::FromFirstLabel,
+            AnchorPolicy::Explicit(id) => api::model::aspects::AnchorPolicy::Explicit(id),
+            AnchorPolicy::Slug { prefix, content } => {
+                api::model::aspects::AnchorPolicy::Slug { prefix, content: content.into_api(table)? }
+            }
+            AnchorPolicy::FromValue { prefix } => api::model::aspects::AnchorPolicy::FromValue { prefix },
+            AnchorPolicy::Auto { prefix } => api::model::aspects::AnchorPolicy::Auto { prefix },
+        })
+    }
+}
+
 /// Mirrors [`NumberSource`](crate::api::model::aspects::NumberSource): where
 /// a point's number comes from.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -229,6 +294,24 @@ impl JsonForm for NumberSource {
             style: get(WHAT, map, "style")?,
             advance: get(WHAT, map, "advance")?,
             number_format: get(WHAT, map, "number_format")?,
+        })
+    }
+}
+
+/// The api's `NumberSource`, each instance an owned copy out of the table;
+/// the host's reader of reference points.
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for NumberSource {
+    type Api = api::model::aspects::NumberSource<'c>;
+
+    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        let NumberSource { counter, instances, style, advance, number_format } = self;
+        Ok(api::model::aspects::NumberSource {
+            counter: counter.into(),
+            instances: instances.as_slice().into_api(table)?,
+            style: style.into(),
+            advance,
+            number_format,
         })
     }
 }
@@ -283,6 +366,27 @@ impl JsonForm for RefPoint {
             number: get(WHAT, map, "number")?,
             content: get(WHAT, map, "content")?,
             accepts: get(WHAT, map, "accepts")?,
+        })
+    }
+}
+
+/// The api's `RefPoint`, its anchor, number source and content converted;
+/// the host's `ref_point_from_value`.
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for RefPoint {
+    type Api = api::model::aspects::RefPoint<'c>;
+
+    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        let RefPoint { kind, labels, computed, malformed, anchor, number, content, accepts } = self;
+        Ok(api::model::aspects::RefPoint {
+            kind: kind.into(),
+            labels,
+            computed,
+            malformed,
+            anchor: anchor.into_api(table)?,
+            number: number.into_api(table)?,
+            content: content.into_api(table)?,
+            accepts,
         })
     }
 }

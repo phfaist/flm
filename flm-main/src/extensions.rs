@@ -166,7 +166,8 @@ impl ExtensionFinder {
     /// it, and a change to a folder of the search path that touches no extension in use does
     /// not make a preview prepare the document again.
     pub fn locators(&self) -> Vec<String> {
-        // See decision rationale at [§flm-dd-dr:schema-suggestions]
+        // No extension is loaded: the locators serve the schemas' suggestions, and loading
+        // extensions to suggest them would run their code and let a broken one break a schema.
         let files = self.files.unrecorded();
         let listed = |path: &Path| files.entries(Path::new(""), path).unwrap_or_default();
         let mut locators: Vec<String> = Vec::new();

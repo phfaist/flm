@@ -166,7 +166,10 @@ pub fn defaults() -> Result<Vec<(&'static str, &'static str, Value)>, String> {
         ("floats", "types", named::to_data(&[figure, table], "name")?),
         ("citations", "heading_level", Value::from(1)),
     ];
-    // See decision rationale at [§flm-dd-dr:host-graphics-defaults].
+    // The rows of image files need the host's services for images: the page's strategy
+    // `data-uri` reads every image, so without them every image of every page would be an
+    // Error, and a host built without them keeps the library's defaults (every image by
+    // reference).
     #[cfg(feature = "graphics")]
     rows.extend(graphics_defaults());
     Ok(rows)
@@ -229,7 +232,6 @@ pub struct StdParts {
     /// no document can choose a program that the host starts.
     // A converter added later that runs a program takes its program the same way, from a
     // field of its own here.
-    // See decision rationale at [§flm-dd-dr:host-magick-program]
     #[cfg(feature = "graphics")]
     pub magick_program: std::ffi::OsString,
     /// What the feature `citations-standard` is given of the machine (cargo feature

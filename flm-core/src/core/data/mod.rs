@@ -54,10 +54,11 @@
 // `crate::model` or `crate::lang` uses it. It does not depend on any backend nor
 // on `crate::layout`, so that the crate can later be split cheaply. The addresses
 // tables are keyed by belong to `crate::model::addr` so that the tree and
-// document modules can use them without depending on the store.
-// See architecture at [§flm-dd-arch:crates] and design rationale at
-// [§flm-dd-dr:crate-layering], [§flm-dd-dr:crate-layering-lang-data],
-// [§flm-dd-dr:crate-layering-data-in-core].
+// document modules can use them without depending on the store. It uses the
+// language's diagnostic types because a stage's output carries its diagnostics
+// beside its data. It is part of `crate::core` because a table is what a stage
+// declares, computes and reads: only the framework and the layers above it use
+// tables.
 
 pub mod store;
 pub mod table;

@@ -93,7 +93,6 @@ pub struct FloatBody<'t> {
 /// they lower.
 pub(super) fn is_float_field(node: &NodeRef<'_, Flm>) -> bool {
     field_name(node).is_some_and(|name| {
-        let name = name.as_str();
         name == CAPTION_FIELD || name == NONUMBER_FIELD || name == LABEL_FIELD
     })
 }
@@ -115,12 +114,13 @@ pub(super) fn is_paragraph(node: &NodeRef<'_, Flm>) -> bool {
 /// Returns the commands and the content of the body of the float `node`, as
 /// the [module documentation](self) describes. Returns an empty
 /// [`FloatBody`] for a node with no body. Reports nothing.
-// See decision rationale at [§flm-dd-dr:std-floats-fields].
+// The fields are read from the body each time they are needed, as every
+// construct of the language reads its fields, rather than stored by a stage.
 pub fn float_body<'t>(node: &NodeRef<'t, Flm>) -> FloatBody<'t> {
     let mut body = FloatBody::default();
     let Some(children) = node.body() else { return body };
     let file = |field: NodeRef<'t, Flm>, body: &mut FloatBody<'t>| {
-        match field_name(&field).map(|name| name.as_str()) {
+        match field_name(&field) {
             Some(CAPTION_FIELD) => body.captions.push(field),
             Some(NONUMBER_FIELD) => body.nonumbers.push(field),
             _ => body.labels.push(field),
@@ -222,8 +222,7 @@ impl<'t> Caption<'t> {
             .map(ContentRef::Synthesized);
         }
         // The argument is written as one group, or as one token: that node
-        // holds the content by itself. See decision rationale at
-        // [§flm-dd-dr:std-floats-point].
+        // holds the content by itself.
         let region: Vec<NodeRef<'t, Flm>> = self
             .node
             .argument_nodes_named(CAPTION_TEXT_ARG)

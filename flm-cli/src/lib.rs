@@ -9,7 +9,8 @@
 //! the list of compiled packages that the executable carries. The `flm` binary is one call
 //! of [`run`]. A program that carries other compiled packages is a `main` function of the
 //! same shape that passes its own list to [`run`]; the example `own_package` of this crate
-//! does so for the package `phfpack`.
+//! does so for a package that the example writes itself, `shout`, which declares the macro
+//! `\shout`.
 //!
 //! # The commands
 //!
@@ -162,8 +163,9 @@ const JSON_DIAGNOSTICS: &str = "--json-diagnostics";
 ///
 /// The usage text of a command line that the parser rejects, and everything `flm dump`
 /// prints, are written as they are, outside the reporter.
-// One record per line on standard error, chosen by a global option. See decision rationale
-// at [§flm-dd-dr:json-diagnostics].
+// One record per line on standard error, chosen by a global option: an editor or a script
+// reads the problems from the stream it already captures, with no text written for a person
+// to parse, standard output stays the document's, and one option serves every command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Reporter {
     /// Text for a person, as each command has always printed it.

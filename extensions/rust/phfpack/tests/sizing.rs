@@ -1,8 +1,8 @@
-//! The sizing forms of the delimited macros and the backtick form (acceptance
-//! tests 8 and 9), and the conditions a size can meet. The expected
-//! replacements are what the Python package writes for the same formulas, but
-//! for a star after a backtick, which the Python package writes as `*l`, and
-//! which draws the delimiters as tall as the content here.
+//! The sizing forms of the delimited macros and the backtick form, and the
+//! conditions a size can meet. The expected replacements are what the Python
+//! package writes for the same formulas, but for a star after a backtick,
+//! which the Python package writes as `*l`, and which draws the delimiters as
+//! tall as the content here.
 
 mod common;
 
@@ -73,8 +73,13 @@ fn a_command_that_is_not_a_size_is_reported_at_the_use() {
     assert_eq!(identifiers, ["phfpack.phfqit.bad-size"]);
     let (identifiers, _) = reported(r"\abs[\huge]{x}");
     assert_eq!(identifiers, ["phfpack.phfqit.bad-size"]);
-    let (identifiers, _) = reported(r"`\huge(x)");
-    assert_eq!(identifiers, ["phfpack.phfqit.bad-size"]);
+    // The sizes of the backtick form are markers read right after the
+    // backtick: a command that is none of them is read by none, and the
+    // parser reports the group that must follow as missing.
+    let (identifiers, out) = reported(r"`\huge(x)");
+    assert!(identifiers.contains(&String::from("core.arguments.missing-mandatory-argument")), "{identifiers:?}");
+    assert!(!identifiers.contains(&String::from("phfpack.phfqit.bad-size")), "{identifiers:?}");
+    assert!(out.contains(r"`\huge(x)"), "the use stays as written: {out}");
 }
 
 #[test]

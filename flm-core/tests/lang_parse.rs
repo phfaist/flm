@@ -14,12 +14,12 @@ use flm_core::lang::mint::{
     arg_layout_of, body_def_of, field_name, ArgDef, ArgLayout, ArgStdKind, BodyDef, BodyLayout,
     DefinitionShape, ElementDef, FallbackDef, FallbackKind, FlmArgumentParser, FlmBodyParser,
     ScopedPackageDef,
-    SyntaxDef, TackOnField, FIELD,
+    SyntaxDef, TackOnField,
 };
+use flm_core::lang::structural::FIELD;
 use flm_core::lang::rewrites::blocks::{BlocksConfig, argument_holds_blocks, structure};
 use flm_core::lang::FlmDiagnostics;
 use flm_core::model::doc::FragmentLayout;
-use flm_core::model::names::Name;
 use flm_core::lang::{
     BuiltLang, DollarMathDisabled, Flm, FlmCallableType, FlmGroupType, LangInputs,
     PercentForbidden,
@@ -235,9 +235,9 @@ fn an_opaque_wrapped_argument_is_a_wrapper_around_the_content_it_reads() {
 
 #[test]
 fn a_tack_on_field_is_absorbed_as_a_node_of_the_field_element() {
-    // Whatever a field is called, its node carries the one field element, and
-    // the field's name is the element's value: a field is data, and the
-    // callable that declared it is what reads it.
+    // Whatever a field is called, its node carries the language's one field
+    // element, and the field's name is the node's macro name: a field is
+    // data, and the callable that declared it is what reads it.
     let field = TackOnField::new("label", vec![ArgDef::new(ArgStdKind::CharsGroup)]);
     let args = vec![ArgDef::new(ArgStdKind::TackOn { fields: vec![field] })];
     let lang = lang(vec![macro_with("t", "thm", args)]);
@@ -247,7 +247,8 @@ fn a_tack_on_field_is_absorbed_as_a_node_of_the_field_element() {
     let field_node = content.iter().find(|node| node.is_callable()).unwrap();
     assert_eq!(field_node.name(), Some("label"));
     assert_eq!(element_of(&field_node).name, FIELD);
-    assert_eq!(field_name(&field_node).map(Name::as_str), Some("label"));
+    assert!(std::sync::Arc::ptr_eq(element_of(&field_node), &lang.structural().field));
+    assert_eq!(field_name(&field_node), Some("label"));
     assert_eq!(field_node.argument_content_nodes(0).unwrap().source_text(), Some("x"));
 }
 

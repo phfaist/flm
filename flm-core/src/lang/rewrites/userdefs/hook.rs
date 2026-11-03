@@ -23,7 +23,9 @@
 //! ([`DefinitionBindings`](super::DefinitionBindings)). An extension crate may
 //! write its own implementation over the same interface, for example to compute
 //! the content of placeholder names of its own, with placeholder bindings that
-//! pass every other placeholder to `DefinitionBindings`. A template that refers
+//! pass every other placeholder to `DefinitionBindings`: the values it computed,
+//! held in [`ExtraValues`](super::ExtraValues) and laid over
+//! `DefinitionBindings`, or bindings of its own. A template that refers
 //! to no argument of a use site (a value a feature compiled and fills by name)
 //! is instantiated with [`ValueBindings`](super::ValueBindings), which give each
 //! extra placeholder a finished tree, through the public
@@ -363,7 +365,10 @@ pub enum PlaceholderValue<'a> {
 /// At each use, the bindings give each target its value.
 /// [`DefinitionBindings`](super::DefinitionBindings) are the bindings of a user
 /// definition's use site; an extension's [`Expand`] implementation supplies its
-/// own, usually built on top of them. [`ValueBindings`](super::ValueBindings)
+/// own, usually built on top of them: either the values it computed for the
+/// extra placeholders, held in [`ExtraValues`](super::ExtraValues) and laid
+/// over them, or an implementation of this trait.
+/// [`ValueBindings`](super::ValueBindings)
 /// are the bindings of a template that has no use site's arguments: they give
 /// each extra placeholder a finished tree held by name, for a feature that
 /// instantiates a template it compiled itself

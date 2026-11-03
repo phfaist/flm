@@ -1013,10 +1013,10 @@ impl Stage for LatexRecomposedRegionsStage {
     fn run(&self, cx: &StageCx<'_>, out: &mut StageOut<'_>) {
         // The one place the render options are checked for content rather
         // than for type: an entry inside the family's own name space is
-        // refused here, once per document, whatever the document holds. One
-        // rule about a name, over both options that name user definitions.
-        // See decision rationale at [§flm-dd-dr:rend-latex-reserved-names]
-        // and [§flm-dd-dr:rend-latex-userdef-robust-option].
+        // refused here, once per document, whatever the document holds: a
+        // user definition written under such a name could replace a command
+        // this library's own LaTeX relies on. One rule about a name, over both
+        // options that name user definitions.
         if let Ok(options) = cx.option::<LatexRecomposedRenderOptions>() {
             let listed = [
                 (DefinitionNameOption::BareNames, &options.bare_names),
@@ -1121,11 +1121,12 @@ impl Stage for LatexRecomposedRegionsStage {
 
         // The pieces, closed over the pieces they need in turn and taken in
         // the order the registry holds them, the piece of the feature placed
-        // last defining an identifier several pieces have (see decision
-        // rationale at [§flm-dd-dr:feat-order]); an identifier resolving to
-        // none is reported. The declared characters' own pieces join the
-        // trees': a spelling that needs declarations no package makes — a
-        // math alphabet, a symbol font — carries them as a piece of its own.
+        // last defining an identifier several pieces have, since the order of
+        // the features, which the user states, decides which definition
+        // applies; an identifier resolving to none is reported. The declared
+        // characters' own pieces join the trees': a spelling that needs
+        // declarations no package makes — a math alphabet, a symbol font —
+        // carries them as a piece of its own.
         let mut wanted = piece_ids;
         wanted.extend(declared.pieces());
         let defining = preamble::definitions(services);
@@ -1188,7 +1189,6 @@ impl Stage for LatexRecomposedRegionsStage {
         // for that package out of the file and the author's options stand
         // alone — which is how an author states an option list this library's
         // own requests cannot add to.
-        // See decision rationale at [§flm-dd-dr:rend-latex-author-preamble].
         let mut author_skipped: Vec<&LatexPackageDef> = Vec::new();
         for def in &options.extra_packages {
             if options.skip_packages.contains(def.package.as_ref()) {
@@ -1204,8 +1204,9 @@ impl Stage for LatexRecomposedRegionsStage {
         // merged and the package is then written not at all under the engines
         // they meet under. The two groups are merged by the same
         // rule and written one after the other; a package is in one group or
-        // the other and never in both, so the file holds one line per package.
-        // See decision rationale at [§flm-dd-dr:rend-latex-package-block].
+        // the other and never in both, so the file holds one line per package:
+        // LaTeX loads a package once, and a second line for a package already
+        // loaded with other options stops the compilation with an option clash.
         let (mut package_requests, conflicts) = packages::merge_requests(package_defs);
         let (skipped_requests, skipped_conflicts) = packages::merge_requests(author_skipped);
         for conflict in conflicts.into_iter().chain(skipped_conflicts) {

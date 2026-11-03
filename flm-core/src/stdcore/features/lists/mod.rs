@@ -584,7 +584,8 @@ impl ItemElement {
     /// A copy that fails (content nesting deeper than the recursion guard
     /// allows, which the parse has already refused) gives no content; an
     /// aspect reports nothing.
-    // See decision rationale at [§flm-dd-dr:std-list-item-reference].
+    // A copy, since a tag or a label is not always one node of the document: a
+    // value written without braces shares a run of characters with its key.
     fn copied(&self, item: &NodeRef<'_, Flm>, pieces: &[WrittenPiece<'_>]) -> Option<ContentRef> {
         let pieces: Vec<ValuePiece<'_, '_>> = pieces.iter().map(WrittenPiece::as_value_piece).collect();
         let guard = self.labels.guard();
@@ -615,7 +616,6 @@ fn list_element(name: &Name, kind: &ListKind) -> Arc<ElementSpec> {
 fn item_element(labels: Arc<Labels>) -> Arc<ElementSpec> {
     // A block keeps every `\item` a direct child of the list's body through
     // the block-structure pass, which is where the item reader splits it.
-    // See decision rationale at [§flm-dd-dr:std-list-reading].
     let value = Arc::new(ItemElement { labels });
     Arc::new(
         ElementSpec::new(ITEM)
@@ -640,7 +640,6 @@ fn package(owner: &crate::model::names::FeatureName, labels: Arc<Labels>) -> Sco
                 // The labels are the `\item`'s own tack-on fields, as a
                 // heading's are: an inline field read from the item's
                 // content would stand inside its first paragraph.
-                // See decision rationale at [§flm-dd-dr:std-list-label-fields].
                 refs::label_fields_arg(),
             ],
         },

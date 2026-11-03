@@ -474,8 +474,8 @@ fn run_in(folder: &Path, path: &Path, args: &RunArgs, stem: &str) -> Result<Host
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     // On Unix the program leads a process group of its own, which the programs it starts
-    // join, so that `stop` and `stop_running_programs` stop them with it.
-    // See decision rationale at [§flm-dd-dr:pipe-tool-stop]
+    // join, so that `stop` and `stop_running_programs` stop them with it: `latexmk`, for one,
+    // starts LuaLaTeX as a program of its own, which stopping `latexmk` alone leaves running.
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut command, 0);
     let could_not_start = |error: std::io::Error| {

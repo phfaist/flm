@@ -10,3 +10,5 @@ flm-ext/tests/wasm/*/*.wasm
 
 *~
 .DS_Store
+
+/dev-docs

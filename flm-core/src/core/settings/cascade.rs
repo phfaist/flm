@@ -103,10 +103,18 @@
 //! ([`ValueKind::Path`]) is first resolved by its origin
 //! ([`CascadeOrigin::resolve_path`]).
 //!
+//! Every feature of the packages in use that declares settings is read at each
+//! reading, whether or not anything is written under it. A feature nothing is
+//! written for is read from the empty map, so that its package receives the
+//! configuration its declaration reads from it ([`SettingsDecl::read`]): the
+//! type's default for a configuration declared with a Rust type, and the
+//! reader's answer for one declared with a reader
+//! ([`SettingsDecl::config_data_read`]). A problem found then has no origin.
+//!
 //! [`Cascade::in_effect`] returns the combined data that [`Cascade::read`]
-//! reads, before any declaration reads it: for each feature, whether it is
-//! switched off and where, and the value in effect of each key written, with
-//! where it was written ([`FeatureInEffect`]). A host uses it to show each
+//! reads, before any declaration reads it: for each feature written, whether
+//! it is switched off and where, and the value in effect of each key written,
+//! with where it was written ([`FeatureInEffect`]). A host uses it to show each
 //! setting's value and its origin.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -170,7 +178,8 @@ pub struct SettingValue<O> {
 /// [`ReadSettings::warnings`] or, beside errors, in [`ReadFailure::warnings`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Problem<O> {
-    /// Where the value at fault was written.
+    /// Where the value at fault was written; `None` when that is not known,
+    /// as for a feature nothing is written for, read from the empty map.
     pub origin: Option<O>,
     /// The problem, as a text for a reader.
     pub detail: String,
@@ -212,7 +221,9 @@ impl<T: PartialEq + Clone, O: CascadeOrigin> Written<T, O> {
     /// ([`wins_over`], by `reach`); the first of them written results, and the
     /// others that differ from it are disagreeing. Which sources count does not
     /// depend on the order written.
-    // See decision rationale at [§flm-dd-dr:feat-merge-rule]
+    // Peers must agree, and a package changes another's value only by naming it
+    // in its `use` list: a package added beside the others never silently
+    // changes a value, and each value in force comes from one source.
     fn decide<'w>(writes: impl IntoIterator<Item = (&'w T, &'w O)>, reach: &Reach) -> Option<Written<T, O>>
     where
         T: 'w,
@@ -338,7 +349,8 @@ pub struct ReadSettings<O> {
 /// problems.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadFailure<O> {
-    /// The problems, each at the origin of the value at fault.
+    /// The problems, each at the origin of the value at fault; a problem
+    /// found in reading a feature that nothing is written for has no origin.
     pub errors: Vec<Problem<O>>,
     /// The values accepted that may be mistakes, as in [`ReadSettings::warnings`].
     pub warnings: Vec<Problem<O>>,
@@ -413,7 +425,8 @@ type EntryWrites<'w, O> = Vec<(&'w Value, &'w O)>;
 /// defaults first, a replaced entry keeping its position; and an entry whose
 /// resulting value is `false` left out. The problems found (a value that is not
 /// a map, peers that disagree on an entry) are added to `problems`.
-// See decision rationale at [§flm-dd-dr:feat-merge-rule]
+// An entry is replaced whole, never merged below, so that its value in force
+// comes from one source, which a problem can name.
 fn by_entries<O: CascadeOrigin>(
     path: &str,
     writes: &[SettingValue<O>],
@@ -470,7 +483,9 @@ fn by_entries<O: CascadeOrigin>(
 /// ([`CascadeOrigin::resolve_path`]). An entry of a key merged entry by entry
 /// is resolved by its own origin; the feature's own entries, written in no
 /// source, are left unchanged.
-// See decision rationale at [§flm-dd-dr:host-settings-path-resolve]
+// Paths are resolved here, where the origin of each value is known, so that one
+// rule serves every feature and a path written in a file is relative to the
+// file's folder.
 fn resolve_paths<O: CascadeOrigin>(decl: &SettingsDecl, key: &str, combined: &mut KeyInEffect<O>) {
     let merged = decl.default_entries(key).is_some();
     for mark in decl.marks().iter().filter(|mark| mark.kind == ValueKind::Path) {
@@ -752,16 +767,20 @@ impl<O: CascadeOrigin> Cascade<O> {
     }
 
     /// Reads the combined settings through the settings declarations of the
-    /// package factories `factories`: for each feature written, the declaration
-    /// of the factory that holds the feature reads its data. Path values are
-    /// resolved first (see the [module
-    /// documentation](self#reading-the-combined-settings)). The data read is
-    /// what [`in_effect`](Cascade::in_effect) returns.
+    /// package factories `factories`: every feature of a factory that declares
+    /// settings and is not switched off is read by its declaration, from the
+    /// data written for it, or from the empty map when nothing is written under
+    /// it (see [`SettingsDecl::read`] for the configuration read from the empty
+    /// map). Path values are resolved first (see the [module
+    /// documentation](self#reading-the-combined-settings)). The data read for
+    /// a feature that a source wrote is what [`in_effect`](Cascade::in_effect)
+    /// returns for it.
     ///
-    /// Every factory gets an entry in [`ReadSettings::packages`], empty when
-    /// nothing is written for its features; a feature switched off is recorded
-    /// as such in its package's settings. Each `false` written for a feature
-    /// that no factory holds is a warning at its origin, and nothing else: in
+    /// Every factory gets an entry in [`ReadSettings::packages`], which holds
+    /// the settings read of each of its features that declares settings,
+    /// written or not; a feature switched off is recorded as such in its
+    /// package's settings. Each `false` written for a feature that no factory
+    /// holds is a warning at its origin, and nothing else: in
     /// [`ReadSettings::warnings`], or in [`ReadFailure::warnings`] when the
     /// reading finds problems.
     ///
@@ -774,7 +793,9 @@ impl<O: CascadeOrigin> Cascade<O> {
     /// a key or on whether a feature is off; a key the feature does not
     /// declare, or a value its declaration cannot read; a key that a workflow's
     /// settings set and that is not set per render request; peers that disagree
-    /// on a field of a workflow.
+    /// on a field of a workflow. A problem found in reading a feature nothing
+    /// is written for (a configuration reader that refuses the empty map) has
+    /// no origin.
     pub fn read(&self, factories: &[&PackageFactory]) -> Result<ReadSettings<O>, ReadFailure<O>> {
         let mut read = ReadSettings::default();
         for factory in factories {
@@ -790,6 +811,9 @@ impl<O: CascadeOrigin> Cascade<O> {
             let what = format!("the field `{field}` of the workflow `{workflow}`");
             problems.extend(written.disagreement(&what, shown, false));
         }
+        // The features written, combined: each one not switched off whose declaration
+        // reads it, with its settings in effect and the first origin written for it.
+        let mut written_features: BTreeMap<&str, (FeatureInEffect<O>, Option<O>)> = BTreeMap::new();
         for (feature, values) in &self.features {
             let first_origin = values
                 .keys
@@ -798,9 +822,8 @@ impl<O: CascadeOrigin> Cascade<O> {
                 .map(|write| write.origin.clone())
                 .or(values.off.first().map(|(_, origin)| origin.clone()));
             let Some(factory) = holder(factories, feature) else {
-                // `false` alone is accepted, with a warning for each `false` written;
-                // any settings are a problem, at the first written.
-                // See decision rationale at [§flm-dd-dr:false-for-a-feature-not-loaded].
+                // `false` alone is accepted, with a warning for each `false` written, since
+                // the name may be misspelled; any settings are a problem, at the first written.
                 for (off, origin) in &values.off {
                     if *off {
                         read.warnings.push(Problem {
@@ -823,39 +846,54 @@ impl<O: CascadeOrigin> Cascade<O> {
                 }
                 continue;
             };
-            let package = read.packages.entry(factory.name().clone()).or_default();
             let decl = factory.settings(feature);
             let in_effect = self.combine(feature, values, decl, &mut problems);
             if in_effect.switched_off.is_some() {
-                package.switch_off(feature.as_str());
-                continue;
-            }
-            if values.keys.is_empty() {
-                continue;
-            }
-            let Some(decl) = decl else {
+                read.packages.entry(factory.name().clone()).or_default().switch_off(feature.as_str());
+            } else if decl.is_some() {
+                written_features.insert(feature.as_str(), (in_effect, first_origin));
+            } else if !values.keys.is_empty() {
                 problems.push(Problem {
                     origin: first_origin,
                     detail: format!("the feature `{feature}` takes no settings, so nothing may be written under it"),
                 });
-                continue;
-            };
-            let data: Map<String, Value> =
-                in_effect.keys.iter().map(|(key, combined)| (key.clone(), combined.value.clone())).collect();
-            match decl.read(&data) {
-                Ok(settings) => {
-                    read.document.merge_from(settings.document_options());
-                    read.render.merge_from(settings.render_options());
-                    package.insert(settings);
+            }
+        }
+        // Every feature in use that declares settings and is not switched off is read: from
+        // its settings in effect, or from the empty map when nothing is written under it.
+        for factory in factories {
+            let package = read.packages.entry(factory.name().clone()).or_default();
+            for entry in factory.features() {
+                let Some(decl) = &entry.settings else { continue };
+                if package.is_off(&entry.name) {
+                    continue;
                 }
-                Err(errors) => problems.extend(errors.into_iter().map(|error| {
-                    let mut path = error.path.split('.').skip(1);
-                    let at = path.next().and_then(|key| in_effect.keys.get(key)).map(|combined| {
-                        let entry = path.next().and_then(|entry| combined.entry_origins.get(entry));
-                        entry.unwrap_or(&combined.origin).clone()
-                    });
-                    Problem { origin: at.or(first_origin.clone()), detail: error.detail }
-                })),
+                let (in_effect, first_origin) = match written_features.get(entry.name.as_str()) {
+                    Some((in_effect, first_origin)) => (Some(in_effect), first_origin.as_ref()),
+                    None => (None, None),
+                };
+                let data: Map<String, Value> = in_effect
+                    .iter()
+                    .flat_map(|in_effect| &in_effect.keys)
+                    .map(|(key, combined)| (key.clone(), combined.value.clone()))
+                    .collect();
+                match decl.read(&data) {
+                    Ok(settings) => {
+                        read.document.merge_from(settings.document_options());
+                        read.render.merge_from(settings.render_options());
+                        package.insert(settings);
+                    }
+                    Err(errors) => problems.extend(errors.into_iter().map(|error| {
+                        // At the key or the entry at fault when it is written, else at the
+                        // first value written for the feature; nowhere when nothing is.
+                        let mut path = error.path.split('.').skip(1);
+                        let at = path.next().and_then(|key| in_effect?.keys.get(key)).map(|combined| {
+                            let entry_origin = path.next().and_then(|name| combined.entry_origins.get(name));
+                            entry_origin.unwrap_or(&combined.origin).clone()
+                        });
+                        Problem { origin: at.or_else(|| first_origin.cloned()), detail: error.detail }
+                    })),
+                }
             }
         }
         if problems.is_empty() { Ok(read) } else { Err(ReadFailure { errors: problems, warnings: read.warnings }) }

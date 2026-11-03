@@ -17,8 +17,10 @@
 //!   [`FlmGroupType::Paragraph`](crate::lang::FlmGroupType::Paragraph)); every
 //!   node whose element has the block role
 //!   [`Block`](crate::model::aspects::BlockRole::Block) is placed on its own
-//!   between the paragraphs; the paragraph-break markers (the nodes a blank line
-//!   leaves) are removed;
+//!   between the paragraphs; a displayed item (block role
+//!   [`Displayed`](crate::model::aspects::BlockRole::Displayed)) is inline
+//!   content and stays inside its paragraph; the paragraph-break markers (the
+//!   nodes a blank line leaves) are removed;
 //! - **inline**: no paragraph is built; a block-level node or a blank line found
 //!   there is reported;
 //! - **opaque**: the content is copied unchanged; see [opaque
@@ -39,10 +41,11 @@
 //! are applied (`--` becomes an en dash, for example). An inline node whose
 //! element absorbs the whitespace beside it
 //! ([`InlineSpacing`](crate::model::aspects::InlineSpacing), as a citation mark
-//! does) has that whitespace removed, whitespace nodes included: a node whose
+//! does) has that whitespace removed, and a displayed item has the whitespace
+//! on both of its sides removed, whitespace nodes included: a node whose
 //! element carries the [`Whitespace`](crate::model::aspects::Whitespace)
-//! aspect, such as `~`, is whitespace to these rules, removed beside such a
-//! node and at the edges of a paragraph, and kept as a node of its own
+//! aspect, such as `~`, is whitespace to these rules, removed beside such
+//! nodes and at the edges of a paragraph, and kept as a node of its own
 //! elsewhere (see [`pass`]). A merged text node whose text no longer matches
 //! its source byte for byte records where each part came from
 //! ([`TextSourceMap`](crate::lang::TextSourceMap)).
@@ -55,7 +58,8 @@
 //! - the **block role** of each node's element
 //!   ([`BlockRole`](crate::model::aspects::BlockRole), read with
 //!   [`block_role_of`](crate::model::aspects::block_role_of)): a block of its
-//!   own, inline content, or a block decorator attached to the paragraph it
+//!   own, inline content, a displayed item (set on lines of its own inside the
+//!   paragraph it stands in), or a block decorator attached to the paragraph it
 //!   occurs in ([`Placement`](crate::model::aspects::Placement));
 //! - the layout the element declares for its **body**
 //!   ([`BodyLayout`](crate::lang::mint::BodyLayout)) and for each of its

@@ -1,18 +1,37 @@
 //! The guest's entries: the builders an extension declares its packages
-//! with ([`Extension`], [`Package`], [`Feature`]) and the 18 entries the
-//! engine `wasm` calls through the export `flm_entry`, routed by name; the
-//! twin of the JavaScript prelude's `flm:_entry`.
+//! with ([`Extension`], [`Package`], [`Feature`]) and the 19 entries the
+//! engine calls, the twin of the JavaScript prelude's `flm:_entry`.
 //!
-//! An entry's request is `{"entry": NAME, "args": [ … ]}`; its reply the
-//! envelope `{"ok": value}` or `{"err": data, "message": text}`, `data`
-//! being the error's [`ExtError::data`]. `define(stem, module)` runs the
-//! function the entry macro names with the extension builder;
-//! `packages()` answers the package objects it declared; `register` and
-//! `rehearse` run a feature's `register` (the rehearsal with a builder that
-//! sends nothing, then each finalizer that `register` recorded, likewise);
-//! every other entry finds the handler object the feature's `register`
-//! recorded ([`crate::guest::registry`]) and calls it, or refuses with the
-//! text the prelude's entries use when it is absent.
+//! **Two readers, one routing.** An entry's request is an [`EntryRequest`],
+//! its arguments typed: names and the settings borrowed from the reader's
+//! input, the handles of the objects the call lent as the structs of their
+//! kinds, a citation provider's requests and a template's data as the
+//! guest's values. [`route`] runs it and answers an [`EntryReply`], the
+//! guest's values. Two readers build the request, over one statement of
+//! every entry's arguments, their positions and forms ([`Reader`]), each
+//! reading every argument before the routing finds the handler object the
+//! request names:
+//!
+//! - [`answer`], the text ABI of a module (the export `flm_entry` the engine
+//!   `wasm` calls): the request `{"entry": NAME, "args": [ … ]}` read from
+//!   its JSON text, and the reply written in the envelope `{"ok": value}` or
+//!   `{"err": data, "message": text}`, `data` being the error's
+//!   [`ExtError::data`];
+//! - `call`, compiled into a program (the cargo feature `native`): the
+//!   arguments the engine `native` passes read as they are, and the reply
+//!   answered as it is, with no JSON value built or read but the settings
+//!   and the reports of `packages`, which are data by nature.
+//!
+//! `define(stem)` runs the function the entry macro names with the extension
+//! builder; `packages()` answers the package objects it declared; `register`
+//! and `rehearse` run a feature's `register` (the rehearsal with a builder
+//! that sends nothing, then each finalizer that `register` recorded,
+//! likewise); `read_settings` runs a feature's configuration reader
+//! ([`Feature::read`]), its answer written `{"value": …}` or `{"error":
+//! {"path", "detail"}}` in a module's reply; every other entry finds the
+//! handler object the feature's `register` recorded
+//! ([`crate::guest::registry`]) and calls it, or refuses with the text the
+//! prelude's entries use when it is absent.
 //!
 //! **Re-entry.** The host may enter the instance again while a request of
 //! the guest runs (a hook run while a stage's request runs): an entry clones
@@ -20,31 +39,41 @@
 //! calls the object.
 //!
 //! What `define` declared is part of the instance's state
-//! ([`crate::guest::state`]); compiled into a program, the engine `native`
-//! routes an entry through `call`, with the arguments as values.
+//! ([`crate::guest::state`]).
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use serde_json::{json, Map, Value};
 
-use crate::adapter::values::JsonForm;
+#[cfg(feature = "native")]
+use crate::adapter::handles::Handle;
+use crate::adapter::values::{not_a, JsonForm};
+#[cfg(feature = "native")]
+use crate::binding::EntryArg;
 use crate::guest::core::data::store::StageOut;
-use crate::guest::core::lowering::{LowerCx, Lowerer};
+use crate::guest::core::lowering::{LowerCx, Lowerer, Lowering};
 use crate::guest::core::registry::FeatureBuilder;
 use crate::guest::core::run::{RewriteCx, StageCx};
-use crate::guest::lang::rewrites::userdefs::{ExpandCx, Expander};
+use crate::guest::core::settings::ReadError;
+use crate::guest::lang::rewrites::userdefs::{ExpandCx, Expander, Expansion};
 use crate::guest::lang::{BuiltLang, FlmDiagnostics};
+use crate::guest::model::aspects::{ContentRef, RefPoint, Sectioning};
 use crate::guest::registry::{self, Record, Shared};
 use crate::guest::state;
-use crate::guest::stdcore::features::citations::{CitationRequest, ProviderCx};
-use crate::guest::stdcore::features::compose::{TemplateContext, TemplateCx};
+use crate::guest::stdcore::features::citations::{CitationRequest, CitationResult, ProviderCx};
+use crate::guest::stdcore::features::compose::{TemplateContext, TemplateCx, TemplateDescription, TemplateFile, TemplateModule};
 use crate::guest::techy::node::Node;
-use crate::guest::techy::transform::Restager;
+use crate::guest::techy::transform::{Restage, Restager};
 use crate::runtime::ExtError;
 
 /// A feature's `register`: the builder of the registration and the
 /// feature's settings.
 type Register = Arc<dyn Fn(&mut FeatureBuilder, &Value) -> Result<(), ExtError> + Send + Sync>;
+
+/// A feature's configuration reader: the configuration written, and the
+/// configuration `register` receives or the value at fault.
+type Read = Arc<dyn Fn(Value) -> Result<Value, ReadError> + Send + Sync>;
 
 /// The extension builder, which the function the entry macro names
 /// ([`extension!`](crate::guest::extension)) receives once per instance: its
@@ -172,6 +201,8 @@ pub struct Feature {
     settings: Option<Value>,
     /// Its `register`.
     register: Option<Register>,
+    /// Its configuration reader.
+    read: Option<Read>,
 }
 
 impl Feature {
@@ -216,6 +247,32 @@ impl Feature {
         self
     }
 
+    /// Its configuration reader, the twin of the conversion of
+    /// `flm-core`'s
+    /// [`SettingsDecl::config_from`](flm_core::core::settings::SettingsDecl::config_from)
+    /// (the configuration is declared with
+    /// [`SettingsDecl::config_data_read`](flm_core::core::settings::SettingsDecl::config_data_read)):
+    /// a function or a closure that reads the feature's configuration
+    /// whenever the host reads a document's settings, for every feature of a
+    /// package the document uses that declares a reader and is not switched
+    /// off in the document's settings, before the registry is built, as
+    /// `config_from`'s conversion runs. Given the configuration written under
+    /// the feature (`{}` when nothing is written under the feature, or none of
+    /// the configuration's own keys), it answers the
+    /// configuration `register` receives, or the value at fault as a
+    /// [`ReadError`], which the host reports where that value was written, and
+    /// with no place in the document when its settings do not name the
+    /// feature. A reader that only checks the configuration answers it
+    /// unchanged. The feature's settings declare the
+    /// configuration it reads (their `config`); the feature's report states
+    /// that it reads it (`read` in its settings). A feature without a reader
+    /// has its configuration's keys checked only, and `register` receives
+    /// the configuration as written.
+    pub fn read(mut self, read: impl Fn(Value) -> Result<Value, ReadError> + Send + Sync + 'static) -> Feature {
+        self.read = Some(Arc::new(read));
+        self
+    }
+
     /// The feature's object as its report writes it: the fields set.
     fn object(&self) -> Value {
         let mut object = Map::new();
@@ -225,8 +282,16 @@ impl Feature {
                 object.insert(key.to_string(), Value::String(text.clone()));
             }
         }
-        if let Some(settings) = &self.settings {
-            object.insert("settings".to_string(), settings.clone());
+        let mut settings = self.settings.clone();
+        if self.read.is_some() {
+            // Settings that are not a map are left as given: the report's reading
+            // refuses them.
+            if let Value::Object(settings) = settings.get_or_insert_with(|| Value::Object(Map::new())) {
+                settings.insert("read".to_string(), Value::Bool(true));
+            }
+        }
+        if let Some(settings) = settings {
+            object.insert("settings".to_string(), settings);
         }
         Value::Object(object)
     }
@@ -250,11 +315,12 @@ fn stem() -> String {
 }
 
 /// The names of the entries, in the order of the prelude's.
-const ENTRIES: [&str; 18] = [
+const ENTRIES: [&str; 19] = [
     "define",
     "packages",
     "register",
     "rehearse",
+    "read_settings",
     "run_stage",
     "expand",
     "lower",
@@ -271,15 +337,256 @@ const ENTRIES: [&str; 18] = [
     "finalize",
 ];
 
+/// An entry's request, its arguments typed and borrowed from the reader's
+/// input for `'a`: what both readers build ([`answer`]'s from the JSON text
+/// of a module's ABI, `call`'s from the arguments the engine `native`
+/// passes) and [`route`] runs.
+// A request is made for one entry and moved once into the routing, so the size of its
+// largest variant costs nothing; boxing it would only complicate the readers.
+#[allow(clippy::large_enum_variant)]
+pub(crate) enum EntryRequest<'a> {
+    /// `define(stem)`.
+    Define {
+        /// The extension's stem.
+        stem: &'a str,
+        /// The function the entry macro names, run with the extension
+        /// builder.
+        define: fn(&mut Extension),
+    },
+    /// `packages()`.
+    Packages,
+    /// An entry of the feature `feature` of the package `pkg`.
+    Feature {
+        /// The package's name.
+        pkg: &'a str,
+        /// The feature's name.
+        feature: &'a str,
+        /// The entry, with its arguments after the package and the feature.
+        entry: FeatureEntry<'a>,
+    },
+}
+
+/// An entry of one feature, with its arguments after the names of the
+/// package and the feature: the feature's `register`, its rehearsal and its
+/// configuration reader, then the entries of the handler objects it
+/// recorded, each named by a stage's, a rule's, a provider's or a module's
+/// name, an element, or a position.
+pub(crate) enum FeatureEntry<'a> {
+    /// `register(settings, b)`.
+    Register {
+        /// The feature's settings.
+        settings: &'a Value,
+        /// The builder of the registration.
+        builder: FeatureBuilder,
+    },
+    /// `rehearse(settings)`.
+    Rehearse {
+        /// The settings of the real registration.
+        settings: &'a Value,
+    },
+    /// `read_settings(settings)`.
+    ReadSettings {
+        /// The configuration written.
+        settings: &'a Value,
+    },
+    /// `run_stage(name, cx, out)`.
+    RunStage {
+        /// The stage's name.
+        name: &'a str,
+        /// The stage's context.
+        cx: StageCx,
+        /// The stage's output.
+        out: StageOut,
+    },
+    /// `expand(element, node, cx, xp)`.
+    Expand {
+        /// The element whose hook runs.
+        element: &'a str,
+        /// The use site.
+        node: Node,
+        /// The context at the use site.
+        cx: ExpandCx,
+        /// The expander.
+        xp: Expander,
+    },
+    /// `lower(rule, node, cx, lw)`.
+    Lower {
+        /// The rule's name.
+        rule: &'a str,
+        /// The node being lowered.
+        node: Node,
+        /// The presentation tree under construction.
+        cx: LowerCx,
+        /// The lowerer.
+        lw: Lowerer,
+    },
+    /// `restage(name, node, cx, rs)`.
+    Restage {
+        /// The rewrite stage's name.
+        name: &'a str,
+        /// The node of the input tree.
+        node: Node,
+        /// The rewrite's context.
+        cx: RewriteCx,
+        /// The restage façade.
+        rs: Restager,
+    },
+    /// `answer_all(name, requests, cx)`.
+    AnswerAll {
+        /// The citation provider's name.
+        name: &'a str,
+        /// The requests.
+        requests: Vec<CitationRequest>,
+        /// The provider's context.
+        cx: ProviderCx,
+    },
+    /// `template_describe(name, settings)`.
+    TemplateDescribe {
+        /// The template module's name.
+        name: &'a str,
+        /// The feature's settings.
+        settings: &'a Value,
+    },
+    /// `template_files(name, data, cx)`.
+    TemplateFiles {
+        /// The template module's name.
+        name: &'a str,
+        /// The template's data: read from JSON, or borrowed from the host.
+        data: Cow<'a, TemplateContext>,
+        /// The module's context.
+        cx: TemplateCx,
+    },
+    /// `template_render(name, data, cx)`.
+    TemplateRender {
+        /// The template module's name.
+        name: &'a str,
+        /// The template's data: read from JSON, or borrowed from the host.
+        data: Cow<'a, TemplateContext>,
+        /// The module's context.
+        cx: TemplateCx,
+    },
+    /// `points(element, node)`.
+    Points {
+        /// The element whose aspect `Referenceable` answers.
+        element: &'a str,
+        /// The occurrence.
+        node: Node,
+    },
+    /// `level(element, node)`.
+    Level {
+        /// The element whose aspect `Sectioning` answers.
+        element: &'a str,
+        /// The occurrence.
+        node: Node,
+    },
+    /// `in_toc(element, node)`.
+    InToc {
+        /// The element whose aspect `Sectioning` answers.
+        element: &'a str,
+        /// The occurrence.
+        node: Node,
+    },
+    /// `toc_title(element, node)`.
+    TocTitle {
+        /// The element whose aspect `Sectioning` answers.
+        element: &'a str,
+        /// The occurrence.
+        node: Node,
+    },
+    /// `late_init(index, lang, diags)`.
+    LateInit {
+        /// The hook's position among the feature's late-initialization
+        /// hooks.
+        index: usize,
+        /// The finished language.
+        lang: BuiltLang,
+        /// The registry's build diagnostics.
+        diags: FlmDiagnostics,
+    },
+    /// `finalize(index, b)`.
+    Finalize {
+        /// The finalizer's position among the feature's finalizers.
+        index: usize,
+        /// The builder of the build's second round.
+        builder: FeatureBuilder,
+    },
+}
+
+/// An entry's reply, the guest's values: what [`route`] answers, which
+/// [`answer`] writes as the JSON form a module's envelope holds and `call`
+/// answers as it is.
+#[derive(Debug)]
+pub(crate) enum EntryReply {
+    /// No value: `define`, `register`, `rehearse`, `run_stage`, `late_init`
+    /// and `finalize`.
+    Nothing,
+    /// The configuration kept, or the value at fault: `read_settings`.
+    Read(Result<Value, ReadError>),
+    /// The reports of the packages `define` declared, one per
+    /// [`Extension::package`] call: `packages`.
+    Packages(Vec<Value>),
+    /// What an expansion hook answers: `expand`.
+    Expansion(Expansion),
+    /// What a lowering rule's body answers: `lower`.
+    Lowering(Lowering),
+    /// What a rewrite stage answers for a node: `restage`.
+    Restage(Restage),
+    /// A citation provider's results, one per request: `answer_all`.
+    Citations(Vec<CitationResult>),
+    /// A template module's description: `template_describe`.
+    Description(TemplateDescription),
+    /// The files a template module ships: `template_files`.
+    Files(Vec<TemplateFile>),
+    /// The page a template module renders: `template_render`.
+    Page(String),
+    /// An occurrence's reference points: `points`.
+    Points(Vec<RefPoint>),
+    /// A section's level: `level`.
+    Level(u32),
+    /// Whether a section is listed in the table of contents: `in_toc`.
+    Listed(bool),
+    /// A section's title in the table of contents, if it has one of its
+    /// own: `toc_title`.
+    Title(Option<ContentRef>),
+}
+
+impl EntryReply {
+    /// The reply's JSON form: each value's own, `null` for no value.
+    fn into_value(self) -> Value {
+        match self {
+            EntryReply::Nothing => Value::Null,
+            // The form `read_answer_from_value` reads.
+            EntryReply::Read(Ok(value)) => json!({ "value": value }),
+            EntryReply::Read(Err(error)) => json!({ "error": error }),
+            EntryReply::Packages(reports) => Value::Array(reports),
+            EntryReply::Expansion(expansion) => expansion.to_value(),
+            EntryReply::Lowering(lowering) => lowering.to_value(),
+            EntryReply::Restage(restage) => restage.to_value(),
+            EntryReply::Citations(results) => results.to_value(),
+            EntryReply::Description(description) => description.to_value(),
+            EntryReply::Files(files) => files.to_value(),
+            EntryReply::Page(page) => Value::String(page),
+            EntryReply::Points(points) => points.to_value(),
+            EntryReply::Level(level) => level.to_value(),
+            EntryReply::Listed(listed) => Value::Bool(listed),
+            EntryReply::Title(title) => title.to_value(),
+        }
+    }
+}
+
 /// The reply to the entry request `request` (the bytes the host wrote, or
 /// `None` when no buffer of the guest holds them), `define` the function
-/// the entry macro names: the envelope's JSON text.
+/// the entry macro names: the envelope's JSON text. The JSON reader: the
+/// request read into its [`EntryRequest`] by [`Args`], routed, and the reply
+/// written as its JSON form.
 pub(crate) fn answer(request: Option<&[u8]>, define: fn(&mut Extension)) -> Vec<u8> {
     let reply = match request.and_then(|bytes| serde_json::from_slice::<Value>(bytes).ok()) {
         Some(Value::Object(mut request)) => {
             let name = request.remove("entry");
             match (name.as_ref().and_then(Value::as_str), request.remove("args")) {
-                (Some(name), Some(Value::Array(args))) => route(name, &Args { entry: name, items: &args }, define),
+                (Some(name), Some(Value::Array(args))) => {
+                    Args { entry: name, items: &args }.request(define).and_then(route).map(EntryReply::into_value)
+                }
                 _ => Err(not_a_request()),
             }
         }
@@ -292,17 +599,20 @@ pub(crate) fn answer(request: Option<&[u8]>, define: fn(&mut Extension)) -> Vec<
     envelope.to_string().into_bytes()
 }
 
-/// Runs the entry `name` with the arguments `args` in the same process (the
-/// engine `native`, [`crate::native`]): the routing of [`answer`], without
-/// the JSON text either way. `define` is the function the entry macro gives.
+/// Runs the entry `name` with the arguments `args` the engine `native`
+/// passes, in the same process ([`crate::native`]): the routing of
+/// [`answer`], the arguments read as they are into the entry's
+/// [`EntryRequest`] by `Passed` and the reply answered as it is, with no
+/// JSON value built or read but the settings and the reports of `packages`.
+/// `define` is the function the entry macro gives.
 ///
 /// # Errors
 ///
-/// The entry's refusal (an unknown entry, an argument of the wrong form, a
-/// handler object `register` did not declare) or what the handler answers.
+/// The entry's refusal (an unknown entry, a handler object `register` did
+/// not declare) or what the handler answers.
 #[cfg(feature = "native")]
-pub(crate) fn call(name: &str, args: &[Value], define: fn(&mut Extension)) -> Result<Value, ExtError> {
-    route(name, &Args { entry: name, items: args }, define)
+pub(crate) fn call(name: &str, args: &[EntryArg<'_>], define: fn(&mut Extension)) -> Result<EntryReply, ExtError> {
+    route(Passed { entry: name, items: args }.request(define)?)
 }
 
 /// The refusal of a request that is not an entry's.
@@ -313,7 +623,111 @@ fn not_a_request() -> ExtError {
     }
 }
 
-/// The arguments of the entry `entry`.
+/// The reading of an entry's request, shared by its two readers ([`Args`],
+/// and `Passed` compiled into a program): every entry, and the position and
+/// form of each of its arguments, written once over each reader's own
+/// reading of one argument.
+trait Reader<'a> {
+    /// The entry's name.
+    fn entry(&self) -> &'a str;
+
+    /// The argument at `index`, a name.
+    fn text(&self, index: usize) -> Result<&'a str, ExtError>;
+
+    /// The argument at `index`, the settings.
+    fn settings(&self, index: usize) -> &'a Value;
+
+    /// The argument at `index`, a position.
+    fn index(&self, index: usize) -> Result<usize, ExtError>;
+
+    /// The argument at `index`, the requests of a citation provider's call.
+    fn requests(&self, index: usize) -> Result<Vec<CitationRequest>, ExtError>;
+
+    /// The argument at `index`, the data of a template module's call.
+    fn data(&self, index: usize) -> Result<Cow<'a, TemplateContext>, ExtError>;
+
+    /// The argument at `index`, an object the call lent, as the struct of
+    /// its kind.
+    fn object<T: Lent>(&self, index: usize) -> Result<T, ExtError>;
+
+    /// The entry's request: the package and the feature first for every
+    /// entry but `define` and `packages`.
+    fn request(&self, define: fn(&mut Extension)) -> Result<EntryRequest<'a>, ExtError> {
+        Ok(match self.entry() {
+            "define" => EntryRequest::Define { stem: self.text(0)?, define },
+            "packages" => EntryRequest::Packages,
+            entry if ENTRIES.contains(&entry) => {
+                EntryRequest::Feature { pkg: self.text(0)?, feature: self.text(1)?, entry: self.feature_entry()? }
+            }
+            entry => return Err(unknown(entry)),
+        })
+    }
+
+    /// The feature's entry, its arguments after the package and the feature.
+    fn feature_entry(&self) -> Result<FeatureEntry<'a>, ExtError> {
+        Ok(match self.entry() {
+            "register" => FeatureEntry::Register { settings: self.settings(2), builder: self.object(3)? },
+            "rehearse" => FeatureEntry::Rehearse { settings: self.settings(2) },
+            "read_settings" => FeatureEntry::ReadSettings { settings: self.settings(2) },
+            "run_stage" => FeatureEntry::RunStage { name: self.text(2)?, cx: self.object(3)?, out: self.object(4)? },
+            "expand" => {
+                FeatureEntry::Expand { element: self.text(2)?, node: self.object(3)?, cx: self.object(4)?, xp: self.object(5)? }
+            }
+            "lower" => FeatureEntry::Lower { rule: self.text(2)?, node: self.object(3)?, cx: self.object(4)?, lw: self.object(5)? },
+            "restage" => {
+                FeatureEntry::Restage { name: self.text(2)?, node: self.object(3)?, cx: self.object(4)?, rs: self.object(5)? }
+            }
+            "answer_all" => FeatureEntry::AnswerAll { name: self.text(2)?, requests: self.requests(3)?, cx: self.object(4)? },
+            "template_describe" => FeatureEntry::TemplateDescribe { name: self.text(2)?, settings: self.settings(3) },
+            "template_files" => FeatureEntry::TemplateFiles { name: self.text(2)?, data: self.data(3)?, cx: self.object(4)? },
+            "template_render" => FeatureEntry::TemplateRender { name: self.text(2)?, data: self.data(3)?, cx: self.object(4)? },
+            "points" => FeatureEntry::Points { element: self.text(2)?, node: self.object(3)? },
+            "level" => FeatureEntry::Level { element: self.text(2)?, node: self.object(3)? },
+            "in_toc" => FeatureEntry::InToc { element: self.text(2)?, node: self.object(3)? },
+            "toc_title" => FeatureEntry::TocTitle { element: self.text(2)?, node: self.object(3)? },
+            "late_init" => FeatureEntry::LateInit { index: self.index(2)?, lang: self.object(3)?, diags: self.object(4)? },
+            "finalize" => FeatureEntry::Finalize { index: self.index(2)?, builder: self.object(3)? },
+            other => return Err(unknown(other)),
+        })
+    }
+}
+
+/// A struct of the guest over the handle of an object the host lends an
+/// entry ([`Reader::object`]): read through its JSON form by [`Args`], and
+/// built over the handle the engine `native` passes by `Passed`.
+trait Lent: JsonForm {
+    /// The struct over `handle`.
+    #[cfg(feature = "native")]
+    fn over(handle: Handle) -> Self;
+}
+
+/// [`Lent`] for each struct named, a struct of one field, `handle`.
+macro_rules! lent_structs {
+    ($($guest:ident),* $(,)?) => {
+        $(
+            impl Lent for $guest {
+                #[cfg(feature = "native")]
+                fn over(handle: Handle) -> Self {
+                    $guest { handle }
+                }
+            }
+        )*
+    };
+}
+
+lent_structs!(
+    StageCx, StageOut, Node, ExpandCx, Expander, LowerCx, Lowerer, RewriteCx, Restager, ProviderCx, TemplateCx, BuiltLang, FlmDiagnostics
+);
+
+impl Lent for FeatureBuilder {
+    #[cfg(feature = "native")]
+    fn over(handle: Handle) -> Self {
+        FeatureBuilder { handle: Some(handle) }
+    }
+}
+
+/// The JSON arguments of the entry `entry`, as a module's ABI writes them:
+/// the JSON reader of [`answer`].
 struct Args<'a> {
     /// The entry's name.
     entry: &'a str,
@@ -321,44 +735,145 @@ struct Args<'a> {
     items: &'a [Value],
 }
 
-impl Args<'_> {
+impl<'a> Args<'a> {
     /// The argument at `index` (`null` when absent).
-    fn get(&self, index: usize) -> &Value {
+    fn get(&self, index: usize) -> &'a Value {
         self.items.get(index).unwrap_or(&Value::Null)
     }
 
-    /// The argument at `index`, read through its JSON form.
-    fn form<T: JsonForm>(&self, index: usize) -> Result<T, ExtError> {
-        T::from_value(self.get(index)).map_err(|error| match error {
+    /// `error`, which the argument at `index` met, as the entry's refusal of
+    /// that argument.
+    fn refused(&self, index: usize, error: ExtError) -> ExtError {
+        match error {
             ExtError::Value { detail } => {
                 ExtError::Argument { method: self.entry.to_string(), detail: format!("argument {}: {detail}", index + 1) }
             }
             other => other,
-        })
+        }
     }
 
-    /// The argument at `index`, a text.
-    fn text(&self, index: usize) -> Result<String, ExtError> {
+    /// The argument at `index`, read through its JSON form.
+    fn form<T: JsonForm>(&self, index: usize) -> Result<T, ExtError> {
+        T::from_value(self.get(index)).map_err(|error| self.refused(index, error))
+    }
+}
+
+impl<'a> Reader<'a> for Args<'a> {
+    fn entry(&self) -> &'a str {
+        self.entry
+    }
+
+    fn text(&self, index: usize) -> Result<&'a str, ExtError> {
+        let value = self.get(index);
+        value.as_str().ok_or_else(|| self.refused(index, not_a("a text", value)))
+    }
+
+    fn settings(&self, index: usize) -> &'a Value {
+        self.get(index)
+    }
+
+    fn index(&self, index: usize) -> Result<usize, ExtError> {
+        self.form(index)
+    }
+
+    fn requests(&self, index: usize) -> Result<Vec<CitationRequest>, ExtError> {
+        self.form(index)
+    }
+
+    fn data(&self, index: usize) -> Result<Cow<'a, TemplateContext>, ExtError> {
+        self.form(index).map(Cow::Owned)
+    }
+
+    fn object<T: Lent>(&self, index: usize) -> Result<T, ExtError> {
         self.form(index)
     }
 }
 
-/// Runs the entry `name`.
-fn route(name: &str, args: &Args<'_>, define: fn(&mut Extension)) -> Result<Value, ExtError> {
-    if !ENTRIES.contains(&name) {
-        return Err(unknown(name));
+/// The arguments of the entry `entry` as the engine `native` passes them:
+/// the reader of [`call`]. Each is read as it is, a handle into the struct
+/// of the entry's object. The host builds every entry's arguments in the
+/// entry's forms (its handler rows, `binding::handlers`, and its load), so
+/// each argument is of the form the entry reads.
+#[cfg(feature = "native")]
+struct Passed<'a> {
+    /// The entry's name.
+    entry: &'a str,
+    /// Its arguments.
+    items: &'a [EntryArg<'a>],
+}
+
+#[cfg(feature = "native")]
+impl<'a> Passed<'a> {
+    /// The argument at `index`, of another form than the variant `variant`
+    /// of [`EntryArg`]. The host passes each argument in the form the entry
+    /// reads, so no entry receives one.
+    fn other_form(&self, index: usize, variant: &str) -> ! {
+        unreachable!("the engine `native` passes argument {} of the entry `{}` as `EntryArg::{variant}`", index + 1, self.entry)
     }
-    match name {
-        "define" => define_with(&args.text(0)?, define).map(|()| Value::Null),
-        "packages" => Ok(Value::Array(state::current().defined.borrow().reports.clone())),
-        "register" => {
-            let builder: FeatureBuilder = args.form(3)?;
-            register_with(&args.text(0)?, &args.text(1)?, args.get(2), builder, false).map(|()| Value::Null)
+
+    /// The argument at `index`, the handle of an object the call lent.
+    fn handle(&self, index: usize) -> Handle {
+        match self.items.get(index) {
+            Some(EntryArg::Handle(handle)) => *handle,
+            _ => self.other_form(index, "Handle"),
         }
-        "rehearse" => rehearse(&args.text(0)?, &args.text(1)?, args.get(2)).map(|()| Value::Null),
-        "late_init" => late_init(args).map(|()| Value::Null),
-        "finalize" => finalize(args).map(|()| Value::Null),
-        _ => handler(name, args, &args.text(0)?, &args.text(1)?),
+    }
+}
+
+#[cfg(feature = "native")]
+impl<'a> Reader<'a> for Passed<'a> {
+    fn entry(&self) -> &'a str {
+        self.entry
+    }
+
+    fn text(&self, index: usize) -> Result<&'a str, ExtError> {
+        match self.items.get(index) {
+            Some(EntryArg::Text(text)) => Ok(text),
+            _ => self.other_form(index, "Text"),
+        }
+    }
+
+    fn settings(&self, index: usize) -> &'a Value {
+        match self.items.get(index) {
+            Some(EntryArg::Json(settings)) => settings,
+            _ => self.other_form(index, "Json"),
+        }
+    }
+
+    fn index(&self, index: usize) -> Result<usize, ExtError> {
+        match self.items.get(index) {
+            Some(EntryArg::Index(position)) => Ok(*position),
+            _ => self.other_form(index, "Index"),
+        }
+    }
+
+    fn requests(&self, index: usize) -> Result<Vec<CitationRequest>, ExtError> {
+        match self.items.get(index) {
+            Some(EntryArg::CitationRequests(requests)) => {
+                Ok(requests.iter().map(|request| CitationRequest { key: request.key.clone() }).collect())
+            }
+            _ => self.other_form(index, "CitationRequests"),
+        }
+    }
+
+    fn data(&self, index: usize) -> Result<Cow<'a, TemplateContext>, ExtError> {
+        match self.items.get(index) {
+            Some(EntryArg::TemplateContext(data)) => Ok(Cow::Borrowed(*data)),
+            _ => self.other_form(index, "TemplateContext"),
+        }
+    }
+
+    fn object<T: Lent>(&self, index: usize) -> Result<T, ExtError> {
+        Ok(T::over(self.handle(index)))
+    }
+}
+
+/// Runs the entry `request`: the one routing of both readers.
+fn route(request: EntryRequest<'_>) -> Result<EntryReply, ExtError> {
+    match request {
+        EntryRequest::Define { stem, define } => define_with(stem, define).map(|()| EntryReply::Nothing),
+        EntryRequest::Packages => Ok(EntryReply::Packages(state::current().defined.borrow().reports.clone())),
+        EntryRequest::Feature { pkg, feature, entry } => feature_entry(pkg, feature, entry),
     }
 }
 
@@ -394,16 +909,31 @@ fn owner(pkg: &str, feature: &str) -> String {
     format!("`register` of the feature `{feature}` of the package `{pkg}` of the extension `{}`", stem())
 }
 
+/// What `pick` takes of the feature `feature` of the package `pkg`, as
+/// `define` declared it.
+fn declared<T>(pkg: &str, feature: &str, pick: impl FnOnce(&Feature) -> Option<T>) -> Option<T> {
+    let state = state::current();
+    let defined = state.defined.borrow();
+    let package = defined.packages.iter().find(|(name, _)| name == pkg).map(|(_, package)| package);
+    let feature = package.and_then(|package| package.features.iter().find(|(name, _)| name == feature));
+    feature.and_then(|(_, feature)| pick(feature))
+}
+
 /// The `register` function of the feature `feature` of the package `pkg`.
 fn find_feature(pkg: &str, feature: &str) -> Result<Register, ExtError> {
-    let found = {
-        let state = state::current();
-        let defined = state.defined.borrow();
-        let package = defined.packages.iter().find(|(name, _)| name == pkg).map(|(_, package)| package);
-        let feature = package.and_then(|package| package.features.iter().find(|(name, _)| name == feature));
-        feature.and_then(|(_, feature)| feature.register.clone())
-    };
+    let found = declared(pkg, feature, |feature| feature.register.clone());
     found.ok_or_else(|| refusal(format!("the package `{pkg}` of the extension `{}` must have a feature `{feature}`", stem())))
+}
+
+/// The configuration reader of the feature `feature` of the package `pkg`.
+fn find_reader(pkg: &str, feature: &str) -> Result<Read, ExtError> {
+    let found = declared(pkg, feature, |feature| feature.read.clone());
+    found.ok_or_else(|| {
+        refusal(format!(
+            "the feature `{feature}` of the package `{pkg}` of the extension `{}` must have a configuration reader",
+            stem()
+        ))
+    })
 }
 
 /// Runs the feature's `register(b, settings)` with `builder`, recording what
@@ -466,6 +996,12 @@ fn contributed<T>(pkg: &str, feature: &str, what: &str, pick: impl Fn(&Record) -
     found.ok_or_else(|| refusal(format!("{what} must be contributed by {}", owner(pkg, feature))))
 }
 
+/// The template module `name` the feature contributed.
+fn template(pkg: &str, feature: &str, name: &str) -> Result<Arc<dyn TemplateModule>, ExtError> {
+    let what = format!("the template module `{name}`");
+    contributed(pkg, feature, &what, |done| done.templates.get(name).cloned())
+}
+
 /// The element's handler aspect `pick` finds, or the refusal whose text
 /// begins with `what`.
 fn aspect<T>(pkg: &str, feature: &str, element: &str, what: &str, pick: impl FnOnce(&registry::Aspects) -> Option<T>) -> Result<T, ExtError> {
@@ -474,161 +1010,154 @@ fn aspect<T>(pkg: &str, feature: &str, element: &str, what: &str, pick: impl FnO
     })
 }
 
-/// The handler entries that answer a value: the stage, the hook, the rule's
-/// body, the rewrite stage, the provider, the template module and the
-/// aspects, each found by its name or element.
-fn handler(entry: &str, args: &Args<'_>, pkg: &str, feature: &str) -> Result<Value, ExtError> {
+/// The aspect `Sectioning` attached to the element `element`.
+fn sectioning(pkg: &str, feature: &str, element: &str) -> Result<Arc<dyn Sectioning>, ExtError> {
+    aspect(pkg, feature, element, "the sectioning", |aspects| aspects.sectioning.clone())
+}
+
+/// Runs the entry `entry` of the feature `feature` of the package `pkg`:
+/// its `register`, its rehearsal, its configuration reader, or the handler
+/// object the entry names, found among what the feature recorded and called
+/// with the entry's arguments.
+fn feature_entry(pkg: &str, feature: &str, entry: FeatureEntry<'_>) -> Result<EntryReply, ExtError> {
     match entry {
-        "run_stage" => {
-            let name = args.text(2)?;
-            let stage = find(pkg, feature, |done| done.stages.get(&name).cloned()).ok_or_else(|| {
+        FeatureEntry::Register { settings, builder } => {
+            register_with(pkg, feature, settings, builder, false).map(|()| EntryReply::Nothing)
+        }
+        FeatureEntry::Rehearse { settings } => rehearse(pkg, feature, settings).map(|()| EntryReply::Nothing),
+        FeatureEntry::ReadSettings { settings } => find_reader(pkg, feature).map(|read| EntryReply::Read(read(settings.clone()))),
+        FeatureEntry::RunStage { name, cx, mut out } => {
+            let stage = find(pkg, feature, |done| done.stages.get(name).cloned()).ok_or_else(|| {
                 refusal(format!("the stage `{name}` must be declared by {}", owner(pkg, feature)))
             })?;
-            let cx: StageCx = args.form(3)?;
-            let mut out: StageOut = args.form(4)?;
-            stage.run(&cx, &mut out)?;
-            Ok(Value::Null)
+            stage.run(&cx, &mut out).map(|()| EntryReply::Nothing)
         }
-        "expand" => {
-            let element = args.text(2)?;
-            let hook = find(pkg, feature, |done| done.hooks.get(&element).cloned()).ok_or_else(|| {
+        FeatureEntry::Expand { element, node, mut cx, mut xp } => {
+            let hook = find(pkg, feature, |done| done.hooks.get(element).cloned()).ok_or_else(|| {
                 refusal(format!("the expansion hook of the element `{element}` must be attached by {}", owner(pkg, feature)))
             })?;
-            let node: Node = args.form(3)?;
-            let mut cx: ExpandCx = args.form(4)?;
-            let mut xp: Expander = args.form(5)?;
-            Ok(hook.expand(&node, &mut cx, &mut xp)?.to_value())
+            hook.expand(&node, &mut cx, &mut xp).map(EntryReply::Expansion)
         }
-        "lower" => {
-            let rule = args.text(2)?;
-            let body = find(pkg, feature, |done| done.lowers.get(&rule).cloned()).ok_or_else(|| {
+        FeatureEntry::Lower { rule, node, mut cx, mut lw } => {
+            let body = find(pkg, feature, |done| done.lowers.get(rule).cloned()).ok_or_else(|| {
                 refusal(format!("the lowering rule `{rule}` must be built by {}", owner(pkg, feature)))
             })?;
-            let node: Node = args.form(3)?;
-            let mut cx: LowerCx = args.form(4)?;
-            let mut lw: Lowerer = args.form(5)?;
-            Ok(body.lower(&node, &mut cx, &mut lw)?.to_value())
+            body.lower(&node, &mut cx, &mut lw).map(EntryReply::Lowering)
         }
-        "restage" => {
-            let name = args.text(2)?;
-            let stage = find(pkg, feature, |done| done.rewrites.get(&name).cloned()).ok_or_else(|| {
+        FeatureEntry::Restage { name, node, cx, mut rs } => {
+            let stage = find(pkg, feature, |done| done.rewrites.get(name).cloned()).ok_or_else(|| {
                 refusal(format!("the rewrite stage `{name}` must be declared by {}", owner(pkg, feature)))
             })?;
-            let node: Node = args.form(3)?;
-            let cx: RewriteCx = args.form(4)?;
-            let mut rs: Restager = args.form(5)?;
-            Ok(stage.restage(&node, &cx, &mut rs)?.to_value())
+            stage.restage(&node, &cx, &mut rs).map(EntryReply::Restage)
         }
-        "answer_all" => {
-            let name = args.text(2)?;
+        FeatureEntry::AnswerAll { name, requests, cx } => {
             let what = format!("the citation provider `{name}`");
-            let provider = contributed(pkg, feature, &what, |done| done.providers.get(&name).cloned())?;
-            let requests: Vec<CitationRequest> = args.form(3)?;
-            let cx: ProviderCx = args.form(4)?;
-            Ok(provider.answer_all(&requests, &cx)?.to_value())
+            let provider = contributed(pkg, feature, &what, |done| done.providers.get(name).cloned())?;
+            provider.answer_all(&requests, &cx).map(EntryReply::Citations)
         }
-        "template_describe" | "template_files" | "template_render" => {
-            let name = args.text(2)?;
-            let what = format!("the template module `{name}`");
-            let template = contributed(pkg, feature, &what, |done| done.templates.get(&name).cloned())?;
-            match entry {
-                "template_describe" => Ok(template.describe(args.get(3))?.to_value()),
-                "template_files" => {
-                    let data: TemplateContext = args.form(3)?;
-                    let cx: TemplateCx = args.form(4)?;
-                    Ok(template.files(&data, &cx)?.to_value())
-                }
-                _ => {
-                    let data: TemplateContext = args.form(3)?;
-                    let cx: TemplateCx = args.form(4)?;
-                    Ok(Value::String(template.render(&data, &cx)?))
-                }
-            }
+        FeatureEntry::TemplateDescribe { name, settings } => {
+            template(pkg, feature, name)?.describe(settings).map(EntryReply::Description)
         }
-        "points" => {
-            let element = args.text(2)?;
-            let object = aspect(pkg, feature, &element, "the reference points", |aspects| aspects.referenceable.clone())?;
-            let node: Node = args.form(3)?;
-            Ok(object.points(&node)?.to_value())
+        FeatureEntry::TemplateFiles { name, data, cx } => template(pkg, feature, name)?.files(&data, &cx).map(EntryReply::Files),
+        FeatureEntry::TemplateRender { name, data, cx } => template(pkg, feature, name)?.render(&data, &cx).map(EntryReply::Page),
+        FeatureEntry::Points { element, node } => {
+            let object = aspect(pkg, feature, element, "the reference points", |aspects| aspects.referenceable.clone())?;
+            object.points(&node).map(EntryReply::Points)
         }
-        "level" | "in_toc" | "toc_title" => {
-            let element = args.text(2)?;
-            let object = aspect(pkg, feature, &element, "the sectioning", |aspects| aspects.sectioning.clone())?;
-            let node: Node = args.form(3)?;
-            match entry {
-                "level" => Ok(object.level(&node)?.to_value()),
-                "in_toc" => Ok(Value::Bool(object.in_toc(&node)?)),
-                _ => Ok(object.toc_title(&node)?.to_value()),
-            }
+        FeatureEntry::Level { element, node } => sectioning(pkg, feature, element)?.level(&node).map(EntryReply::Level),
+        FeatureEntry::InToc { element, node } => sectioning(pkg, feature, element)?.in_toc(&node).map(EntryReply::Listed),
+        FeatureEntry::TocTitle { element, node } => sectioning(pkg, feature, element)?.toc_title(&node).map(EntryReply::Title),
+        FeatureEntry::LateInit { index, lang, mut diags } => {
+            late_init(pkg, feature, index, &lang, &mut diags).map(|()| EntryReply::Nothing)
         }
-        other => Err(unknown(other)),
+        FeatureEntry::Finalize { index, builder } => finalize(pkg, feature, index, builder).map(|()| EntryReply::Nothing),
     }
 }
 
 /// `late_init(pkg, feature, index, lang, diags)`: the `late_init(lang,
 /// diags)` of the feature's late-initialization hook at the position
 /// `index`.
-fn late_init(args: &Args<'_>) -> Result<(), ExtError> {
-    let (pkg, feature) = (args.text(0)?, args.text(1)?);
-    let index = args.get(2);
-    let position = index.as_u64().and_then(|index| usize::try_from(index).ok());
-    let hook = position.and_then(|position| find(&pkg, &feature, |done| done.late_inits.get(position).cloned())).ok_or_else(|| {
-        refusal(format!("the late-initialization hook {index} must be registered by {}", owner(&pkg, &feature)))
+fn late_init(pkg: &str, feature: &str, index: usize, lang: &BuiltLang, diags: &mut FlmDiagnostics) -> Result<(), ExtError> {
+    let hook = find(pkg, feature, |done| done.late_inits.get(index).cloned()).ok_or_else(|| {
+        refusal(format!("the late-initialization hook {index} must be registered by {}", owner(pkg, feature)))
     })?;
-    let lang: BuiltLang = args.form(3)?;
-    let mut diags: FlmDiagnostics = args.form(4)?;
-    hook.late_init(&lang, &mut diags)
+    hook.late_init(lang, diags)
 }
 
 /// `finalize(pkg, feature, index, b)`: the `finalize(b)` of the feature's
 /// finalizer at the position `index`, with the builder of the build's
 /// second round; what it declares is recorded with what the feature's
 /// `register` declared.
-fn finalize(args: &Args<'_>) -> Result<(), ExtError> {
-    let (pkg, feature) = (args.text(0)?, args.text(1)?);
-    let index = args.get(2);
-    let position = index.as_u64().and_then(|index| usize::try_from(index).ok());
-    let done = registry::recorded(&pkg, &feature)
-        .filter(|done| position.is_some_and(|position| position < done.borrow().finalizers.len()))
-        .ok_or_else(|| refusal(format!("the finalizer {index} must be registered by {}", owner(&pkg, &feature))))?;
-    let builder: FeatureBuilder = args.form(3)?;
-    finalize_with(&done, position.unwrap_or_default(), builder, false)
+fn finalize(pkg: &str, feature: &str, index: usize, builder: FeatureBuilder) -> Result<(), ExtError> {
+    let done = registry::recorded(pkg, feature)
+        .filter(|done| index < done.borrow().finalizers.len())
+        .ok_or_else(|| refusal(format!("the finalizer {index} must be registered by {}", owner(pkg, feature))))?;
+    finalize_with(&done, index, builder, false)
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     //! The runtime on the host, the ABI's test hook answering in place of the
-    //! host: what a `register` records and lends, the rehearsal, the 18
-    //! entries, `define` and `packages`, and re-entry.
+    //! host: what a `register` records and lends, the rehearsal, the entries
+    //! (the configuration reader's in `tests/native_handlers.rs`), `define`
+    //! and `packages`, and re-entry. A test whose feature
+    //! sends a request (a façade's method, a module's function, the lending
+    //! of a handler object) runs without the cargo feature `native` alone,
+    //! where the request crosses as JSON, which the hook answers; with
+    //! `native`, a request is a typed call on the frame of a handler call,
+    //! which the native suites (`tests/native*.rs`) run.
 
-    use std::cell::{Cell, RefCell};
+    #[cfg(not(feature = "native"))]
+    use std::cell::Cell;
+    use std::cell::RefCell;
+    #[cfg(not(feature = "native"))]
     use std::rc::Rc;
 
     use serde_json::{json, Value};
 
     use super::*;
-    use crate::adapter::handles::{Handle, HandleKind};
-    use crate::adapter::values::handle_to_value;
-    use crate::api::core::lowering::{DefaultMark, LoweringDecl};
-    use crate::api::core::stage::{Effect, Needs, RewriteDecl, Scope, StageDecl};
-    use crate::api::stdcore::features::compose::{TemplateDescription, TemplateFile};
-    use crate::guest::abi::hook;
-    use crate::guest::core::lowering::{Lower, Lowering, LoweringRule};
-    use crate::guest::core::registry::{BackendDef, BackendStage, Contributed, Finalizer, LateInit, LibraryStage};
-    use crate::guest::core::stage::{RewriteStage, Stage};
-    use crate::guest::lang::rewrites::userdefs::{Expand, Expansion, UserDefinition};
-    use crate::guest::model::aspects::{RefPoint, Referenceable, Sectioning};
+    use crate::api::core::stage::{Effect, Needs, Scope, StageDecl};
+    use crate::guest::core::registry::Contributed;
+    use crate::guest::core::stage::Stage;
+    use crate::guest::model::aspects::{RefPoint, Referenceable};
     use crate::guest::model::element::{Aspect, ElementSpec};
     use crate::guest::stdcore::features::citations::{CitationProvider, CitationResult};
+    // The items of the feature whose requests the test hook answers.
+    #[cfg(not(feature = "native"))]
+    use crate::adapter::handles::{Handle, HandleKind};
+    #[cfg(not(feature = "native"))]
+    use crate::adapter::values::handle_to_value;
+    #[cfg(not(feature = "native"))]
+    use crate::api::core::lowering::{DefaultMark, LoweringDecl};
+    #[cfg(not(feature = "native"))]
+    use crate::api::core::stage::RewriteDecl;
+    #[cfg(not(feature = "native"))]
+    use crate::api::stdcore::features::compose::{TemplateDescription, TemplateFile};
+    #[cfg(not(feature = "native"))]
+    use crate::guest::abi::hook;
+    #[cfg(not(feature = "native"))]
+    use crate::guest::core::lowering::{Lower, Lowering, LoweringRule};
+    #[cfg(not(feature = "native"))]
+    use crate::guest::core::registry::{BackendDef, BackendStage, Finalizer, LateInit, LibraryStage};
+    #[cfg(not(feature = "native"))]
+    use crate::guest::core::stage::RewriteStage;
+    #[cfg(not(feature = "native"))]
+    use crate::guest::lang::rewrites::userdefs::{Expand, Expansion, UserDefinition};
+    #[cfg(not(feature = "native"))]
+    use crate::guest::model::aspects::Sectioning;
+    #[cfg(not(feature = "native"))]
     use crate::guest::stdcore::features::compose::TemplateModule;
+    #[cfg(not(feature = "native"))]
     use crate::guest::techy::transform::Restage;
 
     /// A handle of the kind `kind` at `index`.
+    #[cfg(not(feature = "native"))]
     pub(crate) fn handle(kind: HandleKind, index: u32) -> Value {
         handle_to_value(Handle { kind, call: 1, index })
     }
 
     /// The kind of the handle a lending request answers.
+    #[cfg(not(feature = "native"))]
     pub(crate) fn lent_kind(request: &Value) -> Option<HandleKind> {
         Some(match request["native"].as_str()? {
             "lend_stage" => HandleKind::Stage,
@@ -647,11 +1176,13 @@ pub(crate) mod tests {
     }
 
     /// The requests the hook received, in order.
+    #[cfg(not(feature = "native"))]
     type Log = Rc<RefCell<Vec<Value>>>;
 
     /// Installs a hook that logs every request and answers it as the host
     /// would: a lending with a handle of its kind, a call with `reply(method)`
     /// (`null` when it answers `None`).
+    #[cfg(not(feature = "native"))]
     fn install(reply: impl Fn(&Value) -> Option<Value> + 'static) -> Log {
         let log: Log = Rc::default();
         let kept = Rc::clone(&log);
@@ -668,6 +1199,7 @@ pub(crate) mod tests {
     }
 
     /// The host's answer to the calls the test feature's `register` makes.
+    #[cfg(not(feature = "native"))]
     fn host_reply(request: &Value) -> Option<Value> {
         match request["method"].as_str()? {
             "feature" => Some(json!("wordcount")),
@@ -690,6 +1222,7 @@ pub(crate) mod tests {
     }
 
     /// What ran so far.
+    #[cfg(not(feature = "native"))]
     fn seen() -> Vec<String> {
         SEEN.with(|seen| seen.borrow().clone())
     }
@@ -709,7 +1242,9 @@ pub(crate) mod tests {
         }
     }
 
+    #[cfg(not(feature = "native"))]
     struct Emit;
+    #[cfg(not(feature = "native"))]
     impl Stage for Emit {
         fn decl(&self) -> StageDecl {
             StageDecl::new("wc.emit", Effect::Compute, Scope::Document)
@@ -722,7 +1257,9 @@ pub(crate) mod tests {
         }
     }
 
+    #[cfg(not(feature = "native"))]
     struct Late;
+    #[cfg(not(feature = "native"))]
     impl Stage for Late {
         fn decl(&self) -> StageDecl {
             StageDecl::new("wc.final", Effect::Compute, Scope::Document)
@@ -735,7 +1272,9 @@ pub(crate) mod tests {
         }
     }
 
+    #[cfg(not(feature = "native"))]
     struct Rewrite;
+    #[cfg(not(feature = "native"))]
     impl RewriteStage for Rewrite {
         fn decl(&self) -> RewriteDecl {
             RewriteDecl::new("wc.rewrite", "wc.rewritten")
@@ -748,7 +1287,9 @@ pub(crate) mod tests {
         }
     }
 
+    #[cfg(not(feature = "native"))]
     struct Hook;
+    #[cfg(not(feature = "native"))]
     impl Expand for Hook {
         fn expand(&self, _: &Node, _: &mut ExpandCx, _: &mut Expander) -> Result<Expansion, ExtError> {
             saw("expand");
@@ -756,7 +1297,9 @@ pub(crate) mod tests {
         }
     }
 
+    #[cfg(not(feature = "native"))]
     struct Body;
+    #[cfg(not(feature = "native"))]
     impl Lower for Body {
         fn lower(&self, _: &Node, _: &mut LowerCx, _: &mut Lowerer) -> Result<Lowering, ExtError> {
             Ok(Lowering::Default)
@@ -770,7 +1313,9 @@ pub(crate) mod tests {
         }
     }
 
+    #[cfg(not(feature = "native"))]
     struct Heading;
+    #[cfg(not(feature = "native"))]
     impl Sectioning for Heading {
         fn level(&self, _: &Node) -> Result<u32, ExtError> {
             Ok(2)
@@ -787,7 +1332,9 @@ pub(crate) mod tests {
         }
     }
 
+    #[cfg(not(feature = "native"))]
     struct Template;
+    #[cfg(not(feature = "native"))]
     impl TemplateModule for Template {
         fn name(&self) -> String {
             "wc.page".to_string()
@@ -800,7 +1347,9 @@ pub(crate) mod tests {
         }
     }
 
+    #[cfg(not(feature = "native"))]
     struct LateHook;
+    #[cfg(not(feature = "native"))]
     impl LateInit for LateHook {
         fn late_init(&self, _: &BuiltLang, _: &mut FlmDiagnostics) -> Result<(), ExtError> {
             saw("late_init");
@@ -808,7 +1357,9 @@ pub(crate) mod tests {
         }
     }
 
+    #[cfg(not(feature = "native"))]
     struct Final;
+    #[cfg(not(feature = "native"))]
     impl Finalizer for Final {
         fn finalize(&self, b: &mut FeatureBuilder) -> Result<(), ExtError> {
             saw("finalize");
@@ -817,6 +1368,7 @@ pub(crate) mod tests {
     }
 
     /// The test feature's `register`: one object of each kind.
+    #[cfg(not(feature = "native"))]
     fn register(b: &mut FeatureBuilder, _: &Value) -> Result<(), ExtError> {
         assert_eq!(b.feature()?, "wordcount");
         b.stage(Arc::new(Count))?;
@@ -838,22 +1390,25 @@ pub(crate) mod tests {
         );
         UserDefinition::new(definition)?.element_def_with("wc", "wc.shout", Arc::new(Hook))?;
         let library = BackendStage::Library(LibraryStage { handle: Handle { kind: HandleKind::LibraryStage, call: 1, index: 80 } });
-        BackendDef::new("wc", Vec::new(), library, BackendStage::Own(Arc::new(Emit)), BackendStage::Own(Arc::new(Emit)))?;
+        b.backend(BackendDef::new("wc", Vec::new(), library, BackendStage::Own(Arc::new(Emit)), BackendStage::Own(Arc::new(Emit))))?;
         Ok(())
     }
 
     /// The test extension: one package, its one feature.
+    #[cfg(not(feature = "native"))]
     fn define(ext: &mut Extension) {
         ext.package("_", Package::new().uses(["stdcore"]).feature("wordcount", Feature::new().title("Word count").register(register)));
     }
 
     /// Runs the entry `entry` with `args`; answers its envelope.
+    #[cfg(not(feature = "native"))]
     pub(crate) fn run(entry: &str, args: Value) -> Value {
         let request = json!({ "entry": entry, "args": args }).to_string();
         serde_json::from_slice(&answer(Some(request.as_bytes()), define)).expect("an envelope")
     }
 
     /// The `ok` of the entry's envelope.
+    #[cfg(not(feature = "native"))]
     fn ok(entry: &str, args: Value) -> Value {
         let reply = run(entry, args);
         assert!(reply.get("ok").is_some(), "the entry `{entry}` answered {reply}");
@@ -861,12 +1416,14 @@ pub(crate) mod tests {
     }
 
     /// The message of the entry's `err`.
+    #[cfg(not(feature = "native"))]
     fn refused(entry: &str, args: Value) -> String {
         let reply = run(entry, args);
         reply["message"].as_str().unwrap_or_else(|| panic!("the entry `{entry}` answered {reply}")).to_string()
     }
 
     /// The natives of the requests logged, in order.
+    #[cfg(not(feature = "native"))]
     fn natives(log: &Log) -> Vec<String> {
         log.borrow().iter().map(|request| match request["native"].as_str() {
             Some("call") => format!("call {}", request["method"].as_str().unwrap_or_default()),
@@ -875,6 +1432,7 @@ pub(crate) mod tests {
     }
 
     /// Defines the extension and registers its feature for real.
+    #[cfg(not(feature = "native"))]
     fn registered() -> Log {
         let log = install(host_reply);
         assert_eq!(ok("define", json!(["wc", "wc.wasm"])), Value::Null);
@@ -883,6 +1441,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn a_register_records_and_lends_each_kind_of_object() {
         let log = registered();
         assert_eq!(
@@ -918,6 +1477,7 @@ pub(crate) mod tests {
                 "call element_def_with",
                 "lend_stage",
                 "lend_stage",
+                "call backend",
             ]
         );
         let requests = log.borrow();
@@ -945,6 +1505,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn a_rehearsal_records_and_sends_nothing_through_the_builder() {
         let log = install(host_reply);
         ok("define", json!(["wc", "wc.wasm"]));
@@ -966,6 +1527,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn each_entry_finds_its_object() {
         registered();
         let node = handle(HandleKind::Node, 1);
@@ -994,25 +1556,28 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn each_entry_refuses_with_the_preludes_text_when_its_object_is_absent() {
         registered();
         let node = handle(HandleKind::Node, 1);
+        let at = |kind| handle(kind, 2);
+        let data = json!({ "html": true, "regions": [], "pieces": [], "meta": {}, "config": {}, "artifacts": [] });
         let owner = "`register` of the feature `wordcount` of the package `_` of the extension `wc`";
         let cases = [
-            ("run_stage", json!(["_", "wordcount", "wc.none", node, node]), format!("the stage `wc.none` must be declared by {owner}")),
-            ("expand", json!(["_", "wordcount", "wc.none", node, node, node]), format!("the expansion hook of the element `wc.none` must be attached by {owner}")),
-            ("lower", json!(["_", "wordcount", "wc.none", node, node, node]), format!("the lowering rule `wc.none` must be built by {owner}")),
-            ("restage", json!(["_", "wordcount", "wc.none", node, node, node]), format!("the rewrite stage `wc.none` must be declared by {owner}")),
-            ("answer_all", json!(["_", "wordcount", "wc.none", [], node]), format!("the citation provider `wc.none` must be contributed by {owner}")),
+            ("run_stage", json!(["_", "wordcount", "wc.none", at(HandleKind::StageCx), at(HandleKind::StageOut)]), format!("the stage `wc.none` must be declared by {owner}")),
+            ("expand", json!(["_", "wordcount", "wc.none", node, at(HandleKind::ExpandCx), at(HandleKind::Expander)]), format!("the expansion hook of the element `wc.none` must be attached by {owner}")),
+            ("lower", json!(["_", "wordcount", "wc.none", node, at(HandleKind::LowerCx), at(HandleKind::Lowerer)]), format!("the lowering rule `wc.none` must be built by {owner}")),
+            ("restage", json!(["_", "wordcount", "wc.none", node, at(HandleKind::RewriteCx), at(HandleKind::Restager)]), format!("the rewrite stage `wc.none` must be declared by {owner}")),
+            ("answer_all", json!(["_", "wordcount", "wc.none", [], at(HandleKind::ProviderCx)]), format!("the citation provider `wc.none` must be contributed by {owner}")),
             ("template_describe", json!(["_", "wordcount", "wc.none", {}]), format!("the template module `wc.none` must be contributed by {owner}")),
-            ("template_files", json!(["_", "wordcount", "wc.none", {}, node]), format!("the template module `wc.none` must be contributed by {owner}")),
-            ("template_render", json!(["_", "wordcount", "wc.none", {}, node]), format!("the template module `wc.none` must be contributed by {owner}")),
+            ("template_files", json!(["_", "wordcount", "wc.none", data, at(HandleKind::TemplateCx)]), format!("the template module `wc.none` must be contributed by {owner}")),
+            ("template_render", json!(["_", "wordcount", "wc.none", data, at(HandleKind::TemplateCx)]), format!("the template module `wc.none` must be contributed by {owner}")),
             ("points", json!(["_", "wordcount", "wc.none", node]), format!("the reference points of the element `wc.none` must be answered by an aspect attached by {owner}")),
             ("level", json!(["_", "wordcount", "wc.ref", node]), format!("the sectioning of the element `wc.ref` must be answered by an aspect attached by {owner}")),
             ("in_toc", json!(["_", "wordcount", "wc.none", node]), format!("the sectioning of the element `wc.none` must be answered by an aspect attached by {owner}")),
             ("toc_title", json!(["_", "wordcount", "wc.none", node]), format!("the sectioning of the element `wc.none` must be answered by an aspect attached by {owner}")),
-            ("late_init", json!(["_", "wordcount", 4, node, node]), format!("the late-initialization hook 4 must be registered by {owner}")),
-            ("finalize", json!(["_", "wordcount", 4, node]), format!("the finalizer 4 must be registered by {owner}")),
+            ("late_init", json!(["_", "wordcount", 4, at(HandleKind::BuiltLang), at(HandleKind::FlmDiagnostics)]), format!("the late-initialization hook 4 must be registered by {owner}")),
+            ("finalize", json!(["_", "wordcount", 4, handle(HandleKind::FeatureBuilder, 3)]), format!("the finalizer 4 must be registered by {owner}")),
             ("register", json!(["_", "nofeature", {}, handle(HandleKind::FeatureBuilder, 0)]), "the package `_` of the extension `wc` must have a feature `nofeature`".to_string()),
             ("rehearse", json!(["other", "wordcount", {}]), "the package `other` of the extension `wc` must have a feature `wordcount`".to_string()),
         ];
@@ -1020,7 +1585,7 @@ pub(crate) mod tests {
             assert_eq!(refused(entry, args), text, "the entry `{entry}`");
             assert_eq!(run(entry, json!([]))["err"]["kind"], "argument", "the entry `{entry}` without its arguments");
         }
-        assert_eq!(run("run_stage", json!(["_", "wordcount", "wc.none", node, node]))["err"]["kind"], "handler");
+        assert_eq!(run("run_stage", json!(["_", "wordcount", "wc.none", at(HandleKind::StageCx), at(HandleKind::StageOut)]))["err"]["kind"], "handler");
         let unknown = refused("unknown", json!([]));
         assert!(unknown.starts_with("the entry `unknown` must be one of the guest's entries: `define`, `packages`, "), "{unknown}");
         let request = String::from_utf8(answer(Some(b"not json"), define)).expect("a text");
@@ -1030,6 +1595,7 @@ pub(crate) mod tests {
 
     #[test]
     fn a_handler_object_given_outside_register_is_refused() {
+        #[cfg(not(feature = "native"))]
         install(host_reply);
         let error = FeatureBuilder { handle: None }.stage(Arc::new(Count)).expect_err("no register runs");
         assert_eq!(error.to_string(), ExtError::Handler { detail: "the stage `wc.count` must be declared while a feature's `register` runs".to_string(), data: Value::Null }.to_string());
@@ -1041,6 +1607,7 @@ pub(crate) mod tests {
 
     #[test]
     fn a_second_handler_object_under_one_name_is_refused() {
+        #[cfg(not(feature = "native"))]
         install(host_reply);
         registry::begin("wc", "_", "wordcount", true);
         let mut b = FeatureBuilder { handle: None };
@@ -1054,6 +1621,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn rehearse_replays_the_recorded_finalizers() {
         registered();
         SEEN.with(|seen| seen.borrow_mut().clear());
@@ -1062,6 +1630,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn template_describe_finds_a_module_in_the_running_register() {
         // The host asks the module for its description while the `register`
         // that contributes it runs: inside the builder's request.
@@ -1094,6 +1663,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "native"))]
     fn no_borrow_is_held_across_a_request() {
         // A hook entered from inside a stage's request: the stage asks for
         // the trees, and the host runs the element's expansion hook on the

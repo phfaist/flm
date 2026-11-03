@@ -38,6 +38,10 @@ export const PARBREAK = "flm.parbreak";
 // Mirrors `PLACEHOLDER`: `flm.placeholder`, the element of a template's placeholder.
 export const PLACEHOLDER = "flm.placeholder";
 
+// Mirrors `FIELD`: `flm.field`, the element of a field node, a macro that a construct reads as
+// data.
+export const FIELD = "flm.field";
+
 // Mirrors `UNKNOWN_MACRO`: `flm.unknown.macro`, the element of a macro no feature defines.
 export const UNKNOWN_MACRO = "flm.unknown.macro";
 
@@ -46,4 +50,4 @@ export const UNKNOWN_MACRO = "flm.unknown.macro";
 export const UNKNOWN_ENVIRONMENT = "flm.unknown.environment";
 
 // Mirrors `NAMES`: every structural element name, in the fixed order of the set.
-export const NAMES = Object.freeze(["flm.text", "flm.comment", "flm.container", "flm.group", "flm.math", "flm.verbatim", "flm.opaque-wrapper", "flm.paragraph", "flm.parbreak", "flm.placeholder", "flm.unknown.macro", "flm.unknown.environment"]);
+export const NAMES = Object.freeze(["flm.text", "flm.comment", "flm.container", "flm.group", "flm.math", "flm.verbatim", "flm.opaque-wrapper", "flm.paragraph", "flm.parbreak", "flm.placeholder", "flm.field", "flm.unknown.macro", "flm.unknown.environment"]);

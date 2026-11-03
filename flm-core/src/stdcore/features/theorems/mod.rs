@@ -244,8 +244,10 @@ pub use heading::{
 };
 pub use rules::{THEOREM_RULE, TheoremRule};
 
-// Why theorem kinds are values of one element type grouped into classes: see
-// decision rationale at [§flm-dd-dr:std-theorem-kinds].
+// Theorem kinds are values of one element type, so that a kind the configuration
+// adds is an environment in its own right with no code written for it; the kinds
+// are grouped into classes so that what describes a kind's shape is stated once
+// per class.
 
 /// The feature's registered name, `theorems`.
 pub const FEATURE: &str = "theorems";

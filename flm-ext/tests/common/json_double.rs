@@ -1,14 +1,14 @@
 //! `JsonDouble`, an [`ExtRuntime`] whose handlers receive only handles, in
 //! their JSON shape, and act exclusively through
 //! [`dispatch::call`](flm_ext::adapter::dispatch::call) with JSON: what a
-//! JavaScript handler does, minus the engine (plan A, section 7.1). Beside it,
-//! [`case_one`], case 1 written against it as plan B's `wordcount.js` writes it.
+//! JavaScript handler does, minus the engine. Beside it, [`case_one`], case 1
+//! written against it as the fixture `tests/js/wordcount/main.js` writes it.
 //!
 //! A handler is a closure given a [`Js`] (the running call's table, which is
 //! what the binding's glue reaches) and the handles of the objects lent to the
 //! call. Lending a script's own stage or hook into the table (`lend_stage`,
-//! `lend_expand`) is the glue's work in plan B (`__flm.lend_stage`,
-//! `__flm.lend_expand`); [`Js`] does it here.
+//! `lend_expand`) is the work of the JavaScript runtime's functions of the
+//! same names; [`Js`] does it here.
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -24,6 +24,7 @@ use flm_ext::adapter::values::{
 use flm_ext::api::core::lowering::{Lower, LowerCx, Lowerer, Lowering};
 use flm_ext::api::core::data::store::StageOut;
 use flm_ext::api::core::registry::FeatureBuilder;
+use flm_ext::api::core::settings::ReadError;
 use flm_ext::api::core::run::{RewriteCx, StageCx};
 use flm_ext::api::core::stage::{Needs, RewriteDecl, RewriteStage, Stage, StageDecl};
 use flm_ext::api::techy::transform::{Restage, Restager};
@@ -69,8 +70,8 @@ impl<'c> Js<'_, 'c> {
         handle_to_value(self.table.lend(entry))
     }
 
-    /// Lends a stage of the handler's own into the table, as plan B's
-    /// `__flm.lend_stage(decl, needs)` does: the declaration and the needs in
+    /// Lends a stage of the handler's own into the table, as the JavaScript
+    /// runtime's `lend_stage(decl, needs)` does: the declaration and the needs in
     /// their JSON shape, the work a closure given the handles of the context
     /// and the output.
     pub fn lend_stage(
@@ -83,8 +84,8 @@ impl<'c> Js<'_, 'c> {
         Ok(handle_to_value(self.table.lend(Entry::Stage(Arc::new(stage)))))
     }
 
-    /// Lends a hook of the handler's own into the table, as plan B's
-    /// `__flm.lend_expand(element, policy)` does.
+    /// Lends a hook of the handler's own into the table, as the JavaScript
+    /// runtime's `lend_expand` does.
     pub fn lend_expand(
         &mut self,
         policy: &str,
@@ -220,6 +221,10 @@ impl ExtRuntime for JsonDouble {
         register(&mut Js { table: &mut table }, &b)
     }
 
+    fn read_settings(&self, _: &str, feature: &str, _: &Value) -> Result<Result<Value, ReadError>, ExtError> {
+        Err(ExtError::Handler { detail: format!("the feature `{feature}` has no configuration reader"), data: Value::Null })
+    }
+
     fn digest_input(&self) -> Vec<u8> {
         Vec::new()
     }
@@ -322,7 +327,7 @@ impl RewriteStage for JsonRewrite {
     }
 }
 
-// ---- case 1, as plan B's `wordcount.js` writes it ----
+// ---- case 1, as the fixture `tests/js/wordcount/main.js` writes it ----
 
 /// The table of word counts.
 pub const WORDS: &str = "wordcount.words";
@@ -347,7 +352,7 @@ fn declare(js: &mut Js<'_, '_>, b: &Value, owner: &Value, definition: Value, hoo
     Ok(element)
 }
 
-/// The number of words of `text`, as plan B's `helpers.js` counts them.
+/// The number of words of `text`, as the fixture's `helpers.js` counts them.
 fn count_words(text: &str) -> i64 {
     i64::try_from(text.split_whitespace().count()).unwrap_or(i64::MAX)
 }
@@ -396,7 +401,8 @@ fn register(js: &mut Js<'_, '_>, b: &Value) -> Result<(), ExtError> {
         &json!({}),
         |js, cx, out| {
             let tree = js.call(cx, "tree_id", json!([]))?;
-            let root = js.call(cx, "my_tree", json!([]))?;
+            let mine = js.call(cx, "my_tree", json!([]))?;
+            let root = js.call(&mine, "root", json!([]))?;
             let mut words = 0;
             for node in list(js.call(&root, "descendants", json!([]))?) {
                 if js.call(&node, "is_chars", json!([]))? == json!(true) {
@@ -419,7 +425,8 @@ fn register(js: &mut Js<'_, '_>, b: &Value) -> Result<(), ExtError> {
             let read = js.call(cx, "get", json!(["flm.userdefs.always-expanded"]))?;
             let trees = read.get("trees").cloned().unwrap_or(Value::Null);
             for pair in list(js.call(&trees, "trees", json!([]))?) {
-                let (tree, root) = (pair.get(0).cloned().unwrap_or(Value::Null), pair.get(1).cloned().unwrap_or(Value::Null));
+                let (tree, expanded) = (pair.get(0).cloned().unwrap_or(Value::Null), pair.get(1).cloned().unwrap_or(Value::Null));
+                let root = js.call(&expanded, "root", json!([]))?;
                 for node in list(js.call(&root, "descendants", json!([]))?) {
                     if js.call(&node, "is_callable", json!([]))? == json!(true)
                         && js.call(&node, "element_name", json!([]))? == todo_element

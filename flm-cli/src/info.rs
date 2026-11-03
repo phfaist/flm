@@ -112,7 +112,8 @@ pub(crate) fn run(args: &InfoArgs, packages: &[PackageFactory]) -> u8 {
     let files: Arc<dyn Files> = Arc::new(DiskFiles);
     // The environment of a document that specifies nothing (the request's input is then an
     // empty text), or of the document of `-d`, shaped by the build options of `flm render`.
-    // See decision rationale at [§flm-dd-dr:info-command-line].
+    // They shape the environment described alone, never how the pages are printed, so that
+    // no option means two things and no document's settings change what `flm info` prints.
     let prepared = match prepare(request, Arc::clone(&files), packages) {
         Ok(prepared) => prepared,
         Err(error) => return cannot_start(&error),
@@ -216,8 +217,8 @@ fn nearest(every: &[String], path: &str) -> Vec<String> {
 /// by a newline; under `-r` (`recursive`) each page holds the pages below it in full.
 /// Returns the exit status: 0, or 3 when standard output cannot be written.
 fn print_json(pages: &[Page], recursive: bool) -> u8 {
-    // The header first, then the pages, always in that one shape. See decision rationale at
-    // [§flm-dd-dr:json-conventions].
+    // The header first, then the pages, always in that one shape: a reader that knows the
+    // kind and the format number before the rest can refuse what it does not understand.
     let output = Output::new(pages.iter().map(|page| page.to_json(recursive)).collect());
     let text = match serde_json::to_string_pretty(&output) {
         Ok(text) => text,

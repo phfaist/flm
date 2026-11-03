@@ -1,9 +1,8 @@
 //! The quantity macros — entropies, information measures, the identity
-//! process, the exponential, the trivial system — in one formula each
-//! (acceptance tests 20 to 22). The expected replacements are what the LaTeX
-//! package `phfqit` renders for the same uses — the parenthesis of a quantity
-//! left out when every part it holds is blank — a sub- or superscript that
-//! would hold nothing left out.
+//! process, the exponential, the trivial system — in one formula each. The
+//! expected replacements are what the LaTeX package `phfqit` renders for the
+//! same uses — the parenthesis of a quantity left out when every part it holds
+//! is blank — a sub- or superscript that would hold nothing left out.
 //!
 //! The compilation test is skipped unless the environment variable
 //! `FLM_TESTS_LATEX_COMPILE` is set, as in `tests/macros.rs`.
@@ -13,7 +12,6 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::registry::FlmRegistry;
-use flm_phfpack::settings::PhfqitConfig;
 
 use common::{
     compile_under_both_engines, compiling_enabled, html_of, latex_of, registry, registry_with, text_of,
@@ -245,9 +243,7 @@ fn a_declared_quantity_macro_with_the_arguments_of_an_entropy_renders_like_the_b
     // `\Hmin` and its template: it gives what `\Hmin` gives.
     let hmin_template = r"H_{\mathrm{min}}\notblank{#2}{^{#2}}{}#[(]{DelimLeft}#3\notblank{#4}{\,#[\vert]{DelimMiddle}\,#4}{}#[)]{DelimRight}\notblank{#1}{_{#1}}{}";
     let renyi_template = hmin_template.replace(r"\mathrm{min}", r"\alpha");
-    let factory = flm_phfpack::factory().expect("the factory");
-    let decl = factory.settings(flm_phfpack::FEATURE).expect("declared");
-    let serde_json::Value::Object(data) = serde_json::json!({
+    let registry = registry_with(serde_json::json!({
         "macro_definitions": {
             "Hminx": {
                 "args": ["SizeArgBacktick", "[", "[", "{", "["],
@@ -260,11 +256,7 @@ fn a_declared_quantity_macro_with_the_arguments_of_an_entropy_renders_like_the_b
                 "content": renyi_template,
             },
         }
-    }) else {
-        panic!("a map")
-    };
-    let settings = decl.read(&data).expect("the settings read");
-    let registry = registry_with(settings.config::<PhfqitConfig>().expect("the configuration").clone());
+    }));
     for args in [r"{X}", r"[\rho][\epsilon]{X}[Y]", r"`\Big[\rho]{X}[Y]", r"`*{X}[Y]", r"[][\epsilon]{X}"] {
         let built_in = formula(&registry, &format!(r"\Hmin{args}"));
         assert_eq!(formula(&registry, &format!(r"\Hminx{args}")), built_in, "{args}");

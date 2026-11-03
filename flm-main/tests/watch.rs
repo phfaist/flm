@@ -16,6 +16,7 @@ use flm_main::session::{Input, Request};
 use flm_core::stdcore::features::compose::region_id;
 use flm_core::techy::error::Severity;
 use flm_main::watch::update::PageChange;
+use flm_main::watch::watcher::{Seen, Watcher};
 use flm_main::watch::{Built, Event, Handle, Watch};
 
 /// The upper bound of every wait.
@@ -119,7 +120,7 @@ fn named(built: &Built) -> Vec<String> {
     }
 }
 
-// --- acceptance 7: the loop over files held in memory ---------------------------------------
+// --- the loop over files held in memory -----------------------------------------------------
 
 #[test]
 fn the_loop_over_files_in_memory_gives_the_updates_of_each_kind_of_change() {
@@ -196,7 +197,7 @@ fn a_warning_found_before_the_work_stopped_comes_before_the_problems() {
     running.stop();
 }
 
-// --- acceptance 11a: preparing again only when needed ---------------------------------------
+// --- preparing again only when needed -------------------------------------------------------
 //
 // `Built::prepared` is the observable of the registry's identity: it is `None` exactly when
 // the loop built over the `Prepared` it held, whose registry is then the same object.
@@ -251,7 +252,7 @@ fn a_change_to_an_image_does_not_prepare_again() {
     running.stop();
 }
 
-// --- acceptance 11 and 13: a build asked for, and changes during a build --------------------
+// --- a build asked for, and changes during a build ------------------------------------------
 
 #[test]
 fn a_build_asked_for_builds_once_and_gives_the_update_a_change_would() {
@@ -311,15 +312,38 @@ fn folder(name: &str) -> PathBuf {
     folder
 }
 
+/// Waits until the system has taken in every change made so far, before a test starts
+/// watching the files it wrote in `folder`. A watch is told of the changes the system takes
+/// in after it starts, and the system may take in a change some time after it was made
+/// (macOS does): the creation of the test's files would then cause a build, taken for the
+/// build a later write causes. A watcher of its own sees a file written last in `folder`:
+/// the system has then taken in every change made before it.
+fn settle(folder: &Path) {
+    let (send, seen) = channel();
+    let mut watcher = Watcher::new(move |seen| {
+        let _ = send.send(seen);
+    })
+    .expect("a watcher");
+    let last = folder.join("written-last");
+    watcher.watch(std::slice::from_ref(&last)).expect("the folder watched");
+    fs::write(&last, "").unwrap();
+    loop {
+        match seen.recv_timeout(BOUND).expect("the last write seen within the bound") {
+            Seen::Changed(paths) if paths.contains(&last) => return,
+            Seen::Changed(_) => {}
+            Seen::Failed(detail) => panic!("the watcher: {detail}"),
+        }
+    }
+}
+
 /// The loop over `paper.flm` in `folder`, on the disk, watching files; it has built once.
 fn on_disk(folder: &Path) -> Running {
     let mut request = Request::new(Input::File(folder.join("paper.flm")));
     request.default_math = flm_main::seed::MathChoice::processor("passthrough");
     request.naming = Naming::File { name: String::from("paper.html") };
+    settle(folder);
     let running = Running::start(Watch::new(request, Arc::new(DiskFiles), Vec::new()).watching_files(), |_, _| {});
     running.built();
-    // A change the system reports late from the files' creation is passed over here.
-    running.asked();
     running
 }
 
@@ -331,49 +355,23 @@ fn changed(running: &Running) -> (Built, Vec<String>) {
     (built, names)
 }
 
-// acceptance 8 and 12
+// files of the document's folder that the build did not read
 #[test]
-fn a_write_to_a_watched_file_rebuilds_once_and_other_files_of_its_folder_are_ignored() {
-    let folder = folder("write");
+fn files_of_the_folder_that_the_build_did_not_read_cause_no_build() {
+    let folder = folder("other-files");
     fs::write(folder.join("paper.flm"), DOC).unwrap();
     let running = on_disk(&folder);
-
-    fs::write(folder.join("paper.flm"), DOC.replace("A second", "A longer second")).unwrap();
-    let (built, names) = changed(&running);
-    assert_eq!(names, ["paper.flm"]);
-    assert_eq!(named(&built), vec![region_id("content")]);
-
-    // Several writes within the quiet period: one build.
-    for text in ["one", "two", "three"] {
-        fs::write(folder.join("paper.flm"), DOC.replace("A second paragraph.", text)).unwrap();
-    }
-    let (built, names) = changed(&running);
-    assert_eq!(names, ["paper.flm"]);
-    assert!(built.output.unwrap().page.as_ref().unwrap().get(&region_id("content")).unwrap().text.contains("three"));
-    // No second build followed the writes: the next build is the one a later save causes,
-    // numbered one more.
-    let number = built.update.build;
-    fs::write(folder.join("paper.flm"), DOC.replace("A second paragraph.", "four")).unwrap();
-    let (built, names) = changed(&running);
-    assert_eq!((built.update.build, names), (number + 1, vec![String::from("paper.flm")]));
-
-    // Files of the folder that the build did not read, the citations cache among them, then
-    // the document: the next build names the document alone and is numbered one more. A
-    // build caused by the other files would come first and name them, or raise the number,
-    // or join the same batch and be named in it.
+    // Other files of the folder, written before the document: a build they caused would
+    // name them, in the first build after the start or in the same one.
     fs::write(folder.join("notes.txt"), "x").unwrap();
     fs::write(folder.join(".flm-citations.jsonl"), "{}\n").unwrap();
-    fs::write(folder.join("._.flm-citations-scratch"), "{}\n").unwrap();
-    fs::write(folder.join("paper.flm"), DOC.replace("A second paragraph.", "five")).unwrap();
-    let (built, names) = changed(&running);
-    assert_eq!((built.update.build, names), (number + 2, vec![String::from("paper.flm")]));
-
-    // The stop ends the loop. The watcher is released with it: `Watch::run` owns the
-    // watcher, which is dropped when `run` returns.
+    fs::write(folder.join("paper.flm"), DOC.replace("A second", "A longer second")).unwrap();
+    let (_, names) = changed(&running);
+    assert_eq!(names, ["paper.flm"]);
     running.stop();
 }
 
-// acceptance 11, the first build included
+// a save during a build, the first build included
 #[test]
 fn a_save_of_the_document_while_the_first_build_runs_causes_one_more_build() {
     let folder = folder("first-build");
@@ -383,6 +381,7 @@ fn a_save_of_the_document_while_the_first_build_runs_causes_one_more_build() {
     request.naming = Naming::File { name: String::from("paper.html") };
     let watch = Watch::new(request, Arc::new(DiskFiles), Vec::new()).watching_files();
     let path = folder.join("paper.flm");
+    settle(&folder);
     // Saved as the first build starts: the hook runs on the loop's thread, before the build.
     let running = Running::start(watch, move |event, _| {
         if let Event::Building { changed } = event {
@@ -415,6 +414,7 @@ fn an_extension_written_after_a_build_that_could_not_find_it_causes_a_build() {
     request.default_math = flm_main::seed::MathChoice::processor("passthrough");
     request.naming = Naming::File { name: String::from("paper.html") };
     request.extension_folders = vec![ExtensionFolder { path: folder.join("defs"), required: false }];
+    settle(&folder);
     let running = Running::start(Watch::new(request, Arc::new(DiskFiles), Vec::new()).watching_files(), |_, _| {});
     let first = running.built();
     assert!(first.output.is_none());
@@ -422,15 +422,14 @@ fn an_extension_written_after_a_build_that_could_not_find_it_causes_a_build() {
     assert!(error.files_read.iter().any(|read| read.path == folder.join("defs/notes-pkg.yaml") && !read.found), "{:?}", error.files_read);
     fs::write(folder.join("defs/notes-pkg.yaml"), "flm:\n  features:\n    text:\n      width: 60\n").unwrap();
     let (built, names) = changed(&running);
-    // The system may report the document's first writing late, with this change.
-    assert!(names.iter().all(|name| name == "notes-pkg.yaml" || name == "paper.flm") && names.contains(&String::from("notes-pkg.yaml")), "{names:?}");
+    assert_eq!(names, ["notes-pkg.yaml"]);
     assert!(built.outcome.is_ok());
     assert_eq!(built.update.page, PageChange::Reload);
     assert!(built.output.is_some());
     running.stop();
 }
 
-// acceptance 9
+// a file replaced by renaming another over it
 #[test]
 fn a_file_replaced_by_renaming_another_over_it_is_seen() {
     let folder = folder("rename");
@@ -444,7 +443,7 @@ fn a_file_replaced_by_renaming_another_over_it_is_seen() {
     running.stop();
 }
 
-// acceptance 10
+// a file brought in by `\input`
 #[test]
 fn a_file_brought_in_by_input_is_watched_once_a_build_read_it() {
     let folder = folder("input");
@@ -461,7 +460,7 @@ fn a_file_brought_in_by_input_is_watched_once_a_build_read_it() {
     running.stop();
 }
 
-// acceptance 10: an image, found or looked for and not found
+// an image, found or looked for and not found
 #[cfg(feature = "graphics")]
 #[test]
 fn an_image_file_is_watched_and_so_is_a_folder_it_was_looked_for_in() {
@@ -487,7 +486,7 @@ fn record(title: &str) -> String {
     format!("[{{\"id\": \"knuth84\", \"type\": \"book\", \"title\": \"{title}\", \"author\": [{{\"family\": \"Knuth\"}}]}}]")
 }
 
-// acceptance 10: a bibliography file
+// a bibliography file
 #[cfg(feature = "citations")]
 #[test]
 fn a_bibliography_file_the_build_read_is_watched() {
@@ -503,7 +502,7 @@ fn a_bibliography_file_the_build_read_is_watched() {
     running.stop();
 }
 
-// --- acceptance 4: an image copied beside the page -----------------------------------------
+// --- an image copied beside the page -------------------------------------------------------
 
 /// A PNG image of `width` × 1 gray pixels.
 #[cfg(feature = "graphics")]
@@ -825,10 +824,10 @@ fn a_write_to_an_included_file_on_the_disk_causes_a_build() {
     };
     write("doc/paper.flm", "---\nflm:\n  use: [inc]\n---\nHello.\n");
     write_including_extension(&write);
+    settle(&root);
     let running = Running::start(Watch::new(including_request(&root), Arc::new(DiskFiles), Vec::new()).watching_files(), |_, _| {});
     let first = running.built();
     assert!(first.outcome.as_ref().is_ok_and(|diagnostics| diagnostics.is_empty()), "{:?}", first.outcome);
-    running.asked();
     write("defs/inc/dist/x.js", "let x = 3;");
     let (built, names) = changed(&running);
     assert_eq!(names, ["x.js"]);

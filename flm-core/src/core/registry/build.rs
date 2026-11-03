@@ -451,12 +451,17 @@ impl RegistryBuilder {
     /// problems and lists every problem that phase found. The phases after it
     /// did not run.
     pub fn build(self, inputs: &RegistryInputs) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
-        // See the design rationale at [§flm-dd-dr:feat-build-phases].
+        // A failed phase stops the build: the later phases need a sound roster,
+        // and running them would report the consequences of the earlier errors
+        // as problems of their own.
         let mut roster = Roster::default();
 
         // --- phase: collect (round one) --------------------------------------------------
         // The features first take their final order, which every later step
-        // follows. See decision rationale at [§flm-dd-dr:feat-order].
+        // follows: wherever the registration order picks one of several
+        // competing items of different features (a definition, an element's
+        // owner, a style, the precedence in a slot), the feature placed last
+        // in the order the user states wins.
         // A cycle is reported with the phase's other errors; the features
         // then register in their implicit order.
         let placement = order::place(self.features, &self.feature_order);
@@ -554,7 +559,8 @@ impl RegistryBuilder {
         let validate::PeerResolution { errors: peer_errors, unresolved, set_aside, set_aside_stages } =
             validate::resolve_peers(&roster, &structural::NAMES);
         // A stage set aside is not registered: nothing sees it from here on.
-        // See decision rationale at [§flm-dd-dr:feat-peer-table-write]
+        // The table it writes is read only by the absent peer, so nothing the
+        // stage would compute is ever read.
         remove_stages(&mut roster, &set_aside_stages);
         let mut errors = validate::validate(&roster, &structural::NAMES);
         errors.extend(peer_errors);
@@ -832,7 +838,6 @@ fn apply_workflow_fields(roster: &mut Roster) {
     }
 }
 
-// See the design rationale at [§flm-dd-dr:feat-undeclared-collection].
 /// Drops every member added to a collection that no feature of this registry
 /// declares, so that the checks that follow see only members of declared
 /// collections.
@@ -936,25 +941,12 @@ fn attach_aspects(
         }
         rebuilt.insert(key, Arc::new(spec));
     };
-    let mut visit_def = |def: &ElementDef, errors: &mut Vec<BuildError>| {
-        rebuild(&def.element, errors);
-        let args = match &def.syntax {
-            SyntaxDef::Macro { args } | SyntaxDef::Inclusion { args } | SyntaxDef::Specials { args, .. } => args.as_slice(),
-            SyntaxDef::Environment { args, .. } => args.as_slice(),
-            SyntaxDef::Synthesized => &[],
-        };
-        for arg in args {
-            for field in arg.kind.tack_on_fields().unwrap_or_default() {
-                rebuild(field.element(), errors);
-            }
-        }
-    };
     for def in &roster.elements {
-        visit_def(def, &mut errors);
+        rebuild(&def.element, &mut errors);
     }
     for package in &roster.scoped_packages {
         for def in &package.elements {
-            visit_def(def, &mut errors);
+            rebuild(&def.element, &mut errors);
         }
     }
     for fallback in &roster.fallbacks {
@@ -973,23 +965,12 @@ fn attach_aspects(
             *element = new;
         }
     };
-    let remap_def = |def: &mut ElementDef| {
-        remap(&mut def.element);
-        let args = match &mut def.syntax {
-            SyntaxDef::Macro { args } | SyntaxDef::Inclusion { args } | SyntaxDef::Specials { args, .. } => args.as_mut_slice(),
-            SyntaxDef::Environment { args, .. } => args.as_mut_slice(),
-            SyntaxDef::Synthesized => &mut [],
-        };
-        for arg in args {
-            arg.remap_field_elements(rebuilt_of);
-        }
-    };
     for def in &mut roster.elements {
-        remap_def(def);
+        remap(&mut def.element);
     }
     for package in &mut roster.scoped_packages {
         for def in &mut package.elements {
-            remap_def(def);
+            remap(&mut def.element);
         }
     }
     for fallback in &mut roster.fallbacks {
@@ -1001,8 +982,10 @@ fn attach_aspects(
     Ok(StructuralElements::new(structural_specs))
 }
 
-// See the design rationale at [§flm-dd-dr:feat-digest] and, for what a
-// feature's own configuration contributes, [§flm-dd-dr:feat-config-hash].
+// The digest is a cache key and a stamp on data a host supplies, so an input left
+// out would let a document be reused under a registry that produces a different
+// tree. A feature feeds in its own configuration as explicit bytes, since a
+// configuration may hold shared pointers, which have no stable hash.
 /// Computes the [registry digest](crate::model::digest): a hash of
 /// everything about this build that can change what processing produces.
 ///

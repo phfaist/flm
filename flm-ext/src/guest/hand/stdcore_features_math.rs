@@ -6,12 +6,20 @@ use serde_json::{json, Value};
 
 use super::{get, not_shape, object};
 use crate::adapter::handles::HandleKind;
+#[cfg(feature = "native")]
+use crate::adapter::handles::{CallTable, Handle};
+#[cfg(feature = "native")]
+use crate::adapter::typed::{FromApi, IntoApi};
+#[cfg(feature = "native")]
+use crate::adapter::values::line_frame_of;
 use crate::adapter::values::{handle_from_value, JsonForm};
+#[cfg(feature = "native")]
+use crate::api;
 use crate::api::stdcore::features::refs::LabelUse;
 use crate::api::techy::node::Span;
 use crate::guest::core::lowering::Lowerer;
 use crate::guest::core::run::StageCx;
-use crate::guest::techy::node::Node;
+use crate::guest::techy::node::{Node, Tree};
 use crate::runtime::ExtError;
 
 /// Mirrors [`Tag`](crate::api::stdcore::features::math::Tag): a line's tag.
@@ -104,6 +112,32 @@ impl JsonForm for EquationLine {
     }
 }
 
+/// The api's `EquationLine`, its nodes lent, its span from its first content
+/// node's start to its last one's end (else the span of its line break),
+/// its line break without its span; the host's `equation_line_to_value`.
+#[cfg(feature = "native")]
+impl<'c> FromApi<'c, api::stdcore::features::math::EquationLine<'c>> for EquationLine {
+    fn from_api(api: api::stdcore::features::math::EquationLine<'c>, table: &mut CallTable<'c>) -> Result<Self, ExtError> {
+        let span = match (api.content.first(), api.content.last(), &api.linebreak) {
+            (Some(first), Some(last), _) => Some(Span { start: first.span().start, end: last.span().end }),
+            (_, _, Some(brk)) => Some(brk.span),
+            _ => None,
+        };
+        let tag = match api.tag {
+            Some(tag) => Some(Tag { starred: tag.starred, content: FromApi::from_api(tag.content, table)? }),
+            None => None,
+        };
+        Ok(EquationLine {
+            span,
+            content: FromApi::from_api(api.content, table)?,
+            labels: api.labels,
+            tag,
+            nonumber: api.nonumber,
+            linebreak: api.linebreak.map(|brk| LineBreak { spacing: brk.spacing }),
+        })
+    }
+}
+
 /// Mirrors [`LineShows`](crate::api::stdcore::features::math::LineShows):
 /// what a line shows at its end.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,8 +146,8 @@ pub enum LineShows {
     Nothing,
     /// Its number.
     Number {
-        /// The number's segments.
-        segments: Vec<Node>,
+        /// The number's segments, each the tree of a synthesized value.
+        segments: Vec<Tree>,
         /// The number as a text.
         text: String,
     },
@@ -193,6 +227,55 @@ impl JsonForm for LineFrame {
     }
 }
 
+/// The api's `LineFrame`: its environment, index, anchor and what it shows,
+/// its nodes and trees copied out of the table, its line read again from
+/// the environment at the index; the host's `line_frame_from_value`.
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for &LineFrame {
+    type Api = api::stdcore::features::math::LineFrame<'c>;
+
+    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        use api::stdcore::features::math::LineShows as Api;
+        let environment = (&self.environment).into_api(table)?;
+        let shows = match &self.shows {
+            LineShows::Nothing => Api::Nothing,
+            LineShows::Number { segments, text } => Api::Number {
+                segments: segments.iter().map(|tree| tree.into_api(table)).collect::<Result<_, _>>()?,
+                text: text.clone(),
+            },
+            LineShows::Tag { starred, content } => Api::Tag { starred: *starred, content: content.as_slice().into_api(table)? },
+        };
+        Ok(line_frame_of(environment, self.index, self.anchor.clone(), shows))
+    }
+}
+
+/// A list of lines' frames, each as [`LineFrame`]'s conversion.
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for &[LineFrame] {
+    type Api = Vec<api::stdcore::features::math::LineFrame<'c>>;
+
+    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        self.iter().map(|frame| frame.into_api(table)).collect()
+    }
+}
+
+/// The api's `LineFrame`, its nodes and trees lent; the host's
+/// `line_frame_to_value`.
+#[cfg(feature = "native")]
+impl<'c> FromApi<'c, api::stdcore::features::math::LineFrame<'c>> for LineFrame {
+    fn from_api(api: api::stdcore::features::math::LineFrame<'c>, table: &mut CallTable<'c>) -> Result<Self, ExtError> {
+        use api::stdcore::features::math::LineShows as Api;
+        let environment = FromApi::from_api(api.environment, table)?;
+        let line = FromApi::from_api(api.line, table)?;
+        let shows = match api.shows {
+            Api::Nothing => LineShows::Nothing,
+            Api::Number { segments, text } => LineShows::Number { segments: FromApi::from_api(segments, table)?, text },
+            Api::Tag { starred, content } => LineShows::Tag { starred, content: FromApi::from_api(content, table)? },
+        };
+        Ok(LineFrame { environment, index: api.index, line, anchor: api.anchor, shows })
+    }
+}
+
 /// Mirrors [`FrameReader`](crate::api::stdcore::features::math::FrameReader):
 /// what reads the frames of a line, a stage or a rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -201,6 +284,18 @@ pub enum FrameReader {
     Stage(StageCx),
     /// A rule's lowerer.
     Rule(Lowerer),
+}
+
+#[cfg(feature = "native")]
+impl FrameReader {
+    /// The reader's handle, of the kind `stage_cx` or `lowerer`, by which the
+    /// host's `line_frames` takes the reader from the call's table.
+    pub(crate) fn handle(&self) -> Handle {
+        match self {
+            FrameReader::Stage(cx) => cx.handle,
+            FrameReader::Rule(lw) => lw.handle,
+        }
+    }
 }
 
 /// The handle itself, of the kind `stage_cx` or `lowerer`; read by the

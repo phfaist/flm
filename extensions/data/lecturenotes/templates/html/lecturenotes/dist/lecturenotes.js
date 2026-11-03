@@ -517,9 +517,6 @@ var flmLecturenotes = (() => {
   var HEADING = ".flm-pres-block--heading";
   var BLOCKS = ".flm-pres-par, .flm-pres-block, li, figure, figcaption, blockquote";
   var INLINE_TAGS = /* @__PURE__ */ new Set(["SPAN", "A", "EM", "STRONG", "SUP"]);
-  var DISPLAY_SOURCE = '.flm-pres-math--source[data-flm-display="display"]';
-  var DISPLAY_TYPESET = 'mjx-container[display="true"]';
-  var PARAGRAPH = ".flm-pres-par";
   var HEADING_SIBLINGS = 3;
   var MAX_ENTRIES = 8;
   function previewElements(target) {
@@ -532,17 +529,7 @@ var flmLecturenotes = (() => {
       return out;
     }
     if (target.tagName === "LI" || !INLINE_TAGS.has(target.tagName)) return [target];
-    const block = target.closest(BLOCKS);
-    if (block !== null) return [block];
-    const formula = target.closest(DISPLAY_SOURCE) ?? target.closest(DISPLAY_TYPESET);
-    if (formula === null) return [target];
-    const before = formula.previousElementSibling;
-    const after = formula.nextElementSibling;
-    return [
-      ...before !== null && before.matches(PARAGRAPH) ? [before] : [],
-      formula,
-      ...after !== null && after.matches(PARAGRAPH) ? [after] : []
-    ];
+    return [target.closest(BLOCKS) ?? target];
   }
   var TEXTS2 = {
     more: (count) => `and ${count} more`

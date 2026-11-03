@@ -79,14 +79,17 @@ packages:
   `compose-standard` (the compose templates), `graphics-files` (the image files) and
   `citations-standard` (the cited works). It uses `stdcore`.
 - `std`, a package with no features of its own that uses `stdcore` and `stdmain`.
-- `phfpack` (macros for the notation and quantities of quantum information, from the
-  crate `flm-phfpack`). The cargo feature `phfpack` of `flm-cli`, which is on by default,
-  includes it. A program built without the cargo feature (`cargo build -p flm-cli
-  --no-default-features`) refuses a document that lists `phfpack`, as it refuses any
-  package it cannot find.
 
-The extensions compiled into the program, `math-mathjax` among them, are packages too
-(see [Where extensions are looked for](#where-extensions-are-looked-for)).
+These four packages come with the host library. The `flm` program carries no other
+compiled package; a program of one's own can carry more (see [Building a program that
+carries other packages](#building-a-program-that-carries-other-packages)).
+
+The extensions compiled into the program, `math-mathjax` and `phfpack` among them, are
+packages too (see [Where extensions are looked for](#where-extensions-are-looked-for)).
+The cargo feature `bundled-extensions` of `flm-cli`, which is on by default, includes
+them. A program built without that cargo feature (`cargo build -p flm-cli
+--no-default-features`) refuses a document that lists `phfpack`, as it refuses any
+package it cannot find.
 
 ### The packages a document uses
 
@@ -162,7 +165,12 @@ The library of the crate `flm-cli`, `flm_cli`, holds the whole command line:
 `flm_cli::run(args, packages)` takes the command-line arguments and the list of compiled
 package factories that the program carries. A program of one's own that carries other
 compiled packages is a `main` function of a few lines that passes its own list. The
-example `own_package` of `flm-cli` carries `phfpack` that way:
+example `own_package` of `flm-cli` carries a package written in the example that way: the
+package `shout`, whose one feature declares the macro `\shout{text}` as a user definition
+(a macro defined by substitution, [author
+definitions](crate::guide::language_syntax#author-definitions)) with the template
+`\textbf{#{text}}`. A document that lists `shout` under `use` in its front matter can
+write `\shout`:
 
 ```text
 $ cargo run -p flm-cli --example own_package -- render paper.flm
@@ -1172,9 +1180,10 @@ program that reads the extension's files and turns them into packages:
   typically), whose features declare the same things as a JavaScript extension's;
 - the engine `native` runs an extension written in Rust and compiled into the program
   itself, whose features declare the same things as a WebAssembly module's. The program's
-  own extensions of this kind (`profile-pdf-latex`, see [PDF through LaTeX](#pdf-through-latex))
-  are found by their names, as the other extensions shipped with FLM are; the same source
-  also builds as a WebAssembly module, which the engine `wasm` runs.
+  own extensions of this kind (`flmdoc`, `phfpack`, `profile-pdf-latex`, see [PDF through
+  LaTeX](#pdf-through-latex), and `syntax-highlight`) are found by their names, as the
+  other extensions shipped with FLM are; the same source also builds as a WebAssembly
+  module, which the engine `wasm` runs.
 
 A workflow that an extension declares runs as the profile of the same name, as the
 program's own workflows do (`flm render -p typst paper.flm`), and `-f` selects one of its
@@ -1400,13 +1409,15 @@ folder that holds the extension, in either layout, wins:
    `lecturenotes` ([The lecture-notes template](#the-lecture-notes-template)),
    `math-mathjax` ([Mathematics processed by MathJax](#mathematics-processed-by-mathjax)),
    `profile-pdf-latex` ([PDF through LaTeX](#pdf-through-latex)), `syntax-highlight`
-   (the highlighting of code listings in HTML and in the rendered LaTeX) and `flmdoc` (the
+   (the highlighting of code listings in HTML and in the rendered LaTeX), `flmdoc` (the
    markup of documentation pages; see
-   [Writing documentation pages: the extension `flmdoc`](crate::guide::extending#writing-documentation-pages-the-extension-flmdoc)),
+   [Writing documentation pages: the extension `flmdoc`](crate::guide::extending#writing-documentation-pages-the-extension-flmdoc))
+   and `phfpack` (notation and quantity macros for quantum information in formulas; see
+   [A Rust extension, end to end](crate::guide::extending#a-rust-extension-end-to-end)),
    found by their names (a locator of one segment). A copy of one of them in a folder of the search path
-   is found first and is used in its place; for the three written in Rust
-   (`profile-pdf-latex`, `syntax-highlight`, `flmdoc`), the copy is their WebAssembly
-   form.
+   is found first and is used in its place; for the four written in Rust
+   (`profile-pdf-latex`, `syntax-highlight`, `flmdoc`, `phfpack`), the copy is their
+   WebAssembly form.
 
 A locator of several segments is joined to each folder: `@acme/style` is
 `@acme/style.yaml` or `@acme/style/flmextension.yaml` inside the folder. An extension is

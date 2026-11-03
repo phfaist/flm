@@ -5,12 +5,10 @@
 //! trees, read by name) and [`ProjectCxFacade`] (how another table's
 //! projection renders its addresses).
 //!
-//! Built by WP-2 (the declaration and the needs) and WP-3 (the run and the
-//! façades it lends).
-//!
-//! Every node the façades answer is a [`NodeFacade::shared`] over the tree's
-//! `Arc`, so it owns what it points at (plan A, A15). Every table the façades
-//! answer borrows the store, which lives for the whole call.
+//! Every tree the façades answer is a [`TreeFacade`] over the tree's `Arc`,
+//! and every node a [`NodeFacade::shared`] over it, so each owns what it
+//! points at. Every table the façades answer borrows the store,
+//! which lives for the whole call.
 
 use std::sync::Arc;
 
@@ -37,7 +35,7 @@ use serde_json::Value;
 
 use crate::adapter::diag::ExtCondition;
 use crate::adapter::names::Owner;
-use crate::adapter::node::NodeFacade;
+use crate::adapter::node::{NodeFacade, TreeFacade};
 use crate::adapter::services::{self, DeclaredServices};
 use crate::adapter::table::ExtTable;
 use crate::adapter::values::{artifact_set_to_value, check_data, diagnostic_to_core};
@@ -51,7 +49,7 @@ use crate::api::host::HostHandle;
 use crate::api::core::stage::{Needs, Scope, Stage, StageDecl, TreesTable};
 use crate::api::stdcore::backends::lowering::LoweredTrees;
 use crate::api::techy::error::Diagnostic;
-use crate::api::techy::node::Node;
+use crate::api::techy::node::{Node, Tree};
 use crate::runtime::ExtError;
 use crate::adapter::durable::DurableTable;
 use crate::sealed::{DurableOwner, Sealed, StageCxCore, Token};
@@ -67,9 +65,7 @@ pub struct ExtStage {
     pub(crate) decl: StageDecl,
     /// Its needs, read at registration.
     pub(crate) needs: Needs,
-    /// The extension and the package that registered the stage: the
-    /// identifiers of the diagnostics the stage reports must begin with the
-    /// extension's stem.
+    /// The extension and the package that registered the stage.
     pub(crate) owner: Owner,
     /// Every table the stage writes, with the type it holds, as the
     /// registry declared it when the stage was registered.
@@ -157,12 +153,12 @@ impl CoreStage for ExtStage {
     /// an Error diagnostic, `flm.ext.handler-failed`, at the root of the
     /// stage's tree (for a document-scope stage, of the first tree in document
     /// order; with no tree, at an empty source of no origin); what the handler
-    /// pushed before failing stays pushed (plan A, D8).
+    /// pushed before failing stays pushed.
     fn run(&self, cx: &CoreStageCx<'_>, out: &mut CoreStageOut<'_>) {
         let span = default_span(cx);
         let cx_facade = StageCxFacade::new(cx, &self.services, Arc::clone(&self.owner.durable));
         let result = {
-            let mut out_facade = StageOutFacade::new(&mut *out, &self.owner, span.clone(), &self.writes);
+            let mut out_facade = StageOutFacade::new(&mut *out, span.clone(), &self.writes);
             self.stage.run(&cx_facade, &mut out_facade)
         };
         if let Err(error) = result {
@@ -186,8 +182,8 @@ pub(crate) fn read_ref(registry: &FlmRegistry, name: &str) -> TableRef {
     }
 }
 
-/// Where a diagnostic of a stage's run stands when it names no node (plan A,
-/// section 4.5): the root of the stage's tree for a per-tree stage; for a
+/// Where a diagnostic of a stage's run stands when it names no node: the
+/// root of the stage's tree for a per-tree stage; for a
 /// document-scope stage, the root of the first tree in document order; with no
 /// tree, an empty span over an empty source of no origin ([`nowhere`]).
 pub(crate) fn default_span(cx: &CoreStageCx<'_>) -> FlmSpan {
@@ -222,9 +218,9 @@ pub(crate) fn tree_id_of(text: &str) -> Option<TreeId> {
     (id.to_string() == text).then_some(id)
 }
 
-/// The root of `tree`, as a node of the extension API.
-pub(crate) fn root_of<'s>(tree: &Arc<NodeTree<Flm>>) -> Box<dyn Node<'s> + 's> {
-    Box::new(NodeFacade::shared(Arc::clone(tree), tree.root().id()))
+/// `tree`, as a tree of the extension API, sharing it.
+pub(crate) fn tree_of(tree: &Arc<NodeTree<Flm>>) -> Box<dyn Tree> {
+    Box::new(TreeFacade::new(Arc::clone(tree)))
 }
 
 /// An `AccessError` of the store as the extension API reports it.
@@ -278,21 +274,21 @@ impl StageCx for StageCxFacade<'_, '_> {
         self.cx.tree_id().map(|id| id.to_string())
     }
 
-    fn tree(&self, id: &str) -> Option<Box<dyn Node<'_> + '_>> {
+    fn tree(&self, id: &str) -> Option<Box<dyn Tree>> {
         let tree = self.cx.tree(tree_id_of(id)?)?;
-        Some(root_of(&tree))
+        Some(tree_of(&tree))
     }
 
-    fn frozen_tree(&self, id: &str) -> Option<Box<dyn Node<'_> + '_>> {
-        self.cx.frozen_tree(tree_id_of(id)?).map(root_of)
+    fn frozen_tree(&self, id: &str) -> Option<Box<dyn Tree>> {
+        self.cx.frozen_tree(tree_id_of(id)?).map(tree_of)
     }
 
-    fn my_tree(&self) -> Option<Box<dyn Node<'_> + '_>> {
-        self.cx.my_tree().map(|tree| root_of(&tree))
+    fn my_tree(&self) -> Option<Box<dyn Tree>> {
+        self.cx.my_tree().map(|tree| tree_of(&tree))
     }
 
-    fn trees(&self) -> Vec<(String, Box<dyn Node<'_> + '_>)> {
-        self.cx.trees().map(|(id, tree)| (id.to_string(), root_of(tree))).collect()
+    fn trees(&self) -> Vec<(String, Box<dyn Tree>)> {
+        self.cx.trees().map(|(id, tree)| (id.to_string(), tree_of(tree))).collect()
     }
 
     fn walk(&self) -> Vec<WalkEntry<'_>> {
@@ -394,7 +390,9 @@ impl StageCx for StageCxFacade<'_, '_> {
 /// An artifact of the set refers to a file instead of holding its bytes
 /// ([`ExtError::Value`]).
 fn artifact_set_read(cx: &CoreStageCx<'_>, name: &str, set: &ArtifactSet) -> Result<Value, ExtError> {
-    // See decision rationale at [§flm-dd-dr:ext-artifact-set-read].
+    // Each artifact carries its path, so that a stage handing the files to
+    // another program writes each where the links inside the files expect it;
+    // `path_of` is the rule the host follows when it writes the files.
     let registry = cx.registry();
     let output = registry.outputs().find(|output| output.def.table.as_str() == name).map(|output| &output.def);
     let namer = cx.services_all().service_named::<dyn ArtifactNamer>(NAMER_SLOT);
@@ -434,7 +432,7 @@ impl ExtTableRead for &ExtTable {
 
 /// The extension API's [`TreesTable`] over `flm-core`'s
 /// [`TreesTable`](CoreTreesTable), borrowed from the store for the call: each
-/// tree is answered as its root node, shared with the table.
+/// tree is answered shared with the table.
 pub struct TreesTableFacade<'x> {
     table: &'x CoreTreesTable,
 }
@@ -448,21 +446,21 @@ impl<'x> TreesTableFacade<'x> {
 
 impl Sealed for TreesTableFacade<'_> {}
 
-impl<'s> TreesTable<'s> for TreesTableFacade<'_> {
-    fn trees(&self) -> Vec<(String, Box<dyn Node<'s> + 's>)> {
-        self.table.trees.iter().map(|(id, tree)| (id.to_string(), root_of(tree))).collect()
+impl TreesTable for TreesTableFacade<'_> {
+    fn trees(&self) -> Vec<(String, Box<dyn Tree>)> {
+        self.table.trees.iter().map(|(id, tree)| (id.to_string(), tree_of(tree))).collect()
     }
 
-    fn tree(&self, id: &str) -> Option<Box<dyn Node<'s> + 's>> {
-        self.table.trees.get(&tree_id_of(id)?).map(root_of)
+    fn tree(&self, id: &str) -> Option<Box<dyn Tree>> {
+        self.table.trees.get(&tree_id_of(id)?).map(tree_of)
     }
 }
 
 /// The extension API's [`LoweredTrees`] over `flm-core`'s
 /// [`LoweredTrees`](CoreLoweredTrees): a copy of the table's entries, each
-/// lowered tree shared with the table through its `Arc` and answered as its
-/// root node. A copy, so that a rule's lowerer can answer it as the owned
-/// read the dispatcher asks for as well.
+/// lowered tree shared with the table through its `Arc`. A copy, so that a
+/// rule's lowerer can answer it as the owned read the dispatcher asks for as
+/// well.
 pub struct LoweredTreesFacade {
     trees: Vec<(TreeId, LoweredTree)>,
 }
@@ -482,13 +480,13 @@ impl LoweredTreesFacade {
 
 impl Sealed for LoweredTreesFacade {}
 
-impl<'s> LoweredTrees<'s> for LoweredTreesFacade {
-    fn trees(&self) -> Vec<(String, Box<dyn Node<'s> + 's>)> {
-        self.trees.iter().map(|(id, lowered)| (id.to_string(), root_of(&lowered.tree))).collect()
+impl LoweredTrees for LoweredTreesFacade {
+    fn trees(&self) -> Vec<(String, Box<dyn Tree>)> {
+        self.trees.iter().map(|(id, lowered)| (id.to_string(), tree_of(&lowered.tree))).collect()
     }
 
-    fn tree(&self, id: &str) -> Option<Box<dyn Node<'s> + 's>> {
-        self.get(id).map(|lowered| root_of(&lowered.tree))
+    fn tree(&self, id: &str) -> Option<Box<dyn Tree>> {
+        self.get(id).map(|lowered| tree_of(&lowered.tree))
     }
 
     fn requires(&self, id: &str) -> Option<Vec<String>> {
@@ -541,8 +539,6 @@ impl ProjectCx for ProjectCxFacade<'_, '_> {
 /// call: what [`ExtStage`] lends the extension's `run` handler.
 pub struct StageOutFacade<'r, 'o> {
     out: &'r mut CoreStageOut<'o>,
-    /// The extension and the package that registered the stage.
-    owner: &'r Owner,
     /// Where a diagnostic that names no node stands.
     span: FlmSpan,
     /// Every table the stage writes, with its type.
@@ -550,16 +546,11 @@ pub struct StageOutFacade<'r, 'o> {
 }
 
 impl<'r, 'o> StageOutFacade<'r, 'o> {
-    /// The façade over `out`, for a stage registered by `owner`, placing a
-    /// diagnostic that names no node at `span`; the stage writes each table
-    /// of `writes` with the type given beside it.
-    pub(crate) fn new(
-        out: &'r mut CoreStageOut<'o>,
-        owner: &'r Owner,
-        span: FlmSpan,
-        writes: &'r [(String, WriteType)],
-    ) -> StageOutFacade<'r, 'o> {
-        StageOutFacade { out, owner, span, writes }
+    /// The façade over `out`, placing a diagnostic that names no node at
+    /// `span`; the stage writes each table of `writes` with the type given
+    /// beside it.
+    pub(crate) fn new(out: &'r mut CoreStageOut<'o>, span: FlmSpan, writes: &'r [(String, WriteType)]) -> StageOutFacade<'r, 'o> {
+        StageOutFacade { out, span, writes }
     }
 }
 
@@ -576,7 +567,6 @@ impl StageOut for StageOutFacade<'_, '_> {
     }
 
     fn diags(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError> {
-        self.owner.check("diagnostic", &diagnostic.id)?;
         let diagnostic = diagnostic_to_core(diagnostic, self.span.clone())?;
         self.out.diags.push(diagnostic);
         Ok(())

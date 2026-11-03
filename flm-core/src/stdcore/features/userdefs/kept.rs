@@ -83,7 +83,7 @@
 //!
 //! - arguments of every shape a definition can declare, at any position: a
 //!   `{…}` group, an optional `[…]` group, a characters-only group, a
-//!   key-value group, a verbatim argument, a `*` marker and a trailing tack-on
+//!   key-value group, a verbatim argument, a `*` marker and a tack-on
 //!   argument;
 //! - a template and default values that are content around their placeholders
 //!   and their conditionals;
@@ -201,8 +201,9 @@
 //! An *effective argument* is one brace group of a call, in the order of the
 //! definition's *effective signature* ([`EffectiveSignature`]):
 //!
-//! - first one **value** per declared argument a template can refer to, in the
-//!   order declared, holding what the expansion would substitute for a
+//! - first one **value** per declared argument a template can refer to (the
+//!   declared arguments that are not tack-on arguments), in the order
+//!   declared, holding what the expansion would substitute for a
 //!   placeholder of that argument: the content the use site wrote; or, where
 //!   the use site left the argument out, the argument's declared default
 //!   value, instantiated at that use site
@@ -219,8 +220,9 @@
 //!   holding `\BooleanTrue` where the use site wrote that argument and
 //!   `\BooleanFalse` where it did not.
 //!
-//! A **tack-on argument** (the trailing argument that absorbs the field
-//! macros, such as a `\label{…}`, written after a call;
+//! A **tack-on argument** (the argument that absorbs the field macros, such
+//! as a `\label{…}`, written at its position in a call, after the arguments
+//! declared before it;
 //! [fields](crate::guide::concepts_overview#fields-data-a-construct-reads)) is
 //! neither. A template cannot refer to one: what the call absorbed is whole
 //! macros, which have no meaning as the value of a parameter, so a reference
@@ -401,16 +403,18 @@
 //!   feature's rules call.
 //! - [`register`], the peer declarations the `userdefs` feature registers once.
 
-// The settlement of the contest between the three rules, the recomposability
-// rule and where it is computed, and the stamped copy in place of an edit to
-// the template compiler: see design rationale at
-// [§flm-dd-dr:rend-kept-default], [§flm-dd-dr:std-userdefs-transcribable] and
-// [§flm-dd-dr:rend-definition-construct-in-flow]. The call shape — one brace
-// group per effective argument, values then flags — and the reason LaTeX is
-// left nothing to parse: see decision rationale at
-// [§flm-dd-dr:rend-latex-userdef-canonical-call]. How each conditional of a
-// template is classified: see decision rationale at
-// [§flm-dd-dr:std-userdefs-conditional-recomposition].
+// The rule selection order already ranks a backend's default above a general
+// one and a rule that is never a default below both, so it settles which of the
+// three rules applies with no mechanism of its own; `expand-in-tree` stays the
+// default everywhere, so a registry holding definitions renders on every
+// backend. Recomposability is decided once, when the registry is built, because
+// every use site needs the answer and it depends on the registry alone. Rules
+// keep no state, so the definition construct travels with each use site and the
+// emitter writes it once per name; its placeholders are stamped on this module's
+// copy of the template, so that the compiled template, the language layer's,
+// does not change for what one backend reads. Each conditional is classified on
+// its own, so that the common templates come out as one would write them in
+// LaTeX by hand.
 
 use std::cell::RefCell;
 use std::collections::BTreeSet;
@@ -540,11 +544,11 @@ fn recomposed_variant(definition: &UserDefinition) -> Option<&ModeVariant> {
 /// the use site wrote between its delimiters, lowered in its value group like
 /// any other content.
 ///
-/// A *tack-on* argument (the trailing argument that absorbs the macros written
-/// after a call, such as a `\label{…}`) is not refused either: a definition may
-/// declare one and is still recomposed. It carries no effective argument,
-/// because no template may refer to it (see the module documentation), so a
-/// call writes no group for it.
+/// A *tack-on* argument (the argument that absorbs the field macros, such as a
+/// `\label{…}`, written at its position in a call) is not refused either: a
+/// definition may declare one and is still recomposed. It carries no effective
+/// argument, because no template may refer to it (see the module
+/// documentation), so a call writes no group for it.
 ///
 /// The argument parser decides
 /// ([`FlmArgumentParser::definition_shape`]), so a parser that a later version
@@ -569,11 +573,11 @@ fn shape_token(kind: &dyn FlmArgumentParser) -> Option<&'static str> {
 /// written. The three standard kinds that can be left out are an optional
 /// argument, a key-value argument (parsed exactly like an optional one) and a
 /// `*` marker. A tack-on argument is absent where the use site wrote no field
-/// macro after the call, but no template can ask about one (a reference to it
+/// macro at its position, but no template can ask about one (a reference to it
 /// refuses the definition, which is then not compiled), so the question is
 /// never asked about it.
-// Why techy's own answer rather than a question of FLM's trait: see decision
-// rationale at [§flm-dd-dr:lang-arg-absent-techy].
+// techy's argument-parser trait already asks this question, so FLM's trait does
+// not ask it a second time: two answers to one question could disagree.
 fn can_be_absent(kind: &Arc<dyn FlmArgumentParser>) -> bool {
     kind.can_match_empty()
 }
@@ -731,7 +735,7 @@ impl Recomposition<'_> {
                     continue;
                 }
                 match placeholder_argument(template, &child) {
-                    Some(index) if index < self.signature.values() => {
+                    Some(index) if self.signature.value_position(index).is_some() => {
                         found.placeholders.push(index);
                     }
                     _ => found.other_content = true,
@@ -847,12 +851,18 @@ struct TestArgument {
 /// argument whose question needs a flag ([`Recomposition::flag_answers`]).
 ///
 /// A tack-on argument has neither: no template may refer to it, so it carries
-/// no value, and a question that cannot be asked needs no flag. It is the
-/// command's last argument, so the values are the declared arguments before
-/// it, which is the order [`EffectiveSignature`] records.
+/// no value, and a question that cannot be asked needs no flag. The values are
+/// the declared arguments that are not tack-on arguments, in declared order,
+/// which is the order [`EffectiveSignature`] records.
 fn effective_signature(definition: &Definition, variant: &ModeVariant) -> EffectiveSignature {
-    let values = definition.args.iter().take_while(|arg| !is_tack_on(arg)).count();
-    let plain = EffectiveSignature::new(values, []);
+    let values: Vec<usize> = definition
+        .args
+        .iter()
+        .enumerate()
+        .filter(|(_, arg)| !is_tack_on(arg))
+        .map(|(index, _)| index)
+        .collect();
+    let plain = EffectiveSignature::new(values.iter().copied(), []);
     let recomposition = Recomposition { definition, variant, signature: &plain };
     let template = variant.template();
     let mut flagged = BTreeSet::new();
@@ -1483,7 +1493,6 @@ fn template_run<'t>(
         // A label whose spelling a template substitution completes is a label
         // all the same, but it reads as no label, so the catch-up below sees no
         // fact in it: it is refused here, by the same condition.
-        // See decision rationale at [§flm-dd-dr:std-userdefs-kept-points].
         if nodes.iter().any(|node| holds_placeholder_label(node)) {
             return Err(refusal(recomposition.definition, template));
         }
@@ -1612,8 +1621,7 @@ fn expansion_of(
     // The copy and the expansion run under the fixed stack budget, the
     // policy every registry outside a test runs under: the lowering façade
     // exposes no guard policy, and the use site is one subtree on the
-    // lowering stage's worker thread. See design rationale at
-    // [§flm-dd-dr:std-userdefs-lowering] and [§flm-dd-dr:lang-stack-budget].
+    // lowering stage's worker thread.
     let copied = copy_run_into_value(&[node], &node, ValueContent::Own, GuardPolicy::StackBudget)
         .map_err(|error| LowerError::other(format!("copying the use site failed: {error}")))?;
     let options =
@@ -1813,9 +1821,9 @@ fn definition_construct(
         )
     };
     // The recursion guard: a definition that uses itself is written as a LaTeX
-    // definition that calls itself, so its template's use site of it must not
-    // start a second staging of the same construct.
-    // See decision rationale at [§flm-dd-dr:std-userdefs-transcribable].
+    // definition that calls itself, since a recomposed definition is LaTeX's to
+    // expand and a recursion is LaTeX's to run; its template's use site of it
+    // must not start a second staging of the same construct.
     let Some(_staging) = Staging::begin(name) else {
         return Ok(None);
     };
@@ -1841,9 +1849,6 @@ thread_local! {
     /// Names are added and removed only through [`Staging`], so that a panic
     /// that unwinds cannot leave a name in the set for the next run on this
     /// thread.
-    // Why the backend keeps this one piece of state across nodes at all, and
-    // what to do when a second rule needs state of its own.
-    // See decision rationale at [§flm-dd-dr:std-userdefs-transcribable].
     static BEING_STAGED: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
 }
 
@@ -2004,8 +2009,7 @@ fn resolved_default(
     // The instantiation runs under the fixed stack budget, the policy every
     // registry outside a test runs under: the lowering façade exposes no
     // guard policy, and the use site is one subtree on the lowering stage's
-    // worker thread. See design rationale at
-    // [§flm-dd-dr:std-userdefs-lowering] and [§flm-dd-dr:lang-stack-budget].
+    // worker thread.
     //
     // A failure here is not a user's mistake, which is why it is a
     // `LowerError` with prose rather than a diagnostic of its own: the two
@@ -2049,10 +2053,10 @@ impl EmitCall {
     /// placeholder of its declared argument: the content the use site wrote, or
     /// the argument's declared default value lowered in its place, or nothing.
     /// A tack-on argument has no slot, because no template may refer to it, so
-    /// the macros the use site wrote after the call are not written. Each flag
-    /// slot holds `\BooleanTrue` where the use site wrote that argument and
-    /// `\BooleanFalse` where it did not, which the body's `\IfBooleanTF`
-    /// reads.
+    /// the field macros the use site wrote at its position are not written.
+    /// Each flag slot holds `\BooleanTrue` where the use site wrote that
+    /// argument and `\BooleanFalse` where it did not, which the body's
+    /// `\IfBooleanTF` reads.
     fn call_construct(
         cx: &mut LowerCx<'_>,
         lw: &mut dyn Lowerer,
@@ -2068,7 +2072,7 @@ impl EmitCall {
         let recomposition = Recomposition { definition, variant, signature };
         let mut shapes = Vec::new();
         let mut slots = Vec::new();
-        for index in 0..signature.values() {
+        for &index in signature.values() {
             shapes.push(LatexArgShape::Mandatory);
             let content = match substituted_argument_nodes(node, index) {
                 Some(nodes) => lw.lower_nodes(cx, nodes)?,
@@ -2153,7 +2157,9 @@ impl Lower for EmitCall {
         // A rule of the template needs the characters of a placeholder: the
         // definition cannot be written for LaTeX, so the use site is expanded,
         // as every use site of it is, since its template is the same at each.
-        // See decision rationale at [§flm-dd-dr:rend-kept-placeholder-characters].
+        // Only the rule reading a placeholder knows whether it needs the
+        // characters, so the answer comes from lowering the template, not from
+        // a test of the template's shape.
         let definition_node = match definition_construct(cx, lw, value) {
             Err(LowerError::PlaceholderCharacters) => return instantiate(node, cx, lw),
             other => other?,
@@ -2615,7 +2621,7 @@ impl<'a, 'c> MathWriter<'a, 'c> {
         if packs {
             self.text.push('{');
         }
-        for index in 0..signature.values() {
+        for &index in signature.values() {
             self.text.push('{');
             match substituted_argument_nodes(node, index) {
                 Some(content) => {
@@ -2957,18 +2963,18 @@ mod tests {
         // declared argument, then one flag per argument a conditional asks a
         // *provided* question about. A key-value and a verbatim argument each
         // carry one value like any other.
-        assert_eq!(values[1].effective_signature(), Some(&EffectiveSignature::new(2, [])));
-        assert_eq!(values[3].effective_signature(), Some(&EffectiveSignature::new(1, [0])));
-        assert_eq!(values[16].effective_signature(), Some(&EffectiveSignature::new(2, [0])));
-        assert_eq!(values[18].effective_signature(), Some(&EffectiveSignature::new(2, [0])));
+        assert_eq!(values[1].effective_signature(), Some(&EffectiveSignature::new(0..2, [])));
+        assert_eq!(values[3].effective_signature(), Some(&EffectiveSignature::new(0..1, [0])));
+        assert_eq!(values[16].effective_signature(), Some(&EffectiveSignature::new(0..2, [0])));
+        assert_eq!(values[18].effective_signature(), Some(&EffectiveSignature::new(0..2, [0])));
         // More effective arguments than a macro body has parameters is no
         // reason: ten values, and five values with five flags.
-        assert_eq!(values[13].effective_signature(), Some(&EffectiveSignature::new(10, [])));
-        assert_eq!(values[19].effective_signature(), Some(&EffectiveSignature::new(5, 0..5)));
+        assert_eq!(values[13].effective_signature(), Some(&EffectiveSignature::new(0..10, [])));
+        assert_eq!(values[19].effective_signature(), Some(&EffectiveSignature::new(0..5, 0..5)));
         assert_eq!(values[19].effective_signature().unwrap().arity(), 10);
         // The declared tack-on argument carries neither a value nor a flag:
         // one value, for the mandatory argument, and nothing else.
-        assert_eq!(values[21].effective_signature(), Some(&EffectiveSignature::new(1, [])));
+        assert_eq!(values[21].effective_signature(), Some(&EffectiveSignature::new([0], [])));
         // A definition that is not recomposable carries none.
         assert_eq!(values[0].effective_signature(), None);
         // Three of this roster are written expanded, one of each class that a

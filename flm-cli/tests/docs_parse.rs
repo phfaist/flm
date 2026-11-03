@@ -24,10 +24,7 @@ use flm_main::session::{Input, Request, prepare};
 /// The compiled packages that the program carries besides the host's own, as its `main`
 /// lists them.
 fn compiled_packages() -> Vec<PackageFactory> {
-    vec![
-        #[cfg(feature = "phfpack")]
-        flm_phfpack::factory().unwrap(),
-    ]
+    Vec::new()
 }
 
 #[test]

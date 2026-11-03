@@ -99,13 +99,13 @@
     "flm.heading@1:1#0": "sec-intro",
     "flm.heading@7:1#0": "sec-fmt",
     "flm.heading@13:1#0": "sec--Math",
-    "flm.math.environment@18:1#0": "eq--1opqm",
-    "flm.math.environment@22:1#0": "eq--2oqua",
-    "flm.math.environment@22:1#1": "eq--3oqke",
     "flm.heading@27:1#0": "sec--Verbatim",
     "flm.heading@38:1#0": "sec--Definitions",
     "flm.heading@43:1#0": "sec--References",
-    "flm.heading@47:1#0": "sec--Unnumbered"
+    "flm.heading@47:1#0": "sec--Unnumbered",
+    "flm.math.environment@18:1#0": "eq--1opqm",
+    "flm.math.environment@22:1#0": "eq--2oqua",
+    "flm.math.environment@22:1#1": "eq--3oqke"
   },
   "flm.refs.targets": {
     "sec:fmt": {

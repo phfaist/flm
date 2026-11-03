@@ -238,7 +238,9 @@ pub use techy;
 /// dependency of your own, for the reason given at [`techy`].
 pub use untechxt;
 
-// See decision rationale at [§flm-dd-dr:docs-feature].
+// The cargo feature `docs` is tested in this one function, which each builder
+// calls in its own body, never where a builder is called: those calls number
+// in the hundreds, and every one added would have to remember the test.
 /// Returns the documentation text `docs` as a builder method stores it: the
 /// text itself when the cargo feature `docs` is on, and an empty text when it
 /// is off, so that a build without the feature keeps no documentation text.
@@ -265,8 +267,7 @@ pub(crate) fn kept_docs(docs: impl Into<String>) -> String {
 // The module layering stated in the crate documentation above is not something
 // the compiler enforces; `tests/module_layering.rs` reads the source tree and
 // fails on any `crate::` path pointing upward, and its ALLOWED table has to be
-// updated whenever a top-level module is added or renamed. See the architecture
-// notes at [§flm-dd-arch:crates].
+// updated whenever a top-level module is added or renamed.
 pub mod core;
 pub mod dump;
 pub mod lang;

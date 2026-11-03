@@ -289,7 +289,9 @@ impl SourceSettings {
 /// each call it opens the cache, sets up the crate, fetches, makes the citation entries
 /// and drops everything else, so that nothing of one call is kept for the next except the
 /// cache file.
-// See decision rationale at [§flm-dd-dr:host-citations-per-call]
+// The crate's manager is built in each call, never kept: it holds its reporter as `Rc` and
+// its store and sources without `Send`, while a provider of the library's slot must be
+// `Send + Sync`.
 #[derive(Debug, Clone)]
 pub struct StandardProvider {
     config: ProviderConfig,
@@ -437,7 +439,9 @@ impl StandardProvider {
             SourceSettings::Manual {} => manager.register(prefix, ManualSource::new(FLM_MARKUP)),
             SourceSettings::Bib { files } => {
                 let files = files.clone().unwrap_or_else(|| self.config.bibliography.clone());
-                // See decision rationale at [§flm-dd-dr:host-citations-bib-read-each-call]
+                // The lifetime zero keeps what the files hold out of the cache file: the files
+                // are read at every call, so they are among the files the build read, and a
+                // file changed since the last build changes the entries.
                 let bib = BibliographyFileSource::new(files).with_parser(parse_records).with_ttl(Duration::ZERO);
                 manager.register(prefix, bib)
             }
@@ -635,8 +639,9 @@ impl CitationProvider for StandardProvider {
                 if let Some(id) = record.get("id").and_then(CslValue::as_str) {
                     answer = answer.with_identity(id);
                 }
-                // Two keys cited as two works where this key's chain leads to the other.
-                // See decision rationale at [§flm-dd-dr:host-citations-chain-warning]
+                // Two keys cited as two works where this key's chain leads to the other: they
+                // stay two works, since the author may mean the distinction, and the warning
+                // tells the author that the two keys lead to the same work.
                 for (other, identity) in keys.iter().zip(&identities) {
                     if identity.as_ref().is_some_and(|identity| chain.contains(identity)) {
                         answer = answer.with_warning(chained_warning(key, other));

@@ -22,7 +22,7 @@ use flm_core::stdcore::features::refs::Anchors as CoreAnchors;
 use flm_core::techy::core::node::NodeTree;
 use serde_json::Value;
 
-use crate::adapter::stage::{root_of, tree_id_of};
+use crate::adapter::stage::{tree_id_of, tree_of};
 use crate::adapter::values::{field, fields};
 use crate::api::model::aspects::PointId;
 use crate::api::stdcore::features::numbering::{CounterRecord, Counters, NumberSegment};
@@ -43,6 +43,18 @@ pub trait PointsCore {
     /// not one the reader can see, or its node index is past the tree's end
     /// ([`ExtError::Argument`]).
     fn point_from_value(&self, token: Token, method: &str, value: &Value) -> Result<PointId, ExtError>;
+
+    /// The point of index `index` at the node of index `node` in the tree
+    /// whose identifier is written `tree`, read back against the trees the
+    /// reader can see: the parts of a point that the guest client's typed
+    /// route gives where a request sent as JSON writes them as data
+    /// ([`point_from_value`](PointsCore::point_from_value)).
+    ///
+    /// # Errors
+    ///
+    /// Its tree is not one the reader can see, or its node index is past the
+    /// tree's end ([`ExtError::Argument`]).
+    fn point_at(&self, token: Token, method: &str, tree: &str, node: usize, index: u32) -> Result<PointId, ExtError>;
 }
 
 /// The document's frozen trees, as a stage's context holds them.
@@ -76,7 +88,6 @@ impl Seen<'_> {
     fn point(&self, method: &str, value: &Value) -> Result<PointId, ExtError> {
         const WHAT: &str = "a point's identifier";
         const ADDR: &str = "a point's address";
-        let refuse = |detail: String| ExtError::Argument { method: method.to_string(), detail };
         let map = fields(WHAT, value, &["addr", "index"])?;
         let index = number(WHAT, "index", field(&map, "index"))?;
         let addr = fields(ADDR, field(&map, "addr"), &["tree", "node"])?;
@@ -87,6 +98,13 @@ impl Seen<'_> {
                 return Err(ExtError::Value { detail: format!("the field `tree` of {ADDR} must be a text, not `{other}`") });
             }
         };
+        self.point_at(method, text, node as usize, index)
+    }
+
+    /// The point of `index` at the node `node` of the tree written `text`
+    /// (see [`PointsCore::point_at`]).
+    fn point_at(&self, method: &str, text: &str, node: usize, index: u32) -> Result<PointId, ExtError> {
+        let refuse = |detail: String| ExtError::Argument { method: method.to_string(), detail };
         let (id, tree) = match *self {
             Seen::Rule { id, tree } => {
                 if id.to_string() != text {
@@ -105,8 +123,12 @@ impl Seen<'_> {
                 }
             }
         };
-        let found = tree.slice(node..node.saturating_add(1)).and_then(|slice| slice.first());
-        let Some(found) = found.filter(|_| node < u32::MAX) else {
+        let found = u32::try_from(node)
+            .ok()
+            .filter(|node| *node < u32::MAX)
+            .and_then(|node| tree.slice(node..node + 1))
+            .and_then(|slice| slice.first());
+        let Some(found) = found else {
             return Err(refuse(format!(
                 "the address of the point must name a node of the tree `{id}`: it has {} nodes, not a node {node}",
                 tree.node_count()
@@ -146,6 +168,10 @@ impl PointsCore for CountersFacade<'_> {
     fn point_from_value(&self, _: Token, method: &str, value: &Value) -> Result<PointId, ExtError> {
         self.seen.point(method, value)
     }
+
+    fn point_at(&self, _: Token, method: &str, tree: &str, node: usize, index: u32) -> Result<PointId, ExtError> {
+        self.seen.point_at(method, tree, node, index)
+    }
 }
 
 impl Counters for CountersFacade<'_> {
@@ -159,7 +185,7 @@ impl Counters for CountersFacade<'_> {
         })
     }
 
-    fn format<'s>(&self, point: PointId, options: &FormatOptions) -> Result<Option<Vec<NumberSegment<'s>>>, ExtError> {
+    fn format(&self, point: PointId, options: &FormatOptions) -> Result<Option<Vec<NumberSegment>>, ExtError> {
         match self.table.format(point, options) {
             None => Ok(None),
             Some(Err(error)) => {
@@ -168,7 +194,7 @@ impl Counters for CountersFacade<'_> {
             Some(Ok(segments)) => Ok(Some(
                 segments
                     .iter()
-                    .map(|segment| NumberSegment { content: root_of(segment.content()), link: segment.link() })
+                    .map(|segment| NumberSegment { content: tree_of(segment.content()), link: segment.link() })
                     .collect(),
             )),
         }
@@ -196,6 +222,10 @@ impl Sealed for AnchorsFacade<'_> {}
 impl PointsCore for AnchorsFacade<'_> {
     fn point_from_value(&self, _: Token, method: &str, value: &Value) -> Result<PointId, ExtError> {
         self.seen.point(method, value)
+    }
+
+    fn point_at(&self, _: Token, method: &str, tree: &str, node: usize, index: u32) -> Result<PointId, ExtError> {
+        self.seen.point_at(method, tree, node, index)
     }
 }
 

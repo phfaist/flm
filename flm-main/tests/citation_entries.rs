@@ -80,7 +80,7 @@ fn link(address: &str, text: &str) -> String {
     format!("<a class=\"flm-pres-link\" href=\"{address}\" data-flm-kind=\"url\">{text}</a>")
 }
 
-// --- acceptance 1: the probe's entries in the shipped style, special characters, links -----
+// --- the probe's entries in the shipped style, special characters, links -------------------
 
 #[test]
 fn the_probe_s_records_are_set_in_the_shipped_style_with_their_links() {
@@ -165,7 +165,7 @@ fn a_record_whose_date_is_a_range_has_no_entry() {
     assert!(errors(&built).iter().any(|error| error.contains("must be a single date, not a range")), "{:?}", errors(&built));
 }
 
-// --- acceptance 2: an entry depends on its record alone -----------------------------------
+// --- an entry depends on its record alone -------------------------------------------------
 
 #[test]
 fn an_entry_formatted_alone_and_among_others_are_equal() {
@@ -177,7 +177,7 @@ fn an_entry_formatted_alone_and_among_others_are_equal() {
     assert_eq!(alone[0], among[1]);
 }
 
-// --- acceptance 3: an article of Physical Review A ----------------------------------------
+// --- an article of Physical Review A ------------------------------------------------------
 
 #[test]
 fn the_entry_of_an_article_of_physical_review_a_as_it_reads() {
@@ -196,7 +196,7 @@ fn the_entry_of_an_article_of_physical_review_a_as_it_reads() {
     );
 }
 
-// --- acceptance 4: a style of the archive, a style file, and the styles refused -------------
+// --- a style of the archive, a style file, and the styles refused ---------------------------
 
 /// A style writing a work's title alone, as a style file of the author's.
 const TITLES: &str = r#"<?xml version="1.0" encoding="utf-8"?>

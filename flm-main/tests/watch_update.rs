@@ -83,7 +83,7 @@ fn file(path: &str, entry: bool, bytes: &[u8]) -> NamedFile {
     }
 }
 
-// --- acceptance 1: nothing changed --------------------------------------------------------
+// --- nothing changed ----------------------------------------------------------------------
 
 #[test]
 fn two_builds_of_the_same_files_give_an_update_that_names_nothing() {
@@ -94,7 +94,7 @@ fn two_builds_of_the_same_files_give_an_update_that_names_nothing() {
     assert_eq!(update.to_json()["page"], "same");
 }
 
-// --- acceptance 2: a region changed --------------------------------------------------------
+// --- a region changed ----------------------------------------------------------------------
 
 #[test]
 fn a_change_inside_the_content_names_the_content_region_alone_with_its_new_html() {
@@ -130,7 +130,7 @@ fn a_change_to_the_title_names_the_title_and_its_words() {
     assert_eq!(words.text, "Other notes");
 }
 
-// --- acceptance 3: the page loaded anew ----------------------------------------------------
+// --- the page loaded anew ------------------------------------------------------------------
 
 #[test]
 fn the_first_formula_of_a_document_asks_for_the_page_to_be_loaded_anew() {
@@ -170,7 +170,7 @@ fn the_first_build_asks_for_the_page_to_be_loaded() {
     assert!(files.is_empty(), "the page's own file is not among the files: {files:?}");
 }
 
-// --- acceptance 4: the files beside the page -----------------------------------------------
+// --- the files beside the page -------------------------------------------------------------
 
 #[test]
 fn a_file_beside_the_page_is_named_when_its_bytes_changed_appeared_or_went() {
@@ -248,7 +248,7 @@ fn a_leading_output_in_latex_rendered_serves_its_document_and_its_style_file() {
     assert!(tex.contains(&format!("\\usepackage{{{}}}", style.trim_end_matches(".sty"))), "{tex}");
 }
 
-// --- acceptance 5: a document with problems ------------------------------------------------
+// --- a document with problems --------------------------------------------------------------
 
 #[test]
 fn a_document_with_an_error_gives_the_changed_regions_and_the_problems_with_their_places() {

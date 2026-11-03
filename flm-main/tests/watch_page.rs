@@ -453,7 +453,7 @@ fn formula(source: &str) -> String {
     format!("<span class=\"flm-pres-math--passthrough\" data-flm-display=\"inline\">\\({source}\\)</span>")
 }
 
-// --- acceptance 1: a region brought up to date in place, with nothing of the preview sent -
+// --- a region brought up to date in place, with nothing of the preview sent ---------------
 
 #[test]
 fn a_changed_region_is_brought_up_to_date_in_place_and_the_page_defines_no_global_name() {
@@ -462,7 +462,7 @@ fn a_changed_region_is_brought_up_to_date_in_place_and_the_page_defines_no_globa
     assert_eq!(preview.built(), 1);
     let Some(mut page) = Page::open(&preview.url()) else { return preview.stop() };
     page.wait("document.querySelector('.flm-preview-toolbar') !== null");
-    // Acceptance 9: the page script's own parts and `morphdom` define no name. The copy of
+    // The page script's own parts and `morphdom` define no name. The copy of
     // the polyfill library `core-js` that `@json-editor/json-editor` bundles makes four
     // changes when the script loads (`vendor/json-editor/README.md`): it adds
     // `__core-js_shared__` to the window, adds `useSetter` and `useSimple` to `Symbol`, and
@@ -499,7 +499,7 @@ fn a_changed_region_is_brought_up_to_date_in_place_and_the_page_defines_no_globa
     preview.stop();
 }
 
-// --- acceptance 2 and 3: the contract, and the formula renderer's part in it ----------------
+// --- the contract, and the formula renderer's part in it ------------------------------------
 
 #[test]
 fn a_typeset_formula_whose_source_did_not_change_is_kept_and_the_others_are_typeset() {
@@ -555,7 +555,7 @@ fn the_event_reaches_the_region_and_the_document_with_the_region_and_the_changed
     );
 }
 
-// --- acceptance 4: the page loaded anew, the title set ----------------------------------------
+// --- the page loaded anew, the title set ------------------------------------------------------
 
 #[test]
 fn an_update_that_asks_for_it_loads_the_page_anew_and_the_title_is_set_without_that() {
@@ -625,7 +625,7 @@ fn a_page_knows_its_build_from_the_answer_that_carried_it() {
     assert_eq!(page.eval("window.flmKept === true"), json!(true));
 }
 
-// --- acceptance 5 and 6: the toolbar's state, the tool Problems -------------------------------
+// --- the toolbar's state, the tool Problems ---------------------------------------------------
 
 #[test]
 fn the_state_shows_a_build_under_way_and_the_count_of_problems_otherwise() {
@@ -713,7 +713,7 @@ fn the_problems_are_listed_and_marked_and_a_click_leads_to_the_first_marked_elem
     assert_eq!(page.eval("document.querySelectorAll('.flm-preview-problem').length"), json!(0));
 }
 
-// --- acceptance 7: the images and the files beside the page -----------------------------------
+// --- the images and the files beside the page -------------------------------------------------
 
 #[test]
 fn a_changed_image_is_shown_and_a_file_changed_under_its_path_is_loaded_anew() {
@@ -737,7 +737,7 @@ fn a_changed_image_is_shown_and_a_file_changed_under_its_path_is_loaded_anew() {
     assert_eq!(stage.asked("/figure.svg"), 2);
 }
 
-// --- acceptance 8: a page that connects again ----------------------------------------------
+// --- a page that connects again ------------------------------------------------------------
 
 #[test]
 fn a_page_connects_again_by_itself_and_loads_itself_anew_when_the_document_changed() {
@@ -767,7 +767,7 @@ fn a_page_connects_again_by_itself_and_loads_itself_anew_when_the_document_chang
     preview.stop();
 }
 
-// --- acceptance 10: the tools Rebuild and Outputs -------------------------------------------
+// --- the tools Rebuild and Outputs ----------------------------------------------------------
 
 #[test]
 fn rebuild_sends_the_request_and_the_state_shows_the_build_that_follows() {
@@ -812,7 +812,7 @@ fn outputs_shows_the_four_commands_with_the_document_s_name() {
     wait_until("the request to build again", || (stage.state.lock().unwrap().rebuilds == 1).then_some(()));
 }
 
-// --- acceptance 11: the waiting page -----------------------------------------------------------
+// --- the waiting page --------------------------------------------------------------------------
 
 #[test]
 fn the_waiting_page_shows_the_problems_and_is_replaced_by_the_document_once_built() {
@@ -832,7 +832,7 @@ fn the_waiting_page_shows_the_problems_and_is_replaced_by_the_document_once_buil
     preview.stop();
 }
 
-// --- acceptance 12: messages that are not understood ---------------------------------------
+// --- messages that are not understood ------------------------------------------------------
 
 #[test]
 fn no_message_the_script_does_not_understand_breaks_the_page() {

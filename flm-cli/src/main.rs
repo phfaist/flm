@@ -19,15 +19,14 @@ fn main() -> ExitCode {
     }
 }
 
-/// Returns the compiled packages that the program carries, each included under the cargo
-/// feature of the same name: `phfpack` (on by default).
+/// Returns the compiled packages that the program carries besides the host's own: none.
+/// The packages shipped with FLM come with the extensions compiled into the program (the
+/// cargo feature `bundled-extensions`). A program of its own over [`flm_cli::run`] lists
+/// its own package factories in a function of this shape.
 ///
 /// # Errors
 ///
 /// The error of a package factory that cannot be made.
 fn compiled_packages() -> Result<Vec<PackageFactory>, PackageError> {
-    Ok(vec![
-        #[cfg(feature = "phfpack")]
-        flm_phfpack::factory()?,
-    ])
+    Ok(Vec::new())
 }

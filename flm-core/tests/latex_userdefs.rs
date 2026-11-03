@@ -363,7 +363,7 @@ fn the_kept_rules_are_registered_per_per_plan_definition_and_the_placeholder_rul
     assert!(build_diagnostics(&registry).is_empty(), "{:?}", build_diagnostics(&registry));
 }
 
-// --- the acceptance: the spine's definitions -------------------------------------------------
+// --- the spine's definitions -----------------------------------------------------------------
 
 #[test]
 fn the_spines_definitions_are_recomposed_as_calls_beside_their_definitions() {
@@ -2014,6 +2014,33 @@ See \\ref{sec:thm}.
     );
     let printed = body(&expanded);
     assert!(printed.contains("\\textbf{Euclid} and \\textbf{Thales} then text."), "{printed}");
+}
+
+#[test]
+fn an_argument_declared_after_a_tack_on_argument_writes_its_value_group_at_every_call() {
+    // A tack-on argument may stand anywhere in its argument list: here an
+    // optional argument follows it. The tack-on argument carries no value, so
+    // the definition takes two arguments, the title and `extra`, and every
+    // call writes both groups: the call that absorbs a `\label` and writes
+    // `extra`, and the call that writes neither, whose group holds the
+    // declared default.
+    let claim = Definition::macro_(
+        "claim",
+        vec![ArgDef::mandatory("title"), thm_label_arg(), ArgDef::optional("extra")],
+    )
+    .content("\\textbf{#{title}} (#{extra})")
+    .default("extra", "none");
+    let document = "\\claim{Euclid}\\label{c:euclid}[proof] and \\claim{Thales} then text.\n";
+    let run = run_workflow(&registry_over(vec![claim]), WORKFLOW, &[document], &tack_on_holes());
+    let (style, _) = style(&run);
+    assert!(style.contains("\\providecommand\\flmUDclaim[2]{\\textbf{#1} (#2)}\n"), "{style}");
+    let text = body(&run);
+    assert!(
+        text.contains("\\flmUDclaim{Euclid}{proof} and \\flmUDclaim{Thales}{none} then text."),
+        "{text}"
+    );
+    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_golden("userdefs-tack-on-then-optional.tex", &run);
 }
 
 #[test]

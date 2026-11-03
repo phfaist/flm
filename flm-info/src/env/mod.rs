@@ -29,7 +29,7 @@
 //! that holds a documentation text holds its summary too.
 
 // The query API is the primary API of flm-info; the description and the pages derive from
-// its views. See decision rationale at [§flm-dd-dr:info-single-source].
+// its views, since a description assembled twice drifts apart.
 
 mod commands;
 mod entities;
@@ -184,15 +184,18 @@ impl Environment {
     }
 
     /// The commands written for the element value `element`: every declaration whose
-    /// nodes carry it, and every tack-on field whose nodes carry it.
+    /// nodes carry it and, when it is the language's field element (the structural
+    /// element `flm.field`), every tack-on field that a declaration lists among the fields
+    /// of its arguments, since every tack-on field's node carries that element.
     pub(super) fn commands_for(&self, element: &Arc<ElementSpec>) -> Vec<CommandRef> {
+        let tack_on = Arc::ptr_eq(element, &self.registry.structural().field);
         let mut out = Vec::new();
         for (def, within) in self.all_declarations() {
             if Arc::ptr_eq(&def.element, element) {
                 out.extend(command_refs(def, within, None));
             }
-            for field in fields_of(def.syntax.args()) {
-                if Arc::ptr_eq(field.element(), element) {
+            if tack_on {
+                for field in fields_of(def.syntax.args()) {
                     out.push(CommandRef {
                         kind: CallableKind::Macro,
                         name: field.name.clone(),

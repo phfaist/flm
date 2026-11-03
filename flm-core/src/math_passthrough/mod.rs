@@ -148,9 +148,12 @@
 //!   rules marked for every backend and their bodies.
 //! - [`latex`] — the rules for the `latex-recomposed` backend.
 
-// Why an environment fallback beside the macro one, and why no specials
-// fallback (an unknown trigger character is not a specials): see design
-// rationale at [§flm-dd-dr:std-math-fallback] and [§flm-dd-dr:lang-math-opaque].
+// An environment fallback stands beside the macro one because an alignment
+// environment nested inside displayed mathematics is the common case. There is
+// no fallback for special characters: an unrecognized trigger character is not
+// a special character, so such a fallback could never apply. The source of a
+// formula is kept as written because it goes to a formula engine or is printed
+// literally, where any normalization would corrupt it.
 
 pub mod check;
 pub mod latex;

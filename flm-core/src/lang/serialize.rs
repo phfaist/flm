@@ -71,17 +71,23 @@
 //! cannot say which value a node carried. A node extension is therefore written
 //! with the name *and*, when the write environment records which registered
 //! specification carries that exact value, a reference to that specification.
-//! When reading, the element is taken from the specification, by identity; the
-//! element resolver is used only for elements that no specification carries
-//! (the structural elements, and the elements of the two self-contained
-//! specifications). Without a write environment, only the name is written and
-//! the resolver decides.
+//! When reading, the element is taken from the specification, by identity. An
+//! element written without a specification is looked up by its name: a
+//! structural element is the reading language's own, and any other element is
+//! the element resolver's answer. Two kinds of elements are written so: the
+//! structural elements, which the write environment of a language
+//! ([`WriteEnvironment::for_lang`]) never records, and the elements of the two
+//! self-contained specifications. Without a write environment, only the name is
+//! written.
 //!
 //! For the same reason, a name shared by several values is refused, not
 //! guessed, where only a name is available: the resolver returns
-//! [`AmbiguousElement`], and the read fails with it as the cause. The element
-//! of a parsed callable is always read through its specification and never
-//! depends on the resolver.
+//! [`AmbiguousElement`], and the read fails with it as the cause. With the write
+//! environment of a language, the element of a parsed callable never depends on
+//! the resolver: it is read through its specification, or, for the node of a
+//! tack-on field, which carries the structural field element
+//! ([`StructuralElements::field`]), as the reading language's own element of
+//! that name.
 //!
 //! # Serialized names
 //!
@@ -107,6 +113,7 @@ use techy::serialize::{
 
 use crate::model::element::ElementSpec;
 use crate::model::names::ElementName;
+use crate::lang::build::BuiltLang;
 use crate::lang::ext::{FlmNodeExt, FlmStateExt, PresPayload, TextSourceMap, RestrictedInterior};
 use crate::lang::flm::{Flm, FlmCallableType};
 use crate::lang::mint::specs::element_of_spec;
@@ -384,10 +391,9 @@ fn resolve_element(
 /// Without this environment, a node extension writes the name alone, and the
 /// reading side's element resolver decides.
 ///
-/// Build one from a language's providers with
-/// [`WriteEnvironment::for_providers`], and set it as the session's user data;
-/// [`crate::dump::session::writer`] does both. Its public path is
-/// [`crate::dump::session::WriteEnvironment`].
+/// Build a language's environment with [`WriteEnvironment::for_lang`], and set
+/// it as the session's user data; [`crate::dump::session::writer`] does both.
+/// Its public path is [`crate::dump::session::WriteEnvironment`].
 #[derive(Default)]
 pub struct WriteEnvironment {
     /// Keyed by the element value's identity (its `Arc` pointer); the
@@ -399,6 +405,27 @@ impl WriteEnvironment {
     /// Returns an environment that records no element yet.
     pub fn new() -> WriteEnvironment {
         WriteEnvironment::default()
+    }
+
+    /// Returns the environment of a writing session over `lang`. It records the
+    /// specifications of every provider of the language, those of its initial
+    /// parsing state followed by [`BuiltLang::providers`], as
+    /// [`for_providers`](Self::for_providers) does, and leaves out the
+    /// structural elements ([`BuiltLang::structural`]): a node carrying one is
+    /// written with the element's name alone, which the reading side resolves
+    /// to its own structural element of that name.
+    ///
+    /// Of the structural elements, only the field element
+    /// ([`StructuralElements::field`]) is carried by specifications that a
+    /// provider lists: the specification of every tack-on field carries it,
+    /// so none of them identifies it better than its name.
+    pub fn for_lang(lang: &BuiltLang) -> WriteEnvironment {
+        let providers = lang.initial_state().scopes().providers().iter().chain(lang.providers());
+        let mut environment = WriteEnvironment::for_providers(providers);
+        for element in lang.structural().all() {
+            environment.element_specs.remove(&(Arc::as_ptr(element) as usize));
+        }
+        environment
     }
 
     /// Returns the environment built by asking each of `providers` for the
@@ -413,11 +440,15 @@ impl WriteEnvironment {
     /// order, so between features, the specification of the feature placed
     /// last. Within one provider, the first one found is recorded.
     ///
-    /// Pass [`BuiltLang::providers`](crate::lang::BuiltLang::providers).
+    /// Every element that a specification carries is recorded, a structural
+    /// element included; [`for_lang`](Self::for_lang) builds the environment
+    /// of a language, without its structural elements.
     pub fn for_providers<'a>(
         providers: impl IntoIterator<Item = &'a Arc<dyn SpecsProvider<Flm>>>,
     ) -> WriteEnvironment {
-        // See decision rationale at [§flm-dd-dr:feat-order].
+        // Between features, the one placed last wins, as wherever the
+        // registration order picks between items of several features, so that
+        // the order the user states decides.
         let providers: Vec<&Arc<dyn SpecsProvider<Flm>>> = providers.into_iter().collect();
         let mut environment = WriteEnvironment::new();
         for provider in providers.into_iter().rev() {
@@ -892,7 +923,7 @@ mod tests {
         let mut inputs = LangInputs::new();
         inputs.elements.push(def);
         let lang = build_language(inputs);
-        let environment = WriteEnvironment::for_providers(lang.providers());
+        let environment = WriteEnvironment::for_lang(&lang);
         let spec = environment.spec_of(&element).expect("the element's spec is indexed");
         assert!(Arc::ptr_eq(element_of_spec(&**spec).unwrap(), &element));
         assert!(environment.spec_of(&lang.structural().text).is_none());

@@ -1,7 +1,7 @@
 //! The reader of the extension API's sources: every `.rs` file under
 //! `src/api/`, in sorted path order, parsed with `syn`, read into the
 //! *inventory* — the surface as the generator sees it — and each item
-//! classified by the rules of the plan's section 3.2 (`dev-docs/ext/e2b`).
+//! classified by the rules stated below.
 //!
 //! # What is read
 //!
@@ -82,7 +82,7 @@ pub struct Item {
     pub name: String,
     /// The first sentence of the item's rustdoc.
     pub doc: String,
-    /// How the generator treats the item (the plan's section 3.2).
+    /// How the generator treats the item.
     pub class: ItemClass,
     /// Whether the item takes a lifetime parameter (`Node<'t>`), which its
     /// normalized name in a type leaves out: the generated dispatcher writes
@@ -92,7 +92,7 @@ pub struct Item {
     pub kind: ItemKind,
 }
 
-/// The class of an item: the rule of the plan's section 3.2 it matches.
+/// The class of an item: the rule it matches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ItemClass {
     /// Rule 1: a sealed façade trait (a supertrait `Sealed` or `…Core`).
@@ -228,7 +228,7 @@ pub struct Param {
 }
 
 /// The first statement of an inherent method, read as one of the three
-/// builder patterns of the plan's section 3.2.
+/// builder patterns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FirstStatement {
     /// `self.<field>.push(…);`
@@ -263,17 +263,16 @@ impl Inventory {
     ///
     /// # Panics
     ///
-    /// With the texts of the plan's section 8: a file that does not parse;
-    /// an item that matches no rule; a builder method of a data class whose
-    /// first statement is none of the three patterns.
+    /// On a file that does not parse, an item that matches no rule, and a
+    /// builder method of a data class whose first statement is none of the
+    /// three patterns.
     pub fn read(crate_root: &Path) -> Inventory {
         let root = crate_root.join(API_DIR);
         let mut files = Vec::new();
         collect_files(&root, &mut files);
         files.sort();
-        // Only the modules with items, in the order of their module paths
-        // (the supervisor's ruling S6): a `mod.rs` with no item is no module
-        // of the surface.
+        // Only the modules with items, in the order of their module paths: a
+        // `mod.rs` with no item is no module of the surface.
         let mut modules: Vec<Module> =
             files.iter().map(|file| read_module(crate_root, &root, file)).filter(|module| !module.items.is_empty()).collect();
         modules.sort_by(|a, b| a.path.cmp(&b.path));
@@ -746,9 +745,10 @@ fn collapse(text: &str) -> String {
     out
 }
 
-// --- the classification (the plan's section 3.2) --------------------------------------------
+// --- the classification ---------------------------------------------------------------------
 
-/// Classifies every item of `module` by the rules of the plan's section 3.2.
+/// Classifies every item of `module` by the rules the variants of
+/// `ItemClass` state.
 fn classify(module: &mut Module) {
     let file = module.file.clone();
     for item in &mut module.items {

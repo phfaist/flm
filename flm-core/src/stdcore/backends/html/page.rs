@@ -353,7 +353,6 @@ fn place(sink: &mut HtmlSink, region: Option<&Region>) {
         // bytes themselves keep the indentation they were written with, since
         // re-indenting them where they land would be a pass over finished
         // output.
-        // See decision rationale at [§flm-dd-dr:rend-html-format].
         sink.markup_block(&Markup::from_library(part.clone()));
     }
 }
@@ -382,7 +381,6 @@ fn definition_parts(
                 // its content itself, through the `definitions` option. One
                 // condition serves this and the refused text below, since the
                 // recovery is the same.
-                // See decision rationale at [§flm-dd-dr:rend-html-definition-delivery].
                 DefContent::File(path) => Err(DefinitionNotInlinable {
                     definition: definition.id.to_string(),
                     part: NotInlinablePart::File { path: path.clone() },

@@ -219,7 +219,10 @@ fn placements(
         else {
             continue;
         };
-        // See decision rationale at [§flm-dd-dr:std-input-placing-node-span].
+        // A placing node is found by its span: every rewrite keeps a copied
+        // node's span, and two distinct commands never share one, so the node
+        // needs no identifier of its own. A template that writes the command
+        // twice makes several copies, the later ones reported below.
         let mut copies = candidates.iter().filter_map(|addr| {
             let node = tree.get(addr.node)?;
             (node.span() == parsed.span()).then_some((*addr, node))

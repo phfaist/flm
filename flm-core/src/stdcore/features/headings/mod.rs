@@ -1004,8 +1004,8 @@ impl HeadingsConfig {
     // parents, and the texts of `numbers` are the Python product's shipped
     // defaults, read from its headings feature, except that `paragraph` is
     // numbered within whichever of the three kinds above it came last rather
-    // than within `subsubsection` alone. See decision rationale at
-    // [§flm-dd-dr:std-heading-counters].
+    // than within `subsubsection` alone, so that a `\paragraph` directly under a
+    // `\subsection` is numbered too, and restarts there as it does in LaTeX.
     pub fn new() -> HeadingsConfig {
         let letters = || NumberTemplate::formats("#{alph}");
         let counter = |kind: &str| format!("{COUNTER_PREFIX}{kind}");
@@ -1777,7 +1777,6 @@ impl HeadingRule {
         // off; both are a heading with no number. The number is staged inside
         // the heading's content rather than in its payload, so that a backend
         // measuring the heading measures it.
-        // See decision rationale at [§flm-dd-dr:std-heading-number-place].
         let options = FormatOptions::new().without_word().without_delimiters();
         let written = {
             let Some(counters) = lw.get(COUNTERS)? else { return Ok(Vec::new()) };

@@ -14,6 +14,7 @@ export const AcceptedRefTypes = Object.freeze({
 export const BlockRole = Object.freeze({
   Block: "block",
   Inline(spacing) { return { inline: spacing }; },
+  Displayed: "displayed",
   BlockDecorator(placement) { return { "block-decorator": placement }; },
   DEFAULT: Object.freeze({ inline: Object.freeze({ absorb_before: false, absorb_after: false }) }),
 });
@@ -78,5 +79,5 @@ export const ContentRef = Object.freeze({
   ArgumentNamed(name) { return { argument_named: name }; },
   Body: "body",
   Node(node) { return { node }; },
-  Synthesized(root) { return { synthesized: root }; },
+  Synthesized(tree) { return { synthesized: tree }; },
 });

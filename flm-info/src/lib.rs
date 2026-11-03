@@ -102,8 +102,9 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
-// A crate of its own, above the host library, whose core needs flm-core alone. See decision
-// rationale at [§flm-dd-dr:info-crate].
+// A crate of its own, above the host library, whose core needs flm-core alone: inside flm-core
+// or flm-main, the introspection would weigh on every user of those crates, and an embedder
+// of flm-core alone, WebAssembly included, can still query its own registry.
 
 pub mod describe;
 pub mod dump;

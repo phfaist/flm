@@ -1055,10 +1055,12 @@ impl Plan {
         // refinement closure meets the closure of a direct provide would rule
         // out every provider of that requirement, the stage's own commitment
         // included. Requiring the parent of a capability the stage provides
-        // falls under that too. The reported pair is the name-least one, so the
-        // message does not depend on registration order. See the design
-        // rationale at [§flm-dd-dr:pipe-self-exclusion] and
-        // [§flm-dd-dr:pipe-stage-atomicity].
+        // falls under that too. A stage is selected as a whole, and committing
+        // it excludes every other stage that shares a capability with it, so
+        // such a requirement constrains nothing and is almost always a
+        // modeling mistake, which the check turns into a message. The reported
+        // pair is the name-least one, so the message does not depend on
+        // registration order.
         for entry in reg.stages() {
             let plan = &manifests[&entry.idx];
             let direct: Vec<CapId> = entry

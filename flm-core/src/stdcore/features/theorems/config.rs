@@ -368,8 +368,9 @@ impl Default for TheoremsConfig {
     }
 }
 
-// The shipped classes and kinds, with the Python product's words. See
-// decision rationale at [§flm-dd-dr:std-theorem-words].
+// The shipped classes and kinds, with the Python product's words. Every form of
+// a word is written out, the abbreviation included: an abbreviation derived from
+// the word (its first letters and a period) is wrong for many words.
 impl TheoremsConfig {
     /// A configuration holding the three shipped classes and no kind.
     fn with_shipped_classes() -> TheoremsConfig {

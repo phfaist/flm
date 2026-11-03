@@ -289,7 +289,7 @@ impl ListsConfig {
     /// `description` (see the type's documentation).
     // The three kinds and their labels by depth are the Python product's
     // shipped defaults; the reference templates drop the labels' trailing
-    // punctuation. See decision rationale at [§flm-dd-dr:std-list-kinds].
+    // punctuation, which a reference inside a sentence should not carry.
     pub fn new() -> ListsConfig {
         ListsConfig::empty()
             .environment("itemize", ListKind::unnumbered(["\u{2022}", "-", "\u{25b8}"]))

@@ -4,7 +4,13 @@
 use serde_json::{json, Value};
 
 use super::{get, object};
+#[cfg(feature = "native")]
+use crate::adapter::handles::CallTable;
+#[cfg(feature = "native")]
+use crate::adapter::typed::IntoApi;
 use crate::adapter::values::JsonForm;
+#[cfg(feature = "native")]
+use crate::api;
 use crate::api::techy::error::Severity;
 use crate::guest::techy::node::Node;
 use crate::runtime::ExtError;
@@ -90,5 +96,25 @@ impl JsonForm for Diagnostic {
             data,
             at: get(WHAT, map, "at")?,
         })
+    }
+}
+
+/// The api's `Diagnostic`, placed at the span of the node `at`'s handle
+/// stands for, its data given unless it is `null`; the host's
+/// `diagnostic_from_value`.
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for &Diagnostic {
+    type Api = api::techy::error::Diagnostic;
+
+    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        let mut diagnostic = api::techy::error::Diagnostic::new(self.severity, self.id.clone(), self.message.clone());
+        if !self.data.is_null() {
+            diagnostic = diagnostic.with_data(self.data.clone());
+        }
+        if let Some(at) = &self.at {
+            let node = at.into_api(table)?;
+            diagnostic = diagnostic.at(&*node);
+        }
+        Ok(diagnostic)
     }
 }

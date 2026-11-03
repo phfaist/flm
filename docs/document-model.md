@@ -130,8 +130,12 @@ The aspects the standard features share, and the aspects that state what an elem
 is, are declared in [`crate::model::aspects`]:
 
 - [`BlockRoleAspect`](crate::model::aspects::BlockRoleAspect) — whether an
-  occurrence is a block, inline content, or a *block decorator*, an element attached
-  to the block it occurs in ([`BlockRole`](crate::model::aspects::BlockRole)). Read
+  occurrence is a block, inline content, a *displayed item* (content set on lines of
+  its own inside its paragraph, such as a display equation), or a *block decorator*,
+  an element attached to the block it occurs in
+  ([`BlockRole`](crate::model::aspects::BlockRole); see [paragraphs, blocks and
+  displayed
+  items](crate::guide::concepts_overview#paragraphs-blocks-and-displayed-items)). Read
   it with [`block_role_of`](crate::model::aspects::block_role_of), which supplies the
   default for elements that declare none.
 - [`Referenceable`](crate::model::aspects::Referenceable) — the [reference

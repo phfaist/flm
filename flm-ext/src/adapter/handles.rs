@@ -138,9 +138,6 @@ pub enum HandleKind {
     Referenceable,
     /// A [`Sectioning`](api::model::aspects::Sectioning) the binding lent in.
     Sectioning,
-    /// An [`ArgDef`](api::lang::mint::ArgDef) a helper made
-    /// ([`label_fields_arg`](api::stdcore::features::refs::label_fields_arg)).
-    ArgDef,
     /// A [`BuiltLang`](api::lang::BuiltLang).
     BuiltLang,
     /// An [`FlmDiagnostics`](api::lang::FlmDiagnostics).
@@ -158,6 +155,8 @@ pub enum HandleKind {
     TemplateLanguage,
     /// A [`ValueBindings`](api::lang::rewrites::userdefs::ValueBindings).
     ValueBindings,
+    /// A [`Tree`](api::techy::node::Tree).
+    Tree,
 }
 
 impl HandleKind {
@@ -205,7 +204,6 @@ impl HandleKind {
             HandleKind::Module => "module",
             HandleKind::Referenceable => "referenceable",
             HandleKind::Sectioning => "sectioning",
-            HandleKind::ArgDef => "arg_def",
             HandleKind::BuiltLang => "built_lang",
             HandleKind::FlmDiagnostics => "flm_diagnostics",
             HandleKind::LateInit => "late_init",
@@ -214,6 +212,7 @@ impl HandleKind {
             HandleKind::Anchors => "anchors",
             HandleKind::TemplateLanguage => "template_language",
             HandleKind::ValueBindings => "value_bindings",
+            HandleKind::Tree => "tree",
         }
     }
 }
@@ -255,7 +254,7 @@ pub struct CallTable<'c> {
 /// a template) or that the binding lends in (a stage object) are owned, or
 /// record how to ask for the object again (a table piece).
 ///
-/// The ownership principle (plan A, A15): every object lent into the table is
+/// The ownership principle: every object lent into the table is
 /// owned, or borrows only something that lives for the whole call outside the
 /// table (the objects the adapter lent at the start). An object answered by a
 /// method owns what it points at, never a borrow of the entry it was asked on,
@@ -271,7 +270,7 @@ pub enum Entry<'c> {
     /// again: [`StageOut::table`](api::core::data::store::StageOut::table)
     /// answers a borrow of the output, which cannot be lent into the table
     /// that holds the output, so the dispatcher resolves
-    /// `out.table(&name)?` anew on every call on the piece (plan A, A17).
+    /// `out.table(&name)?` anew on every call on the piece.
     TablePiece {
         /// The handle of the [`StageOut`](api::core::data::store::StageOut)
         /// entry the piece belongs to.
@@ -282,7 +281,7 @@ pub enum Entry<'c> {
     /// A table of an extension's own, read.
     ExtTableRead(Box<dyn api::core::data::table::ExtTableRead + 'c>),
     /// A table of a rewrite's trees, read.
-    TreesTable(Box<dyn api::core::stage::TreesTable<'c> + 'c>),
+    TreesTable(Box<dyn api::core::stage::TreesTable + 'c>),
     /// A node.
     Node(Box<dyn api::techy::node::Node<'c> + 'c>),
     /// A key-value list.
@@ -328,7 +327,7 @@ pub enum Entry<'c> {
     /// A restaged slot a restager's method answered.
     RestagedSlot(Box<dyn api::techy::transform::RestagedSlot>),
     /// A table of a backend's lowered trees, read.
-    LoweredTrees(Box<dyn api::stdcore::backends::lowering::LoweredTrees<'c> + 'c>),
+    LoweredTrees(Box<dyn api::stdcore::backends::lowering::LoweredTrees + 'c>),
     /// A stage of the library a constructor made.
     LibraryStage(api::core::registry::LibraryStage),
     /// A host service the package declared, lent by
@@ -351,8 +350,6 @@ pub enum Entry<'c> {
     Referenceable(Arc<dyn api::model::aspects::Referenceable>),
     /// A sectioning aspect the binding lent in.
     Sectioning(Arc<dyn api::model::aspects::Sectioning>),
-    /// An argument a helper made.
-    ArgDef(api::lang::mint::ArgDef),
     /// The built language: lent to a late-initialization hook, or answered
     /// by a lowerer's or an expander's `lang()`.
     BuiltLang(LangEntry<'c>),
@@ -370,6 +367,8 @@ pub enum Entry<'c> {
     TemplateLanguage(api::lang::rewrites::userdefs::TemplateLanguage),
     /// Value bindings.
     ValueBindings(api::lang::rewrites::userdefs::ValueBindings),
+    /// A tree, shared.
+    Tree(Box<dyn api::techy::node::Tree>),
 }
 
 /// The built language in the call's table: lent, as a late-initialization
@@ -446,7 +445,6 @@ impl Entry<'_> {
             Entry::TemplateCx(_) => HandleKind::TemplateCx,
             Entry::Referenceable(_) => HandleKind::Referenceable,
             Entry::Sectioning(_) => HandleKind::Sectioning,
-            Entry::ArgDef(_) => HandleKind::ArgDef,
             Entry::BuiltLang(_) => HandleKind::BuiltLang,
             Entry::FlmDiagnostics(_) => HandleKind::FlmDiagnostics,
             Entry::LateInit(_) => HandleKind::LateInit,
@@ -455,6 +453,7 @@ impl Entry<'_> {
             Entry::Anchors(_) => HandleKind::Anchors,
             Entry::TemplateLanguage(_) => HandleKind::TemplateLanguage,
             Entry::ValueBindings(_) => HandleKind::ValueBindings,
+            Entry::Tree(_) => HandleKind::Tree,
         }
     }
 
@@ -531,7 +530,7 @@ impl<'c> CallTable<'c> {
         self.durable.as_ref()
     }
 
-    /// The entries of `handles`, all at once (plan A, A20): what a method
+    /// The entries of `handles`, all at once: what a method
     /// taking several lent objects needs (`instantiate` takes the expander,
     /// the context, the use site, the template and the bindings). Each handle
     /// is checked as [`entry`](CallTable::entry) checks it; the dispatcher
@@ -649,7 +648,6 @@ mod tests {
             HandleKind::Module,
             HandleKind::Referenceable,
             HandleKind::Sectioning,
-            HandleKind::ArgDef,
             HandleKind::BuiltLang,
             HandleKind::FlmDiagnostics,
             HandleKind::LateInit,
@@ -658,6 +656,7 @@ mod tests {
             HandleKind::Anchors,
             HandleKind::TemplateLanguage,
             HandleKind::ValueBindings,
+            HandleKind::Tree,
         ];
         for kind in every {
             match kind {
@@ -701,7 +700,6 @@ mod tests {
                 | HandleKind::Module
                 | HandleKind::Referenceable
                 | HandleKind::Sectioning
-                | HandleKind::ArgDef
                 | HandleKind::BuiltLang
                 | HandleKind::FlmDiagnostics
                 | HandleKind::LateInit
@@ -709,7 +707,8 @@ mod tests {
                 | HandleKind::Counters
                 | HandleKind::Anchors
                 | HandleKind::TemplateLanguage
-                | HandleKind::ValueBindings => {}
+                | HandleKind::ValueBindings
+                | HandleKind::Tree => {}
             }
             let json = serde_json::to_value(kind).ok();
             assert_eq!(json, Some(serde_json::Value::String(kind.name().to_string())), "{kind:?}");

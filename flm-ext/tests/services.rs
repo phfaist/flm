@@ -1,5 +1,4 @@
-//! Service slots declared from a script (E6, plan sections 2.1, 3.1, 4.1),
-//! through the Rust test double: a slot a package declares holds data, any
+//! Service slots declared from a script, through the Rust test double: a slot a package declares holds data, any
 //! package fills it, a stage reads its values by name; `flm-core`'s own checks
 //! of the assembly apply; the route refuses what a slot's name does not take.
 

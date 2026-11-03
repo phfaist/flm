@@ -390,7 +390,6 @@ fn dump_on_worker_thread(
             // backend. What the message names back is the set of backends this
             // plan actually lowers for, which is what the reader is looking
             // for, rather than everything the registry declares.
-            // See design rationale at [§flm-dd-dr:pipe-active-backends].
             let Ok(trees) = run.table(table) else {
                 let active: Vec<String> = run.plan().active_backends().iter().map(|b| b.to_string()).collect();
                 return Err(failure(format!(

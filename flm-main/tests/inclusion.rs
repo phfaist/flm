@@ -53,7 +53,7 @@ fn errors(built: &Built) -> Vec<String> {
         .collect()
 }
 
-// --- acceptance 7: paths ----------------------------------------------------------------
+// --- paths ------------------------------------------------------------------------------
 
 #[test]
 fn a_file_in_a_subfolder_includes_its_neighbor_and_every_name_is_the_resolved_path() {
@@ -84,7 +84,7 @@ fn a_reference_upward_is_folded_into_one_name() {
     assert!(report.contains("doc/common.flm:1:8"), "{report}");
 }
 
-// --- acceptance 8: where a problem is reported --------------------------------------------
+// --- where a problem is reported ----------------------------------------------------------
 
 #[test]
 fn a_problem_on_a_line_of_an_included_file_with_a_front_matter_is_reported_at_that_line() {
@@ -117,7 +117,7 @@ fn a_front_matter_that_is_not_yaml_is_reported_and_the_content_brought_in() {
     assert_eq!(errors(&built), ["flm.input.front-matter"]);
 }
 
-// --- acceptance 3 through the host: parsing settings ---------------------------------------
+// --- parsing settings ----------------------------------------------------------------------
 
 #[test]
 fn the_parsing_settings_of_an_included_file_are_read_over_those_of_the_including_file() {
@@ -141,7 +141,7 @@ fn a_file_without_settings_of_its_own_hands_on_those_it_inherited() {
     assert_eq!(errors(&built), Vec::<String>::new(), "{:?}", printed(&built));
 }
 
-// --- acceptance 9: a file that names no file ----------------------------------------------
+// --- a file that names no file ------------------------------------------------------------
 
 #[test]
 fn a_reference_that_names_no_file_is_reported_with_the_path_looked_for() {
@@ -152,7 +152,7 @@ fn a_reference_that_names_no_file_is_reported_with_the_path_looked_for() {
     assert!(built.files_read.iter().any(|read| !read.found && read.path == std::path::Path::new("doc/missing.flm")));
 }
 
-// --- acceptance 12: nothing loops -----------------------------------------------------------
+// --- nothing loops --------------------------------------------------------------------------
 
 #[test]
 fn a_file_that_includes_itself_is_reported_and_an_empty_file_or_a_front_matter_alone_brings_nothing() {
@@ -165,7 +165,7 @@ fn a_file_that_includes_itself_is_reported_and_an_empty_file_or_a_front_matter_a
     assert_eq!(errors(&built), ["flm.input.includes-itself"]);
 }
 
-// --- acceptance 4 and 8 through the host: a heading input ----------------------------------
+// --- a heading input -----------------------------------------------------------------------
 
 #[test]
 fn a_file_declaring_a_heading_opens_with_its_title_under_the_command_named() {

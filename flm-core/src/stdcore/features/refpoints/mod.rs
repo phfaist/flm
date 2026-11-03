@@ -58,9 +58,11 @@
 //! synthesized value may not state; see *What a table piece states* in
 //! [`RefPoints`].
 
-// Why a feature of its own, read by both consumers, rather than a collection
-// in the element index or two aspects: see decision rationale at
-// [§flm-dd-dr:std-refpoints].
+// A feature of its own, read by both consumers: content an aspect builds for a
+// point is built once and stored, where two stages asking the aspect would build
+// it twice. A collection in the element index would make the scan part of every
+// registry, and two aspects, one for what may be referenced and one for what may
+// be numbered, would have to agree on count and order by convention.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -202,7 +204,8 @@ impl RefPoints {
     /// table holds them. A stage of document scope that counts or orders the
     /// points calls this.
     pub fn in_document_order<'t>(&'t self, cx: &StageCx<'_>) -> Vec<&'t RefPointRecord> {
-        // See decision rationale at [§flm-dd-dr:dm-run-order-position].
+        // The table holds no place in the document, which a per-tree stage
+        // cannot know: the run's position of each node gives the order.
         // Every node of a tree of the run has a position; only a synthesized
         // value's records have none, and the stable sort keeps their order
         // (first).

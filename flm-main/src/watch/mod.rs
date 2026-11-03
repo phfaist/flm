@@ -17,7 +17,7 @@
 //! | [`Watch`] (the *watch loop*), with [`Event`], [`Built`], [`Handle`] | builds the document through [`crate::session`], waits for a change or a call to [`Handle::build_again`], builds again, and hands each event to its caller | cargo feature `watch` |
 //! | [`build_settings`] | the settings the watch loop adds to every build | always |
 //! | [`update`] | compares the outputs of two builds, and gives what an open page must change, as a value and as the message the page script (below) reads | always; it reads and writes nothing |
-//! | [`watcher`] | reports which files of a set changed on the disk, after a quiet period | cargo feature `watch` |
+//! | [`watcher`] | reports which files of a set changed on the disk, after a short delay | cargo feature `watch` |
 //! | [`server`] | serves the last output from memory to a browser on this machine, with a stream of messages to every open page | cargo feature `watch` |
 //! | [`editor`] | finds the editors on this machine and opens a file in one of them at a line and a column; turns a place of the page into that line and column | cargo feature `watch` |
 //! | [`settings`] and [`front_matter`] | read the settings of the document's features for the page's *Settings* tool, and write them back into the document's [front matter](crate::seed) in place | cargo feature `watch` |

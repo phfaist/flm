@@ -121,8 +121,8 @@ pointer onto the popup keeps it open. What the popup shows:
 - for a heading: the heading and up to three blocks that follow it, up to the next heading;
 - for an entry of a list (a footnote, an entry of the bibliography): the entry;
 - for a place inside a paragraph or another block: that block, which gives a formula or
-  a term its context; for a displayed formula standing between paragraphs: the formula
-  with the paragraph before it and the paragraph after it;
+  a term its context; a displayed formula stands inside the paragraph it is written in,
+  so a reference to it shows that paragraph;
 - for a citation: the bibliography entries of every work the citation mark covers, a range
   such as `[3–5]` expanded to the works 3, 4 and 5; every number of one mark shows the
   same list, and more than eight works show the first eight and a line saying how many

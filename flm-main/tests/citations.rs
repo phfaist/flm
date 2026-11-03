@@ -227,7 +227,7 @@ fn missing(built: &Built, key: &str) -> String {
     }
 }
 
-// --- acceptance 1: one request for many keys, the cache, the identities ----------------------
+// --- one request for many keys, the cache, the identities ------------------------------------
 
 #[test]
 fn three_arxiv_keys_make_one_request_and_a_second_run_makes_none() {
@@ -279,7 +279,7 @@ fn a_prefix_in_capitals_and_a_doi_in_two_cases_each_name_one_work() {
     assert_eq!(server.requested("https://doi.org").len(), 1);
 }
 
-// --- acceptance 3: a preprint followed to its published version ------------------------------
+// --- a preprint followed to its published version --------------------------------------------
 
 #[test]
 fn an_arxiv_key_whose_entry_names_a_doi_answers_with_the_article_s_record() {
@@ -343,7 +343,7 @@ fn an_override_dois_file_is_found_beside_the_package_naming_it_and_read_through_
     assert!(built.files_read.iter().any(|read| read.path == Path::new("defs/dois.json") && read.found));
 }
 
-// --- acceptance 4: keys not this provider's, and keys it cannot answer -----------------------
+// --- keys not this provider's, and keys it cannot answer -------------------------------------
 
 #[test]
 fn a_key_with_no_colon_or_an_unknown_prefix_is_not_the_provider_s() {
@@ -377,7 +377,7 @@ fn a_source_out_of_reach_and_a_source_without_the_key_are_reported_per_key() {
     assert!(missing(&built, "bib:absent").contains("not found"));
 }
 
-// --- acceptance 2: bibliography files ------------------------------------------------------
+// --- bibliography files --------------------------------------------------------------------
 
 /// Files in memory that a test changes between two builds.
 struct Changing(Mutex<MemoryFiles>);
@@ -491,7 +491,7 @@ fn the_schema_marks_the_paths_of_the_feature() {
     assert_eq!(path_marks, ["bibliography", "sources.*.files", "sources.*.override_dois_file", "style.file"]);
 }
 
-// --- acceptance 5: the listener -------------------------------------------------------------
+// --- the listener ---------------------------------------------------------------------------
 
 #[test]
 fn the_listener_hears_a_wait_and_a_pass_finished() {
@@ -512,7 +512,7 @@ fn the_listener_hears_a_wait_and_a_pass_finished() {
     assert_eq!(notes.0.lock().unwrap().len(), noted.len());
 }
 
-// --- acceptance 7: the sources combined entry by entry ---------------------------------------
+// --- the sources combined entry by entry -----------------------------------------------------
 
 #[test]
 fn sources_written_in_a_package_add_one_and_false_removes_one() {

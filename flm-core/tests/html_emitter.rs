@@ -28,9 +28,9 @@ use flm_core::stdcore::backends::html::{
     TAG, markdown_table,
 };
 use flm_core::stdcore::backends::pres::{
-    self, HeadingPayload, BlockPayload, DecoMarkPayload, DecorationPayload, DocRole,
-    ImageDisplay, ImagePayload, Length, LineAlign, LinePayload, LinesPayload, LinkPayload, ListPayload,
-    MathDisplay,
+    self, HeadingPayload, BlockPayload, CellsPayload, DecoMarkPayload, DecorationPayload, DocRole,
+    DroppedPayload, ImageDisplay, ImagePayload, Length, LineAlign, LinePayload, LinesPayload,
+    LinkPayload, ListPayload, MathDisplay,
     MathPassthroughPayload, MathTextPayload, ParPayload, SpanPayload, SpanStyle, SrcsetCandidate,
     SubtreePayload, UnknownKind, UnknownPayload, UnsupportedPayload, VerbatimDisplay,
     VerbatimKind, VerbatimPayload,
@@ -146,6 +146,142 @@ fn an_empty_paragraph_carrying_an_anchor_is_still_written() {
     let out = written(tree);
     assert!(out.contains("<p class=\"flm-pres-par\" id=\"here\">"), "{out}");
     assert_eq!(out.matches("<p").count(), 1, "{out}");
+}
+
+#[test]
+fn a_paragraph_holding_flow_content_is_a_div_carrying_the_role_of_a_paragraph() {
+    // HTML allows only phrasing content inside a `<p>`, so a paragraph holding
+    // a paragraph (inside a span), a list, or a decoration holding a paragraph
+    // is a `<div>`, with the class, the anchor and the role of a paragraph; a
+    // paragraph holding a displayed formula, a `<span>`, stays a `<p>`, and so
+    // does the paragraph inside the span.
+    let mut site = site();
+    let nested = {
+        let before = site.text("Before ");
+        let inner = par(&mut site, "Inner.");
+        let holder = site.pres(pres::SPAN, SpanPayload::default(), vec![inner]);
+        let after = site.text(" after.");
+        site.pres(pres::PAR, ParPayload::default(), vec![before, holder, after])
+    };
+    let listed = {
+        let lead = site.text("We consider:");
+        let item = par(&mut site, "One.");
+        let list = site.list(
+            ListPayload { kinds: vec![name(pres::LIST_UNNUMBERED)], ..ListPayload::default() },
+            vec![(Vec::new(), vec![item])],
+        );
+        site.pres(
+            pres::PAR,
+            ParPayload { anchor: Some(String::from("par-list")) },
+            vec![lead, list],
+        )
+    };
+    let displayed = {
+        let before = site.text("Let");
+        let shown = formula(&mut site, MathDisplay::Display, None, "x = 1");
+        let after = site.text("hold.");
+        site.pres(pres::PAR, ParPayload::default(), vec![before, shown, after])
+    };
+    let decorated = {
+        let note = par(&mut site, "A note.");
+        let margin = site.pres(pres::DECO_MARGIN, DecorationPayload, vec![note]);
+        let text = site.text("Annotated.");
+        let mark = site.pres(pres::DECO_MARK, DecoMarkPayload { slot: 1 }, Vec::new());
+        site.pres_attached(
+            pres::PAR,
+            ParPayload::default(),
+            vec![text, mark],
+            vec![(pres::DECO_MARGIN, margin)],
+        )
+    };
+    let tree = site.finish(vec![nested, listed, displayed, decorated]);
+    let out = written(tree);
+    assert_eq!(parse_errors(&out), Vec::<String>::new(), "{out}");
+    let opening = "<div class=\"flm-pres-par\" role=\"paragraph\">";
+    assert!(out.starts_with(&format!("{opening}Before <span class=\"flm-pres-span\">")), "{out}");
+    assert!(out.contains("<p class=\"flm-pres-par\">Inner.</p>"), "{out}");
+    assert!(
+        out.contains("<div class=\"flm-pres-par\" id=\"par-list\" role=\"paragraph\">"),
+        "{out}"
+    );
+    let displayed_at = out.find("<p class=\"flm-pres-par\">Let").expect("a `<p>`");
+    let displayed_end = displayed_at + out[displayed_at..].find("</p>").expect("its end");
+    assert!(out[displayed_at..displayed_end].contains("\\[x = 1\\]</span>hold."), "{out}");
+    let annotated = format!("{opening}Annotated.<span class=\"flm-pres-deco-margin\">");
+    assert!(out.contains(&annotated), "{out}");
+    assert_eq!(out.matches("role=\"paragraph\"").count(), 3, "{out}");
+    assert_golden("emit-paragraph-flow.html", &out);
+}
+
+#[test]
+fn a_paragraph_is_a_div_exactly_where_a_p_cannot_hold_its_content() {
+    // Every element of the vocabulary alone in a paragraph, with the inline
+    // and the block forms of the elements that have both, and HTML tag
+    // construct nodes of flow and of phrasing content, a block-level `<math>`
+    // among the second. The paragraph's HTML parses with no error; where the
+    // paragraph is a `<div>`, the same HTML with a `<p>` in the `<div>`'s
+    // place does not, so the `<div>` is written exactly where HTML needs it. A placed tree is the exception: the regions stage
+    // writes it after the emitter is done, so what it holds is not known when
+    // the paragraph is opened, and its paragraph is a `<div>` regardless.
+    let mut cases: Vec<(&str, Arc<dyn PresPayload>)> = populated_payloads();
+    cases.extend([
+        (
+            pres::CELLS,
+            Arc::new(CellsPayload { rows: 0, cols: 0, cells: Vec::new() }) as Arc<dyn PresPayload>,
+        ),
+        (
+            pres::DROPPED,
+            Arc::new(DroppedPayload { condition: name("flm.input"), detail: String::from("a") }),
+        ),
+        (
+            pres::VERBATIM,
+            Arc::new(VerbatimPayload {
+                kind: VerbatimKind::Code,
+                display: VerbatimDisplay::Inline,
+                lang: None,
+            }),
+        ),
+        (
+            pres::UNKNOWN,
+            Arc::new(UnknownPayload {
+                kind: UnknownKind::Environment,
+                name: String::from("foo"),
+                spelling: String::from("foo"),
+            }),
+        ),
+        (
+            pres::MATH_PASSTHROUGH,
+            Arc::new(MathPassthroughPayload { display: MathDisplay::Inline, env: None }),
+        ),
+        (TAG, Arc::new(HtmlTagPayload::new("div"))),
+        (TAG, Arc::new(HtmlTagPayload::new("SECTION").block())),
+        (TAG, Arc::new(HtmlTagPayload::new("math").block())),
+        (TAG, Arc::new(HtmlTagPayload::new("span"))),
+    ]);
+    for element in pres::ALL {
+        assert!(cases.iter().any(|(case, _)| *case == element), "no case for `{element}`");
+    }
+    let opening = "<div class=\"flm-pres-par\" role=\"paragraph\">";
+    for (element, payload) in cases {
+        let mut site = site();
+        let node = populated_node(&mut site, element, payload);
+        let paragraph = site.pres(pres::PAR, ParPayload::default(), vec![node]);
+        let out = written(site.finish(vec![paragraph]));
+        assert_eq!(parse_errors(&out), Vec::<String>::new(), "`{element}`: {out}");
+        match out.strip_prefix(opening) {
+            Some(rest) if element != pres::SUBTREE => {
+                let inner =
+                    rest.trim_end().strip_suffix("</div>").expect("the paragraph ends last");
+                let as_p = format!("<p class=\"flm-pres-par\">{inner}</p>");
+                assert!(!parse_errors(&as_p).is_empty(), "`{element}` needs no `<div>`: {out}");
+            }
+            Some(_) => {}
+            None => {
+                assert!(element != pres::SUBTREE, "{out}");
+                assert!(out.starts_with("<p class=\"flm-pres-par\">"), "`{element}`: {out}");
+            }
+        }
+    }
 }
 
 // --- blocks, headings, spans -------------------------------------------------------------
@@ -1595,20 +1731,9 @@ fn strip_source_span(on: &str) -> String {
 /// A parse error there is a failure here too, so an attribute value that broke
 /// out of its attribute could not pass unnoticed.
 fn decoded_source_span_values(on: &str) -> Vec<String> {
-    use html5ever::driver::{ParseOpts, parse_fragment};
-    use html5ever::tendril::TendrilSink;
-    use html5ever::{QualName, local_name, ns};
-    use markup5ever_rcdom::{Handle, NodeData, RcDom};
+    use markup5ever_rcdom::{Handle, NodeData};
 
-    let dom = parse_fragment(
-        RcDom::default(),
-        ParseOpts::default(),
-        QualName::new(None, ns!(html), local_name!("div")),
-        Vec::new(),
-        false,
-    )
-    .one(on);
-    let errors: Vec<String> = dom.errors.borrow().iter().map(|e| e.to_string()).collect();
+    let (dom, errors) = parsed(on);
     assert!(errors.is_empty(), "the parser reported {errors:?} on: {on}");
 
     fn walk(node: &Handle, values: &mut Vec<String>) {
@@ -1628,6 +1753,32 @@ fn decoded_source_span_values(on: &str) -> Vec<String> {
     walk(&dom.document, &mut values);
     assert!(!values.is_empty(), "the option wrote no attribute: {on}");
     values
+}
+
+/// The fragment `on` as `html5ever` parses it inside a `<div>`, the way a
+/// browser parses a page's content, with the parse errors it reported: the
+/// parser `tests/html_validity.rs` parses every golden with.
+fn parsed(on: &str) -> (markup5ever_rcdom::RcDom, Vec<String>) {
+    use html5ever::driver::{ParseOpts, parse_fragment};
+    use html5ever::tendril::TendrilSink;
+    use html5ever::{QualName, local_name, ns};
+    use markup5ever_rcdom::RcDom;
+
+    let dom = parse_fragment(
+        RcDom::default(),
+        ParseOpts::default(),
+        QualName::new(None, ns!(html), local_name!("div")),
+        Vec::new(),
+        false,
+    )
+    .one(on);
+    let errors: Vec<String> = dom.errors.borrow().iter().map(|e| e.to_string()).collect();
+    (dom, errors)
+}
+
+/// The parse errors `html5ever` reports on the fragment `on` ([`parsed`]).
+fn parse_errors(on: &str) -> Vec<String> {
+    parsed(on).1
 }
 
 /// The attribute's decoded value read as JSON: the source's name and the two
@@ -1946,17 +2097,26 @@ fn one_node_of(element: &str) -> String {
         .find(|(name, _)| *name == element)
         .map(|(_, payload)| payload)
         .expect("a payload for every element");
+    let node = populated_node(&mut site, element, payload);
+    let tree = site.finish(vec![node]);
+    written(tree)
+}
+
+/// One node of `element` carrying `payload`, staged on `site` over the body
+/// the element takes: a line for a run of lines, nothing for an element
+/// written with no content of its own, one text otherwise.
+fn populated_node(site: &mut PresSite, element: &str, payload: Arc<dyn PresPayload>) -> BuildId {
     let body = match element {
         pres::LINES => {
             let text = site.text("a");
             vec![site.pres(pres::LINE, LinePayload::default(), vec![text])]
         }
-        pres::IMAGE | pres::UNSUPPORTED | pres::DECO_MARK | pres::SUBTREE => Vec::new(),
+        pres::IMAGE | pres::UNSUPPORTED | pres::DECO_MARK | pres::SUBTREE | pres::CELLS => {
+            Vec::new()
+        }
         _ => vec![site.text("content")],
     };
-    let node = site.pres_payload(element, payload, body);
-    let tree = site.finish(vec![node]);
-    written(tree)
+    site.pres_payload(element, payload, body)
 }
 
 #[test]

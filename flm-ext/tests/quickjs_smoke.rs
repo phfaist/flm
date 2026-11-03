@@ -1,5 +1,5 @@
-//! A smoke test of the JavaScript API modules' items no other script runs
-//! (WP-8's fix round): a data-form element with an expansion hook and a
+//! A smoke test of the JavaScript API modules' items no other script runs:
+//! a data-form element with an expansion hook and a
 //! block-role aspect, an environment with a `BodyDef`, an argument from
 //! `arg_def_from_code`, specials, and a stage calling the free functions of
 //! `flm:lang/text`, `flm:core/lowering` and `flm:lang/rewrites/blocks` and
@@ -95,7 +95,7 @@ function register(b) {
       const attempt = f => { try { return f(); } catch (error) { return { error: error.kind, node: error.data.data.node }; } };
       // The tree the stage reads is the one after the expansion of `always`
       // definitions: the starred badge, left as it was, is still there.
-      for (const node of cx.my_tree().descendants()) {
+      for (const node of cx.my_tree().root().descendants()) {
         if (!node.is_callable()) continue;
         let nodes;
         if (node.element_name() === "wc.badge") nodes = node.argument_content_nodes_named("text");
@@ -230,8 +230,7 @@ fn the_api_modules_items_run_from_a_script() {
     let mut pane = definition("environment", "pane", Vec::new(), "#{body}", "both");
     pane["block_role"] = json!("block");
     assert_eq!(items[2], json!({ "definitions": [greet, ket, at, pane] }));
-    // WP-4a: an argument writes its mode and its scoped packages too, and its
-    // role.
+    // An argument writes its mode and its scoped packages too, and its role.
     assert_eq!(
         items[3],
         json!({ "star": { "code": "*", "name": null, "layout": "inline", "opaque_wrapper": false, "docs": "", "mode": null, "scoped": [], "role": null } })

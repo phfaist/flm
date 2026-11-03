@@ -34,6 +34,9 @@
 //! - every maximal stretch of inline content becomes a paragraph, a group node
 //!   of the paragraph group class, created by the pass;
 //! - each node of block role `Block` is placed on its own;
+//! - a node of block role [`Displayed`](BlockRole::Displayed), a displayed
+//!   item, is inline content: it stays inside the paragraph it stands in,
+//!   which continues after it;
 //! - the paragraph-break markers are removed;
 //! - a comment stays where it is: inside a paragraph when it is among the
 //!   paragraph's content, and between the blocks otherwise; a comment never
@@ -47,7 +50,8 @@
 //! collapsed), and the whitespace at the edges of the content region is kept. A
 //! node of block role `Block` is kept where it is and reported
 //! ([`BlockInInline`]); a paragraph break is read as one space and reported
-//! ([`ParbreakInInline`]).
+//! ([`ParbreakInInline`]). A displayed item is inline content here as in a
+//! paragraph, and is not reported.
 //!
 //! **Opaque.** An [opaque
 //! region](crate::guide::concepts_overview#opaque-regions) is copied unchanged,
@@ -86,7 +90,7 @@
 //!   [`FragmentLayout`], which the caller passes;
 //!   [`InlineOrBlocks`](FragmentLayout::InlineOrBlocks) lays it out as blocks
 //!   when it holds a paragraph break or a node of block role `Block`, and
-//!   inline otherwise.
+//!   inline otherwise (a displayed item is not a node of role `Block`).
 //! - An environment's body is laid out by its body declaration
 //!   ([`BodyDef`](crate::lang::mint::BodyDef)): as blocks or inline where the
 //!   declaration says so; where the declaration follows the element's block
@@ -125,6 +129,14 @@
 //! whitespace removed, whitespace nodes included (below), even when comments
 //! separate the node from the whitespace.
 //!
+//! A displayed item has the whitespace on both of its sides removed in the same
+//! way, as an inline node that absorbs on both sides does: in
+//! `word~\[x\] more`, the `~` and the space are removed, and the text `word`
+//! and the text `more` stand on either side of the formula. The stretches
+//! of text between displayed items are thereby trimmed at their edges, as a
+//! paragraph is. A straight quote right after a displayed item opens, as one at
+//! the start of a paragraph does.
+//!
 //! The merged node records where its text came from. When its text is a
 //! byte-for-byte copy of one range of one source, its span alone says so and
 //! it carries no map. Otherwise it holds its own text and a
@@ -139,10 +151,10 @@
 //! literals `~` and `\ `. It is whitespace to every rule of the layout step,
 //! and stays a node of its own:
 //!
-//! - the whitespace removed beside an absorbing node and at the edges of a
-//!   paragraph is the whole stretch of whitespace there, up to the nearest
-//!   content: whitespace-only text and whitespace nodes alike are removed, and
-//!   the comments among them are kept;
+//! - the whitespace removed beside an absorbing node, beside a displayed item
+//!   and at the edges of a paragraph is the whole stretch of whitespace there,
+//!   up to the nearest content: whitespace-only text and whitespace nodes alike
+//!   are removed, and the comments among them are kept;
 //! - a whitespace node is not paragraph content: a stretch holding only
 //!   whitespace and comments starts no paragraph;
 //! - a straight quote right after a whitespace node opens, as it does after a
@@ -200,10 +212,10 @@
 //!   so the pass never builds an empty paragraph, which the
 //!   [checker](super::check) would reject.
 
-// Why the run's parsing mode alone decides whether a region is opaque, in both
-// directions, and why a text region inside mathematics is not a property the
-// element declares: see decision rationale at
-// [§flm-dd-dr:lang-blocks-text-in-opaque].
+// The run's parsing mode alone decides whether a region is opaque: a run parsed in
+// mathematics mode is opaque wherever it stands, and a run read in text mode inside
+// mathematics is content. The argument's or body's declared mode already says which,
+// so the element does not declare it a second time.
 
 // Why the pass drives its own descent: techy's restager has no exit callback, so
 // a region context cannot ride `Restage::Descend`; the visitor almost always
@@ -226,8 +238,7 @@
 // opaque wrappers descend through `restage_children`, which the guard checks
 // per level. So no document input can exhaust the stack
 // inside such a copy; revisit only if a construct ever designates content below
-// a deep wrapper chain. See the design rationale at
-// [§flm-dd-dr:lang-nested-restage-budget].
+// a deep wrapper chain.
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -752,7 +763,7 @@ impl Pass<'_> {
                     current.push(*node);
                     self.close_paragraph(cx, &mut current, &mut out)?;
                 }
-                BlockRole::BlockDecorator(Placement::Free) | BlockRole::Inline(_) => {
+                BlockRole::BlockDecorator(Placement::Free) | BlockRole::Inline(_) | BlockRole::Displayed => {
                     current.push(*node);
                 }
             }
@@ -1115,22 +1126,25 @@ fn is_blank(item: &Item<'_>) -> bool {
 /// precedes the range, for a run laid out under `trim`.
 ///
 /// An edge's whitespace is dropped beside an inline node that absorbs the
-/// whitespace toward the range, and at an edge of a paragraph that `trim`
-/// trims. Both look past comments and blank items ([`is_blank`]), so every
-/// blank item of the stretch between the edge and the nearest other item
-/// goes, and the comments among them stay.
+/// whitespace toward the range, beside a displayed item (a node of role
+/// [`Displayed`](BlockRole::Displayed), which absorbs on both sides), and at an
+/// edge of a paragraph that `trim` trims. All three look past comments and
+/// blank items ([`is_blank`]), so every blank item of the stretch between the
+/// edge and the nearest other item goes, and the comments among them stay.
 fn edges_of(items: &[Item<'_>], range: Range<usize>, trim: Trim) -> Edges {
     // Absorption: the neighbouring element asked for the whitespace beside it
-    // to be removed outright. It sees through comments, and through the
-    // blank items between a comment and the element, as the trimming of the
-    // edges below does.
+    // to be removed outright; a displayed item asks it on both sides. It sees
+    // through comments, and through the blank items between a comment and the
+    // element, as the trimming of the edges below does.
     let passed_over = |item: &&Item<'_>| matches!(item, Item::Comment(_)) || is_blank(item);
     let absorb_left = match items[..range.start].iter().rev().find(|item| !passed_over(item)) {
         Some(Item::Node(_, BlockRole::Inline(spacing))) => spacing.absorb_after,
+        Some(Item::Node(_, BlockRole::Displayed)) => true,
         _ => false,
     };
     let absorb_right = match items[range.end..].iter().find(|item| !passed_over(item)) {
         Some(Item::Node(_, BlockRole::Inline(spacing))) => spacing.absorb_before,
+        Some(Item::Node(_, BlockRole::Displayed)) => true,
         _ => false,
     };
     // Trimming sees through comments, through the decorator leading
@@ -1154,12 +1168,13 @@ fn edges_of(items: &[Item<'_>], range: Range<usize>, trim: Trim) -> Edges {
     let trim_left = trim.head && items[..range.start].iter().all(transparent_before);
     let trim_right = trim.tail && items[range.end..].iter().all(transparent_after);
     // A whitespace node before the range is whitespace to the quote-position
-    // test, not a content sibling.
+    // test, not a content sibling; so is a displayed item, set on lines of
+    // its own, so that a quote right after it opens.
     let prev_is_content = items[..range.start]
         .iter()
         .rev()
         .find(|item| !matches!(item, Item::Comment(_)))
-        .is_some_and(|item| matches!(item, Item::Node(..)));
+        .is_some_and(|item| matches!(item, Item::Node(_, role) if *role != BlockRole::Displayed));
     Edges {
         drop_leading: trim_left || absorb_left,
         drop_trailing: trim_right || absorb_right,
@@ -1170,8 +1185,8 @@ fn edges_of(items: &[Item<'_>], range: Range<usize>, trim: Trim) -> Edges {
 /// Whether the whitespace node `items[index]` is removed. It is all
 /// whitespace, so it is removed exactly where a run of whitespace-only text in
 /// its place would be: when the whitespace at either edge of its place is
-/// dropped ([`edges_of`]), beside an absorbing node or at a trimmed edge of a
-/// paragraph.
+/// dropped ([`edges_of`]), beside an absorbing node, beside a displayed item,
+/// or at a trimmed edge of a paragraph.
 fn whitespace_removed(items: &[Item<'_>], index: usize, trim: Trim) -> bool {
     let edges = edges_of(items, index..index + 1, trim);
     edges.drop_leading || edges.drop_trailing

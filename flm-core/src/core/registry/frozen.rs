@@ -29,7 +29,7 @@
 //!
 //! - elements: the language's structural elements first, in their fixed
 //!   order; then the elements of the element declarations, in declaration
-//!   order, each followed by the elements of its arguments' fields; then the
+//!   order; then the
 //!   elements of the fallbacks, then those of the scoped packages, then the
 //!   presentation elements, each group in declaration order (a value that
 //!   several declarations share is numbered once);
@@ -72,7 +72,6 @@ use crate::core::services::{PeerContribution, Services};
 use crate::core::stage::{RewriteDecl, StageDecl};
 use crate::core::data::table::{TableDef, TableId, TableType};
 use crate::lang::{BuiltLang, FlmDiagnostics};
-use crate::lang::mint::{ElementDef, SyntaxDef};
 use crate::lang::structural::{self, StructuralElements};
 
 /// The number of a capability in one registry, in declaration order.
@@ -570,10 +569,11 @@ pub struct WorkflowEntry {
     pub owner: FeatureName,
 }
 
-// The numbering order and its determinism: see the design rationale at
-// [§flm-dd-dr:feat-build-order]. The element index is a registry-owned side
-// table rather than a field on the element value:
-// [§flm-dd-dr:dm-element-index-side-table].
+// Elements are numbered in a fixed order, the language's structural elements
+// first, then the features' contributions in feature order, so that two builds
+// of one roster agree on every index. The index is held in a table of the
+// registry, not on the element value: an element value is often a shared
+// constant, and building a second registry over it must not fail.
 /// A registry: the frozen record of everything the language and the pipeline
 /// consult for a set of features, built once and shared by every document,
 /// plan and run.
@@ -720,23 +720,6 @@ pub struct FlmRegistry {
     build_diagnostics: FlmDiagnostics,
 }
 
-/// Adds to `out` the element values that the declaration `def` creates, each
-/// with its owner, in declaration order: the declaration's own element, then
-/// the element of each field of each of its tack-on arguments.
-fn element_values_of(def: &ElementDef, out: &mut Vec<(Arc<ElementSpec>, FeatureName)>) {
-    out.push((Arc::clone(&def.element), def.owner.clone()));
-    let args = match &def.syntax {
-        SyntaxDef::Macro { args } | SyntaxDef::Inclusion { args } | SyntaxDef::Specials { args, .. } => args.as_slice(),
-        SyntaxDef::Environment { args, .. } => args.as_slice(),
-        SyntaxDef::Synthesized => &[],
-    };
-    for arg in args {
-        for field in arg.kind.tack_on_fields().unwrap_or_default() {
-            out.push((Arc::clone(field.element()), def.owner.clone()));
-        }
-    }
-}
-
 impl FlmRegistry {
     /// Numbers the checked declarations `roster` and builds the lookup
     /// structures over them, together with the other results of the build.
@@ -769,8 +752,9 @@ impl FlmRegistry {
         // An element value two features declare is numbered where it is first
         // met, and owned by the feature placed last in the final order: between
         // features, the feature placed last wins. The language's own elements
-        // are owned by no feature, so a feature that declares one owns it.
-        // See decision rationale at [§flm-dd-dr:feat-order].
+        // are owned by no feature, so a feature that declares one owns it. The
+        // final order is the one the user states, so the user decides which
+        // feature owns such a value.
         let final_order = &roster.features;
         let position = |owner: &FeatureName| final_order.iter().position(|info| info.name == *owner);
         let mut intern_element =
@@ -794,14 +778,14 @@ impl FlmRegistry {
         }
         let mut values: Vec<(Arc<ElementSpec>, FeatureName)> = Vec::new();
         for def in &roster.elements {
-            element_values_of(def, &mut values);
+            values.push((Arc::clone(&def.element), def.owner.clone()));
         }
         for fallback in &roster.fallbacks {
             values.push((Arc::clone(&fallback.element), fallback.owner.clone()));
         }
         for package in &roster.scoped_packages {
             for def in &package.elements {
-                element_values_of(def, &mut values);
+                values.push((Arc::clone(&def.element), def.owner.clone()));
             }
         }
         for (element, owner) in &values {
@@ -1322,7 +1306,6 @@ impl FlmRegistry {
         self.features.iter().position(|info| info.name == name)
     }
 
-    // See the design rationale at [§flm-dd-dr:dm-one-value-per-name].
     /// The registered value whose element type name is `name`, when that
     /// value is unique: `Ok(Some(..))` when exactly one value has the name,
     /// `Ok(None)` when none does, and an error when several do.

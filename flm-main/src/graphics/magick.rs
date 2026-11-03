@@ -80,7 +80,8 @@ type Kept = Mutex<Option<Vec<u8>>>;
 
 /// One conversion, the key of a kept result: the content itself (compared whole, so that
 /// two contents never share a result), its format, the target format and the options.
-// See decision rationale at [§flm-dd-dr:host-magick-results]
+// The key holds the content's bytes, not a digest of them, so that a result reused can never
+// differ from one computed again, which a short digest could not promise.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Conversion {
     content: Vec<u8>,
@@ -114,7 +115,8 @@ impl MagickConverter {
         if let Some(dpi) = request.options.dpi {
             arguments.extend([String::from("-density"), dpi.to_string()]);
         }
-        // See decision rationale at [§flm-dd-dr:host-magick-first-frame]
+        // Only the first page or frame is converted: the result is read from the standard
+        // output, which holds one file, and the first page is the one the inspector measures.
         arguments.push(format!("{}:-[0]", request.from.name()));
         if request.options.transparent_bg == Some(false) {
             arguments.extend(["-background", "white", "-alpha", "remove", "-alpha", "off"].map(String::from));

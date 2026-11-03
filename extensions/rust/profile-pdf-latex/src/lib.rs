@@ -68,7 +68,6 @@ const PROGRAMS: &str = "programs";
 const LATEXMK: &str = "latexmk";
 
 /// The arguments given to `latexmk` before the entry file's path.
-// See decision rationale at [§flm-dd-dr:ext-pdf-latex]
 const LATEXMK_ARGS: [&str; 5] = ["-norc", "-lualatex", "-f", "-interaction=nonstopmode", "-file-line-error"];
 
 /// The time `latexmk` may take when the configuration does not set `timeout_s`.
@@ -98,7 +97,6 @@ fn extension(ext: &mut Extension) {
     // LaTeX runs in a temporary folder holding the files of `latex-rendered` alone, so each
     // image is copied into those files: by default, `latex-rendered` refers to an image by
     // its path from the folder the output is written to, which the temporary folder is not.
-    // See decision rationale at [§flm-dd-dr:ext-pdf-latex]
     let workflow = json!({
         "extends": "latex-rendered",
         "outputs": [OUTPUT],
@@ -247,7 +245,8 @@ impl Stage for Compile {
             Ok(answer) => answer,
             Err(ExtError::Host { detail, .. }) => {
                 // The service answers a program that runs past its time with this text, which
-                // ends with the time given. See decision rationale at [§flm-dd-dr:ext-pdf-latex]
+                // ends with the time given, and has no structured answer for it; the text is
+                // recognized so that the message speaks of the setting `timeout_s`.
                 let message = if detail.ends_with(&format!("must finish within {timeout_ms} milliseconds")) {
                     let unit = if self.timeout_s == 1 { "second" } else { "seconds" };
                     format!(

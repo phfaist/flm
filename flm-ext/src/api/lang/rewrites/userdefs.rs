@@ -12,26 +12,27 @@ use std::fmt;
 use std::sync::Arc;
 
 use flm_core::lang::rewrites::userdefs::{
-    instantiate as core_instantiate, PlaceholderBindings as CorePlaceholderBindings,
+    instantiate as core_instantiate, CompiledTemplate as CoreCompiledTemplate, ExtraValues as CoreExtraValues,
+    PlaceholderBindings as CorePlaceholderBindings,
     TemplateSpec as CoreTemplateSpec, UserDefinition as CoreUserDefinition,
     ValueBindings as CoreValueBindings,
 };
-use flm_core::lang::GuardPolicy;
-use flm_core::techy::core::node::BuildId;
+use flm_core::lang::{Flm, GuardPolicy};
+use flm_core::techy::core::node::{BuildId, NodeTree};
 use flm_core::techy::error::DiagnosticInfo;
 
 use crate::adapter::durable::{DurableTemplateFacade, DurableToken};
-use crate::adapter::expand::{DefinitionBindingsFacade, ModeVariantFacade};
-use crate::adapter::node::NodeFacade;
+use crate::adapter::expand::{DefinitionBindingsFacade, LayeredBindingsFacade, ModeVariantFacade};
+use crate::adapter::node::TreeFacade;
 use crate::api::lang::mint::{ElementDef, Mode};
 use crate::api::lang::BuiltLang;
 use crate::api::techy::error::Diagnostic;
-use crate::api::techy::node::Node;
+use crate::api::techy::node::{Node, Tree};
 use crate::runtime::ExtError;
 use crate::sealed::{CompiledTemplateCore, ExpandCxCore, ExpanderCore, ModeVariantCore, PlaceholderBindingsCore, Token};
 
 pub use flm_core::lang::rewrites::userdefs::{
-    Definition, DefinitionKind, DefinitionModes, ExpandPolicy, PlaceholderVocabulary,
+    Definition, DefinitionKind, DefinitionModes, ExpandPolicy, PlaceholderTarget, PlaceholderVocabulary,
 };
 
 /// Mirrors [`Expand`](flm_core::lang::rewrites::userdefs::Expand): the
@@ -56,8 +57,8 @@ pub trait Expand: Send + Sync {
     /// decides what the use site `node` becomes. What differs: the node's
     /// tree and the three borrows share one lifetime, the call's `'c`, so that
     /// a binding can lend all three into one
-    /// [`CallTable<'c>`](crate::adapter::handles::CallTable) (plan A, A18); the
-    /// nodes the use site answers live for the whole call.
+    /// [`CallTable<'c>`](crate::adapter::handles::CallTable); the nodes the
+    /// use site answers live for the whole call.
     ///
     /// # Errors
     ///
@@ -120,9 +121,11 @@ pub trait Expander: ExpanderCore {
     /// Mirrors [`Expander::instantiate`](flm_core::lang::rewrites::userdefs::Expander::instantiate):
     /// stages `template` with `bindings` at the use site `site`. What differs:
     /// `cx` and `site` must be the ones lent to the running hook; `template`
-    /// is a definition's variant's ([`ModeVariant::template`]) or a durable
+    /// is a definition's variant's template or default value
+    /// ([`ModeVariant::template`], [`ModeVariant::defaults`]) or a durable
     /// one ([`compile_template_with`]), and `bindings` the use site's
-    /// ([`DefinitionBindings::new`]) or values ([`ValueBindings`]).
+    /// ([`DefinitionBindings::new`]), values ([`ValueBindings`]), or computed
+    /// values laid over other bindings ([`ExtraValues::over`]).
     ///
     /// # Errors
     ///
@@ -146,18 +149,18 @@ pub trait Expander: ExpanderCore {
     ///
     /// As [`instantiate`](Expander::instantiate) (after an [`ExtError::Core`]
     /// of kind `expand`, the pass ends, whatever the hook answers); the
-    /// diagnostic's identifier does not begin with the extension's stem and a dot.
+    /// diagnostic's data cannot cross ([`ExtError::Value`]).
     fn recover(&mut self, cx: &mut dyn ExpandCx, site: &dyn Node<'_>, diagnostic: Diagnostic) -> Result<Vec<Staged>, ExtError>;
 
     /// Mirrors [`Expander::diagnose`](flm_core::lang::rewrites::userdefs::Expander::diagnose):
     /// reports `diagnostic` and keeps the node. What differs: the diagnostic is
-    /// data, and the method answers a `Result`, since it checks the
-    /// diagnostic's identifier, which `flm-core`'s `diagnose` does not.
+    /// data, and the method answers a `Result`, since the data may hold a
+    /// value that cannot cross.
     ///
     /// # Errors
     ///
-    /// The diagnostic's identifier does not begin with the extension's stem and a dot
-    /// ([`ExtError::NameOutsideExtension`]); nothing is reported then.
+    /// The diagnostic's data cannot cross ([`ExtError::Value`]); nothing is
+    /// reported then.
     fn diagnose(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError>;
 }
 
@@ -193,7 +196,7 @@ pub trait ExpandCx: ExpandCxCore {
     /// call. This method hands the hook the registered definition, the one
     /// whose templates were compiled when the language was built, so that the
     /// hook can instantiate them ([`UserDefinition::variant_for_use`]). The
-    /// value answered owns the definition (plan A, A15 and A37).
+    /// value answered owns the definition.
     fn definition(&self) -> Option<UserDefinition>;
 }
 
@@ -241,7 +244,7 @@ impl UserDefinition {
     /// the definition's variant for the mode of the use site `node`. What
     /// differs: the variant is a façade that owns the definition's `Arc` and
     /// the mode, and resolves the `flm-core` variant when the adapter needs it;
-    /// it borrows nothing, so it may outlive this value (plan A, A19).
+    /// it borrows nothing, so it may outlive this value.
     ///
     /// # Errors
     ///
@@ -252,9 +255,9 @@ impl UserDefinition {
     pub fn variant_for_use(&self, node: &dyn Node<'_>) -> Result<Box<dyn ModeVariant>, ExtError> {
         let site = node.core_node_ref(Token::new());
         match self.definition.variant_for_use(&site) {
-            Ok(_) => {
+            Ok(variant) => {
                 let mode = site.parsing_state().mode();
-                Ok(Box::new(ModeVariantFacade::new(Arc::clone(&self.definition), mode)))
+                Ok(Box::new(ModeVariantFacade::new(Arc::clone(&self.definition), mode, variant)))
             }
             Err(condition) => Err(ExtError::Core {
                 kind: condition.identifier().to_string(),
@@ -273,31 +276,71 @@ impl fmt::Debug for UserDefinition {
 
 /// Mirrors [`ModeVariant`](flm_core::lang::rewrites::userdefs::ModeVariant):
 /// a definition's compiled templates for one mode. What differs: a façade with
-/// the one method [`template`](ModeVariant::template), owning the definition's
-/// `Arc` and the mode (plan A, A19).
+/// the methods [`template`](ModeVariant::template) and
+/// [`defaults`](ModeVariant::defaults), owning the definition's `Arc` and the
+/// mode.
 ///
 /// The trait is sealed: the adapter alone implements it.
 pub trait ModeVariant: ModeVariantCore {
     /// Mirrors [`ModeVariant::template`](flm_core::lang::rewrites::userdefs::ModeVariant::template).
-    /// What differs: the template is a façade that owns, as the variant does,
-    /// the definition's `Arc` and the mode, and resolves the `flm-core`
-    /// template when [`Expander::instantiate`] asks; it borrows nothing of the
-    /// variant (plan A, A19).
+    /// What differs: the template is a façade that shares the `flm-core`
+    /// template with the variant; it borrows nothing of the variant.
     fn template(&self) -> Box<dyn CompiledTemplate>;
+
+    /// Mirrors [`ModeVariant::defaults`](flm_core::lang::rewrites::userdefs::ModeVariant::defaults):
+    /// the compiled default values of the optional arguments, with their
+    /// argument indices, in increasing order of index. What differs: a list;
+    /// each default value is a template façade that shares, as
+    /// [`template`](ModeVariant::template)'s does, the `flm-core` value with
+    /// the variant.
+    fn defaults(&self) -> Vec<(usize, Box<dyn CompiledTemplate>)>;
 }
 
 /// Mirrors [`CompiledTemplate`](flm_core::lang::rewrites::userdefs::CompiledTemplate):
-/// a compiled replacement text. What differs: opaque; it is passed to
-/// [`Expander::instantiate`] and nothing else. The adapter's façade owns the
-/// definition's `Arc` and the mode (plan A, A19).
+/// a compiled replacement text. What differs: a façade whose one method lists
+/// the template's placeholders; it is passed to [`Expander::instantiate`] and
+/// [`instantiate`]. The adapter's façades are a definition's template or
+/// default value, which shares the `flm-core` template with the definition's
+/// variant, and a durable template ([`compile_template_with`]).
 ///
 /// The trait is sealed: the adapter alone implements it.
-pub trait CompiledTemplate: CompiledTemplateCore {}
+pub trait CompiledTemplate: CompiledTemplateCore {
+    /// Mirrors [`CompiledTemplate::placeholders`](flm_core::lang::rewrites::userdefs::CompiledTemplate::placeholders):
+    /// every placeholder of the template, in the tree's storage order. What
+    /// differs: a list of [`PlaceholderRef`] values, which give each
+    /// placeholder's substitution text in place of its node.
+    fn placeholders(&self) -> Vec<PlaceholderRef>;
+}
+
+/// Mirrors [`PlaceholderRef`](flm_core::lang::rewrites::userdefs::PlaceholderRef):
+/// one placeholder of a compiled template
+/// ([`CompiledTemplate::placeholders`]). What differs: `substitution` holds
+/// the text of the substitution argument, as
+/// [`CompiledTemplate::substitution_text`](flm_core::lang::rewrites::userdefs::CompiledTemplate::substitution_text)
+/// gives it, where `flm-core`'s field says whether one is written; with the
+/// name of an extra placeholder, that text is the key [`ExtraValues`] holds a
+/// value under. Across a binding: `{ written, target, substitution }`, the
+/// target `{"argument": index}`, `"body"` or `{"extra": name}`, the
+/// substitution a text or `null`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaceholderRef {
+    /// The placeholder as written between the `#` and the end of the
+    /// placeholder (`1`, `body`, `title`).
+    pub written: String,
+    /// What it refers to.
+    pub target: PlaceholderTarget,
+    /// The text of the substitution argument (`#[…]{…}`): the source text
+    /// between the brackets, with the whitespace around it removed; `None`
+    /// when none is written.
+    pub substitution: Option<String>,
+}
 
 /// Mirrors [`PlaceholderBindings`](flm_core::lang::rewrites::userdefs::PlaceholderBindings):
 /// what a template's placeholders stand for at one use site. What differs:
-/// opaque; the use site's own bindings ([`DefinitionBindings::new`]) are the
-/// one implementation.
+/// opaque; the implementations are the use site's own bindings
+/// ([`DefinitionBindings::new`]), the values of a template without a use
+/// site ([`ValueBindings`]), and computed values laid over other bindings
+/// ([`ExtraValues::over`]).
 ///
 /// The trait is sealed: the adapter alone implements it.
 pub trait PlaceholderBindings: PlaceholderBindingsCore {}
@@ -313,7 +356,7 @@ impl DefinitionBindings {
     /// bindings are a façade, which keeps an owned copy of the use site's node
     /// (so it lives as long as the site's tree) together with the definition's
     /// `Arc` and the mode, and builds `flm-core`'s bindings when
-    /// [`Expander::instantiate`] asks (plan A, A9 and A16).
+    /// [`Expander::instantiate`] asks.
     // The mirror of `flm-core`'s constructor, which answers the bindings; here
     // they are answered as the façade.
     #[allow(clippy::new_ret_no_self)]
@@ -460,8 +503,8 @@ pub use crate::sealed::DurableOwner;
 /// placeholder bindings that give each extra placeholder (`#{name}`) of a
 /// template the content of a finished tree, by name. What differs: a value
 /// built with [`new`](ValueBindings::new) and [`with`](ValueBindings::with),
-/// which takes the root node of a tree a façade shares (a number segment's
-/// content, a tree a function synthesized) in place of the tree.
+/// which takes the tree as its façade (a number segment's content, a tree
+/// [`instantiate`] answered).
 #[derive(Debug, Clone, Default)]
 pub struct ValueBindings {
     core: CoreValueBindings,
@@ -475,23 +518,10 @@ impl ValueBindings {
     }
 
     /// Mirrors [`ValueBindings::with`](flm_core::lang::rewrites::userdefs::ValueBindings::with):
-    /// gives the extra placeholder `name` the tree whose root is `node`. What
-    /// differs: `node` stands for the tree, and must be its root; the tree is
-    /// shared, not copied.
-    ///
-    /// # Errors
-    ///
-    /// `node` is not the root node of a tree a façade shares (a node of the
-    /// document, or a node below a root): [`ExtError::Argument`].
-    pub fn with(self, name: &str, node: &dyn Node<'_>) -> Result<ValueBindings, ExtError> {
-        let tree = node
-            .shared_tree(Token::new())
-            .filter(|tree| tree.root().id() == node.core_node_ref(Token::new()).id())
-            .ok_or_else(|| ExtError::Argument {
-                method: String::new(),
-                detail: format!("the value of the placeholder `{name}` must be the root node of a tree"),
-            })?;
-        Ok(ValueBindings { core: self.core.with(name, tree) })
+    /// gives the extra placeholder `name` the tree `tree`. What differs: the
+    /// tree is its façade, and the bindings share the tree it holds.
+    pub fn with(self, name: &str, tree: &dyn Tree) -> ValueBindings {
+        ValueBindings { core: self.core.with(name, tree.shared(Token::new())) }
     }
 }
 
@@ -499,19 +529,132 @@ impl PlaceholderBindingsCore for ValueBindings {
     fn with_core(&self, _: Token, f: &mut dyn FnMut(&dyn CorePlaceholderBindings)) {
         f(&self.core);
     }
+
+    fn clone_box<'a>(&self, _: Token) -> Box<dyn PlaceholderBindings + 'a>
+    where
+        Self: 'a,
+    {
+        Box::new(self.clone())
+    }
 }
 
 impl PlaceholderBindings for ValueBindings {}
 
+/// Mirrors [`ExtraValues`](flm_core::lang::rewrites::userdefs::ExtraValues):
+/// the values an expansion hook computed for the extra placeholders of a
+/// template, each held under the placeholder's name and the text of its
+/// substitution argument ([`PlaceholderRef::substitution`]); a pair given
+/// twice keeps the later value. What differs: a compiled template is given
+/// by its façade (a definition's template or default value,
+/// [`ModeVariant::template`], [`ModeVariant::defaults`], or a durable
+/// template, [`compile_template_with`]) and held as the `flm-core` template
+/// the façade shares; a tree is given by its façade and held as the
+/// `flm-core` tree the façade shares. Across a binding: a list of `{ name,
+/// substitution, value }` in the order given, the substitution a text or
+/// `null`, the value `{"template": <handle or durable token>}`, `{"tree":
+/// <tree>}` or `"no-value"`.
+#[derive(Default)]
+pub struct ExtraValues {
+    /// The values, in the order given: the name, the substitution text, the
+    /// value.
+    entries: Vec<(String, Option<String>, ExtraValue)>,
+}
+
+/// One value of [`ExtraValues`].
+enum ExtraValue {
+    /// A compiled template, instantiated in place.
+    Template(Arc<CoreCompiledTemplate>),
+    /// A tree, whose root's children are substituted.
+    Tree(Arc<NodeTree<Flm>>),
+    /// No value.
+    NoValue,
+}
+
+impl ExtraValues {
+    /// Mirrors [`ExtraValues::new`](flm_core::lang::rewrites::userdefs::ExtraValues::new):
+    /// values that hold nothing.
+    pub fn new() -> ExtraValues {
+        ExtraValues::default()
+    }
+
+    /// Mirrors [`ExtraValues::template`](flm_core::lang::rewrites::userdefs::ExtraValues::template):
+    /// gives the extra placeholder `name`, written with the substitution
+    /// argument whose text is `substitution` (`None` for a placeholder
+    /// written without one), the compiled template `template`, instantiated
+    /// in place. What differs: `template` is a façade, a definition's
+    /// template or default value or a durable template; the values hold the
+    /// `flm-core` template it shares.
+    pub fn template(self, name: &str, substitution: Option<&str>, template: &dyn CompiledTemplate) -> ExtraValues {
+        self.push(name, substitution, ExtraValue::Template(template.shared(Token::new())))
+    }
+
+    /// Mirrors [`ExtraValues::tree`](flm_core::lang::rewrites::userdefs::ExtraValues::tree):
+    /// gives the extra placeholder `name`, written with the substitution
+    /// argument whose text is `substitution`, the tree `tree`, whose root's
+    /// children are substituted. What differs: the tree is its façade; the
+    /// values hold the `flm-core` tree it shares.
+    pub fn tree(self, name: &str, substitution: Option<&str>, tree: &dyn Tree) -> ExtraValues {
+        self.push(name, substitution, ExtraValue::Tree(tree.shared(Token::new())))
+    }
+
+    /// Mirrors [`ExtraValues::no_value`](flm_core::lang::rewrites::userdefs::ExtraValues::no_value):
+    /// gives the extra placeholder `name`, written with the substitution
+    /// argument whose text is `substitution`, no value.
+    pub fn no_value(self, name: &str, substitution: Option<&str>) -> ExtraValues {
+        self.push(name, substitution, ExtraValue::NoValue)
+    }
+
+    /// Mirrors [`ExtraValues::over`](flm_core::lang::rewrites::userdefs::ExtraValues::over):
+    /// the bindings that answer an extra placeholder from these values, as
+    /// [`Unresolvable`](flm_core::lang::rewrites::userdefs::PlaceholderValue::Unresolvable)
+    /// when they hold none for its name and substitution text, and every
+    /// other placeholder from `base`. What differs: the bindings are a façade
+    /// that owns a copy of `base` and `flm-core`'s values, so that it lends
+    /// them borrowed for the whole instantiation, as `flm-core`'s bindings do;
+    /// it borrows nothing of these values.
+    pub fn over<'b>(&self, base: &(dyn PlaceholderBindings + 'b)) -> Box<dyn PlaceholderBindings + 'b> {
+        let mut values = CoreExtraValues::new();
+        for (name, substitution, value) in &self.entries {
+            let substitution = substitution.as_deref();
+            values = match value {
+                ExtraValue::Template(template) => values.template(name, substitution, Arc::clone(template)),
+                ExtraValue::Tree(tree) => values.tree(name, substitution, Arc::clone(tree)),
+                ExtraValue::NoValue => values.no_value(name, substitution),
+            };
+        }
+        Box::new(LayeredBindingsFacade::new(values, base.clone_box(Token::new())))
+    }
+
+    /// Appends `value` under `name` and `substitution`.
+    fn push(mut self, name: &str, substitution: Option<&str>, value: ExtraValue) -> ExtraValues {
+        self.entries.push((name.to_string(), substitution.map(str::to_string), value));
+        self
+    }
+}
+
+impl fmt::Debug for ExtraValues {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let entries = self.entries.iter().map(|(name, substitution, value)| {
+            let value = match value {
+                ExtraValue::Template(template) => format!("template {:?}", template.text()),
+                ExtraValue::Tree(_) => "tree".to_string(),
+                ExtraValue::NoValue => "no value".to_string(),
+            };
+            (name, substitution, value)
+        });
+        f.debug_list().entries(entries).finish()
+    }
+}
+
 /// Mirrors [`instantiate`](fn@flm_core::lang::rewrites::userdefs::instantiate):
 /// instantiates `template` under `bindings` as a new tree, attributed to the
 /// span of `site`. What differs: the template is a façade (a durable one,
-/// [`compile_template_with`], or a definition's variant's,
-/// [`ModeVariant::template`]), the bindings a façade ([`ValueBindings`] or
-/// [`DefinitionBindings::new`]); the guard policy is
-/// [`GuardPolicy::StackBudget`]; the answer is the root node of the new tree,
-/// which a rule splices
-/// ([`Lowerer::splice`](crate::api::core::lowering::Lowerer::splice)).
+/// [`compile_template_with`], or a definition's variant's template or default
+/// value, [`ModeVariant::template`], [`ModeVariant::defaults`]), the bindings
+/// a façade ([`ValueBindings`], [`DefinitionBindings::new`] or
+/// [`ExtraValues::over`]); the guard policy is
+/// [`GuardPolicy::StackBudget`]; the new tree is a façade, which a rule
+/// splices ([`Lowerer::splice`](crate::api::core::lowering::Lowerer::splice)).
 ///
 /// As `flm-core`'s, the call must run on a [worker
 /// thread](flm_core::lang::guard#the-worker-thread-requirement), since the
@@ -526,11 +669,11 @@ impl PlaceholderBindings for ValueBindings {}
 ///
 /// The instantiation fails (a placeholder the bindings cannot give a value,
 /// the content nesting too deeply): [`ExtError::Core`] of kind `expand`.
-pub fn instantiate<'t>(
-    site: &dyn Node<'t>,
+pub fn instantiate(
+    site: &dyn Node<'_>,
     template: &dyn CompiledTemplate,
     bindings: &dyn PlaceholderBindings,
-) -> Result<Box<dyn Node<'t> + 't>, ExtError> {
+) -> Result<Box<dyn Tree>, ExtError> {
     let span = site.core_node_ref(Token::new()).span().clone();
     let mut answer = None;
     template.with_core(Token::new(), &mut |template| {
@@ -539,17 +682,14 @@ pub fn instantiate<'t>(
         });
     });
     match answer {
-        // `None` only for a definition's template with no compiled variant
-        // for its mode, which `variant_for_use` never answers.
+        // `None` only for the bindings of a definition with no compiled
+        // variant for its mode, which `variant_for_use` never answers.
         None => Err(ExtError::Argument {
             method: String::new(),
-            detail: "the template must be compiled for the mode of its use".to_string(),
+            detail: "the bindings must come from a definition compiled for the mode of the use".to_string(),
         }),
         Some(Err(error)) => Err(ExtError::Core { kind: "expand".to_string(), detail: error.to_string(), data: serde_json::Value::Null }),
-        Some(Ok(tree)) => {
-            let root = tree.root().id();
-            Ok(Box::new(NodeFacade::shared(Arc::new(tree), root)))
-        }
+        Some(Ok(tree)) => Ok(Box::new(TreeFacade::new(Arc::new(tree)))),
     }
 }
 

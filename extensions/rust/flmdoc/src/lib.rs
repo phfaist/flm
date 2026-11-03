@@ -248,8 +248,9 @@ fn settings() -> Value {
     })
 }
 
-// The constructs, their arguments and their presentation: see decision rationale at
-// [§flm-dd-dr:flmdoc-constructs].
+// The constructs, their arguments and their presentation: each construct lowers to standard
+// presentation nodes with roles of its own, so that every backend renders the parts of an
+// item exactly and keeps their meaning for a stylesheet.
 fn register(b: &mut FeatureBuilder, _settings: &Value) -> Result<(), ExtError> {
     let owner = b.feature()?;
     for element in [pres::PAR, pres::BLOCK, pres::SPAN, pres::LIST, pres::VERBATIM, pres::LINK] {
@@ -257,14 +258,15 @@ fn register(b: &mut FeatureBuilder, _settings: &Value) -> Result<(), ExtError> {
     }
 
     // The documentation markup is FLM with one construct borrowed from Markdown, the code
-    // span: see decision rationale at [§flm-dd-dr:docs-markup].
+    // span, the one Markdown habit every documentation text already uses. Markdown's `*…*`
+    // is not borrowed: a bare `*` in prose would open an emphasis that never closes.
     b.element(
         ElementDef::new(
             &owner,
             Vec::<String>::new(),
             SyntaxDef::Specials {
                 trigger: "`".to_string(),
-                args: vec![ArgDef::named(CODE_ARG, CODE_SPAN_CODE).docs(
+                args: vec![ArgDef::named_from_code(CODE_ARG, CODE_SPAN_CODE)?.docs(
                     "The code: raw text up to the next run of as many backticks as opened it; a line ending \
                      in it counts as a space, and one space is removed from each end when both ends hold one.",
                 )],
@@ -283,10 +285,10 @@ fn register(b: &mut FeatureBuilder, _settings: &Value) -> Result<(), ExtError> {
             ["docitem"],
             SyntaxDef::Environment {
                 args: vec![
-                    ArgDef::named(ANCHOR_ARG, "[").docs("The identifier a link to the item points at."),
-                    ArgDef::named(KIND_ARG, RAW_TEXT_CODE)
+                    ArgDef::named_from_code(ANCHOR_ARG, "[")?.docs("The identifier a link to the item points at."),
+                    ArgDef::named_from_code(KIND_ARG, RAW_TEXT_CODE)?
                         .docs("The kind of the item, as one word: `macro`, `environment`, `feature`, `stage`, …"),
-                    ArgDef::named(NAME_ARG, RAW_TEXT_CODE).docs(
+                    ArgDef::named_from_code(NAME_ARG, RAW_TEXT_CODE)?.docs(
                         "The item's name as written, such as `\\section`, shown as code; a name holding a brace \
                          alone is written between other delimiters, as in `|\\{|`.",
                     ),
@@ -306,7 +308,7 @@ fn register(b: &mut FeatureBuilder, _settings: &Value) -> Result<(), ExtError> {
             &owner,
             ["docsignature"],
             SyntaxDef::Macro {
-                args: vec![ArgDef::named(SIGNATURE_ARG, RAW_TEXT_CODE).docs(
+                args: vec![ArgDef::named_from_code(SIGNATURE_ARG, RAW_TEXT_CODE)?.docs(
                     "The signature, exactly as written; one holding a brace alone is written between other \
                      delimiters, as in `|\\{|`.",
                 )],
@@ -320,7 +322,7 @@ fn register(b: &mut FeatureBuilder, _settings: &Value) -> Result<(), ExtError> {
         ElementDef::new(
             &owner,
             ["docsummary"],
-            SyntaxDef::Macro { args: vec![ArgDef::named(TEXT_ARG, "{").docs("The summary.")] },
+            SyntaxDef::Macro { args: vec![ArgDef::named_from_code(TEXT_ARG, "{")?.docs("The summary.")] },
             element(SUMMARY, "The summary of an item, as a paragraph.", BlockRole::Block)?,
         )
         .docs("States the item's summary, as a paragraph of its own.")?,
@@ -331,12 +333,12 @@ fn register(b: &mut FeatureBuilder, _settings: &Value) -> Result<(), ExtError> {
         ["docparam"],
         SyntaxDef::Macro {
             args: vec![
-                ArgDef::named(FORM_ARG, RAW_TEXT_CODE)
+                ArgDef::named_from_code(FORM_ARG, RAW_TEXT_CODE)?
                     .docs("How the parameter is written, such as `{title}`, `[options]` or `*`."),
-                ArgDef::named(NAME_ARG, RAW_TEXT_CODE).docs("The parameter's name; it may be empty."),
-                ArgDef::named(ROLE_ARG, RAW_TEXT_CODE)
+                ArgDef::named_from_code(NAME_ARG, RAW_TEXT_CODE)?.docs("The parameter's name; it may be empty."),
+                ArgDef::named_from_code(ROLE_ARG, RAW_TEXT_CODE)?
                     .docs("The registered name of what the parameter holds; it may be empty."),
-                ArgDef::named(TEXT_ARG, "{")
+                ArgDef::named_from_code(TEXT_ARG, "{")?
                     .layout(ArgLayout::InlineOrBlocks)
                     .docs("What the parameter holds: a line of text, or paragraphs."),
             ],
@@ -355,7 +357,7 @@ fn register(b: &mut FeatureBuilder, _settings: &Value) -> Result<(), ExtError> {
             &owner,
             ["docparams"],
             SyntaxDef::Environment {
-                args: vec![ArgDef::named(TITLE_ARG, "[").docs("The title shown above the list; `Arguments` by default.")],
+                args: vec![ArgDef::named_from_code(TITLE_ARG, "[")?.docs("The title shown above the list; `Arguments` by default.")],
                 body: BodyDef::new().blocks().scoped(PARAMS_BODY),
             },
             element(PARAMS, "The list of the parameters of an item, under a title.", BlockRole::Block)?,
@@ -369,8 +371,8 @@ fn register(b: &mut FeatureBuilder, _settings: &Value) -> Result<(), ExtError> {
             ["docfield"],
             SyntaxDef::Macro {
                 args: vec![
-                    ArgDef::named(KEY_ARG, "{").docs("What the fact is about, such as `Declared by`."),
-                    ArgDef::named(VALUE_ARG, "{").docs("The fact."),
+                    ArgDef::named_from_code(KEY_ARG, "{")?.docs("What the fact is about, such as `Declared by`."),
+                    ArgDef::named_from_code(VALUE_ARG, "{")?.docs("The fact."),
                 ],
             },
             element(FIELD, "One labeled fact about an item, as a paragraph.", BlockRole::Block)?,
@@ -384,8 +386,8 @@ fn register(b: &mut FeatureBuilder, _settings: &Value) -> Result<(), ExtError> {
             ["docref"],
             SyntaxDef::Macro {
                 args: vec![
-                    ArgDef::named(PATH_ARG, RAW_TEXT_CODE).docs("The path of the page, such as `features/headings`."),
-                    ArgDef::named(TEXT_ARG, "{").docs("The text of the link."),
+                    ArgDef::named_from_code(PATH_ARG, RAW_TEXT_CODE)?.docs("The path of the page, such as `features/headings`."),
+                    ArgDef::named_from_code(TEXT_ARG, "{")?.docs("The text of the link."),
                 ],
             },
             element(REF, "A link to another documentation page.", BlockRole::DEFAULT)?,

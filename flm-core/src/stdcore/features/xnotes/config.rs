@@ -25,8 +25,9 @@ use crate::stdcore::features::refs::CAPITAL_VARIANT;
 ///
 /// The placement is part of the xnote kind's configuration, fixed when the
 /// registry is built; no render request can change it. The reason is that an
-/// in-place xnote holding paragraphs is a *block* of the document: it
-/// interrupts the paragraph it is written in, as a displayed formula does.
+/// in-place xnote holding paragraphs is a *block* of the document: it ends
+/// the paragraph it is written in, as a list does, and the text after it is a
+/// new paragraph.
 /// The [block-structure pass](crate::lang::rewrites::blocks) decides whether
 /// a node is a block before the document's trees are frozen (no longer
 /// changed; see [frozen
@@ -46,8 +47,8 @@ pub enum XnotePlacement {
     #[default]
     List,
     /// Where the xnote is written: one inline span holding the mark and the
-    /// content, or, for content holding paragraphs, a block between the two
-    /// parts of the paragraph it interrupts.
+    /// content, or, for content holding paragraphs, a block of its own, which
+    /// ends the paragraph it is written in.
     InPlace,
 }
 
@@ -389,8 +390,9 @@ impl XnoteKind {
         }
         let latex_command = self.latex_command.as_str();
         if latex_command.is_empty() || !latex_command.chars().all(|ch| ch.is_ascii_alphabetic()) {
-            // The command is written into the style file as it stands.
-            // See decision rationale at [§flm-dd-dr:std-xnote-latex-command].
+            // The command is written into the style file as it stands: any
+            // other character would make a style file LaTeX cannot read, a
+            // mistake in configuration reported here and not when LaTeX runs.
             return Err(format!(
                 "the LaTeX command `{latex_command}` of the xnote kind `{name}` must consist of \
                  ASCII letters only, written without the backslash"
@@ -477,7 +479,9 @@ impl XnoteKind {
 /// [`Formats`](NumberTemplate::Formats) template, or one of the five
 /// characters that represent the number in an
 /// [`Initial`](NumberTemplate::Initial) one.
-// See decision rationale at [§flm-dd-dr:std-xnote-unnumbered-mark].
+// An unnumbered kind has no number to write, so a mark naming one is refused.
+// The placeholder test is the lists feature's, which refuses the same mistake,
+// and the five characters are every number format of a single-letter template.
 fn names_number(mark: &NumberTemplate) -> bool {
     match mark {
         NumberTemplate::Formats(text) => holds_placeholder(text),
@@ -544,7 +548,9 @@ fn plural_title(words: &PrefixWords) -> String {
 /// feature contributes ([`contribute_kind`](super::contribute_kind)) is
 /// checked on its own only: nothing refuses that it shares a label type with
 /// a configured kind.
-// See decision rationale at [§flm-dd-dr:std-xnote-label-type].
+// Label types are compared within one configuration only: a contributed kind is
+// declared by its own feature and must work in a registry without the `xnotes`
+// feature, so no check of this feature could see every kind.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 #[derive(schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]

@@ -1,5 +1,5 @@
 //! The emitter of `flm-ext/flm.d.ts`, the TypeScript declarations of every
-//! module of the extension API (the plan's section 5.3, `dev-docs/ext/e2b`).
+//! module of the extension API.
 //!
 //! One `declare module` per module in the order of their paths, opening with
 //! the imports of the types it uses from other modules and its re-exports
@@ -166,8 +166,8 @@ fn array(t: &str) -> String {
 }
 
 impl Emitter<'_> {
-    /// The TypeScript type of the normalized Rust type `ty` (the plan's
-    /// sections 4.2 and 4.3).
+    /// The TypeScript type of the normalized Rust type `ty`, by the type rows
+    /// and the structural rules of `mapping`.
     ///
     /// # Panics
     ///

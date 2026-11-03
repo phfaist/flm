@@ -10,7 +10,7 @@
 //! particular row. [`TABLES`] lists the tables in the order their macros are
 //! registered.
 
-use flm_core::lang::rewrites::userdefs::DefinitionModes;
+use flm_ext::guest::lang::rewrites::userdefs::DefinitionModes;
 
 use crate::sizing::SlotKind;
 
@@ -63,7 +63,7 @@ pub struct Row {
 }
 
 use RowArg::{Code, Named, Size};
-use SlotKind::{Backtick, Bracket, Star, Token};
+use SlotKind::{Backtick, Bracket, Marker, Star};
 
 /// The three size slots of a delimited macro, then one braced argument.
 const SIZED_1: &[RowArg] = &[Size(Backtick), Size(Star), Size(Bracket), Code("{")];
@@ -242,8 +242,7 @@ const RELATIVE_ENTROPY: &[RowArg] = &[Code("["), Size(Backtick), Code("{"), Code
 // placeholder, so the test of several parts nests one conditional per part,
 // each writing the same parenthesis. These macros assemble the template of a
 // row from its symbol when the crate compiles, so that each parenthesis is
-// written once here. See decision rationale at
-// [§flm-dd-dr:feat-phfqit-quantity-templates]
+// written once here.
 
 /// The parenthesis of an entropy and the state's subscript after it:
 /// `#3` the target, `#4` the conditioning system, `#1` the state.
@@ -308,7 +307,9 @@ macro_rules! relative_entropy {
 /// hold nothing is not written, and the parenthesis of a quantity is left out
 /// when every part it holds is blank (`\Hmaxf{}` is the symbol alone); every
 /// other part is written as the LaTeX package `phfqit` renders it.
-// See decision rationale at [§flm-dd-dr:feat-phfqit-quantity-templates]
+// No empty sub- or superscript is written: LaTeX shows nothing for one, but
+// the text output shows `_{}` to its reader, and the web page hands it to the
+// formula renderer.
 pub const QUANTITIES: &[Row] = &[
     quantity("HH", ENTROPY, 1, entropy!("H"), &[]),
     quantity("Hmin", ENTROPY, 1, entropy!(r"H_{\mathrm{min}}"), &[]),
@@ -406,13 +407,27 @@ pub const QUANTITIES: &[Row] = &[
 pub const MAIN_DELIMITED_ARGUMENT: &str = "MainDelimitedArgument";
 
 /// The backtick form, a special character sequence available in formulas
-/// only: a backtick, an optional size token, and a group in braces, brackets,
+/// only: a backtick, an optional size, and a group in braces, brackets,
 /// parentheses or angle brackets, written between its own delimiters at the
 /// size asked for.
+///
+/// The size is one optional marker argument per size, each spelled as the size
+/// command or the star it stands for, then the group. A marker matches the
+/// characters written after the backtick as they are, so a marker that is the
+/// start of another (`\Big`, the start of `\Bigg`) comes after it: `\Bigg`,
+/// `\Big`, `\bigg`, `\big` (the indices 3, 1, 2 and 0 of
+/// [`SIZE_COMMANDS`](crate::sizing::SIZE_COMMANDS)), then the star.
 pub const BACKTICK: &[Row] = &[Row {
     kind: RowKind::Specials,
     name: "`",
-    args: &[Size(Token), Named(MAIN_DELIMITED_ARGUMENT, "AnyDelimited")],
+    args: &[
+        Size(Marker(3)),
+        Size(Marker(1)),
+        Size(Marker(2)),
+        Size(Marker(0)),
+        Size(Star),
+        Named(MAIN_DELIMITED_ARGUMENT, "AnyDelimited"),
+    ],
     offset: 0,
     template: "#{DelimLeft}#{MainDelimitedArgument}#{DelimRight}",
     modes: DefinitionModes::Math,

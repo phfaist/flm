@@ -1,13 +1,13 @@
-# flm-phfpack
+# phfpack
 
-The FLM package `phfpack`: notation macros for quantum information — bras and kets,
+The extension `phfpack` provides notation macros for quantum information — bras and kets,
 norms, operators, gates, groups — whose delimiters are drawn at the size a use asks for,
 the backtick form in formulas, the quantity macros — entropies and other measures of
 information — and the macros a document's settings declare.
 
-The crate is an extension of FLM written as any third party's would be: it depends on
-the library `flm-core` alone, through its public interface. The `flm` program carries
-it by default (its cargo feature `phfpack`). A document uses it by naming it:
+The extension is written in Rust against the guest client `flm_ext::guest` and is compiled
+into the `flm` program: nothing needs to be installed. A document uses it by listing it in
+its front matter's `use` list:
 
 ```yaml
 ---
@@ -46,3 +46,12 @@ the symbol alone:
 
 An entropy with a symbol or a subscript of the document's own is a macro the document
 declares with the same arguments and a template of its own.
+
+## The WebAssembly form
+
+The extension is compiled into the `flm` program, like `flmdoc`, `profile-pdf-latex` and
+`syntax-highlight`. To build its standalone WebAssembly form:
+
+```sh
+extensions/rust/build-wasm.sh phfpack
+```

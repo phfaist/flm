@@ -251,8 +251,8 @@ pub struct Definition {
     /// declared.
     pub argument_number_offset: usize,
     /// The block role of the definition's element ([`BlockRole`]): whether a use
-    /// site is a block or inline content, and, for an environment, whether its body
-    /// is laid out as blocks.
+    /// site is a block, inline content, a displayed item or a block decorator,
+    /// and, for an environment, whether its body is laid out as blocks.
     pub block_role: BlockRole,
     /// When the use sites are expanded ([`ExpandPolicy`]).
     pub expand: ExpandPolicy,
@@ -478,25 +478,31 @@ impl Definition {
 /// The compiled templates of one parsing mode: the template and the default
 /// values that apply in that mode. A [`CompiledDefinition`] holds one for each
 /// mode in which the definition's text compiled ([`CompiledDefinition::variant`]).
+///
+/// Each compiled template is shared (an `Arc`), so that an expansion hook can
+/// give the definition's template or a default value as the value of an extra
+/// placeholder ([`ExtraValues::template`](super::ExtraValues::template)), as it
+/// gives a template it compiled itself.
 pub struct ModeVariant {
-    template: CompiledTemplate,
-    defaults: BTreeMap<usize, CompiledTemplate>,
+    template: Arc<CompiledTemplate>,
+    defaults: BTreeMap<usize, Arc<CompiledTemplate>>,
 }
 
 impl ModeVariant {
-    /// The compiled template.
-    pub fn template(&self) -> &CompiledTemplate {
+    /// The compiled template, shared.
+    pub fn template(&self) -> &Arc<CompiledTemplate> {
         &self.template
     }
 
-    /// The compiled default value of the argument at `index`, if one is declared.
-    pub fn default_of(&self, index: usize) -> Option<&CompiledTemplate> {
+    /// The compiled default value of the argument at `index`, shared, if one is
+    /// declared.
+    pub fn default_of(&self, index: usize) -> Option<&Arc<CompiledTemplate>> {
         self.defaults.get(&index)
     }
 
-    /// The compiled default values with their argument indices, in increasing order
-    /// of index.
-    pub fn defaults(&self) -> impl Iterator<Item = (usize, &CompiledTemplate)> + '_ {
+    /// The compiled default values, shared, with their argument indices, in
+    /// increasing order of index.
+    pub fn defaults(&self) -> impl Iterator<Item = (usize, &Arc<CompiledTemplate>)> + '_ {
         self.defaults.iter().map(|(index, template)| (*index, template))
     }
 
@@ -716,7 +722,10 @@ fn compile_variant(
         failed = true;
     }
     match (failed, template) {
-        (false, Some(template)) => Some(ModeVariant { template, defaults }),
+        (false, Some(template)) => Some(ModeVariant {
+            template: Arc::new(template),
+            defaults: defaults.into_iter().map(|(index, default)| (index, Arc::new(default))).collect(),
+        }),
         _ => None,
     }
 }
@@ -842,8 +851,7 @@ pub fn compile_with(
     // compiled tree per mode. A definition declared by one text with no mode
     // named is in force in each mode where the text compiles: the mode where
     // it does not is no build problem, and a use there is reported at the
-    // use — the rule `compile_in_modes` holds. See decision rationale at
-    // [§flm-dd-dr:lang-userdef-modes].
+    // use — the rule `compile_in_modes` holds.
     let declared_modes =
         [Mode::Text, Mode::Math].into_iter().filter(|&mode| definition.modes.includes(mode));
     let (variants, found) = match definition.content.as_deref() {
@@ -868,8 +876,7 @@ pub fn compile_with(
     // conditional's test or branch, which are placeholders of the same tree —
     // is refused here, where every per-definition build problem is raised, so
     // that the refusal is the same on every backend rather than a property of
-    // one output language. See decision rationale at
-    // [§flm-dd-dr:std-userdefs-transcribable].
+    // one output language.
     for variant in [text.as_ref(), math.as_ref()].into_iter().flatten() {
         let trees =
             std::iter::once(variant.template()).chain(variant.defaults().map(|(_, tree)| tree));
@@ -910,9 +917,10 @@ pub fn compile_with(
     })
 }
 
-/// Whether `arg` is a **tack-on argument**: the trailing argument that absorbs
-/// the field macros written *after* a call, such as the `\label{…}` of
-/// `\thm{Euclid}\label{thm:euclid}`, rather than content between braces (see
+/// Whether `arg` is a **tack-on argument**: the argument that absorbs the field
+/// macros written at its position in a call, after the arguments declared
+/// before it, such as the `\label{…}` of `\thm{Euclid}\label{thm:euclid}`,
+/// rather than content between braces (see
 /// [fields](crate::guide::concepts_overview#fields-data-a-construct-reads)).
 ///
 /// It is the only declared argument shape that a template cannot refer to: what
@@ -936,10 +944,11 @@ pub(crate) fn is_tack_on(arg: &ArgDef) -> bool {
 /// argument, and this type records how many there are of each and which
 /// declared argument each one belongs to:
 ///
-/// - a **value**, one per declared argument that a template can refer to, in
-///   declared order: what the expansion substitutes for a placeholder of that
-///   argument, that is, the content the use site wrote, else the argument's
-///   default value, else nothing;
+/// - a **value**, one per declared argument that a template can refer to, which
+///   is every declared argument that is not a tack-on argument, in declared
+///   order: what the expansion substitutes for a placeholder of that argument,
+///   that is, the content the use site wrote, else the argument's default value,
+///   else nothing;
 /// - a **flag**, which says whether the use site *wrote* the argument, one per
 ///   declared argument for which a conditional of the template needs to know
 ///   that, in declared order, after all the values.
@@ -947,13 +956,12 @@ pub(crate) fn is_tack_on(arg: &ArgDef) -> bool {
 /// A flag exists only where a conditional needs it, so an ordinary definition's
 /// effective signature is one value per declared argument and nothing more.
 ///
-/// A **tack-on argument** (the trailing argument that absorbs the field macros
-/// written after a call, such as `\label`) has neither. A template cannot refer
-/// to it ([`DefinitionProblem::TackOnPlaceholder`]), so it has no value, and no
-/// conditional can test it, so it has no flag. A definition that declares one
-/// and leaves it unused is still written, and nothing that its calls absorb is
-/// written anywhere. A tack-on argument is the command's last argument, so the
-/// values are the declared arguments before it.
+/// A **tack-on argument** (the argument that absorbs the field macros, such as
+/// `\label{…}`, written at its position in a call) has neither. A template
+/// cannot refer to it ([`DefinitionProblem::TackOnPlaceholder`]), so it has no
+/// value, and no conditional can test it, so it has no flag. A definition that
+/// declares one and leaves it unused is still written, and nothing that its
+/// calls absorb is written anywhere.
 ///
 /// The recomposing backend decides which arguments carry a flag, from the
 /// conditionals the template uses; this type only records the outcome, so that
@@ -968,41 +976,51 @@ pub(crate) fn is_tack_on(arg: &ArgDef) -> bool {
 /// ```
 /// use flm_core::lang::rewrites::userdefs::EffectiveSignature;
 ///
-/// // Two declared arguments, the first of which the template asks about:
-/// // a call writes three groups, the flag last.
-/// let signature = EffectiveSignature::new(2, [0]);
+/// // Three declared arguments, the second of which is a tack-on argument, and
+/// // the first of which the template asks about: a call writes three groups,
+/// // the values of the first and the third arguments, then the flag.
+/// let signature = EffectiveSignature::new([0, 2], [0]);
 /// assert_eq!(signature.arity(), 3);
 /// assert_eq!(signature.value_position(0), Some(1));
-/// assert_eq!(signature.value_position(1), Some(2));
+/// assert_eq!(signature.value_position(1), None);
+/// assert_eq!(signature.value_position(2), Some(2));
 /// assert_eq!(signature.flag_position(0), Some(3));
-/// assert_eq!(signature.flag_position(1), None);
+/// assert_eq!(signature.flag_position(2), None);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct EffectiveSignature {
-    values: usize,
+    values: Vec<usize>,
     flagged: Vec<usize>,
 }
 
 impl EffectiveSignature {
-    /// The signature of a definition whose first `values` declared arguments carry
-    /// a value, among which those at the indices `flagged` (counting from zero)
-    /// carry a flag.
+    /// The signature of a definition whose declared arguments at the indices
+    /// `values` (counting from zero) carry a value, among which those at the
+    /// indices `flagged` carry a flag.
     ///
-    /// `values` is the number of declared arguments that a template can refer to:
-    /// all of them except a trailing tack-on argument.
+    /// The values are the declared arguments that a template can refer to: the
+    /// declared arguments that are not tack-on arguments.
     ///
-    /// An index not below `values`, and a repeated index, are left out: the flags
-    /// are the listed arguments, each once, in declared order, regardless of the
-    /// order in which they are given.
-    pub fn new(values: usize, flagged: impl IntoIterator<Item = usize>) -> EffectiveSignature {
-        let named: BTreeSet<usize> = flagged.into_iter().filter(|index| *index < values).collect();
-        EffectiveSignature { values, flagged: named.into_iter().collect() }
+    /// A repeated index is left out, and so is a flagged index that is not among
+    /// the values: the values and the flags are the listed arguments, each once,
+    /// in declared order, regardless of the order in which they are given.
+    pub fn new(
+        values: impl IntoIterator<Item = usize>,
+        flagged: impl IntoIterator<Item = usize>,
+    ) -> EffectiveSignature {
+        let values: BTreeSet<usize> = values.into_iter().collect();
+        let named: BTreeSet<usize> =
+            flagged.into_iter().filter(|index| values.contains(index)).collect();
+        EffectiveSignature {
+            values: values.into_iter().collect(),
+            flagged: named.into_iter().collect(),
+        }
     }
 
-    /// How many declared arguments carry a value, which is how many value
-    /// groups a call writes.
-    pub fn values(&self) -> usize {
-        self.values
+    /// The declared arguments that carry a value, as indices counting from zero,
+    /// in declared order; a call writes one value group for each.
+    pub fn values(&self) -> &[usize] {
+        &self.values
     }
 
     /// The declared arguments that carry a flag, as indices counting from zero, in
@@ -1014,14 +1032,15 @@ impl EffectiveSignature {
     /// How many effective arguments a call writes: one value per declared
     /// argument that carries one, and one flag per flagged argument.
     pub fn arity(&self) -> usize {
-        self.values + self.flagged.len()
+        self.values.len() + self.flagged.len()
     }
 
     /// The position of the value of the declared argument `index` among the
     /// effective arguments, counting from one; `None` when that argument carries no
     /// value (it is not a declared argument, or it is a tack-on argument).
     pub fn value_position(&self, index: usize) -> Option<usize> {
-        (index < self.values).then_some(index + 1)
+        let at = self.values.iter().position(|value| *value == index)?;
+        Some(at + 1)
     }
 
     /// The position of the flag of the declared argument `index` among the
@@ -1029,7 +1048,7 @@ impl EffectiveSignature {
     /// flag.
     pub fn flag_position(&self, index: usize) -> Option<usize> {
         let at = self.flagged.iter().position(|flagged| *flagged == index)?;
-        Some(self.values + at + 1)
+        Some(self.values.len() + at + 1)
     }
 }
 
@@ -1047,8 +1066,8 @@ impl EffectiveSignature {
 /// reasons listed below. This covers arguments of every shape a definition can
 /// declare, at any position: a `{…}` group, an optional `[…]` group, a
 /// characters-only group, a key-value group, a verbatim argument, a `*` marker,
-/// and a trailing tack-on argument, which the definition may declare and no
-/// template may refer to ([`DefinitionProblem::TackOnPlaceholder`]). It covers
+/// and a tack-on argument, which the definition may declare and no template may
+/// refer to ([`DefinitionProblem::TackOnPlaceholder`]). It covers
 /// any number of arguments, beyond what the output language's own definitions
 /// can take. It covers a template, and every declared default value, that is
 /// plain content around its placeholders and its conditionals (with no
@@ -1131,9 +1150,10 @@ pub enum NotRecomposable {
     /// wrote, so the argument's shape in the FLM source never reaches the output
     /// language: a key-value argument's group is written unchanged, a verbatim
     /// argument's characters are written as content like any other value, and a
-    /// tack-on argument (the macros a call absorbs after it, such as a `\label{…}`
-    /// written after it) carries no effective argument at all, because no template
-    /// may refer to it ([`DefinitionProblem::TackOnPlaceholder`]). The variant is
+    /// tack-on argument (the argument that absorbs the field macros, such as a
+    /// `\label{…}`, written at its position in a call) carries no effective
+    /// argument at all, because no template may refer to it
+    /// ([`DefinitionProblem::TackOnPlaceholder`]). The variant is
     /// kept for an argument shape that a later version may add and that the output
     /// language cannot express.
     ArgumentShape {
@@ -1569,6 +1589,9 @@ impl fmt::Debug for UserDefinition {
 /// of its own names and passes every other placeholder to
 /// [`value`](PlaceholderBindings::value) here, so that arguments, default values
 /// and the body mean the same in its templates as in every user definition's.
+/// [`ExtraValues::over`](super::ExtraValues::over) gives such bindings from the
+/// values of the extra placeholders alone; the example below implements the
+/// trait instead.
 ///
 /// # Examples
 ///
@@ -1661,7 +1684,6 @@ impl PlaceholderBindings for DefinitionBindings<'_> {
 /// the call they write for the `latex-recomposed` backend. The expanded document
 /// and the document with kept definitions therefore cannot disagree about an
 /// argument's content.
-// See decision rationale at [§flm-dd-dr:lang-placeholder-content].
 pub(crate) fn substituted_argument_nodes<'t>(
     site: &NodeRef<'t, Flm>,
     index: usize,

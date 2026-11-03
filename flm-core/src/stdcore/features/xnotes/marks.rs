@@ -94,7 +94,8 @@ impl Finalizer for DeclareFixedMarks {
 /// an xnote kind is configuration, and a mistake in it is reported once rather
 /// than at every document. A mark that parses with a warning is kept, and the
 /// warning is added to the build diagnostics.
-// See decision rationale at [§flm-dd-dr:std-xnote-fixed-mark].
+// A kind's mark is read as FLM whether or not the kind is numbered, so `\dag`
+// writes what it stands for and not its source.
 struct CompileFixedMarks {
     marks: Arc<FixedMarks>,
 }

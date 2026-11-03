@@ -28,6 +28,10 @@
 //! - `rows#backend`: the backend `rows`, its lowering the library's and its
 //!   emit and final stages its own, with the output `rows`, and the rule that
 //!   lowers an image on it (as the JavaScript fixture `tests/js/typst/` does).
+//! - `rows#read`: the feature `read`, whose configuration reader keeps a
+//!   number `level` and adds `checked`, and fails at `level` for a value of
+//!   another type; its `register` declares the stage `rows.see`, which pushes
+//!   the configuration `register` received into the table `rows.seen`.
 
 use std::sync::Arc;
 
@@ -43,6 +47,7 @@ use flm_ext::guest::core::registry::{
 };
 use flm_ext::guest::core::run::{RewriteCx, StageCx};
 use flm_ext::guest::core::services::Arity;
+use flm_ext::guest::core::settings::ReadError;
 use flm_ext::guest::core::stage::{Effect, Needs, RewriteDecl, RewriteStage, Scope, Stage, StageDecl};
 use flm_ext::guest::lang::mint::{ArgDef, ElementDef, FallbackDef, FallbackKind, Mode, ScopedPackageDef, SyntaxDef};
 use flm_ext::guest::lang::rewrites::userdefs::{Definition, UserDefinition};
@@ -83,6 +88,9 @@ pub const DOCUMENT: &str = "rows.document";
 /// What the citation provider answers for every key.
 pub const NO_ENTRY: &str = "the guest holds no entry";
 
+/// The table of the configuration `register` of `rows#read` received.
+pub const SEEN: &str = "rows.seen";
+
 flm_ext::guest::extension!(extension);
 
 fn extension(ext: &mut Extension) {
@@ -96,6 +104,9 @@ fn extension(ext: &mut Extension) {
     ext.package("hooks", package("hooks", register_hooks));
     ext.package("forms", package("forms", register_forms));
     ext.package("backend", package("backend", register_backend));
+    let settings = json!({ "config": { "schema": { "type": "object", "properties": { "level": { "type": "integer" } } } } });
+    let read = Feature::new().title("read").settings(settings).read(read_level).register(register_read);
+    ext.package("read", Package::new().uses(["stdcore"]).feature("read", read));
 }
 
 // --- rows#box: a rule's body, `points` and the sectioning ------------------------------------------
@@ -363,7 +374,7 @@ fn register_backend(b: &mut FeatureBuilder, _: &Value) -> Result<(), ExtError> {
         BackendStage::Library(LoweringStage::new("rows")?),
         BackendStage::Own(Arc::new(Emit { lowered })),
         BackendStage::Own(Arc::new(Final)),
-    )?;
+    );
     b.backend(backend.docs("A backend of its own stages."))?;
     b.output(OutputDef::new("rows", DOCUMENT, DOCUMENT, "text/plain", "txt").docs("the emitted text"))?;
     let decl = LoweringDecl::new().produces(UNSUPPORTED);
@@ -408,4 +419,22 @@ fn register_forms(b: &mut FeatureBuilder, _: &Value) -> Result<(), ExtError> {
     b.contribute_first_to("rows.data", Contributed::Data(json!({ "k": [1, 2] })))?;
     b.table(READ, "the values of the slot `rows.data`")?;
     b.stage(Arc::new(ReadSlot))
+}
+
+// --- rows#read: a configuration reader -------------------------------------------------------------
+
+/// The configuration reader of `rows#read`: a number `level` (1 when the configuration
+/// given holds none) is kept, and `checked` added; a `level` of another type is the value
+/// at fault.
+fn read_level(settings: Value) -> Result<Value, ReadError> {
+    match settings.get("level") {
+        None => Ok(json!({ "level": 1, "checked": true })),
+        Some(level @ Value::Number(_)) => Ok(json!({ "level": level, "checked": true })),
+        Some(other) => Err(ReadError { path: "level".to_string(), detail: format!("must be a number, not `{other}`") }),
+    }
+}
+
+fn register_read(b: &mut FeatureBuilder, settings: &Value) -> Result<(), ExtError> {
+    b.table(SEEN, "the configuration `register` received")?;
+    b.stage(Arc::new(Push { name: "rows.see", table: SEEN, item: settings.clone() }))
 }

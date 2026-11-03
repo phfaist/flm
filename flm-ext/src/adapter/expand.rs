@@ -3,7 +3,7 @@
 //! ([`ExpanderFacade`]), the context ([`ExpandCxFacade`]), and the definition
 //! façades a hook instantiates its definition's template through
 //! (`ModeVariantFacade`, `CompiledTemplateFacade`,
-//! `DefinitionBindingsFacade`, crate-private).
+//! `DefinitionBindingsFacade`, `LayeredBindingsFacade`, crate-private).
 //!
 //! # One call
 //!
@@ -27,19 +27,27 @@
 //!
 //! # The definition façades
 //!
-//! A variant, a template and a use site's bindings each own the definition's
-//! `Arc` and the mode (plan A, A19); the bindings also own a copy of the use
-//! site's node (A9, A16). Each resolves the `flm-core` value inside its sealed
-//! accessor, when [`Expander::instantiate`] asks: the variant through the
-//! definition's compiled form, the template from the variant, the bindings
-//! built over the use site and the variant.
+//! A variant owns the definition's `Arc` and the mode, which a use site's
+//! bindings copy from it, and the `Arc`s of the template and default values
+//! that the `flm-core` variant holds. A template's façade holds one of these
+//! `Arc`s, as a durable template's façade holds its template. A use site's
+//! bindings own the definition's `Arc`, the mode and a copy of the use site's
+//! node, and build `flm-core`'s bindings over the site and the definition's
+//! compiled variant for the mode inside their sealed accessor, when
+//! [`Expander::instantiate`] asks. A template given to
+//! [`ExtraValues`](crate::api::lang::rewrites::userdefs::ExtraValues) is held
+//! as the `Arc` its façade shares. The bindings of
+//! [`ExtraValues::over`](crate::api::lang::rewrites::userdefs::ExtraValues::over)
+//! own `flm-core`'s values, each tree resolved when they are made, and a
+//! copy of their base, and lay the values over the base's `flm-core`
+//! bindings when asked.
 
 use std::sync::Arc;
 
 use flm_core::lang::rewrites::userdefs::{
     CompiledTemplate as CoreCompiledTemplate, DefinitionBindings as CoreDefinitionBindings, Expand as CoreExpand,
     ExpandCx as CoreExpandCx, ExpandError, ExpandPolicy, Expander as CoreExpander, Expansion as CoreExpansion,
-    ModeVariant as CoreModeVariant, PlaceholderBindings as CorePlaceholderBindings,
+    ExtraValues as CoreExtraValues, ModeVariant as CoreModeVariant, PlaceholderBindings as CorePlaceholderBindings,
     UserDefinition as CoreUserDefinition,
 };
 use flm_core::lang::{Flm, FlmDiagnostic};
@@ -54,7 +62,7 @@ use crate::adapter::node::NodeFacade;
 use crate::adapter::values::diagnostic_to_core;
 use crate::api::lang::mint::Mode;
 use crate::api::lang::rewrites::userdefs::{
-    CompiledTemplate, Expand, ExpandCx, Expander, Expansion, ModeVariant, PlaceholderBindings, Staged,
+    CompiledTemplate, Expand, ExpandCx, Expander, Expansion, ModeVariant, PlaceholderBindings, PlaceholderRef, Staged,
     UserDefinition,
 };
 use crate::api::techy::error::Diagnostic;
@@ -69,8 +77,7 @@ use crate::sealed::{
 
 /// `flm-core`'s expansion hook over an extension's [`Expand`]: what an
 /// element's `Expand` aspect holds once the element is registered, with the
-/// name of the package that registered it (the diagnostics the hook reports
-/// must begin with it).
+/// extension and the package that registered it.
 pub struct ExtExpand {
     /// The extension's hook.
     pub(crate) hook: Arc<dyn Expand>,
@@ -78,7 +85,7 @@ pub struct ExtExpand {
     pub(crate) owner: Owner,
     /// The user definition the element was declared from, when a helper made
     /// the declaration ([`UserDefinition::element_def_with`]); answered by
-    /// [`ExpandCx::definition`] (plan A, A37).
+    /// [`ExpandCx::definition`].
     pub(crate) definition: Option<UserDefinition>,
 }
 
@@ -258,9 +265,8 @@ impl ExpandCx for ExpandCxFacade<'_, '_, '_> {
 // --- the expander ----------------------------------------------------------------------------
 
 /// The expander lent to one call of an expansion hook: `flm-core`'s expander,
-/// what was lent to the call, and the extension's stem and the package, whose
-/// stem (and a dot) the hook's diagnostics must begin with; the one
-/// implementation of [`Expander`].
+/// what was lent to the call, and the extension and the package that
+/// registered the hook; the one implementation of [`Expander`].
 pub struct ExpanderFacade<'a, 'n> {
     xp: &'a mut dyn CoreExpander,
     lent: Lent<'n>,
@@ -289,9 +295,8 @@ impl ExpanderFacade<'_, '_> {
     }
 
     /// The hook's diagnostic as `flm-core`'s, at the use site unless it has a
-    /// place of its own, after the name rule.
+    /// place of its own.
     fn diagnostic(&self, diagnostic: Diagnostic) -> Result<FlmDiagnostic, ExtError> {
-        self.owner.check("diagnostic", &diagnostic.id)?;
         diagnostic_to_core(diagnostic, self.lent.site.span().clone())
     }
 }
@@ -351,13 +356,13 @@ impl Expander for ExpanderFacade<'_, '_> {
         if !same_cx {
             return Err(Lent::other_cx(METHOD));
         }
-        // `None` only for a façade over a definition with no compiled variant
-        // for its mode, which `variant_for_use` never answers (plan A, A23).
+        // `None` only for the bindings of a definition with no compiled
+        // variant for its mode, which `variant_for_use` never answers.
         match answer {
             Some(answer) => self.answered(answer),
             None => Err(ExtError::Argument {
                 method: METHOD.to_string(),
-                detail: "the template and the bindings must come from a compiled definition".to_string(),
+                detail: "the bindings must come from a compiled definition".to_string(),
             }),
         }
     }
@@ -400,16 +405,24 @@ fn variant_of(definition: &CoreUserDefinition, mode: Mode) -> Option<&CoreModeVa
 }
 
 /// A definition's variant for one mode, the one implementation of
-/// [`ModeVariant`]: it owns the definition's `Arc` and the mode (plan A, A19).
+/// [`ModeVariant`]: it owns the definition's `Arc` and the mode, and shares
+/// the variant's template and default values.
 pub(crate) struct ModeVariantFacade {
     definition: Arc<CoreUserDefinition>,
     mode: Mode,
+    /// The variant's template.
+    template: Arc<CoreCompiledTemplate>,
+    /// The compiled default values, with their argument indices, in
+    /// increasing order of index.
+    defaults: Vec<(usize, Arc<CoreCompiledTemplate>)>,
 }
 
 impl ModeVariantFacade {
-    /// The variant of `definition` for `mode`.
-    pub(crate) fn new(definition: Arc<CoreUserDefinition>, mode: Mode) -> ModeVariantFacade {
-        ModeVariantFacade { definition, mode }
+    /// The variant `variant` of `definition` for `mode`.
+    pub(crate) fn new(definition: Arc<CoreUserDefinition>, mode: Mode, variant: &CoreModeVariant) -> ModeVariantFacade {
+        let template = Arc::clone(variant.template());
+        let defaults = variant.defaults().map(|(index, value)| (index, Arc::clone(value))).collect();
+        ModeVariantFacade { definition, mode, template, defaults }
     }
 }
 
@@ -427,32 +440,60 @@ impl ModeVariantCore for ModeVariantFacade {
 
 impl ModeVariant for ModeVariantFacade {
     fn template(&self) -> Box<dyn CompiledTemplate> {
-        Box::new(CompiledTemplateFacade { definition: Arc::clone(&self.definition), mode: self.mode })
+        Box::new(CompiledTemplateFacade { template: Arc::clone(&self.template) })
+    }
+
+    fn defaults(&self) -> Vec<(usize, Box<dyn CompiledTemplate>)> {
+        self.defaults
+            .iter()
+            .map(|(index, value)| {
+                let template: Box<dyn CompiledTemplate> = Box::new(CompiledTemplateFacade { template: Arc::clone(value) });
+                (*index, template)
+            })
+            .collect()
     }
 }
 
-/// The template of a definition's variant for one mode, the one
-/// implementation of [`CompiledTemplate`]: it owns the definition's `Arc` and
-/// the mode (plan A, A19).
+/// A template of a definition's variant for one mode, the implementation of
+/// [`CompiledTemplate`] beside the durable one: the variant's template or the
+/// default value of one argument, shared with the variant.
 pub(crate) struct CompiledTemplateFacade {
-    definition: Arc<CoreUserDefinition>,
-    mode: Mode,
+    template: Arc<CoreCompiledTemplate>,
 }
 
 impl CompiledTemplateCore for CompiledTemplateFacade {
     fn with_core(&self, _: Token, f: &mut dyn FnMut(&CoreCompiledTemplate)) {
-        if let Some(variant) = variant_of(&self.definition, self.mode) {
-            f(variant.template());
-        }
+        f(&self.template);
+    }
+
+    fn shared(&self, _: Token) -> Arc<CoreCompiledTemplate> {
+        Arc::clone(&self.template)
     }
 }
 
-impl CompiledTemplate for CompiledTemplateFacade {}
+impl CompiledTemplate for CompiledTemplateFacade {
+    fn placeholders(&self) -> Vec<PlaceholderRef> {
+        placeholder_refs(&self.template)
+    }
+}
+
+/// The placeholders of `template`, in its tree's storage order, each with the
+/// text of its substitution argument.
+pub(crate) fn placeholder_refs(template: &CoreCompiledTemplate) -> Vec<PlaceholderRef> {
+    template
+        .placeholders()
+        .map(|(node, reference)| PlaceholderRef {
+            written: reference.written.clone(),
+            target: reference.target.clone(),
+            substitution: template.substitution_text(node),
+        })
+        .collect()
+}
 
 /// The bindings of a use site for a definition's variant, the one
 /// implementation of [`PlaceholderBindings`]: it owns a copy of the use site's
 /// node, the definition's `Arc` and the mode, and builds `flm-core`'s
-/// [`DefinitionBindings`](CoreDefinitionBindings) when asked (plan A, A9).
+/// [`DefinitionBindings`](CoreDefinitionBindings) when asked.
 pub(crate) struct DefinitionBindingsFacade<'t> {
     site: Box<dyn Node<'t> + 't>,
     definition: Arc<CoreUserDefinition>,
@@ -474,6 +515,49 @@ impl PlaceholderBindingsCore for DefinitionBindingsFacade<'_> {
             f(&bindings);
         }
     }
+
+    fn clone_box<'a>(&self, token: Token) -> Box<dyn PlaceholderBindings + 'a>
+    where
+        Self: 'a,
+    {
+        Box::new(DefinitionBindingsFacade {
+            site: self.site.clone_box(token),
+            definition: Arc::clone(&self.definition),
+            mode: self.mode,
+        })
+    }
 }
 
 impl PlaceholderBindings for DefinitionBindingsFacade<'_> {}
+
+/// The bindings of [`ExtraValues::over`](crate::api::lang::rewrites::userdefs::ExtraValues::over):
+/// `flm-core`'s values, resolved when the bindings were made, and a copy of
+/// the base bindings; it lays the values over the base's `flm-core` bindings
+/// when asked.
+pub(crate) struct LayeredBindingsFacade<'b> {
+    values: CoreExtraValues,
+    base: Box<dyn PlaceholderBindings + 'b>,
+}
+
+impl<'b> LayeredBindingsFacade<'b> {
+    /// The bindings of `values` over `base`.
+    pub(crate) fn new(values: CoreExtraValues, base: Box<dyn PlaceholderBindings + 'b>) -> LayeredBindingsFacade<'b> {
+        LayeredBindingsFacade { values, base }
+    }
+}
+
+impl PlaceholderBindingsCore for LayeredBindingsFacade<'_> {
+    fn with_core(&self, token: Token, f: &mut dyn FnMut(&dyn CorePlaceholderBindings)) {
+        let values = &self.values;
+        self.base.with_core(token, &mut |base| f(&values.over(base)));
+    }
+
+    fn clone_box<'a>(&self, token: Token) -> Box<dyn PlaceholderBindings + 'a>
+    where
+        Self: 'a,
+    {
+        Box::new(LayeredBindingsFacade { values: self.values.clone(), base: self.base.clone_box(token) })
+    }
+}
+
+impl PlaceholderBindings for LayeredBindingsFacade<'_> {}

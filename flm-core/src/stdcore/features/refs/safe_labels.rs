@@ -126,8 +126,9 @@
 //! the resolve stage ([`RESOLVE`](super::RESOLVE)) runs over the value in the
 //! same catch-up and reports its references.
 
-// Why one counter across domains and why the names carry no type prefix:
-// see design rationale at [§flm-dd-dr:rend-recomposed-safe-labels].
+// One count serves every domain, so keys of different domains never meet and
+// need no type prefix; a key such as `ref1` holds only letters and digits,
+// which every package that reads label keys accepts.
 
 use std::collections::BTreeMap;
 
@@ -542,8 +543,6 @@ impl Stage for ValueSafeLabelsStage {
     /// the last so that the resolve stage runs over the synthesized value
     /// before this stage, in the same catch-up, and reports the value's
     /// references.
-    // Why the resolutions are read without being used: see decision rationale
-    // at [§flm-dd-dr:std-refs-value-references].
     fn needs(&self, _cx: &PlanCx<'_>) -> Needs {
         Needs::new()
             .reads(SAFE_LABELS)

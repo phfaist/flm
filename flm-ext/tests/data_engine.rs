@@ -1,4 +1,4 @@
-//! The data engine (plan A, 3.8): an extension written as data provides one
+//! The data engine: an extension written as data provides one
 //! package, `_`, whose block is its manifest's `flm` and whose templates are
 //! its `templates/` folder.
 

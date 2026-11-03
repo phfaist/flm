@@ -278,7 +278,9 @@ fn counted(count: usize, one: &str, many: &str) -> String {
 /// to date. The diagnostics reported while bringing it up to date go to
 /// `diags`.
 fn refusal(cx: &StageCx<'_>, entry: &CitationEntry, diags: &mut FlmDiagnostics) -> Option<MissingEntry> {
-    // See decision rationale at [§flm-dd-dr:std-citations-stages].
+    // The entry is tested as the document would show it, so that a citation or
+    // block content reached through a user definition is refused as it is when
+    // written directly.
     let caught = match cx.resolve_value(&entry.content) {
         Ok(caught) => caught,
         Err(error) => {

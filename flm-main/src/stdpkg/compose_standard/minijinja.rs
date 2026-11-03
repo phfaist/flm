@@ -304,9 +304,10 @@ mod tests {
         assert_eq!(render("\n{{ include_raw(\"none.js\") }}", true).unwrap_err(), format!("{missing_raw} (in t:2)"));
         let leaves = "the compose template `t` includes `../x.js`, which leaves the extension's folder";
         assert_eq!(render("{{ include_raw(\"../x.js\") }}", true).unwrap_err(), format!("{leaves} (in t:1)"));
-        assert_eq!(render("{% include \"../x.html\" %}", true).unwrap_err(), format!(
+        assert_eq!(
+            render("{% include \"../x.html\" %}", true).unwrap_err(),
             "the compose template `t` includes `../x.html`, which leaves the extension's folder (in t:1)"
-        ));
+        );
         // A compose template without files includes nothing.
         assert!(render("{{ include_raw(\"dist/x.js\") }}", false).is_err());
         assert!(render("{% include \"partials/head.html\" %}", false).is_err());

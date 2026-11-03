@@ -158,7 +158,7 @@ pub fn catalog_with(loader: &Arc<flm_ext::ExtensionLoader>) -> flm_core::core::r
     catalog
 }
 
-// ---- WP-5 ----
+// ---- extensions held in memory, and their loaders ----
 
 /// The manifest of a js extension whose main module is `main`.
 pub fn js_manifest(main: &str) -> serde_json::Value {
@@ -225,7 +225,7 @@ pub fn js_factory(host: &flm_ext::quickjs::JsHost, main: &str) -> flm_core::core
     factory_of(&loader, "wc")
 }
 
-// ---- E6 WP-2a: service slots and host services ----
+// ---- service slots and host services ----
 
 /// The run of a plan demanding `demands` over a document of one tree per text
 /// of `texts`, in order.

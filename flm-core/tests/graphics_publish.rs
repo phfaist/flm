@@ -243,10 +243,10 @@ fn two_files() -> MemoryFiles {
 }
 
 // ---------------------------------------------------------------------------------------------
-// the acceptance tests
+// the strategies, the conversions and the artifacts an output holds
 // ---------------------------------------------------------------------------------------------
 
-/// Acceptance 1: under `copy`, each image has the address the namer gives,
+/// Under `copy`, each image has the address the namer gives,
 /// and the output is the page and the two copies, each holding its file.
 #[test]
 fn under_copy_the_page_names_each_copy_and_the_output_holds_them() {
@@ -277,7 +277,7 @@ fn under_copy_the_page_names_each_copy_and_the_output_holds_them() {
     );
 }
 
-/// Acceptance 2: a file shown twice, in one tree or in two, is one copy, and
+/// A file shown twice, in one tree or in two, is one copy, and
 /// nothing is reported.
 #[test]
 fn a_file_shown_twice_in_one_tree_or_two_is_one_copy() {
@@ -302,7 +302,7 @@ fn a_file_shown_twice_in_one_tree_or_two_is_one_copy() {
     assert!(found.iter().all(|src| *src == found[0]));
 }
 
-/// Acceptance 3: under `data-uri`, the page holds each file's content in its
+/// Under `data-uri`, the page holds each file's content in its
 /// address, and the output is the page alone.
 #[test]
 fn under_data_uri_the_page_holds_the_content_and_the_output_is_the_page_alone() {
@@ -327,7 +327,7 @@ fn under_data_uri_the_page_holds_the_content_and_the_output_is_the_page_alone() 
     );
 }
 
-/// Acceptance 4: a rule's conversion gives the copy the target format; of
+/// A rule's conversion gives the copy the target format; of
 /// two converters offering the pair the first contributed is used, and the
 /// one `via` names where it names one; a pair no converter offers is
 /// reported and the file copied as it is.
@@ -443,7 +443,7 @@ fn the_converters_of_the_feature_placed_last_are_asked_first_each_in_its_feature
     assert_eq!(*used.lock().expect("a lock"), ["two-a"]);
 }
 
-/// Acceptance 5: an image inside content shown a second time — a heading's
+/// An image inside content shown a second time — a heading's
 /// title a reference shows — has the address of the original, and the output
 /// holds one copy.
 #[test]
@@ -464,7 +464,7 @@ fn an_image_shown_again_by_a_reference_has_the_original_address_and_one_copy() {
     assert_eq!(copies(&set).len(), 1);
 }
 
-/// Acceptance 6: a path naming a scheme is published by reference under
+/// A path naming a scheme is published by reference under
 /// every strategy, and the resolver is never asked about it.
 #[test]
 fn a_path_naming_a_scheme_is_published_as_written_under_every_strategy() {
@@ -508,7 +508,7 @@ fn colliding_feature() -> Arc<dyn FlmFeature> {
     })
 }
 
-/// Acceptance 7: two different artifacts under one identity are reported.
+/// Two different artifacts under one identity are reported.
 #[test]
 fn two_different_artifacts_under_one_identity_are_reported() {
     let mut features: Vec<Arc<dyn FlmFeature>> = package(StdcoreConfig::new())
@@ -529,7 +529,7 @@ fn two_different_artifacts_under_one_identity_are_reported() {
     assert_eq!(set.violations().len(), 1);
 }
 
-/// Acceptance 8: with no resolver and the default options, the page names
+/// With no resolver and the default options, the page names
 /// the path as written and holds nothing else — and asking for a strategy
 /// that needs a resolver without one is reported, the image then published
 /// by reference.
@@ -566,7 +566,7 @@ fn under_reference_the_resolvers_address_is_written_and_a_missing_file_reported(
     assert_eq!(record.file.as_ref().map(|file| file.identity.as_str()), Some("mem:figures/plot.png"));
 }
 
-/// Acceptance 9: a run on one thread and a run in parallel write the same
+/// A run on one thread and a run in parallel write the same
 /// tables.
 #[test]
 fn one_thread_and_several_write_the_same_tables() {
@@ -594,7 +594,7 @@ fn one_thread_and_several_write_the_same_tables() {
     assert_eq!(tables(&RunOptions::sequential()), tables(&RunOptions::new()));
 }
 
-/// Acceptance 10: under `copy` on the recomposed LaTeX, the output is the
+/// Under `copy` on the recomposed LaTeX, the output is the
 /// document, its style file and the copies, and the hook names each copy by
 /// the address the namer gives.
 #[test]

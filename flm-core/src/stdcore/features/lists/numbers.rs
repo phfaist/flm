@@ -97,7 +97,7 @@ pub fn style_name(kind: &str, depth: usize, count: usize) -> Name {
 /// template.
 fn style_of(kind: &str, depth: usize, count: usize, template: &str) -> CounterStyleDecl {
     // The words, the variant and the join texts follow the other standard
-    // styles. See decision rationale at [§flm-dd-dr:std-list-counters].
+    // styles.
     let mut style = CounterStyleDecl::new(style_name(kind, depth, count));
     style.number_format = NumberTemplate::formats(template);
     let (one, other) = WORDS;

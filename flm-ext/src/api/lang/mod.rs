@@ -36,15 +36,12 @@ pub trait BuiltLang: BuiltLangCore {}
 pub trait FlmDiagnostics: Sealed {
     /// Mirrors [`FlmDiagnostics::push`](flm_core::lang::FlmDiagnostics::push):
     /// adds `diagnostic` to the registry's build diagnostics. What differs:
-    /// the diagnostic is the extension API's; its identifier must begin with
-    /// the extension's stem and a dot, and one that names no node stands
-    /// nowhere in the document (an empty span over an empty source).
+    /// the diagnostic is the extension API's, and one that names no node
+    /// stands nowhere in the document (an empty span over an empty source).
     ///
     /// # Errors
     ///
-    /// The identifier does not begin with the extension's stem and a dot
-    /// ([`ExtError::NameOutsideExtension`]), or the diagnostic's data cannot
-    /// cross ([`ExtError::Value`]).
+    /// The diagnostic's data cannot cross ([`ExtError::Value`]).
     fn push(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError>;
 }
 

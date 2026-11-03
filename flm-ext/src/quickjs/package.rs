@@ -21,13 +21,12 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use rquickjs::{Ctx, Function, Object};
-use serde_json::Value;
 
 use super::engine::{self, Engine};
 use super::host::{JsHost, JsSettings};
 use super::ENGINE_VERSION;
 use crate::binding::natives::parse_reply;
-use crate::binding::{Binding, EntryArg, Instance, Registered};
+use crate::binding::{Binding, EntryArg, Instance, Registered, Reply};
 use crate::engine::ExtensionIdentity;
 use crate::runtime::ExtError;
 
@@ -97,8 +96,8 @@ impl Binding for JsExtension {
     /// `run` and ended after it.
     fn enter(
         self: Arc<Self>,
-        run: &mut dyn FnMut(&mut dyn Instance) -> Result<Value, ExtError>,
-    ) -> Result<Value, ExtError> {
+        run: &mut dyn FnMut(&mut dyn Instance) -> Result<Reply, ExtError>,
+    ) -> Result<Reply, ExtError> {
         engine::with_engine(&self.host, &self, |ctx, engine| {
             let budget = engine.start_budget();
             let result = run(&mut JsInstance { ctx, engine });
@@ -123,24 +122,25 @@ impl Instance for JsInstance<'_, '_> {
     }
 
     /// The entry point of `flm:_entry`'s namespace called with each argument
-    /// as a string ([`call_with`]), its failure rendered by [`Engine::fail`];
-    /// then [`Engine::finish`] (the queued jobs, at the outermost entry); then
-    /// the reply read by [`parse_reply`].
-    fn call_entry(&mut self, entry: &str, args: &[EntryArg], what: &str) -> Result<Value, ExtError> {
+    /// as a string ([`call_with`]: a name as itself, any other argument as the
+    /// JSON text of [`EntryArg::to_value`]), its failure rendered by
+    /// [`Engine::fail`]; then [`Engine::finish`] (the queued jobs, at the
+    /// outermost entry); then the reply read by [`parse_reply`].
+    fn call_entry(&mut self, entry: &str, args: &[EntryArg<'_>], what: &str) -> Result<Reply, ExtError> {
         let (ctx, engine) = (self.ctx, self.engine);
+        let texts = args
+            .iter()
+            .map(|arg| match arg {
+                EntryArg::Text(text) => Ok(text.clone()),
+                other => other.to_value().map(|value| value.to_string()),
+            })
+            .collect::<Result<Vec<String>, ExtError>>()?;
         let result = engine.prelude(ctx).and_then(|namespace| {
             let function = entry_function(ctx, engine, &namespace, entry, what)?;
-            let texts = args
-                .iter()
-                .map(|arg| match arg {
-                    EntryArg::Text(text) => text.clone(),
-                    EntryArg::Json(value) => value.to_string(),
-                })
-                .collect();
             call_with(&function, texts).map_err(|error| engine.fail(ctx, error, what))
         });
         let reply = engine.finish(ctx, what, result)?;
-        parse_reply(reply.as_deref(), what)
+        parse_reply(reply.as_deref(), what).map(Reply::Json)
     }
 }
 

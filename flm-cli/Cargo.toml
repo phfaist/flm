@@ -30,9 +30,6 @@ flm-main = { path = "../flm-main", default-features = false, features = ["fs", "
 # library alone; the description of an environment and its pages for the command `info`
 # (`flm_info::pages`), over a document the host prepared (cargo feature `flm-main`).
 flm-info = { path = "../flm-info", features = ["flm-main"] }
-# The package `phfpack` (notation macros for quantum information), carried by the
-# program under the cargo feature of the same name, on by default.
-flm-phfpack = { path = "../flm-phfpack", optional = true }
 # The arguments of the command line (floor Rust 1.85 for the versions 4.6).
 clap = { version = "4", features = ["derive"] }
 # Opening the preview's address in the default browser, and a written output (`-V`) with
@@ -61,23 +58,17 @@ libc = "0.2"
 ctrlc = "3"
 
 [features]
-default = ["phfpack", "js", "wasm", "bundled-extensions"]
-# The program carries the package `phfpack`: a document that names it in its `use`
-# list gets its macros.
-phfpack = ["dep:flm-phfpack"]
+default = ["js", "wasm", "bundled-extensions"]
 # The program runs JavaScript extensions (the engine `js`), on by default.
 js = ["flm-main/js"]
 # The program runs extensions compiled to WebAssembly (the engine `wasm`), on by default.
 wasm = ["flm-main/wasm"]
 # The program carries the extensions shipped with FLM (`lecturenotes`, `math-mathjax`, and
-# `profile-pdf-latex`, written in Rust and compiled in), found by name with nothing installed,
-# after every folder of the search path.
+# `flmdoc`, `phfpack`, `profile-pdf-latex` and `syntax-highlight`, written in Rust and compiled
+# in), found by name with nothing installed, after every folder of the search path.
 bundled-extensions = ["flm-main/bundled-extensions"]
 
 [dev-dependencies]
-# The example program over the library entry point carries `phfpack` as a package of
-# its own (`examples/own_package.rs`), whatever the cargo features.
-flm-phfpack = { path = "../flm-phfpack" }
 # The address of an image written into a page, compared in a test (`tests/graphics.rs`).
 base64 = "0.22"
 # The BibTeX export read back by a reader of that format (`tests/citations.rs`).

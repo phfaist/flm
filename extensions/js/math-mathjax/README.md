@@ -23,7 +23,9 @@ Every formula is then written for MathJax, in one of two modes.
   line's identifier, so that a reference to it leads there.
 
 On the recomposed LaTeX and on the text output the formulas are written as the
-author wrote them, with their numbers, in both modes.
+author wrote them, with their numbers, in both modes. On the text output, a
+displayed formula or a display-math environment stands on lines of its own,
+indented, inside its paragraph, as the standard library sets one.
 
 Beyond MathJax's packages, the extension defines two commands inside a
 formula, whatever `packages` lists: the delimiters `\llangle` (⟪, U+27EA, an

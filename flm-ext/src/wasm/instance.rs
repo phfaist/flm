@@ -27,7 +27,7 @@ use wasmi::{Memory, Module, Store, TypedFunc, TypedResumableCall, Val};
 
 use super::abi::{self, Guest, Limiter};
 use super::host::{WasmHost, WasmSettings};
-use crate::binding::{inner_data, Binding, EntryArg, Instance, Registered};
+use crate::binding::{inner_data, Binding, EntryArg, Instance, Registered, Reply};
 use crate::engine::ExtensionIdentity;
 use crate::runtime::ExtError;
 
@@ -197,13 +197,14 @@ impl WasmInstance {
     ///
     /// [`ExtError::Handler`]: the fuel ran out, the memory limit was reached,
     /// a trap; the reply is not of the ABI's shape; the guest's own error
-    /// (read by [`ExtError::from_data`]); [`ExtError::Value`]: the reply is
-    /// not JSON.
+    /// (read by [`ExtError::from_data`]); [`ExtError::Value`]: an argument
+    /// cannot be written as JSON ([`EntryArg::to_value`]), or the reply is not
+    /// JSON.
     pub(crate) fn call_entry(
         &self,
         extension: &WasmExtension,
         entry: &str,
-        args: &[EntryArg],
+        args: &[EntryArg<'_>],
         what: &str,
     ) -> Result<Value, ExtError> {
         self.answer(extension, entry, args, what)?
@@ -218,7 +219,7 @@ impl WasmInstance {
     /// # Errors
     ///
     /// [`WasmInstance::call_entry`]'s, the guest's own error worded as above.
-    pub(crate) fn call_load_entry(&self, extension: &WasmExtension, entry: &str, args: &[EntryArg]) -> Result<Value, ExtError> {
+    pub(crate) fn call_load_entry(&self, extension: &WasmExtension, entry: &str, args: &[EntryArg<'_>]) -> Result<Value, ExtError> {
         let what = extension.load_entry(entry);
         self.set_fuel(extension.fuel());
         self.answer(extension, entry, args, &what)?.map_err(|error| ExtError::Handler {
@@ -235,10 +236,10 @@ impl WasmInstance {
         &self,
         extension: &WasmExtension,
         entry: &str,
-        args: &[EntryArg],
+        args: &[EntryArg<'_>],
         what: &str,
     ) -> Result<Result<Value, ExtError>, ExtError> {
-        let request = abi::entry_request(entry, args);
+        let request = abi::entry_request(entry, args)?;
         let reply = self.run(extension, request.as_bytes(), what).map_err(|stop| self.fail(extension, what, stop))?;
         abi::read_reply(&reply, what)
     }
@@ -444,8 +445,8 @@ impl Instance for Entered<'_> {
         &self.instance.registered
     }
 
-    fn call_entry(&mut self, entry: &str, args: &[EntryArg], what: &str) -> Result<Value, ExtError> {
-        self.instance.call_entry(self.extension, entry, args, what)
+    fn call_entry(&mut self, entry: &str, args: &[EntryArg<'_>], what: &str) -> Result<Reply, ExtError> {
+        self.instance.call_entry(self.extension, entry, args, what).map(Reply::Json)
     }
 }
 
@@ -466,8 +467,8 @@ impl Binding for WasmExtension {
     /// the memory limit's mark. Then runs `run` on it.
     fn enter(
         self: Arc<Self>,
-        run: &mut dyn FnMut(&mut dyn Instance) -> Result<Value, ExtError>,
-    ) -> Result<Value, ExtError> {
+        run: &mut dyn FnMut(&mut dyn Instance) -> Result<Reply, ExtError>,
+    ) -> Result<Reply, ExtError> {
         let key = InstanceKey { host: self.host.id(), extension: self.id };
         let strict = self.settings.strict;
         let swept = INSTANCES.with(|instances| {
@@ -541,7 +542,7 @@ mod tests {
     #[test]
     fn an_instance_that_cannot_be_created_on_a_thread_fails_the_handler_call() {
         let extension = extension(r#"(module (memory (export "memory") 2))"#, 1 << 16);
-        let error = Arc::clone(&extension).enter(&mut |_| Ok(Value::Null)).expect_err("the instance cannot be created");
+        let error = Arc::clone(&extension).enter(&mut |_| Ok(Reply::Json(Value::Null))).expect_err("the instance cannot be created");
         let inner = ExtError::Handler {
             detail: "the initial memory of the module `m.wasm` of the extension `t` must be at most 65536 bytes, its \
                      memory limit"

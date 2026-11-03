@@ -128,7 +128,7 @@ fn a_registry_with_the_standard_package_alone_renders_through_each_output() {
     assert!(latex.contains("\\emph{text}"), "{latex}");
 }
 
-// --- the builder's rows of E4: collection_member, scoped_package, late_init, finalizer --------
+// --- the builder's rows: collection_member, scoped_package, late_init, finalizer --------------
 
 mod builder_rows {
     use std::sync::Arc;
@@ -323,11 +323,7 @@ mod builder_rows {
     }
 
     #[test]
-    fn a_late_init_hook_s_diagnostic_outside_the_stem_and_a_failing_hook_fail_the_build() {
-        let outside = Diagnostic::warning("other.late", "x");
-        let package = Double::new("ex").feature("late", move |b| b.late_init(Arc::new(Late(Some(outside.clone()))))).package();
-        let error = try_registry_with([package]).expect_err("outside the stem").to_string();
-        assert!(error.contains("flm.ext.handler-failed: ") && error.contains("other.late"), "{error}");
+    fn a_failing_late_init_hook_fails_the_build() {
         let failing = Double::new("ex").feature("late", |b| b.late_init(Arc::new(Late(None)))).package();
         let error = try_registry_with([failing]).expect_err("a failing hook").to_string();
         assert!(error.contains("flm.ext.handler-failed: the hook gave up"), "{error}");

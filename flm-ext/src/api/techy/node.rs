@@ -1,15 +1,14 @@
 //! Mirrors techy's node module, reached as [`flm_core::techy::core::node`]: the
-//! node reader.
+//! node reader, and the trees `flm-core` shares.
 
 use flm_core::lang::Flm;
-use std::sync::Arc;
 
-use flm_core::techy::core::node::{NodeId, NodeRef, NodeTree};
+use flm_core::techy::core::node::{NodeId, NodeRef};
 use serde_json::Value;
 
 use crate::api::lang::mint::Mode;
 use crate::runtime::ExtError;
-use crate::sealed::{NodeCore, Token};
+use crate::sealed::{NodeCore, Token, TreeCore};
 
 /// Mirrors [`NodeRef`] over the FLM
 /// language: a node of a tree, and its relatives.
@@ -30,7 +29,7 @@ use crate::sealed::{NodeCore, Token};
 /// one of the adapter's nodes. Its seal carries two accessors only the crate can
 /// call: the `flm-core` node behind the façade, borrowing the façade, and an
 /// owned copy of the façade, through which the adapter keeps a node beyond one
-/// borrow (plan A, A16). Since `dyn Node<'t>` is invariant in `'t`, an
+/// borrow. Since `dyn Node<'t>` is invariant in `'t`, an
 /// implementation over a tree of lifetime `'t` implements the trait for every
 /// shorter lifetime as well (`impl<'t: 's, 's> Node<'s> for NodeFacade<'t>`), so
 /// that a node of a longer-lived tree can be lent where a shorter one is
@@ -201,9 +200,6 @@ impl<'t, N: Node<'t> + ?Sized> NodeCore<'t> for &N {
     fn relative(&self, token: Token, id: NodeId) -> Box<dyn Node<'t> + 't> {
         (**self).relative(token, id)
     }
-    fn shared_tree(&self, token: Token) -> Option<Arc<NodeTree<Flm>>> {
-        (**self).shared_tree(token)
-    }
 }
 
 /// Lends a reference to a node as a node: every method is forwarded, so that a
@@ -301,6 +297,27 @@ impl<'t, N: Node<'t> + ?Sized> Node<'t> for &N {
     }
 }
 
+/// Mirrors `Arc<NodeTree<Flm>>`, techy's
+/// [`NodeTree`](flm_core::techy::core::node::NodeTree) over the FLM language
+/// shared through an `Arc`: a whole tree, as `flm-core` answers one (a
+/// document's tree, a rewrite's output tree, a lowered tree, a synthesized
+/// value, an instantiated template) and takes one (the value of an extra
+/// placeholder, a value to splice).
+///
+/// What differs: a façade with one reading, the root node
+/// ([`root`](Tree::root)), through which every node of the tree is reached.
+/// The façade shares the tree: a tree given to a function that takes one is
+/// the value `flm-core` answered, never a copy.
+///
+/// The trait is sealed: the adapter alone implements it.
+pub trait Tree: TreeCore {
+    /// Mirrors [`NodeTree::root`](flm_core::techy::core::node::NodeTree::root):
+    /// the tree's root node. What differs: the node is a façade that shares
+    /// the tree, as do its relatives, so each stays valid for as long as it is
+    /// held.
+    fn root<'s>(&self) -> Box<dyn Node<'s> + 's>;
+}
+
 /// Mirrors the variants of techy's
 /// [`NodeKind`](flm_core::techy::core::node::NodeKind), by name: a closed enum,
 /// since `NodeKind` is generic over the language.
@@ -330,4 +347,4 @@ pub struct Span {
     pub end: usize,
 }
 
-fn _object_safe(_: &dyn Node<'_>) {}
+fn _object_safe(_: &dyn Node<'_>, _: &dyn Tree) {}

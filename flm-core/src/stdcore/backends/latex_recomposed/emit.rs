@@ -276,9 +276,10 @@ pub struct UnknownCharacter {
 /// threads](crate::guide::concepts_overview#the-recursion-guard-and-worker-threads).
 /// Recovery: the tree has no recomposed LaTeX ([`Emitted::fragment`] is
 /// `None`).
-// The refusal is the operating system's and cannot be provoked without
-// injecting a failure, so no test covers this arm. See the design rationale
-// at [§flm-dd-dr:lang-worker-stack].
+// The emitter creates the worker thread itself rather than requiring the
+// caller to run it on one, so that a deeply nested document never crashes the
+// process. The refusal is the operating system's and cannot be provoked without
+// injecting a failure, so no test covers this arm.
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.latex-recomposed.worker-thread-unavailable",

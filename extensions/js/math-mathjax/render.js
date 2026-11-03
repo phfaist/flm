@@ -104,7 +104,7 @@ export function register_render(b, mathjax, jax) {
     run(cx, out) {
       const tree = cx.my_tree();
       if (tree === null) return;
-      for (const node of tree.descendants()) {
+      for (const node of tree.root().descendants()) {
         const element = node.element_name();
         if (element !== MATH && element !== ENVIRONMENT) continue;
         const frames = element === ENVIRONMENT ? line_frames(cx, true, true, node) : null;

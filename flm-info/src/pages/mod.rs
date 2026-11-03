@@ -92,9 +92,9 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
-// The page tree: commands prefixed by kind under their feature, scoped packages likewise,
-// `namespaces/` for the families of names. See decision rationale at
-// [§flm-dd-dr:info-page-tree].
+// The page tree: commands prefixed by kind under their feature, since a macro, an environment
+// and a special character sequence may share a name; scoped packages likewise; `namespaces/`
+// for the families of names, since a dotted name does not say which family it belongs to.
 
 mod build;
 mod paths;

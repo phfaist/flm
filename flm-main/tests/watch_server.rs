@@ -252,7 +252,7 @@ impl Client {
     }
 }
 
-// --- acceptance 1 and 2: what is served, and that nothing is kept ------------------------------
+// --- what is served, and that nothing is kept --------------------------------------------------
 
 #[test]
 fn the_entry_is_served_at_the_root_and_at_its_path_as_built_and_nothing_else() {
@@ -353,7 +353,7 @@ fn before_a_build_gives_an_output_the_root_is_the_waiting_page_with_the_page_scr
     preview.stop();
 }
 
-// --- acceptance 5: a page built under `watch` ----------------------------------------------------
+// --- a page built under `watch` ------------------------------------------------------------------
 
 #[test]
 fn a_page_built_by_the_preview_carries_its_definitions_and_the_places_in_the_source() {
@@ -368,7 +368,7 @@ fn a_page_built_by_the_preview_carries_its_definitions_and_the_places_in_the_sou
     preview.stop();
 }
 
-// --- acceptance 3 and 12: the stream ------------------------------------------------------------
+// --- the stream ---------------------------------------------------------------------------------
 
 #[test]
 fn a_client_is_told_the_build_first_then_every_update_in_order_and_two_clients_the_same() {
@@ -489,7 +489,7 @@ fn a_message_that_is_not_understood_and_a_page_gone_away_stall_nothing() {
     preview.stop();
 }
 
-// --- acceptance 4: this machine, and the port --------------------------------------------------
+// --- this machine, and the port ----------------------------------------------------------------
 
 #[test]
 fn the_server_listens_on_this_machine_alone_and_takes_the_next_port_when_one_is_taken() {
@@ -510,7 +510,7 @@ fn the_server_listens_on_this_machine_alone_and_takes_the_next_port_when_one_is_
     drop(taken);
 }
 
-// --- acceptance 8: an output that is no page ----------------------------------------------------
+// --- an output that is no page ------------------------------------------------------------------
 
 #[test]
 fn an_output_that_is_no_page_is_served_and_brought_up_to_date() {

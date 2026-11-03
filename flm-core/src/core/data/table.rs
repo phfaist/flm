@@ -262,8 +262,8 @@ type ErasedTable = Box<dyn Any + Send + Sync>;
 // The three helpers below downcast a type-erased table back to `T`. The
 // downcast is unreachable-by-construction — the store keys by `TableId` and the
 // registry verified the value type at declaration — so they `expect` with a
-// message naming the invariant rather than returning a result nobody could act
-// on. See design rationale at [§flm-dd-dr:err-unreachable-typed].
+// message naming the invariant rather than returning a result nobody could
+// act on.
 
 fn make_default_erased<T: Table>() -> ErasedTable {
     Box::new(T::default())

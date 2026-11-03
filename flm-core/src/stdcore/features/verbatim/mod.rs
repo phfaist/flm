@@ -118,13 +118,14 @@
 //! - [`CONTENT_ARG`], [`LANG_ARG`] — the names of the arguments.
 //! - [`latex`] — the recomposition rules for the `latex-recomposed` backend.
 
-// The element family shape and the feature's own vocabulary: see design
-// rationale at [§flm-dd-dr:std-verbatim] and [§flm-dd-dr:std-element-families].
+// Each form is one element type for all its commands because rules and aspects
+// are chosen per element: one rule serves every command of a form, and the
+// command's value says what differs.
 // The language argument is an ordinary optional argument rather than the
 // characters-only group Python's parser requires immediately after the
 // command: the declarative argument vocabulary has no optional
 // characters-only shape, and adding one to the language layer for one
-// argument is not warranted; cf. [§flm-dd-dr:lang-restricted-shapes].
+// argument is not warranted.
 
 pub mod latex;
 

@@ -1,5 +1,5 @@
-//! Service slots, handler objects and host services written in JavaScript
-//! (E6, plan sections 3.4, 4.2 and 7.3), through small scripts: a slot a
+//! Service slots, handler objects and host services written in JavaScript,
+//! through small scripts: a slot a
 //! script declares and fills across two packages, read by a stage; a citation
 //! provider answering through `answer_all` or `answer` alone; a template
 //! module describing itself, shipping files and rendering; the `files`
@@ -306,7 +306,7 @@ fn a_provider_of_the_wrong_shape_or_given_to_the_wrong_slot_is_refused() {
             "a citation provider contributed to `flm.citations.providers` by the package `_` of the extension `wc` must \
              be an object with `name` and `answer` or `answer_all`",
         ),
-        // The slot's name decides (S22): any object given to the providers'
+        // The slot's name decides: any object given to the providers'
         // slot is a citation provider, one without its methods refused.
         (
             "b.peer_slot(PROVIDERS_SLOT, { name: \"wc.x\" });",
@@ -328,7 +328,7 @@ fn a_provider_of_the_wrong_shape_or_given_to_the_wrong_slot_is_refused() {
             "the service slot `wc.notes` takes data, and the package `_` of the extension `wc` contributed an object \
              with methods",
         ),
-        // A second provider under one name in one `register` (S23).
+        // A second provider under one name in one `register`.
         (
             "const p = { name: \"wc.x\", answer() { return null; } }; b.peer_slot(PROVIDERS_SLOT, p); \
              b.peer_slot(PROVIDERS_SLOT, { ...p });",
@@ -688,7 +688,7 @@ fn the_host_list_reaches_the_report_and_the_digest() {
     assert_ne!(digest_declaring("[\"files\"]"), digest_declaring("[]"));
 }
 
-// --- the S15 data rule -------------------------------------------------------------------------
+// --- the rules on a template's data ------------------------------------------------------------
 
 #[test]
 fn a_decimal_number_in_a_template_s_data_is_named_by_its_key_path() {

@@ -182,7 +182,7 @@ fn a_second_entry_and_a_repeated_identity_are_the_push_s_errors() {
 #[test]
 fn an_artifact_of_the_wrong_shape_is_refused_with_the_shape() {
     // The refusal names the field or the shape at fault, never the value
-    // itself (ruling S10): an artifact's text is not copied into it.
+    // itself: an artifact's text is not copied into it.
     let shape = "an artifact must be written `{ id: { owner, name }, media_type, data: { bytes: CONTENT } | { files: \
                  [[path, CONTENT], …] }, entry, extension, fixed_path, refs }` (`CONTENT`: a text, `{ text: text }` or `{ \
                  base64: text }`); ";

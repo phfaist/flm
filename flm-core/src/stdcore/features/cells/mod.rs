@@ -436,7 +436,6 @@ impl FlmFeature for Cells {
         if self.config.global {
             // The same element, as an ordinary environment: which declaration
             // answers inside a body naming the package is immaterial.
-            // See decision rationale at [§flm-dd-dr:std-cells-global].
             b.element(elements::environment_def(&owner, &environment))?;
         }
         // Where the floats feature is absent, nobody declares the slot and

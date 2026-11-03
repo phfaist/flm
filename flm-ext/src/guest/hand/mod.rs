@@ -1,24 +1,37 @@
-//! The guest client's hand-written items (refresh section 6.4), one file per
-//! module of the extension API that needs any (`core_registry.rs` holds those
-//! of `flm:core/registry`), the twin of the prelude's fragments: the guest's
+//! The guest client's hand-written items, one file per module of the
+//! extension API that needs any (`core_registry.rs` holds those of
+//! `flm:core/registry`), the twin of the prelude's fragments: the guest's
 //! own types, and the ten handler traits.
 //!
 //! A type is the guest's own when its crossing form can hold a handle or a
 //! handler object, or when the guest cannot build it back as the api's type
 //! from its crossing form (a `flm-core` identifier only a tree makes, a
-//! constructor the guest cannot call, a field the form leaves out): the list
-//! `GUEST_OWN` of the generator's mapping table. Each has the api type's
+//! constructor the guest cannot call, a field the form leaves out, an
+//! argument's parser, which the guest declares by its standard kind or reads
+//! from its code), or when it holds
+//! one of those (`ArgStdKind`, `SyntaxDef`, `Definition` hold arguments): the
+//! list `GUEST_OWN` of the generator's mapping table. Each has the api type's
 //! name, its public constructors and methods with the guest's types, and a
 //! handle where the api holds an object; its conversion is written here, the
 //! one statement of the guest type's form, and tested against the host's
-//! converter of the same shape (`tests/guest_forms.rs`). A type that no item
-//! of the api names is added where a constructor of the guest's own type
-//! takes it (the list `GUEST_ADDED`): `ArgSyntax`, the code or the standard
-//! kind that `ArgDef::new` takes. The types that hold handler objects
-//! (`ElementSpec`, `ElementDef`, `FallbackDef`, `ScopedPackageDef`,
-//! `BackendDef`, `Aspect`, `BackendStage`, `Contributed`)
-//! keep each object beside the crossing form its lending answered; the
-//! methods that record and lend the objects are the runtime's.
+//! converter of the same shape (`tests/guest_forms.rs`). Its conversions of
+//! the typed route (the cargo feature `native`) are written beside it; a
+//! typed conversion that no test of an extension reaches is checked against
+//! the dispatcher's conversion of the same JSON form (`typed_forms.rs`). A
+//! type that no item of the api names is added where a constructor of the
+//! guest's own type takes it, or where an extension's settings hold it as
+//! the mirror of a `flm-core` data type (`ArgListData`; the list
+//! `GUEST_ADDED`), and a free function
+//! whose answer a constructor of the guest's own type makes with no request
+//! is not offered (the list `GUEST_OMITTED`): `ArgDef::from_code` reads an
+//! argument code where `arg_def_from_code` would ask the host. Of the types that hold
+//! handler objects, `ElementSpec` (and the declarations that hold one:
+//! `ElementDef`, `FallbackDef`, `ScopedPackageDef`) keeps each object beside the crossing
+//! form its lending answered; `BackendDef`, `Aspect`, `BackendStage` and
+//! `Contributed` hold the objects alone, recorded and lent by the method
+//! that takes them (`ElementSpec::with`, `FeatureBuilder::backend`,
+//! `FeatureBuilder::contribute_to`, …). The functions that record and lend
+//! the objects are the runtime's.
 //!
 //! The handler traits are the api's with the guest's types: the same
 //! methods, receivers, defaults and bounds (`Send + Sync`). The generated
@@ -27,7 +40,6 @@
 use serde_json::{Map, Value};
 
 use crate::adapter::values::JsonForm;
-use crate::guest::abi::ToArg;
 use crate::runtime::ExtError;
 
 pub mod core_data_table;
@@ -46,20 +58,8 @@ pub mod stdcore_features_math;
 pub mod stdcore_features_numbering;
 pub mod techy_error;
 pub mod techy_transform;
-
-/// `value` converted for a request of `method` ([`ToArg::arg`]), the
-/// method's name filled in on an [`ExtError::Argument`] that names none, as
-/// the host's dispatcher fills it.
-///
-/// # Errors
-///
-/// What [`ToArg::arg`] answers.
-pub(crate) fn arg<T: ToArg + ?Sized>(value: &T, method: &str) -> Result<Value, ExtError> {
-    value.arg().map_err(|error| match error {
-        ExtError::Argument { method: named, detail } if named.is_empty() => ExtError::Argument { method: method.to_string(), detail },
-        other => other,
-    })
-}
+#[cfg(all(test, feature = "native"))]
+mod typed_forms;
 
 /// The error of a value that is not of the shape `shape`.
 pub(crate) fn not_shape(what: &str, shape: &str, value: &Value) -> ExtError {
@@ -121,16 +121,4 @@ pub(crate) fn emit_from_value(
 /// `{"emit": [staged, …]}`.
 pub(crate) fn emit_to_value(staged: &[crate::guest::lang::rewrites::userdefs::Staged]) -> Value {
     serde_json::json!({ "emit": staged.iter().map(JsonForm::to_value).collect::<Vec<_>>() })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn an_argument_that_cannot_cross_is_refused_with_its_methods_name() {
-        let error = arg(&[0xff_u8][..], "digest_input").expect_err("bytes that are not a text cannot cross");
-        assert!(matches!(&error, ExtError::Argument { method, .. } if method == "digest_input"), "{error:?}");
-        assert_eq!(arg("text", "option").ok(), Some(Value::String("text".to_string())));
-    }
 }

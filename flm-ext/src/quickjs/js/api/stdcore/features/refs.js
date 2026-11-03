@@ -4,6 +4,7 @@
 // Mirrors `flm_core::stdcore::features::refs`: the names of the references feature and the parts a
 // referenceable construct of an extension declares and lowers its labels with.
 import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { ArgDef } from "flm:lang/mint";
 
 const MODULE = module("stdcore/features/refs");
 
@@ -41,9 +42,10 @@ export const TARGET_ARG_ROLE = "flm.refs.target";
 // the `\label` field has.
 export const DEFINED_LABEL_ARG_ROLE = "flm.refs.defined-label";
 
-// Mirrors `label_fields_arg`: the argument that reads the `\label{…}` fields written after a
-// construct, named `FIELDS_ARG`, to place last in the construct's argument list.
-export function label_fields_arg() { return call(MODULE, "label_fields_arg", []); }
+// Mirrors `label_fields_arg`: the argument that reads the `\label{…}` fields
+// written after a construct, named `FIELDS_ARG`, to place last in the
+// construct's argument list.
+export function label_fields_arg() { return ArgDef.read_(call(MODULE, "label_fields_arg", [])); }
 
 // Mirrors `label_uses`: the labels written in the `FIELDS_ARG` argument of `node`, in order; none
 // when the node has no such argument.

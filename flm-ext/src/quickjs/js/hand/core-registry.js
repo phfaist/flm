@@ -1,24 +1,24 @@
 // The hand-written parts of `flm:core/registry`, spliced into the generated
 // stub `api/core/registry.js` by `tests/api_surface.rs` (each marker's text
 // up to the next marker): the builder's `feature` (answered in a rehearsal
-// without calling Rust), its `stage` and `rewrite_stage` (the protocol for
-// stage objects), its `contribute_to`, `contribute_first_to` and `peer_slot`
-// (the protocol for handler objects: a citation provider or a template
-// module is recorded by its name before the call, so that a rehearsal finds
-// it and a template module's `describe` finds it while `register` runs), its
-// `attach`, `late_init` and `finalizer` (the protocol for handler objects:
-// recorded in every run of `register`, lent and passed on only when the
-// builder dispatches), the class `BackendDef` (which hands its stage objects to FLM by the same
-// protocol), and the classes of the `flm-core` types `StyleDef`, `ScriptDef`
-// and `OutputDef`. An import line here is copied into the stub; the stub
-// imports the common names of `flm:_runtime` itself.
+// without calling Rust), its `stage`, `rewrite_stage` and `backend` (the
+// protocol for stage objects), its `contribute_to`, `contribute_first_to` and
+// `peer_slot` (the protocol for handler objects: a citation provider or a
+// template module is recorded by its name before the call, so that a
+// rehearsal finds it and a template module's `describe` finds it while
+// `register` runs), its `attach`, `late_init` and `finalizer` (the protocol
+// for handler objects: recorded in every run of `register`, lent and passed
+// on only when the builder dispatches), and the classes of the `flm-core`
+// types `BackendDef`, `StyleDef`, `ScriptDef` and `OutputDef`. An import
+// line here is copied into the stub; the stub imports the common names of
+// `flm:_runtime` itself.
 //
 // The shapes, in argument order:
 //
 //   b.stage({ decl(), needs(), run(cx, out) })            `needs` optional
 //   b.rewrite_stage({ decl(), needs(), restage(node, cx, rs) })
 //                                                          `needs` optional; `decl()` a `RewriteDecl`
-//   new BackendDef(name, native, lowering, emit, final_stage).docs(text)
+//   b.backend(new BackendDef(name, native, lowering, emit, final_stage).docs(text))
 //                                                          each stage a stage object or a `LibraryStage`
 //                                                          (`new LoweringStage(backend)`)
 //   new OutputDef(name, capability, table, media_type, extension).made_from(output).docs(text)
@@ -31,7 +31,7 @@
 //   b.attach(element, aspect)                              `aspect` e.g. `Aspect.Sectioning({ level(node) })`
 //   b.late_init({ late_init(lang, diags) }), b.finalizer({ finalize(b) })
 import { Needs } from "flm:core/stage";
-import { record_rewrite, lend_rewrite, rehearsing, contributed } from "flm:_runtime";
+import { record_rewrite, lend_rewrite, contributed } from "flm:_runtime";
 import { aspect_for, record_late_init, record_finalizer, lend_late_init, lend_finalizer } from "flm:_runtime";
 
 // @hand method FeatureBuilder.feature
@@ -55,20 +55,30 @@ import { aspect_for, record_late_init, record_finalizer, lend_late_init, lend_fi
     record_rewrite(decl.name, stage);
     if (this._token !== null) return call(this, "rewrite_stage", [lend_rewrite(decl, needs)]);
   }
+// @hand method FeatureBuilder.backend
+  // Mirrors `FeatureBuilder::backend`: registers the backend `def`, its three
+  // stages as this feature's own. Each stage object its fields hold is
+  // recorded under its name, as `b.stage` records it, and lent.
+  backend(def) {
+    const dispatching = this._token !== null;
+    const lowering = backend_stage(def.lowering, dispatching);
+    const emit = backend_stage(def.emit, dispatching);
+    const final_stage = backend_stage(def.final_stage, dispatching);
+    if (dispatching) return call(this, "backend", [{ ...def.toJSON(), lowering, emit, final_stage }]);
+  }
 // @hand export BackendDef
 // A backend: `new BackendDef(name, native, lowering, emit, final_stage)`,
-// then `.docs(text)`. Each of the three stages is a stage object `{ decl(),
-// needs(), run(cx, out) }`, as `b.stage` takes, or a stage of the library
-// (`new LoweringStage(backend)`, an object of the class `LibraryStage`). The
-// constructor records each stage object under its name and lends it, as
-// `b.stage` does, so it is called while a feature's `register` runs.
+// then `.docs(text)`, registered with `b.backend`. Each of the three stages
+// is a stage object `{ decl(), needs(), run(cx, out) }`, as `b.stage` takes,
+// or a stage of the library (`new LoweringStage(backend)`, an object of the
+// class `LibraryStage`).
 export class BackendDef {
   constructor(name, native, lowering, emit, final_stage) {
     this.name = name;
     this.native = native;
-    this.lowering = backend_stage(lowering);
-    this.emit = backend_stage(emit);
-    this.final_stage = backend_stage(final_stage);
+    this.lowering = lowering;
+    this.emit = emit;
+    this.final_stage = final_stage;
     this.docs_ = "";
   }
   // Mirrors `BackendDef::docs`: sets the documentation prose.
@@ -76,15 +86,15 @@ export class BackendDef {
   toJSON() { return { name: this.name, native: this.native, lowering: this.lowering, emit: this.emit, final_stage: this.final_stage, docs: this.docs_ }; }
 }
 
-// One stage of a `BackendDef`: a stage object recorded and lent (kept as it
-// is in a rehearsal, whose builder lends nothing); anything else (a
-// `LibraryStage`) as it is.
-function backend_stage(stage) {
+// What `b.backend` sends for one stage of a backend: a stage object recorded
+// and, when `dispatching`, lent (kept as it is in a rehearsal, whose builder
+// sends nothing); anything else (a `LibraryStage`) as it is.
+function backend_stage(stage, dispatching) {
   if (stage === null || typeof stage !== "object" || typeof stage.decl !== "function") return stage;
   const decl = stage.decl();
   const needs = typeof stage.needs === "function" ? stage.needs() : new Needs();
   record_stage(decl.name, stage);
-  return rehearsing() ? stage : lend_stage(decl, needs);
+  return dispatching ? lend_stage(decl, needs) : stage;
 }
 // @hand export OutputDef
 // An output: `new OutputDef(name, capability, table, media_type, extension)`,

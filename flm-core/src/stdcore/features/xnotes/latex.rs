@@ -568,8 +568,10 @@ pub(super) fn declare_kind(b: &mut FeatureBuilder<'_>, kind: &XnoteKind) -> Resu
 /// declaration into the first.
 fn declare_peers(b: &mut FeatureBuilder<'_>) -> Result<(), BuildError> {
     // Declared for the calling feature on every call, per kind and for the
-    // feature's own rule alike.
-    // See decision rationale at [§flm-dd-dr:std-xnote-latex-peers].
+    // feature's own rule alike: the function that adds a rule to the registry
+    // knows the names it uses, where a declaration left to each contributing
+    // feature could be forgotten and would fail only in a registry without the
+    // backend.
     b.peer_backend(
         BACKEND,
         "the latex-recomposed backend, on which the recomposition rules are the default",

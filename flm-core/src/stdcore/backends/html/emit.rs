@@ -23,6 +23,14 @@
 //! as a requirement of the tree) when it writes the element. The [rendering
 //! guide](crate::guide::rendering#the-html-contract) prints the table.
 //!
+//! A **paragraph** is a `<p>`, except a paragraph that holds **flow
+//! content**: an element this emitter writes with a tag HTML does not allow
+//! inside a `<p>`, such as the `<div>` of a block, a list or a table, which a
+//! displayed item may hold. That paragraph is a `<div>` carrying
+//! `role="paragraph"`, with the same class and the same `id`. The emitter
+//! decides for each paragraph, from the paragraph's lowered content, so no
+//! element has to know of HTML's rule.
+//!
 //! A **paragraph with nothing to show** (its content empty, or only spaces,
 //! source comments and paragraph breaks) is not written at all: the text
 //! backend prints nothing for one, and an empty `<p>` would only add space on
@@ -184,8 +192,9 @@ use crate::stdcore::backends::pres::{
 use super::address::{AddressUse, check_address};
 use super::construct::{HtmlTagPayload, TagBody};
 use super::conventions::{
-    Convention, LIST_LABEL_CLASS, SCRIPT_MATHJAX, STYLE_ATTRIBUTE, UNKNOWN_MARKER_CLASS, Written,
-    block_tag, css_length, css_ratio, doc_role_value, row,
+    Convention, LIST_LABEL_CLASS, PARAGRAPH_FLOW_TAG, PARAGRAPH_ROLE, SCRIPT_MATHJAX,
+    STYLE_ATTRIBUTE, UNKNOWN_MARKER_CLASS, Written, block_tag, css_length, css_ratio,
+    doc_role_value, row,
 };
 use super::escape::json_string_into;
 use super::feature::HtmlRenderOptions;
@@ -318,9 +327,10 @@ pub struct RefusedInMath {
 /// ([`on_worker_thread`](crate::lang::guard::on_worker_thread)); the emitter
 /// needs one because the walk recurses as deeply as the tree nests. Reported at
 /// no position in a document. Recovery: nothing is written for the tree.
-// The refusal is the operating system's and cannot be provoked without
-// injecting a failure, so no test covers this arm. See decision rationale at
-// [§flm-dd-dr:lang-worker-stack].
+// The emitter creates the worker thread itself rather than requiring the
+// caller to run it on one, so that a deeply nested document never crashes the
+// process. The refusal is the operating system's and cannot be provoked without
+// injecting a failure, so no test covers this arm.
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.html.worker-thread-unavailable",
@@ -796,6 +806,30 @@ fn shows_nothing(content: &[NodeRef<'_, Flm>]) -> bool {
     true
 }
 
+/// Whether a paragraph holds **flow content**, which HTML does not allow
+/// inside a `<p>`: whether a node the emitter writes with a flow-content tag
+/// ([`written_as_flow`]) stands anywhere in it.
+///
+/// The walk covers every slot of `paragraph`, its decorations included, which
+/// are written at their marks inside it, and goes on into every node written
+/// as phrasing content (a span, a link, a formula and the content written
+/// inside it), stopping at the first node written as flow content. Like
+/// [`shows_nothing`], it reads the lowered tree, never the bytes written, and
+/// is iterative, so a deep nesting of groups cannot exhaust the stack.
+fn holds_flow_content(paragraph: &NodeRef<'_, Flm>) -> bool {
+    let mut pending: Vec<NodeRef<'_, Flm>> = paragraph.children().iter().collect();
+    while let Some(node) = pending.pop() {
+        if node.chars().is_some() || node.is_comment() {
+            continue;
+        }
+        if written_as_flow(&node) {
+            return true;
+        }
+        pending.extend(node.children().iter());
+    }
+    false
+}
+
 /// The values a heading's attributes are written from, block or run in: the
 /// anchor, the kind's name, the level (1 where the payload is missing) and
 /// whether the heading is in the table of contents, by payload field.
@@ -864,6 +898,61 @@ fn list_tag(kinds: &[Name]) -> &'static str {
     }
     "ul"
 }
+
+/// Whether the emitter writes `node` with a tag of **flow content**: a tag at
+/// whose start an HTML parser closes an open `<p>`, so that a `<p>` cannot
+/// hold it ([`holds_flow_content`]).
+///
+/// These are the emitter's own tag choices, element by element, kept beside
+/// the functions that make them:
+///
+/// - a paragraph (`<p>`, or a `<div>`), a block (every tag of [`block_tag`]),
+///   a block heading (a tag of [`heading_tag`], or the one a render option
+///   maps its kind to), a list (every tag of [`list_tag`]), a table of cells
+///   (`<table>`), a run of lines and each of its lines (`<div>`);
+/// - verbatim content as a block (`<pre>`) and an unattributed environment
+///   (`<div>`), but not their inline forms (`<code>`, `<span>`);
+/// - a placed tree, which the regions stage writes in the node's place after
+///   this emitter is done, so that what it holds is not known here;
+/// - an HTML tag construct node whose tag is one of [`CLOSES_A_PARAGRAPH`],
+///   the rule that staged it having chosen the tag.
+///
+/// Every other node is written as phrasing content (a `<span>` or the tag of
+/// a span's style, a link's `<a>`, an image's `<img>`, a formula's `<span>`,
+/// displayed or not) or as nothing of its own. A construct node's own
+/// `block` field is not read: it asks for line breaks around the tag, which a
+/// tag of phrasing content may want too (MathML's `<math display="block">`).
+fn written_as_flow(node: &NodeRef<'_, Flm>) -> bool {
+    match element_of(node).name.as_str() {
+        pres::PAR
+        | pres::BLOCK
+        | pres::BLOCK_HEADING
+        | pres::LIST
+        | pres::CELLS
+        | pres::LINES
+        | pres::LINE
+        | pres::SUBTREE => true,
+        pres::VERBATIM => payload_of::<VerbatimPayload>(node)
+            .is_some_and(|payload| payload.display == VerbatimDisplay::Block),
+        pres::UNKNOWN => payload_of::<UnknownPayload>(node)
+            .is_some_and(|payload| payload.kind == UnknownKind::Environment),
+        super::construct::TAG => payload_of::<HtmlTagPayload>(node).is_some_and(|payload| {
+            CLOSES_A_PARAGRAPH.iter().any(|tag| tag.eq_ignore_ascii_case(&payload.tag))
+        }),
+        _ => false,
+    }
+}
+
+/// The start tags at which an HTML parser closes an open `<p>`: the flow
+/// content a `<p>` cannot hold, as the HTML standard's parsing rules for the
+/// body of a page list it. An HTML tag construct node with one of these tags
+/// is written as flow content ([`written_as_flow`]).
+const CLOSES_A_PARAGRAPH: [&str; 41] = [
+    "address", "article", "aside", "blockquote", "center", "dd", "details", "dialog", "dir",
+    "div", "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3",
+    "h4", "h5", "h6", "header", "hgroup", "hr", "li", "listing", "main", "menu", "nav", "ol", "p",
+    "plaintext", "pre", "search", "section", "summary", "table", "ul", "xmp",
+];
 
 /// The attributes of `row` for the values present, in the order the contract
 /// fixes: the element's own attributes in the row's order, then the `style`
@@ -990,8 +1079,8 @@ fn source_span_value(source: &str, range: &Range<usize>) -> String {
 ///
 /// The only place where a cell's facts become HTML, so that how a cell is written
 /// can be changed in one place.
-// A seam a later step may put behind a trait a host implements; nothing of
-// it is public. See decision rationale at [§flm-dd-dr:rend-html-cells].
+// A seam that could be put behind a trait a host implements, to let a host
+// change how a cell is written; nothing of it is public.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CellRendering {
     /// `td`, or `th` for a header cell.
@@ -1482,9 +1571,10 @@ impl<'o> Emitter<'o> {
         }
     }
 
-    /// A `flm.pres.par`: a `<p>` around its content; nothing at all for a
-    /// paragraph that carries no anchor and whose content shows nothing
-    /// ([`shows_nothing`]).
+    /// A `flm.pres.par`: a `<p>` around its content, or a `<div>` carrying
+    /// `role="paragraph"` when the paragraph holds flow content
+    /// ([`holds_flow_content`]); nothing at all for a paragraph that carries
+    /// no anchor and whose content shows nothing ([`shows_nothing`]).
     fn par(&mut self, node: &NodeRef<'_, Flm>, convention: &Convention) {
         let payload = payload_of::<ParPayload>(node);
         let anchor = payload.and_then(|payload| payload.anchor.clone());
@@ -1498,7 +1588,34 @@ impl<'o> Emitter<'o> {
             values.push(("anchor", anchor));
         }
         let classes = self.classes(node, convention, None);
-        self.open(Some(node), "p", true, &classes, ordered_attributes(convention, &values, &[]), false);
+        let mut attributes = ordered_attributes(convention, &values, &[]);
+        // HTML allows only phrasing content inside a `<p>`: a parser closes an
+        // open `<p>` at the start tag of a `<div>`, a `<ul>`, a `<table>`, a
+        // `<pre>`, a heading or another `<p>`, wherever that tag is nested, and
+        // the rest of the paragraph then stands outside it. A paragraph may
+        // nevertheless hold flow content: a displayed item may hold anything,
+        // its own rule laying its content out, and nothing in the tree says
+        // what is shown inside it. This is a limitation of HTML alone, so it is
+        // met here, per paragraph, and no element has to know of it: the
+        // paragraph is a `<div>` when it holds flow content and a `<p>`
+        // everywhere else. The class and the anchor are the same either way,
+        // and the HTML contract does not promise the tag; the accessibility
+        // role says of the `<div>` what the `<p>` would have said. A `<div>`
+        // for every paragraph would give up the `<p>` wherever HTML allows
+        // one, which is every paragraph the standard package writes; a
+        // paragraph split into several `<p>` around the flow content would
+        // give a paragraph two shapes, and need a mark on each part saying
+        // which paragraph it continues; and a check or a report of flow
+        // content inside a paragraph would forbid what a displayed item may
+        // hold.
+        let flow = holds_flow_content(node);
+        if flow {
+            // The row writes `id` alone, so the role follows it, among the
+            // element's own attributes.
+            attributes.push((String::from("role"), String::from(PARAGRAPH_ROLE)));
+        }
+        let tag = if flow { PARAGRAPH_FLOW_TAG } else { "p" };
+        self.open(Some(node), tag, true, &classes, attributes, false);
         self.run(Some(node), &content);
         self.close();
     }
@@ -1662,7 +1779,6 @@ impl<'o> Emitter<'o> {
         self.open(Some(node), tag, true, &classes, ordered_attributes(convention, &values, &[]), false);
         // A description list's only valid children are `<dt>` and `<dd>`, so a
         // label is a `<dt>` carrying the class a rich label carries elsewhere.
-        // See decision rationale at [§flm-dd-dr:rend-html-conventions-data].
         let description = tag == "dl";
         for (index, (label, item)) in list_entries(node).into_iter().enumerate() {
             let label: Vec<NodeRef<'_, Flm>> = label.iter().collect();
@@ -1920,12 +2036,13 @@ impl<'o> Emitter<'o> {
     /// the two apart) and the environment's name, and no identifier of its
     /// own. A displayed formula is opened as block-level, so that line breaks
     /// surround it; the default stylesheet gives it the appearance of a block.
-    /// A `<div>` is not written because HTML does not allow a block element
-    /// inside a paragraph, and a displayed formula is an inline node of its
-    /// paragraph's text. The element holds the delimiters the emitter chose and
-    /// the formula's own source between them, written as text, with the content
-    /// inside the formula written as HTML at its position
-    /// ([`math_text`](Emitter::math_text)).
+    /// A `<div>` is not written because a displayed formula stands inside its
+    /// paragraph, among the paragraph's text, and HTML does not allow a block
+    /// element inside a `<p>`: written as a `<span>`, the formula leaves its
+    /// paragraph a `<p>` ([`holds_flow_content`]). The element holds the
+    /// delimiters the emitter chose and the formula's own source between them,
+    /// written as text, with the content inside the formula written as HTML at
+    /// its position ([`math_text`](Emitter::math_text)).
     ///
     /// A formula reached **inside the HTML written into another formula** is
     /// never written there, because the renderer does not read the HTML it
@@ -2206,7 +2323,6 @@ impl<'o> Emitter<'o> {
     /// leads nowhere; the outer one, which the author wrote around the whole
     /// text, is the one a reader follows. Its content is written as usual.
     /// Nothing is reported: this is the page's way of writing such a link.
-    // See decision rationale at [§flm-dd-dr:rend-html-nested-link].
     fn link(&mut self, node: &NodeRef<'_, Flm>, convention: &Convention) {
         self.require_style(convention);
         let nested = self.links_open > 0;
@@ -2468,7 +2584,6 @@ impl<'o> Emitter<'o> {
         // A count of the bytes written, never the bytes: the sink stays
         // unreadable, and the count is what lets the page assembly write the
         // placed tree where it belongs.
-        // See decision rationale at [§flm-dd-dr:rend-html-page-skeleton].
         let at = self.sink.len();
         self.placements.push((at, payload.tree, node.span().clone()));
     }

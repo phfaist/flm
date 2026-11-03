@@ -1,4 +1,4 @@
-//! Stages (plan A, WP-3): a scripted stage reads the document's trees, the
+//! Stages: a scripted stage reads the document's trees, the
 //! tables it declared it reads (an extension's own, a rewrite's trees, any
 //! other as its projection), writes its own tables and reports diagnostics; a
 //! failing handler is an Error at the stage, and the run completes.
@@ -93,7 +93,7 @@ fn a_per_tree_stage_counts_words_into_its_table() {
     let registry = one_stage(count_decl(Scope::PerTree), Needs::new(), |cx, out| {
         assert_eq!(cx.scope(), Scope::PerTree);
         let tree = cx.tree_id().expect("a per-tree stage has a tree");
-        let root = cx.my_tree().expect("its tree");
+        let root = cx.my_tree().expect("its tree").root();
         // The walk covers every tree; this tree's part of it counts the same.
         let walked: usize = cx
             .walk()
@@ -130,8 +130,8 @@ fn todos() -> Double {
             let Some(TableValue::Trees(trees)) = cx.get("flm.userdefs.always-expanded")? else {
                 return Err(ExtError::Handler { detail: "no trees".to_string(), data: Value::Null });
             };
-            for (tree, root) in trees.trees() {
-                for node in root.descendants() {
+            for (tree, rewritten) in trees.trees() {
+                for node in rewritten.root().descendants() {
                     if node.name().as_deref() == Some("todo") {
                         let text = node.argument_content_nodes_named("text")?.and_then(|nodes| chars_text(&nodes));
                         out.table("wc.todos")?.push(json!({ "tree": tree, "text": text }))?;
@@ -170,7 +170,7 @@ fn a_stage_collects_the_markers_from_the_trees_before_the_per_plan_definitions_e
 #[test]
 fn a_stage_reads_another_scripted_feature_s_table() {
     let counter = stage(count_decl(Scope::PerTree), Needs::new(), |cx, out| {
-        let root = cx.my_tree().expect("its tree");
+        let root = cx.my_tree().expect("its tree").root();
         out.table("wc.words")?.push(json!(words_under(&*root)))
     });
     let report = StageDecl::new("wc.report", Effect::Compute, Scope::Document).writes("wc.total");
@@ -198,7 +198,7 @@ fn a_stage_reads_another_scripted_feature_s_table() {
 
 #[test]
 fn a_stage_reads_a_standard_table_as_its_projection() {
-    // `flm.userdefs.always-expanded`, which plan A names, holds a rewrite's
+    // `flm.userdefs.always-expanded` holds a rewrite's
     // trees and is answered as such; the labels table is a table of another
     // type, holding node addresses its projection renders.
     let decl = StageDecl::new("wc.count", Effect::Compute, Scope::Document).writes("wc.words");
@@ -265,9 +265,9 @@ fn a_document_stage_walks_every_tree() {
 #[test]
 fn a_stage_reads_a_tree_by_id() {
     let registry = one_stage(count_decl(Scope::Document), Needs::new(), |cx, out| {
-        for (id, root) in cx.trees() {
-            let tree = cx.tree(&id).expect("the tree by its id");
-            let frozen = cx.frozen_tree(&id).expect("the frozen tree by its id");
+        for (id, listed) in cx.trees() {
+            let (root, tree) = (listed.root(), cx.tree(&id).expect("the tree by its id").root());
+            let frozen = cx.frozen_tree(&id).expect("the frozen tree by its id").root();
             assert_eq!(tree.span(), root.span());
             assert_eq!(frozen.span(), root.span());
             out.table("wc.words")?.push(json!({ "tree": id, "text": tree.span_content() }))?;
@@ -325,22 +325,9 @@ fn a_write_to_an_undeclared_table_is_the_handler_s_failure() {
 }
 
 #[test]
-fn a_diagnostic_with_an_id_outside_the_package_is_the_handler_s_failure() {
-    let registry = one_stage(count_decl(Scope::PerTree), Needs::new(), |_, out| {
-        out.diags(Diagnostic::warning("other.found", "something was found"))
-    });
-    let run = run_demanding(&registry, &["wc.words"], &["Text."]);
-    assert_eq!(
-        common::diagnostics(&run),
-        ["flm.ext.handler-failed: the stage `wc.count` failed: the diagnostic `other.found` declared by the package \
-          `_` of the extension `wc` must begin with `wc.`"]
-    );
-}
-
-#[test]
 fn a_diagnostic_at_a_node_carries_that_node_s_span() {
     let registry = one_stage(count_decl(Scope::PerTree), Needs::new(), |cx, out| {
-        let root = cx.my_tree().expect("its tree");
+        let root = cx.my_tree().expect("its tree").root();
         for node in root.descendants() {
             if node.name().as_deref() == Some("emph") {
                 out.diags(Diagnostic::note("wc.emphasis", "emphasis is used").with_data(json!({ "n": 1 })).at(&*node))?;
@@ -385,7 +372,7 @@ fn a_pushed_float_is_refused() {
     );
 }
 
-// --- capabilities (plan A, A28) ----------------------------------------------------------------
+// --- capabilities ------------------------------------------------------------------------------
 
 #[test]
 fn a_stage_provides_a_capability_another_stage_requires() {
@@ -463,13 +450,18 @@ fn a_stage_providing_a_capability_no_feature_declares_fails_the_build() {
 
 // --- a node's address ------------------------------------------------------------------------------
 
+/// The table of the trees in which only the definitions of the policy
+/// `always` are expanded.
+const EXPANDED: &str = "flm.userdefs.always-expanded";
+
 /// A body that reads the rows of `wc.rows` at the node being lowered and
-/// writes `[<tree> <rows>]`; in the document's tree it also splices a copy of
-/// that tree (a synthesized value), over which the per-tree stage runs again.
+/// writes `[<tree> <rows>]`; in the document's tree it also splices that
+/// tree's expanded form, read from the table `flm.userdefs.always-expanded`
+/// (a synthesized value), over which the per-tree stage runs again.
 struct RowsAtBox;
 
 impl Lower for RowsAtBox {
-    fn lower<'c>(&self, node: &'c dyn Node<'c>, cx: &'c mut dyn LowerCx, lw: &'c mut dyn Lowerer) -> Result<Lowering, ExtError> {
+    fn lower<'c>(&self, _: &'c dyn Node<'c>, cx: &'c mut dyn LowerCx, lw: &'c mut dyn Lowerer) -> Result<Lowering, ExtError> {
         let rows = match lw.get("wc.rows")? {
             Some(TableValue::Ext(table)) => table.items_at(&lw.addr()),
             _ => Vec::new(),
@@ -478,11 +470,11 @@ impl Lower for RowsAtBox {
         let tree = lw.tree_id();
         let mut emit = vec![lw.text(cx, &format!("[{tree} {}]", numbers.join(",")))?];
         if !tree.starts_with("value#") {
-            let mut root = node.parent().expect("the node has a parent");
-            while let Some(parent) = root.parent() {
-                root = parent;
-            }
-            emit.extend(lw.splice(cx, &*root)?);
+            let expanded = match lw.get(EXPANDED)? {
+                Some(TableValue::Trees(trees)) => trees.tree(&tree),
+                _ => None,
+            };
+            emit.extend(lw.splice(cx, &*expanded.expect("the tree's expanded form"))?);
         }
         Ok(Lowering::Emit(emit))
     }
@@ -501,7 +493,7 @@ fn a_stage_keys_its_rows_by_a_node_s_address_in_the_document_and_in_a_value_copy
         let decl = StageDecl::new("wc.number", Effect::Compute, Scope::PerTree).writes("wc.rows");
         b.stage(stage(decl, Needs::new(), |cx, out| {
             let tree = cx.tree_id().expect("a per-tree stage has a tree");
-            let root = cx.my_tree().expect("its tree");
+            let root = cx.my_tree().expect("its tree").root();
             let mut number = 0;
             for node in root.descendants() {
                 // Every node of the stage's tree has an address in that tree,
@@ -515,7 +507,7 @@ fn a_stage_keys_its_rows_by_a_node_s_address_in_the_document_and_in_a_value_copy
             }
             Ok(())
         }))?;
-        let decl = LoweringDecl::new().produces(pres::SPAN).reads("wc.rows");
+        let decl = LoweringDecl::new().produces(pres::SPAN).reads("wc.rows").reads(EXPANDED);
         b.lowering_rule(LoweringRule::new("wc.box.lower.default", "wc.box", decl, Arc::new(RowsAtBox), DefaultMark::Everywhere))
     });
     let registry = registry_with([double.package()]);

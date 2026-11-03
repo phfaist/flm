@@ -858,7 +858,9 @@ fn attach(
             return Ok(Attached::Nothing);
         }
     };
-    // See decision rationale at [§flm-dd-dr:lang-input-chain-check].
+    // The library checks the chain of inclusions, so that no host has to: which
+    // file includes which is a fact of the document, and the host states only
+    // each file's identity, as its name.
     // The chain: the including source, the source that included it, and so
     // on up to the primary file, which is at depth zero.
     let mut depth = 0;
@@ -885,8 +887,8 @@ fn attach(
         .with_line_column_number_offsets(file.first_line.max(1), 1);
     let name = file.name;
     // The file's settings are recorded on the state it is read under, so that
-    // a command inside it hands them on in turn. See decision rationale at
-    // [§flm-dd-dr:lang-input-parsing-over].
+    // a command inside it hands them on in turn, and no host has to remember
+    // them.
     let state: Arc<ParsingState<Flm>> = match file.parsing {
         Some(parsing) => {
             let ext = cx.state.ext().clone().with_parsing(parsing.clone());

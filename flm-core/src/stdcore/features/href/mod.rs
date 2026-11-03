@@ -361,8 +361,9 @@ fn arguments(command: HrefCommand) -> Vec<ArgDef> {
     args
 }
 
-// The recovery of an unreadable address, one rule for the three commands:
-// see decision rationale at [§flm-dd-dr:std-href-unreadable-address].
+// The recovery of an unreadable address is one rule for the three commands:
+// what the link would show is shown alone, so that a reader still sees what the
+// author meant to show.
 
 /// The implementation of the lowering rule [`RULE`]: it stages a
 /// [`flm.pres.link`](crate::stdcore::backends::pres::LINK) with the kind token

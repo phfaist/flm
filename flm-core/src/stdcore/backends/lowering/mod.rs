@@ -72,9 +72,9 @@
 //!   [`Lowerer::lower_region`](crate::core::lowering::Lowerer::lower_region).
 //! - [`table`] — [`LoweredTrees`], the `flm.lowered.<backend>` table, and
 //!   [`LoweredAddr`], the address of a node inside a lowered tree.
-//! - [`rules`] — the default lowering rules of the structural elements and of
-//!   the field element, and the helpers that stage paragraphs and trimmed
-//!   inline content for other rules.
+//! - [`rules`] — the default lowering rules of the structural elements, and
+//!   the helpers that stage paragraphs and trimmed inline content for other
+//!   rules.
 //! - [`mod@pointer`] — [`ContentPointer`], the payload of a synthesized node
 //!   that shows content written elsewhere without copying it, and
 //!   [`lower_content_pointer`], the lowering every such node's rule calls,
@@ -82,9 +82,9 @@
 //! - [`error`] — the `flm.lowering.*` conditions and
 //!   `flm.verbatim.content-not-characters`, and the recovery after each.
 //! - [`mod@feature`] — the `lowering` feature, which registers the
-//!   presentation vocabulary, the field element, the default rules, the two
-//!   native-set implications the driver relies on ([`native_implications`])
-//!   and two service slots.
+//!   presentation vocabulary, the default rules, the two native-set
+//!   implications the driver relies on ([`native_implications`]) and two
+//!   service slots.
 //!
 //! [`Lowerer`]: crate::core::lowering::Lowerer
 

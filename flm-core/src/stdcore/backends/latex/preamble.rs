@@ -2106,8 +2106,7 @@ mod tests {
             // pieces of `ASK_WHAT_THE_DOCUMENT_LOADED` and nowhere else. Every
             // other question fails here, whether it asks what is defined, what
             // a *class* loaded, which format is installed or which engine
-            // runs. See decision rationale at
-            // [§flm-dd-dr:rend-latex-style-conservative].
+            // runs.
             let text = definitions_outside_the_pdf_string_hook(&piece.content);
             for forbidden in [
                 "\\ifdefined",

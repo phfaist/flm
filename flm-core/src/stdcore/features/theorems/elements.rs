@@ -297,7 +297,7 @@ pub fn has_noproofref(node: &NodeRef<'_, Flm>) -> bool {
     let Ok(Some(fields)) = node.argument_content_nodes_named(refs::FIELDS_ARG) else {
         return false;
     };
-    fields.iter().any(|field| field_name(&field).is_some_and(|name| name.as_str() == NOPROOFREF_FIELD))
+    fields.iter().any(|field| field_name(&field) == Some(NOPROOFREF_FIELD))
 }
 
 /// One reference point per theorem, carrying the theorem's labels. For a
@@ -307,7 +307,9 @@ pub fn has_noproofref(node: &NodeRef<'_, Flm>) -> bool {
 impl Referenceable for TheoremElement {
     fn points(&self, node: &NodeRef<'_, Flm>) -> Vec<RefPoint> {
         let (labels, malformed) = refs::point_labels(&refs::label_uses(node));
-        // See decision rationale at [§flm-dd-dr:std-theorem-points].
+        // An unnumbered kind's point accepts no label, so the references feature
+        // reports a label written on a proof; this feature needs no check of
+        // its own for it.
         let (anchor, number) = match &self.counter {
             Some(counter) => (
                 AnchorPolicy::FromValue { prefix: self.name.to_string() },

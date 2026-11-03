@@ -2,22 +2,35 @@
 //! not edit. `UPDATE_GOLDEN=1 cargo test -p flm-ext --test api_surface`
 //! rewrites it.
 //!
-//! The guest client's surface (refresh section 6.2): per module of the
-//! extension API, the re-exports of its data types, unit enums and constants,
+//! The guest client's surface: per module of the extension API, the
+//! re-exports of its data types, unit enums and constants,
 //! of the guest's own types and of the handler traits (`src/guest/hand/`), one
 //! struct per handle kind with its forwarding methods, and the module's
-//! functions and constructors, each forwarding through `abi`; last, the
-//! compile-time assertions of the hand-written items.
+//! functions and constructors, each forwarding through `abi` (as a JSON
+//! request, or with the cargo feature `native` as a typed call through
+//! `abi::typed`); last, the compile-time assertions of the hand-written items.
 
-/// The names every module with code uses.
+/// The names every module with code uses: those of both routes, of the
+/// JSON route (`ToArg`), and of the typed route (the cargo feature `native`).
 mod prelude {
     pub(crate) use serde_json::Value;
 
     pub(crate) use crate::adapter::handles::{Handle, HandleKind};
     pub(crate) use crate::adapter::values::{handle_to_value, JsonForm};
     pub(crate) use crate::guest::abi;
-    pub(crate) use crate::guest::hand::arg;
     pub(crate) use crate::runtime::ExtError;
+
+    #[cfg(not(feature = "native"))]
+    pub(crate) use crate::guest::abi::ToArg;
+
+    #[cfg(feature = "native")]
+    pub(crate) use crate::adapter::dispatch::{entry, extra};
+    #[cfg(feature = "native")]
+    pub(crate) use crate::adapter::handles::Entry;
+    #[cfg(feature = "native")]
+    pub(crate) use crate::adapter::typed::{FromApi, IntoApi};
+    #[cfg(feature = "native")]
+    pub(crate) use crate::adapter::values::mismatch;
 }
 
 /// The guest's side of the modules under `flm:core`.
@@ -30,8 +43,19 @@ pub mod core {
 
         /// Mirrors `media_type_of`: the media type the host gives a file of extension `extension` (without the dot, in any case), or `None` for an extension the table does not list.
         pub fn media_type_of(extension: &str) -> Result<Option<String>, ExtError> {
-            let reply = abi::call_module("core/artifact", "media_type_of", vec![arg(extension, "media_type_of")?])?;
-            JsonForm::from_value(&reply)
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call_module("core/artifact", "media_type_of", vec![ToArg::arg(extension)])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("media_type_of", |table| {
+                    let a0 = IntoApi::into_api(extension, table)?;
+                    let answer = crate::api::core::artifact::media_type_of(a0);
+                    FromApi::from_api(answer, table)
+                })
+            }
         }
     }
 
@@ -62,14 +86,35 @@ pub mod core {
             impl StageOut {
                 /// Mirrors `StageOut::table`: the piece of the table named `name` this stage writes.
                 pub fn table(&mut self, name: &str) -> Result<TablePiece, ExtError> {
-                    let reply = abi::call(self.handle, "table", vec![arg(name, "table")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "table", vec![ToArg::arg(name)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("table", |table| {
+                            Ok(TablePiece { handle: extra::stage_out_table(table, self.handle, name)? })
+                        })
+                    }
                 }
 
                 /// Mirrors a push on the field `StageOut::diags`: reports `diagnostic`.
                 pub fn diags(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError> {
-                    abi::call(self.handle, "diags", vec![arg(&diagnostic, "diags")?])?;
-                    Ok(())
+                    #[cfg(not(feature = "native"))]
+                    {
+                        abi::call(self.handle, "diags", vec![ToArg::arg(&diagnostic)])?;
+                        Ok(())
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("diags", |table| {
+                            let a0 = IntoApi::into_api(&diagnostic, table)?;
+                            let this = entry!(table, self.handle, StageOut, StageOut);
+                            this.diags(a0)?;
+                            Ok(())
+                        })
+                    }
                 }
             }
 
@@ -93,8 +138,17 @@ pub mod core {
             impl TablePiece {
                 /// Appends `item` to the table.
                 pub fn push(&mut self, item: Value) -> Result<(), ExtError> {
-                    abi::call(self.handle, "push", vec![arg(&item, "push")?])?;
-                    Ok(())
+                    #[cfg(not(feature = "native"))]
+                    {
+                        abi::call(self.handle, "push", vec![ToArg::arg(&item)])?;
+                        Ok(())
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("push", |table| {
+                            extra::table_piece_push(table, self.handle, item)
+                        })
+                    }
                 }
             }
         }
@@ -125,8 +179,19 @@ pub mod core {
             impl ExtTableRead {
                 /// The items the table's writers pushed, in traversal order.
                 pub fn items(&self) -> Result<Vec<Value>, ExtError> {
-                    let reply = abi::call(self.handle, "items", vec![])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "items", vec![])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("items", |table| {
+                            let this = &**entry!(table, self.handle, ExtTableRead, ExtTableRead);
+                            let answer = this.items();
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
             }
         }
@@ -139,6 +204,7 @@ pub mod core {
         use crate::guest::techy::error::Diagnostic;
         use crate::guest::techy::node::Node;
         use crate::guest::core::data::table::TableValue;
+        use crate::guest::techy::node::Tree;
 
         pub use crate::api::core::lowering::{DefaultMark, LoweringDecl};
         pub use crate::guest::hand::core_lowering::{Lower, Lowering, PresTree, NodeAddr};
@@ -146,14 +212,36 @@ pub mod core {
 
         /// Mirrors `chars_at_lowering`: the characters of `nodes`, or the node that is not characters.
         pub fn chars_at_lowering(nodes: &[Node]) -> Result<String, ExtError> {
-            let reply = abi::call_module("core/lowering", "chars_at_lowering", vec![arg(nodes, "chars_at_lowering")?])?;
-            JsonForm::from_value(&reply)
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call_module("core/lowering", "chars_at_lowering", vec![ToArg::arg(nodes)])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("chars_at_lowering", |table| {
+                    let a0 = IntoApi::into_api(nodes, table)?;
+                    let answer = crate::api::core::lowering::chars_at_lowering(&a0)?;
+                    FromApi::from_api(answer, table)
+                })
+            }
         }
 
         /// Mirrors `spelling_at_lowering`: whether a rule may compute on the spelling of `nodes` (the content as written, markup included): no placeholder of a definition's template stands in it.
         pub fn spelling_at_lowering(nodes: &[Node]) -> Result<(), ExtError> {
-            abi::call_module("core/lowering", "spelling_at_lowering", vec![arg(nodes, "spelling_at_lowering")?])?;
-            Ok(())
+            #[cfg(not(feature = "native"))]
+            {
+                abi::call_module("core/lowering", "spelling_at_lowering", vec![ToArg::arg(nodes)])?;
+                Ok(())
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("spelling_at_lowering", |table| {
+                    let a0 = IntoApi::into_api(nodes, table)?;
+                    crate::api::core::lowering::spelling_at_lowering(&a0)?;
+                    Ok(())
+                })
+            }
         }
 
         /// Mirrors `LoweringRule`: a lowering rule, ready to be registered.
@@ -176,8 +264,21 @@ pub mod core {
         impl LoweringRule {
             /// Mirrors `LoweringRule::docs`: sets the rule's one-line description, and returns the rule.
             pub fn docs(self, docs: impl Into<String>) -> Result<LoweringRule, ExtError> {
-                let reply = abi::call(self.handle, "docs", vec![arg(&Into::<String>::into(docs), "docs")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "docs", vec![ToArg::arg(&Into::<String>::into(docs))])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    let docs = Into::<String>::into(docs);
+                    abi::typed("docs", |table| {
+                        let a0 = IntoApi::into_api(docs, table)?;
+                        let this = entry!(table, self.handle, LoweringRule, LoweringRule).clone();
+                        let answer = this.docs(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
 
@@ -218,146 +319,458 @@ pub mod core {
         impl Lowerer {
             /// Mirrors `Lowerer::rule`.
             pub fn rule(&self) -> Result<String, ExtError> {
-                let reply = abi::call(self.handle, "rule", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "rule", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("rule", |table| {
+                        let this = entry!(table, self.handle, Lowerer, Lowerer);
+                        let answer = this.rule();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::lang`: the language the registry was built with.
             pub fn lang(&self) -> Result<BuiltLang, ExtError> {
-                let reply = abi::call(self.handle, "lang", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "lang", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("lang", |table| {
+                        Ok(BuiltLang { handle: extra::lowerer_lang(table, self.handle)? })
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::backend`.
             pub fn backend(&self) -> Result<String, ExtError> {
-                let reply = abi::call(self.handle, "backend", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "backend", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("backend", |table| {
+                        let this = entry!(table, self.handle, Lowerer, Lowerer);
+                        let answer = this.backend();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::comment_start`.
             pub fn comment_start(&self) -> Result<Option<String>, ExtError> {
-                let reply = abi::call(self.handle, "comment_start", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "comment_start", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("comment_start", |table| {
+                        let this = entry!(table, self.handle, Lowerer, Lowerer);
+                        let answer = this.comment_start();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::tree_id`: the tree being lowered.
             pub fn tree_id(&self) -> Result<String, ExtError> {
-                let reply = abi::call(self.handle, "tree_id", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "tree_id", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("tree_id", |table| {
+                        let this = entry!(table, self.handle, Lowerer, Lowerer);
+                        let answer = this.tree_id();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::addr`: the address of the node being lowered.
             pub fn addr(&self) -> Result<NodeAddr, ExtError> {
-                let reply = abi::call(self.handle, "addr", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "addr", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("addr", |table| {
+                        let this = entry!(table, self.handle, Lowerer, Lowerer);
+                        let answer = this.addr();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::addr_of`.
             pub fn addr_of(&self, node: &Node) -> Result<NodeAddr, ExtError> {
-                let reply = abi::call(self.handle, "addr_of", vec![arg(node, "addr_of")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "addr_of", vec![ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("addr_of", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let this = entry!(table, self.handle, Lowerer, Lowerer);
+                        let answer = this.addr_of(&*a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::placement`.
             pub fn placement(&self) -> Result<Option<String>, ExtError> {
-                let reply = abi::call(self.handle, "placement", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "placement", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("placement", |table| {
+                        let this = entry!(table, self.handle, Lowerer, Lowerer);
+                        let answer = this.placement();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `get`, defined on `dyn Lowerer` over `Lowerer::get_erased`: the table named `name`, which the rule declared it reads.
             pub fn get(&self, name: &str) -> Result<Option<TableValue>, ExtError> {
-                let reply = abi::call(self.handle, "get", vec![arg(name, "get")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "get", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("get", |table| {
+                        let got = extra::lowerer_get(table, self.handle, name)?;
+                        FromApi::from_api(got, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::producer_of`.
             pub fn producer_of(&self, table: &str) -> Result<Option<String>, ExtError> {
-                let reply = abi::call(self.handle, "producer_of", vec![arg(table, "producer_of")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "producer_of", vec![ToArg::arg(table)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    let table_arg = table;
+                    abi::typed("producer_of", |table| {
+                        let a0 = IntoApi::into_api(table_arg, table)?;
+                        let this = entry!(table, self.handle, Lowerer, Lowerer);
+                        let answer = this.producer_of(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `option_named`, defined on `dyn Lowerer`: the value of the option type `name` the rule declared it reads (`LoweringDecl::option`).
             pub fn option(&self, name: &str) -> Result<Value, ExtError> {
-                let reply = abi::call(self.handle, "option", vec![arg(name, "option")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "option", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("option", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = entry!(table, self.handle, Lowerer, Lowerer);
+                        let answer = this.option(a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::lower_children`.
             pub fn lower_children(&mut self, cx: &mut LowerCx, node: &Node) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call(self.handle, "lower_children", vec![arg(&*cx, "lower_children")?, arg(node, "lower_children")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "lower_children", vec![ToArg::arg(&*cx), ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("lower_children", |table| {
+                        let a1 = IntoApi::into_api(node, table)?;
+                        let answer = match table.entries_mut("lower_children", [self.handle, cx.handle])? {
+                            [Entry::Lowerer(this), Entry::LowerCx(a0)] => this.lower_children(&mut **a0, &*a1),
+                            [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::lower_body`.
             pub fn lower_body(&mut self, cx: &mut LowerCx, node: &Node) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call(self.handle, "lower_body", vec![arg(&*cx, "lower_body")?, arg(node, "lower_body")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "lower_body", vec![ToArg::arg(&*cx), ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("lower_body", |table| {
+                        let a1 = IntoApi::into_api(node, table)?;
+                        let answer = match table.entries_mut("lower_body", [self.handle, cx.handle])? {
+                            [Entry::Lowerer(this), Entry::LowerCx(a0)] => this.lower_body(&mut **a0, &*a1),
+                            [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::lower_arg`.
             pub fn lower_arg(&mut self, cx: &mut LowerCx, node: &Node, index: usize) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call(self.handle, "lower_arg", vec![arg(&*cx, "lower_arg")?, arg(node, "lower_arg")?, arg(&index, "lower_arg")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "lower_arg", vec![ToArg::arg(&*cx), ToArg::arg(node), ToArg::arg(&index)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("lower_arg", |table| {
+                        let a1 = IntoApi::into_api(node, table)?;
+                        let a2 = IntoApi::into_api(index, table)?;
+                        let answer = match table.entries_mut("lower_arg", [self.handle, cx.handle])? {
+                            [Entry::Lowerer(this), Entry::LowerCx(a0)] => this.lower_arg(&mut **a0, &*a1, a2),
+                            [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::lower_arg_named`.
             pub fn lower_arg_named(&mut self, cx: &mut LowerCx, node: &Node, name: &str) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call(self.handle, "lower_arg_named", vec![arg(&*cx, "lower_arg_named")?, arg(node, "lower_arg_named")?, arg(name, "lower_arg_named")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "lower_arg_named", vec![ToArg::arg(&*cx), ToArg::arg(node), ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("lower_arg_named", |table| {
+                        let a1 = IntoApi::into_api(node, table)?;
+                        let a2 = IntoApi::into_api(name, table)?;
+                        let answer = match table.entries_mut("lower_arg_named", [self.handle, cx.handle])? {
+                            [Entry::Lowerer(this), Entry::LowerCx(a0)] => this.lower_arg_named(&mut **a0, &*a1, a2),
+                            [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::lower_nodes`.
             pub fn lower_nodes(&mut self, cx: &mut LowerCx, nodes: &[Node]) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call(self.handle, "lower_nodes", vec![arg(&*cx, "lower_nodes")?, arg(nodes, "lower_nodes")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "lower_nodes", vec![ToArg::arg(&*cx), ToArg::arg(nodes)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("lower_nodes", |table| {
+                        let a1 = IntoApi::into_api(nodes, table)?;
+                        let answer = match table.entries_mut("lower_nodes", [self.handle, cx.handle])? {
+                            [Entry::Lowerer(this), Entry::LowerCx(a0)] => this.lower_nodes(&mut **a0, &a1),
+                            [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::default`.
             pub fn default(&mut self, cx: &mut LowerCx, node: &Node) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call(self.handle, "default", vec![arg(&*cx, "default")?, arg(node, "default")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "default", vec![ToArg::arg(&*cx), ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("default", |table| {
+                        let a1 = IntoApi::into_api(node, table)?;
+                        let answer = match table.entries_mut("default", [self.handle, cx.handle])? {
+                            [Entry::Lowerer(this), Entry::LowerCx(a0)] => this.default(&mut **a0, &*a1),
+                            [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::pres`: stages a node of the presentation element `element` carrying the payload `payload` and holding `children`.
             pub fn pres(&mut self, cx: &mut LowerCx, element: &str, payload: &Value, children: Vec<Staged>) -> Result<Staged, ExtError> {
-                let reply = abi::call(self.handle, "pres", vec![arg(&*cx, "pres")?, arg(element, "pres")?, arg(payload, "pres")?, arg(&children, "pres")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "pres", vec![ToArg::arg(&*cx), ToArg::arg(element), ToArg::arg(payload), ToArg::arg(&children)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("pres", |table| {
+                        let a1 = IntoApi::into_api(element, table)?;
+                        let a2 = IntoApi::into_api(payload, table)?;
+                        let a3 = IntoApi::into_api(children, table)?;
+                        let answer = match table.entries_mut("pres", [self.handle, cx.handle])? {
+                            [Entry::Lowerer(this), Entry::LowerCx(a0)] => this.pres(&mut **a0, a1, a2, a3),
+                            [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::pres_slots`.
             pub fn pres_slots(&mut self, cx: &mut LowerCx, element: &str, payload: &Value, slots: Vec<(String, Vec<Staged>)>) -> Result<Staged, ExtError> {
-                let reply = abi::call(self.handle, "pres_slots", vec![arg(&*cx, "pres_slots")?, arg(element, "pres_slots")?, arg(payload, "pres_slots")?, arg(&slots, "pres_slots")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "pres_slots", vec![ToArg::arg(&*cx), ToArg::arg(element), ToArg::arg(payload), ToArg::arg(&slots)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("pres_slots", |table| {
+                        let a1 = IntoApi::into_api(element, table)?;
+                        let a2 = IntoApi::into_api(payload, table)?;
+                        let a3 = IntoApi::into_api(slots, table)?;
+                        let answer = match table.entries_mut("pres_slots", [self.handle, cx.handle])? {
+                            [Entry::Lowerer(this), Entry::LowerCx(a0)] => this.pres_slots(&mut **a0, a1, a2, a3),
+                            [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::text`.
             pub fn text(&mut self, cx: &mut LowerCx, text: &str) -> Result<Staged, ExtError> {
-                let reply = abi::call(self.handle, "text", vec![arg(&*cx, "text")?, arg(text, "text")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "text", vec![ToArg::arg(&*cx), ToArg::arg(text)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("text", |table| {
+                        let a1 = IntoApi::into_api(text, table)?;
+                        let answer = match table.entries_mut("text", [self.handle, cx.handle])? {
+                            [Entry::Lowerer(this), Entry::LowerCx(a0)] => this.text(&mut **a0, a1),
+                            [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::splice`.
-            pub fn splice(&mut self, cx: &mut LowerCx, value: &Node) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call(self.handle, "splice", vec![arg(&*cx, "splice")?, arg(value, "splice")?])?;
-                JsonForm::from_value(&reply)
+            pub fn splice(&mut self, cx: &mut LowerCx, value: &Tree) -> Result<Vec<Staged>, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "splice", vec![ToArg::arg(&*cx), ToArg::arg(value)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("splice", |table| {
+                        let a1 = IntoApi::into_api(value, table)?;
+                        let answer = match table.entries_mut("splice", [self.handle, cx.handle])? {
+                            [Entry::Lowerer(this), Entry::LowerCx(a0)] => this.splice(&mut **a0, &*a1),
+                            [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::require`.
             pub fn require(&mut self, id: &str) -> Result<(), ExtError> {
-                abi::call(self.handle, "require", vec![arg(id, "require")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(self.handle, "require", vec![ToArg::arg(id)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("require", |table| {
+                        let a0 = IntoApi::into_api(id, table)?;
+                        let this = entry!(table, self.handle, Lowerer, Lowerer);
+                        this.require(a0);
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `Lowerer::diagnose`: reports `diagnostic`, at the node being lowered unless it has a place of its own.
             pub fn diagnose(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError> {
-                abi::call(self.handle, "diagnose", vec![arg(&diagnostic, "diagnose")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(self.handle, "diagnose", vec![ToArg::arg(&diagnostic)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("diagnose", |table| {
+                        let a0 = IntoApi::into_api(&diagnostic, table)?;
+                        let this = entry!(table, self.handle, Lowerer, Lowerer);
+                        this.diagnose(a0)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// no façade method: `addr_of`, then `get`, then `items_at`, composed in the dispatcher (a method of the guest client only).
             pub fn get_at(&self, name: &str, node: &Node) -> Result<Option<Vec<Value>>, ExtError> {
-                let reply = abi::call(self.handle, "get_at", vec![arg(name, "get_at")?, arg(node, "get_at")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "get_at", vec![ToArg::arg(name), ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("get_at", |table| {
+                        let node = IntoApi::into_api(node, table)?;
+                        extra::lowerer_get_at(table, self.handle, name, &*node)
+                    })
+                }
             }
 
             /// a stub-only convenience forwarding to the free function `pres_tree` (a method of the guest client only).
@@ -368,8 +781,23 @@ pub mod core {
 
         /// No `flm-core` counterpart: stages the tree `tree` in one call, through `Lowerer::pres` and `Lowerer::text`, children first, and answers the staged root.
         pub fn pres_tree(lw: &mut Lowerer, cx: &mut LowerCx, tree: &PresTree) -> Result<Staged, ExtError> {
-            let reply = abi::call_module("core/lowering", "pres_tree", vec![arg(&*lw, "pres_tree")?, arg(&*cx, "pres_tree")?, arg(tree, "pres_tree")?])?;
-            JsonForm::from_value(&reply)
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call_module("core/lowering", "pres_tree", vec![ToArg::arg(&*lw), ToArg::arg(&*cx), ToArg::arg(tree)])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("pres_tree", |table| {
+                    let a2 = IntoApi::into_api(tree, table)?;
+                    let answer = match table.entries_mut("pres_tree", [lw.handle, cx.handle])? {
+                        [Entry::Lowerer(a0), Entry::LowerCx(a1)] => crate::api::core::lowering::pres_tree(&mut **a0, &mut **a1, &a2),
+                        [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                        [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                    }?;
+                    FromApi::from_api(answer, table)
+                })
+            }
         }
     }
 
@@ -426,176 +854,475 @@ pub mod core {
             /// Mirrors `FeatureBuilder::element`: declares an element and the syntax that produces it.
             pub fn element(&mut self, def: ElementDef) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "element", vec![arg(&def, "element")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "element", vec![ToArg::arg(&def)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("element", |table| {
+                        let a0 = IntoApi::into_api(&def, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.element(a0)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::fallback`: declares the element an unknown macro or environment becomes.
             pub fn fallback(&mut self, def: FallbackDef) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "fallback", vec![arg(&def, "fallback")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "fallback", vec![ToArg::arg(&def)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("fallback", |table| {
+                        let a0 = IntoApi::into_api(&def, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.fallback(a0)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::override_callable`: declares that this feature replaces another feature's macro, environment or specials named `name`.
             pub fn override_callable(&mut self, kind: CallableKind, name: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "override_callable", vec![arg(&kind, "override_callable")?, arg(name, "override_callable")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "override_callable", vec![ToArg::arg(&kind), ToArg::arg(name)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("override_callable", |table| {
+                        let a0 = IntoApi::into_api(kind, table)?;
+                        let a1 = IntoApi::into_api(name, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.override_callable(a0, a1)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::table` and `FeatureBuilder::table_named`: declares a table this feature owns.
             pub fn table(&mut self, name: &str, docs: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "table", vec![arg(name, "table")?, arg(docs, "table")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "table", vec![ToArg::arg(name), ToArg::arg(docs)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("table", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let a1 = IntoApi::into_api(docs, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.table(a0, a1)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::table_named` for the standard table types: declares a table this feature owns, named `name`, holding the `flm-core` type `ty` stands for.
             pub fn table_named(&mut self, name: &str, ty: StandardTable, docs: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "table_named", vec![arg(name, "table_named")?, arg(&ty, "table_named")?, arg(docs, "table_named")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "table_named", vec![ToArg::arg(name), ToArg::arg(&ty), ToArg::arg(docs)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("table_named", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let a1 = IntoApi::into_api(ty, table)?;
+                        let a2 = IntoApi::into_api(docs, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.table_named(a0, a1, a2)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors the table record's `refines`, through `FeatureBuilder::table_refining_named`: declares a table this feature owns, as `table` does, whose capability refines the capability `parent`, so that the stage that writes the table provides `parent` too (the table of rendered formulas of a processing feature refines `flm.math.rendered`).
             pub fn table_refining(&mut self, name: &str, parent: &str, docs: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "table_refining", vec![arg(name, "table_refining")?, arg(parent, "table_refining")?, arg(docs, "table_refining")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "table_refining", vec![ToArg::arg(name), ToArg::arg(parent), ToArg::arg(docs)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("table_refining", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let a1 = IntoApi::into_api(parent, table)?;
+                        let a2 = IntoApi::into_api(docs, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.table_refining(a0, a1, a2)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::table_named` with the value type `DefinitionText`: declares a table this feature owns that holds the text of a part of a style or script definition (`DefContent::Table`).
             pub fn definition_text_table(&mut self, name: &str, docs: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "definition_text_table", vec![arg(name, "definition_text_table")?, arg(docs, "definition_text_table")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "definition_text_table", vec![ToArg::arg(name), ToArg::arg(docs)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("definition_text_table", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let a1 = IntoApi::into_api(docs, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.definition_text_table(a0, a1)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::peer_table`: declares that this feature expects another feature of the registry to declare the table `name`, so that its rules may read it (a rule that reads it as a hard dependency is set aside when no feature declares it; one that reads it optionally finds it absent).
             pub fn peer_table(&mut self, name: &str, docs: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "peer_table", vec![arg(name, "peer_table")?, arg(docs, "peer_table")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "peer_table", vec![ToArg::arg(name), ToArg::arg(docs)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("peer_table", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let a1 = IntoApi::into_api(docs, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.peer_table(a0, a1)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::peer_backend`: declares that this feature expects another feature of the registry to register the backend `name`, so that its rules may name it in their default mark; when none does, those rules are set aside.
             pub fn peer_backend(&mut self, name: &str, docs: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "peer_backend", vec![arg(name, "peer_backend")?, arg(docs, "peer_backend")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "peer_backend", vec![ToArg::arg(name), ToArg::arg(docs)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("peer_backend", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let a1 = IntoApi::into_api(docs, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.peer_backend(a0, a1)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::peer_element`: declares that this feature expects another feature of the registry to register the presentation element `name`, so that its rules may list it in their `produces`; when none does, those rules are set aside.
             pub fn peer_element(&mut self, name: &str, docs: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "peer_element", vec![arg(name, "peer_element")?, arg(docs, "peer_element")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "peer_element", vec![ToArg::arg(name), ToArg::arg(docs)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("peer_element", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let a1 = IntoApi::into_api(docs, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.peer_element(a0, a1)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::presentation_element`: registers a presentation element named `name`, an element that exists only in the trees a backend writes, whose nodes carry a payload given as data.
             pub fn presentation_element(&mut self, name: &str, docs: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "presentation_element", vec![arg(name, "presentation_element")?, arg(docs, "presentation_element")?])?;
-                Ok(())
-            }
-
-            /// Mirrors `FeatureBuilder::backend`: registers a backend, its three stages as this feature's own.
-            pub fn backend(&mut self, def: BackendDef) -> Result<(), ExtError> {
-                let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "backend", vec![arg(&def, "backend")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "presentation_element", vec![ToArg::arg(name), ToArg::arg(docs)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("presentation_element", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let a1 = IntoApi::into_api(docs, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.presentation_element(a0, a1)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::output`: registers an output.
             pub fn output(&mut self, def: OutputDef) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "output", vec![arg(&def, "output")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "output", vec![ToArg::arg(&def)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("output", |table| {
+                        let a0 = IntoApi::into_api(def, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.output(a0)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Sets a workflow's lowering selections through `FeatureBuilder::workflow_fields`.
             pub fn workflow_lowering(&mut self, workflow: &str, lowering: &Value) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "workflow_lowering", vec![arg(workflow, "workflow_lowering")?, arg(lowering, "workflow_lowering")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "workflow_lowering", vec![ToArg::arg(workflow), ToArg::arg(lowering)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("workflow_lowering", |table| {
+                        let a0 = IntoApi::into_api(workflow, table)?;
+                        let a1 = IntoApi::into_api(lowering, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.workflow_lowering(a0, a1)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::style_def`: records a stylesheet the feature's output depends on, which a rule requires by its identifier (`LoweringDecl::selection_requires`, `Lowerer::require`).
             pub fn style_def(&mut self, def: StyleDef) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "style_def", vec![arg(&def, "style_def")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "style_def", vec![ToArg::arg(&def)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("style_def", |table| {
+                        let a0 = IntoApi::into_api(def, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.style_def(a0)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::script_def`: the counterpart of `style_def` for scripts.
             pub fn script_def(&mut self, def: ScriptDef) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "script_def", vec![arg(&def, "script_def")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "script_def", vec![ToArg::arg(&def)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("script_def", |table| {
+                        let a0 = IntoApi::into_api(def, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.script_def(a0)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::capability`: declares a capability, a state of the pipeline a stage can provide (`StageDecl::provides`) and another stage can require.
             pub fn capability(&mut self, name: &str, docs: &str, unprovided: Option<String>) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "capability", vec![arg(name, "capability")?, arg(docs, "capability")?, arg(&unprovided, "capability")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "capability", vec![ToArg::arg(name), ToArg::arg(docs), ToArg::arg(&unprovided)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("capability", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let a1 = IntoApi::into_api(docs, table)?;
+                        let a2 = IntoApi::into_api(unprovided, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.capability(a0, a1, a2)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::argument_role`: declares the argument role `name`, a registered name for what an argument holds, described by `docs`; an argument states its role with `ArgDef::role`.
             pub fn argument_role(&mut self, name: &str, docs: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "argument_role", vec![arg(name, "argument_role")?, arg(docs, "argument_role")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "argument_role", vec![ToArg::arg(name), ToArg::arg(docs)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("argument_role", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let a1 = IntoApi::into_api(docs, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.argument_role(a0, a1)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::peer_argument_role`: declares that the feature sets the argument role `name`, which another feature declares, on arguments of its own declarations, so that the feature still registers in a registry where no feature declares the role (the registry build then reports one Note).
             pub fn peer_argument_role(&mut self, name: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "peer_argument_role", vec![arg(name, "peer_argument_role")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "peer_argument_role", vec![ToArg::arg(name)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("peer_argument_role", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.peer_argument_role(a0)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::lowering_rule`: declares a lowering rule.
             pub fn lowering_rule(&mut self, rule: LoweringRule) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "lowering_rule", vec![arg(&rule, "lowering_rule")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "lowering_rule", vec![ToArg::arg(&rule)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("lowering_rule", |table| {
+                        let a0 = IntoApi::into_api(rule, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.lowering_rule(a0)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::require_service_named`: declares that the feature needs the service slot `slot` filled.
             pub fn require_service(&mut self, slot: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "require_service", vec![arg(slot, "require_service")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "require_service", vec![ToArg::arg(slot)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("require_service", |table| {
+                        let a0 = IntoApi::into_api(slot, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.require_service(a0)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::service_slot`: declares the service slot `name`, taking as many values as `arity` allows.
             pub fn service_slot(&mut self, name: &str, arity: Arity, docs: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "service_slot", vec![arg(name, "service_slot")?, arg(&arity, "service_slot")?, arg(docs, "service_slot")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "service_slot", vec![ToArg::arg(name), ToArg::arg(&arity), ToArg::arg(docs)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("service_slot", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let a1 = IntoApi::into_api(arity, table)?;
+                        let a2 = IntoApi::into_api(docs, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.service_slot(a0, a1, a2)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::digest_input`: feeds `bytes` into the registry digest.
             pub fn digest_input(&mut self, bytes: &[u8]) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "digest_input", vec![arg(bytes, "digest_input")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "digest_input", vec![ToArg::arg(bytes)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("digest_input", |table| {
+                        let a0 = IntoApi::into_api(bytes, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.digest_input(a0)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::collection_member`: adds the capability `member` to the collection `collection`, so that whatever demands the collection demands `member` too.
             pub fn collection_member(&mut self, collection: &str, member: &str) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "collection_member", vec![arg(collection, "collection_member")?, arg(member, "collection_member")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "collection_member", vec![ToArg::arg(collection), ToArg::arg(member)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("collection_member", |table| {
+                        let a0 = IntoApi::into_api(collection, table)?;
+                        let a1 = IntoApi::into_api(member, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.collection_member(a0, a1)?;
+                        Ok(())
+                    })
+                }
             }
 
             /// Mirrors `FeatureBuilder::scoped_package`: declares a scoped package, a set of elements whose commands are legal only inside the arguments and bodies that name the package (`BodyDef::scoped`, `ArgDef::scoped`).
             pub fn scoped_package(&mut self, def: ScopedPackageDef) -> Result<(), ExtError> {
                 let Some(handle) = self.handle else { return Ok(()) };
-                abi::call(handle, "scoped_package", vec![arg(&def, "scoped_package")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "scoped_package", vec![ToArg::arg(&def)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("scoped_package", |table| {
+                        let a0 = IntoApi::into_api(&def, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.scoped_package(a0)?;
+                        Ok(())
+                    })
+                }
             }
         }
     }
@@ -608,6 +1335,7 @@ pub mod core {
         use crate::guest::core::lowering::NodeAddr;
         use crate::guest::core::stage::Scope;
         use crate::guest::core::data::table::TableValue;
+        use crate::guest::techy::node::Tree;
 
         pub use crate::guest::hand::core_run::WalkEntry;
 
@@ -631,86 +1359,249 @@ pub mod core {
         impl StageCx {
             /// Mirrors `StageCx::scope`.
             pub fn scope(&self) -> Result<Scope, ExtError> {
-                let reply = abi::call(self.handle, "scope", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "scope", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("scope", |table| {
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.scope();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `StageCx::tree_id`: the tree a per-tree stage runs on.
             pub fn tree_id(&self) -> Result<Option<String>, ExtError> {
-                let reply = abi::call(self.handle, "tree_id", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "tree_id", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("tree_id", |table| {
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.tree_id();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `StageCx::tree`: the current state of the tree of id `id`.
-            pub fn tree(&self, id: &str) -> Result<Option<Node>, ExtError> {
-                let reply = abi::call(self.handle, "tree", vec![arg(id, "tree")?])?;
-                JsonForm::from_value(&reply)
+            pub fn tree(&self, id: &str) -> Result<Option<Tree>, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "tree", vec![ToArg::arg(id)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("tree", |table| {
+                        let a0 = IntoApi::into_api(id, table)?;
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.tree(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `StageCx::frozen_tree`: the frozen tree of id `id`.
-            pub fn frozen_tree(&self, id: &str) -> Result<Option<Node>, ExtError> {
-                let reply = abi::call(self.handle, "frozen_tree", vec![arg(id, "frozen_tree")?])?;
-                JsonForm::from_value(&reply)
+            pub fn frozen_tree(&self, id: &str) -> Result<Option<Tree>, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "frozen_tree", vec![ToArg::arg(id)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("frozen_tree", |table| {
+                        let a0 = IntoApi::into_api(id, table)?;
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.frozen_tree(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `StageCx::my_tree`: the tree a per-tree stage runs on.
-            pub fn my_tree(&self) -> Result<Option<Node>, ExtError> {
-                let reply = abi::call(self.handle, "my_tree", vec![])?;
-                JsonForm::from_value(&reply)
+            pub fn my_tree(&self) -> Result<Option<Tree>, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "my_tree", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("my_tree", |table| {
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.my_tree();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `StageCx::trees`: every frozen tree of the document.
-            pub fn trees(&self) -> Result<Vec<(String, Node)>, ExtError> {
-                let reply = abi::call(self.handle, "trees", vec![])?;
-                JsonForm::from_value(&reply)
+            pub fn trees(&self) -> Result<Vec<(String, Tree)>, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "trees", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("trees", |table| {
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.trees();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `StageCx::walk`: every node of every tree of the run, in document order (for a per-tree stage too).
             pub fn walk(&self) -> Result<Vec<WalkEntry>, ExtError> {
-                let reply = abi::call(self.handle, "walk", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "walk", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("walk", |table| {
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.walk();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `StageCx::addr`: the address of `node`, by which computed data about the node is keyed.
             pub fn addr_of(&self, node: &Node) -> Result<Option<NodeAddr>, ExtError> {
-                let reply = abi::call(self.handle, "addr_of", vec![arg(node, "addr_of")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "addr_of", vec![ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("addr_of", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.addr_of(&*a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `StageCx::get`: the table named `name`, which the stage declared it reads.
             pub fn get(&self, name: &str) -> Result<Option<TableValue>, ExtError> {
-                let reply = abi::call(self.handle, "get", vec![arg(name, "get")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "get", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("get", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.get(a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `StageCx::option`: the value of an option type the stage declared it reads (`Needs::option`).
             pub fn option(&self, name: &str) -> Result<Value, ExtError> {
-                let reply = abi::call(self.handle, "option", vec![arg(name, "option")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "option", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("option", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.option(a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `StageCx::service`: the value of the service slot `name` that takes precedence, as data: the first in the order of precedence (`services_by_precedence`), so that between features the value of the feature placed last in the feature order wins.
             pub fn service(&self, name: &str) -> Result<Option<Value>, ExtError> {
-                let reply = abi::call(self.handle, "service", vec![arg(name, "service")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "service", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("service", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.service(a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `StageCx::services`: every value of the service slot `name`, as data, in their assembled order (the values contributed first, then the others, each group in the order contributed).
             pub fn services(&self, name: &str) -> Result<Vec<Value>, ExtError> {
-                let reply = abi::call(self.handle, "services", vec![arg(name, "services")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "services", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("services", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.services(a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Services::services_by_precedence_named`, reached through `StageCx::services_all`: every value of the service slot `name`, as data, in the order of precedence (the values contributed first, then the others; within each group, the values of the feature placed last in the feature order first, each feature's in the order it contributed them, and the host's last).
             pub fn services_by_precedence(&self, name: &str) -> Result<Vec<Value>, ExtError> {
-                let reply = abi::call(self.handle, "services_by_precedence", vec![arg(name, "services_by_precedence")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "services_by_precedence", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("services_by_precedence", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.services_by_precedence(a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// No `flm-core` counterpart: the host service `name`, which the package of the stage declared in its `host` list, lent for the call — the `files` service as `Files`, any other as a `HostService`.
             pub fn host(&self, name: &str) -> Result<HostHandle, ExtError> {
-                let reply = abi::call(self.handle, "host", vec![arg(name, "host")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "host", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("host", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.host(a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
 
@@ -734,20 +1625,54 @@ pub mod core {
         impl RewriteCx {
             /// Mirrors `RewriteCx::tree_id`: the tree being rewritten, a document tree or a synthesized value.
             pub fn tree_id(&self) -> Result<String, ExtError> {
-                let reply = abi::call(self.handle, "tree_id", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "tree_id", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("tree_id", |table| {
+                        let this = *entry!(table, self.handle, RewriteCx, RewriteCx);
+                        let answer = this.tree_id();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `RewriteCx::layout`: how the tree's top level is laid out.
             pub fn layout(&self) -> Result<String, ExtError> {
-                let reply = abi::call(self.handle, "layout", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "layout", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("layout", |table| {
+                        let this = *entry!(table, self.handle, RewriteCx, RewriteCx);
+                        let answer = this.layout();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `RewriteCx::option_named`: the value of the option type `name` the stage declared it reads (`Needs::option`): the value set on the render request, else the one set on the document, else the empty map.
             pub fn option(&self, name: &str) -> Result<Value, ExtError> {
-                let reply = abi::call(self.handle, "option", vec![arg(name, "option")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "option", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("option", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = *entry!(table, self.handle, RewriteCx, RewriteCx);
+                        let answer = this.option(a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
     }
@@ -757,10 +1682,15 @@ pub mod core {
         pub use crate::api::core::services::Arity;
     }
 
+    /// The guest's side of `flm:core/settings`. Mirrors `flm_core::core::settings`: the fault a feature's configuration reader answers.
+    pub mod settings {
+        pub use crate::api::core::settings::ReadError;
+    }
+
     /// The guest's side of `flm:core/stage`. Mirrors `flm_core::core::stage`: the stage trait, its declaration, its needs, the rewrite stage trait and its declaration, and the table of a rewrite's trees.
     pub mod stage {
         use crate::guest::generated::prelude::*;
-        use crate::guest::techy::node::Node;
+        use crate::guest::techy::node::Tree;
 
         pub use crate::api::core::stage::{Effect, Scope, StageDecl, Needs, RewriteDecl};
         pub use crate::guest::hand::core_stage::{Stage, RewriteStage};
@@ -785,15 +1715,38 @@ pub mod core {
 
         impl TreesTable {
             /// The table's trees, by id, in id order.
-            pub fn trees(&self) -> Result<Vec<(String, Node)>, ExtError> {
-                let reply = abi::call(self.handle, "trees", vec![])?;
-                JsonForm::from_value(&reply)
+            pub fn trees(&self) -> Result<Vec<(String, Tree)>, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "trees", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("trees", |table| {
+                        let this = &**entry!(table, self.handle, TreesTable, TreesTable);
+                        let answer = this.trees();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
-            /// The root of the tree of id `id`, if the table holds it.
-            pub fn tree(&self, id: &str) -> Result<Option<Node>, ExtError> {
-                let reply = abi::call(self.handle, "tree", vec![arg(id, "tree")?])?;
-                JsonForm::from_value(&reply)
+            /// The tree of id `id`, if the table holds it.
+            pub fn tree(&self, id: &str) -> Result<Option<Tree>, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "tree", vec![ToArg::arg(id)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("tree", |table| {
+                        let a0 = IntoApi::into_api(id, table)?;
+                        let this = &**entry!(table, self.handle, TreesTable, TreesTable);
+                        let answer = this.tree(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
     }
@@ -826,14 +1779,38 @@ pub mod host {
     impl HostService {
         /// The service's name, as the package declares it.
         pub fn name(&self) -> Result<String, ExtError> {
-            let reply = abi::call(self.handle, "name", vec![])?;
-            JsonForm::from_value(&reply)
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call(self.handle, "name", vec![])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("name", |table| {
+                    let this = &**entry!(table, self.handle, HostService, HostService);
+                    let answer = this.name();
+                    FromApi::from_api(answer, table)
+                })
+            }
         }
 
         /// The method `method` of the service with the arguments `args`; the service sees which extension and package call it.
         pub fn call(&self, method: &str, args: Value) -> Result<Value, ExtError> {
-            let reply = abi::call(self.handle, "call", vec![arg(method, "call")?, arg(&args, "call")?])?;
-            JsonForm::from_value(&reply)
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call(self.handle, "call", vec![ToArg::arg(method), ToArg::arg(&args)])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("call", |table| {
+                    let a0 = IntoApi::into_api(method, table)?;
+                    let a1 = IntoApi::into_api(args, table)?;
+                    let this = &**entry!(table, self.handle, HostService, HostService);
+                    let answer = this.call(a0, a1)?;
+                    FromApi::from_api(answer, table)
+                })
+            }
         }
     }
 
@@ -857,8 +1834,21 @@ pub mod host {
     impl Files {
         /// The text of the file at `path` in the root `scope`, or `None` (`null` to a script) when nothing is there.
         pub fn read_text(&self, scope: FilesScope, path: &str) -> Result<Option<String>, ExtError> {
-            let reply = abi::call(self.handle, "read_text", vec![arg(&scope, "read_text")?, arg(path, "read_text")?])?;
-            JsonForm::from_value(&reply)
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call(self.handle, "read_text", vec![ToArg::arg(&scope), ToArg::arg(path)])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("read_text", |table| {
+                    let a0 = IntoApi::into_api(scope, table)?;
+                    let a1 = IntoApi::into_api(path, table)?;
+                    let this = &**entry!(table, self.handle, Files, Files);
+                    let answer = this.read_text(a0, a1)?;
+                    FromApi::from_api(answer, table)
+                })
+            }
         }
     }
 }
@@ -905,24 +1895,28 @@ pub mod lang {
     impl FlmDiagnostics {
         /// Mirrors `FlmDiagnostics::push`: adds `diagnostic` to the registry's build diagnostics.
         pub fn push(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError> {
-            abi::call(self.handle, "push", vec![arg(&diagnostic, "push")?])?;
-            Ok(())
+            #[cfg(not(feature = "native"))]
+            {
+                abi::call(self.handle, "push", vec![ToArg::arg(&diagnostic)])?;
+                Ok(())
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("push", |table| {
+                    let a0 = IntoApi::into_api(&diagnostic, table)?;
+                    let this = entry!(table, self.handle, FlmDiagnostics, FlmDiagnostics);
+                    this.push(a0)?;
+                    Ok(())
+                })
+            }
         }
     }
 
     /// The guest's side of `flm:lang/mint`. Mirrors `flm_core::lang::mint`: the declarations of elements and fallbacks, and the argument and body definitions they carry.
     pub mod mint {
-        use crate::guest::generated::prelude::*;
-
-        pub use crate::api::lang::mint::{ArgLayout, ArgStdKind, BodyDef, BodyLayout, FallbackKind, Mode};
-        pub use crate::guest::hand::lang_mint::{ArgDef, ElementDef, SyntaxDef, FallbackDef, ScopedPackageDef, ArgSyntax};
+        pub use crate::api::lang::mint::{ArgLayout, BodyDef, BodyLayout, FallbackKind, Mode};
+        pub use crate::guest::hand::lang_mint::{ArgDef, ArgStdKind, TackOnField, ElementDef, SyntaxDef, FallbackDef, ScopedPackageDef, ArgListData};
         pub use crate::guest::core::registry::CallableKind;
-
-        /// Mirrors `arg_def_from_code`: the argument an argument code stands for (`{`, `[`, `*`, …).
-        pub fn arg_def_from_code(code: &str) -> Result<ArgDef, ExtError> {
-            let reply = abi::call_module("lang/mint", "arg_def_from_code", vec![arg(code, "arg_def_from_code")?])?;
-            JsonForm::from_value(&reply)
-        }
     }
 
     /// The guest's side of the modules under `flm:lang/rewrites`.
@@ -934,8 +1928,20 @@ pub mod lang {
 
             /// Mirrors `argument_holds_blocks`: whether the argument at `index` of `node` is laid out as blocks.
             pub fn argument_holds_blocks(node: &Node, index: usize) -> Result<bool, ExtError> {
-                let reply = abi::call_module("lang/rewrites/blocks", "argument_holds_blocks", vec![arg(node, "argument_holds_blocks")?, arg(&index, "argument_holds_blocks")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("lang/rewrites/blocks", "argument_holds_blocks", vec![ToArg::arg(node), ToArg::arg(&index)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("argument_holds_blocks", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let a1 = IntoApi::into_api(index, table)?;
+                        let answer = crate::api::lang::rewrites::blocks::argument_holds_blocks(&*a0, a1);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
 
@@ -946,9 +1952,10 @@ pub mod lang {
             use crate::guest::techy::error::Diagnostic;
             use crate::guest::lang::mint::ElementDef;
             use crate::guest::techy::node::Node;
+            use crate::guest::techy::node::Tree;
 
-            pub use crate::api::lang::rewrites::userdefs::{DefinitionKind, DefinitionModes, ExpandPolicy, PlaceholderVocabulary, TemplateSpec};
-            pub use crate::guest::hand::lang_rewrites_userdefs::{Definition, Expand, Expansion, CompiledTemplate, TemplateLanguage};
+            pub use crate::api::lang::rewrites::userdefs::{DefinitionKind, DefinitionModes, ExpandPolicy, PlaceholderTarget, PlaceholderVocabulary, PlaceholderRef, TemplateSpec};
+            pub use crate::guest::hand::lang_rewrites_userdefs::{Definition, Expand, Expansion, CompiledTemplate, TemplateLanguage, ExtraValues};
 
             /// Mirrors techy's `BuildId`: a node staged during one call of an expansion hook, or of a lowering rule's body (`Lower`).
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -987,38 +1994,108 @@ pub mod lang {
             impl Expander {
                 /// Mirrors `Expander::depth`.
                 pub fn depth(&self) -> Result<usize, ExtError> {
-                    let reply = abi::call(self.handle, "depth", vec![])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "depth", vec![])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("depth", |table| {
+                            let this = entry!(table, self.handle, Expander, Expander);
+                            let answer = this.depth();
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
                 /// Mirrors `Expander::recursion_limit`.
                 pub fn recursion_limit(&self) -> Result<usize, ExtError> {
-                    let reply = abi::call(self.handle, "recursion_limit", vec![])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "recursion_limit", vec![])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("recursion_limit", |table| {
+                            let this = entry!(table, self.handle, Expander, Expander);
+                            let answer = this.recursion_limit();
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
                 /// Mirrors `Expander::lang`: the built language the expansion runs under, which a hook compiles a template it computed at the use site against (`compile_template_with`).
                 pub fn lang(&self) -> Result<BuiltLang, ExtError> {
-                    let reply = abi::call(self.handle, "lang", vec![])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "lang", vec![])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("lang", |table| {
+                            Ok(BuiltLang { handle: extra::expander_lang(table, self.handle)? })
+                        })
+                    }
                 }
 
                 /// Mirrors `Expander::instantiate`: stages `template` with `bindings` at the use site `site`.
                 pub fn instantiate(&mut self, cx: &mut ExpandCx, site: &Node, template: &CompiledTemplate, bindings: &PlaceholderBindings) -> Result<Vec<Staged>, ExtError> {
-                    let reply = abi::call(self.handle, "instantiate", vec![arg(&*cx, "instantiate")?, arg(site, "instantiate")?, arg(template, "instantiate")?, arg(bindings, "instantiate")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "instantiate", vec![ToArg::arg(&*cx), ToArg::arg(site), ToArg::arg(template), ToArg::arg(bindings)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("instantiate", |table| {
+                            let template = template.lent(table)?;
+                            let staged = extra::expander_instantiate(table, [self.handle, cx.handle, site.handle, template, bindings.handle])?;
+                            FromApi::from_api(staged, table)
+                        })
+                    }
                 }
 
                 /// Mirrors `Expander::recover`: reports `diagnostic` and stages the use site's literal text.
                 pub fn recover(&mut self, cx: &mut ExpandCx, site: &Node, diagnostic: Diagnostic) -> Result<Vec<Staged>, ExtError> {
-                    let reply = abi::call(self.handle, "recover", vec![arg(&*cx, "recover")?, arg(site, "recover")?, arg(&diagnostic, "recover")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "recover", vec![ToArg::arg(&*cx), ToArg::arg(site), ToArg::arg(&diagnostic)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("recover", |table| {
+                            let a1 = IntoApi::into_api(site, table)?;
+                            let a2 = IntoApi::into_api(&diagnostic, table)?;
+                            let answer = match table.entries_mut("recover", [self.handle, cx.handle])? {
+                                [Entry::Expander(this), Entry::ExpandCx(a0)] => this.recover(&mut **a0, &*a1, a2),
+                                [Entry::Expander(_), other] => return Err(mismatch(HandleKind::ExpandCx, other.kind())),
+                                [other, _] => return Err(mismatch(HandleKind::Expander, other.kind())),
+                            }?;
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
                 /// Mirrors `Expander::diagnose`: reports `diagnostic` and keeps the node.
                 pub fn diagnose(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError> {
-                    abi::call(self.handle, "diagnose", vec![arg(&diagnostic, "diagnose")?])?;
-                    Ok(())
+                    #[cfg(not(feature = "native"))]
+                    {
+                        abi::call(self.handle, "diagnose", vec![ToArg::arg(&diagnostic)])?;
+                        Ok(())
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("diagnose", |table| {
+                            let a0 = IntoApi::into_api(&diagnostic, table)?;
+                            let this = entry!(table, self.handle, Expander, Expander);
+                            this.diagnose(a0)?;
+                            Ok(())
+                        })
+                    }
                 }
             }
 
@@ -1042,14 +2119,37 @@ pub mod lang {
             impl ExpandCx {
                 /// Stages one characters node holding `text`, spanned to the use site and in the use site's parsing state: the calls `Expander::recover` makes to stage the site's text, with `text` in its place.
                 pub fn stage_chars(&mut self, text: &str) -> Result<Staged, ExtError> {
-                    let reply = abi::call(self.handle, "stage_chars", vec![arg(text, "stage_chars")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "stage_chars", vec![ToArg::arg(text)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("stage_chars", |table| {
+                            let a0 = IntoApi::into_api(text, table)?;
+                            let this = entry!(table, self.handle, ExpandCx, ExpandCx);
+                            let answer = this.stage_chars(a0)?;
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
                 /// No flm-core counterpart: the user definition registered with the element whose hook is running, or `None` for an element declared in the data form (an `ElementDef` not made by `UserDefinition::element_def_with`).
                 pub fn definition(&self) -> Result<Option<UserDefinition>, ExtError> {
-                    let reply = abi::call(self.handle, "definition", vec![])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "definition", vec![])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("definition", |table| {
+                            let this = entry!(table, self.handle, ExpandCx, ExpandCx);
+                            let answer = this.definition();
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
             }
 
@@ -1073,26 +2173,73 @@ pub mod lang {
             impl UserDefinition {
                 /// Mirrors `UserDefinition::new`.
                 pub fn new(definition: Definition) -> Result<UserDefinition, ExtError> {
-                    let reply = abi::call_module("lang/rewrites/userdefs", "UserDefinition::new", vec![arg(&definition, "UserDefinition::new")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call_module("lang/rewrites/userdefs", "UserDefinition::new", vec![ToArg::arg(&definition)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("UserDefinition::new", |table| {
+                            let a0 = IntoApi::into_api(&definition, table)?;
+                            let answer = crate::api::lang::rewrites::userdefs::UserDefinition::new(a0);
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
                 /// Mirrors `UserDefinition::definition`.
                 pub fn definition(&self) -> Result<Definition, ExtError> {
-                    let reply = abi::call(self.handle, "definition", vec![])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "definition", vec![])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("definition", |table| {
+                            let this = entry!(table, self.handle, UserDefinition, UserDefinition).clone();
+                            let answer = this.definition();
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
                 /// Mirrors `UserDefinition::element_def`: the declaration of the definition's element, expanded by the definition's own hook.
                 pub fn element_def(&self, owner: &str, element_name: &str) -> Result<ElementDef, ExtError> {
-                    let reply = abi::call(self.handle, "element_def", vec![arg(owner, "element_def")?, arg(element_name, "element_def")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "element_def", vec![ToArg::arg(owner), ToArg::arg(element_name)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("element_def", |table| {
+                            let a0 = IntoApi::into_api(owner, table)?;
+                            let a1 = IntoApi::into_api(element_name, table)?;
+                            let this = entry!(table, self.handle, UserDefinition, UserDefinition).clone();
+                            let answer = this.element_def(a0, a1);
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
                 /// Mirrors `UserDefinition::variant_for_use`: the definition's variant for the mode of the use site `node`.
                 pub fn variant_for_use(&self, node: &Node) -> Result<ModeVariant, ExtError> {
-                    let reply = abi::call(self.handle, "variant_for_use", vec![arg(node, "variant_for_use")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "variant_for_use", vec![ToArg::arg(node)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("variant_for_use", |table| {
+                            let a0 = IntoApi::into_api(node, table)?;
+                            let this = entry!(table, self.handle, UserDefinition, UserDefinition).clone();
+                            let answer = this.variant_for_use(&*a0)?;
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
             }
 
@@ -1116,8 +2263,36 @@ pub mod lang {
             impl ModeVariant {
                 /// Mirrors `ModeVariant::template`.
                 pub fn template(&self) -> Result<CompiledTemplate, ExtError> {
-                    let reply = abi::call(self.handle, "template", vec![])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "template", vec![])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("template", |table| {
+                            let this = &**entry!(table, self.handle, ModeVariant, ModeVariant);
+                            let answer = this.template();
+                            FromApi::from_api(answer, table)
+                        })
+                    }
+                }
+
+                /// Mirrors `ModeVariant::defaults`: the compiled default values of the optional arguments, with their argument indices, in increasing order of index.
+                pub fn defaults(&self) -> Result<Vec<(usize, CompiledTemplate)>, ExtError> {
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "defaults", vec![])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("defaults", |table| {
+                            let this = &**entry!(table, self.handle, ModeVariant, ModeVariant);
+                            let answer = this.defaults();
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
             }
 
@@ -1146,15 +2321,38 @@ pub mod lang {
                 /// Mirrors `DefinitionBindings::new`: the bindings of `site`'s arguments for `variant`.
                 #[allow(clippy::new_ret_no_self, reason = "the type has no object of its own: its constructor answers one of another kind")]
                 pub fn new(site: &Node, variant: &ModeVariant) -> Result<PlaceholderBindings, ExtError> {
-                    let reply = abi::call_module("lang/rewrites/userdefs", "DefinitionBindings::new", vec![arg(site, "DefinitionBindings::new")?, arg(variant, "DefinitionBindings::new")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call_module("lang/rewrites/userdefs", "DefinitionBindings::new", vec![ToArg::arg(site), ToArg::arg(variant)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("DefinitionBindings::new", |table| {
+                            let a0 = IntoApi::into_api(site, table)?;
+                            let a1 = entry!(table, variant.handle, ModeVariant, ModeVariant);
+                            let answer = crate::api::lang::rewrites::userdefs::DefinitionBindings::new(&*a0, &**a1);
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
             }
 
             /// Mirrors `compile_template_with`: compiles `spec` against `lang` with the template language `language`.
             pub fn compile_template_with(spec: &TemplateSpec, lang: &BuiltLang, language: &TemplateLanguage) -> Result<CompiledTemplate, ExtError> {
-                let reply = abi::call_module("lang/rewrites/userdefs", "compile_template_with", vec![arg(spec, "compile_template_with")?, arg(lang, "compile_template_with")?, arg(language, "compile_template_with")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("lang/rewrites/userdefs", "compile_template_with", vec![ToArg::arg(spec), ToArg::arg(lang), ToArg::arg(language)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("compile_template_with", |table| {
+                        let language = IntoApi::into_api(language, table)?;
+                        let template = extra::compile_template_with(table, spec, lang.handle, &language)?;
+                        FromApi::from_api(template, table)
+                    })
+                }
             }
 
             /// Mirrors `ValueBindings`: placeholder bindings that give each extra placeholder (`#{name}`) of a template the content of a finished tree, by name.
@@ -1177,28 +2375,63 @@ pub mod lang {
             impl ValueBindings {
                 /// Mirrors `ValueBindings::new`: bindings that hold no value.
                 pub fn new() -> Result<ValueBindings, ExtError> {
-                    let reply = abi::call_module("lang/rewrites/userdefs", "ValueBindings::new", vec![])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call_module("lang/rewrites/userdefs", "ValueBindings::new", vec![])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("ValueBindings::new", |table| {
+                            let answer = crate::api::lang::rewrites::userdefs::ValueBindings::new();
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
-                /// Mirrors `ValueBindings::with`: gives the extra placeholder `name` the tree whose root is `node`.
-                pub fn with(self, name: &str, node: &Node) -> Result<ValueBindings, ExtError> {
-                    let reply = abi::call(self.handle, "with", vec![arg(name, "with")?, arg(node, "with")?])?;
-                    JsonForm::from_value(&reply)
+                /// Mirrors `ValueBindings::with`: gives the extra placeholder `name` the tree `tree`.
+                pub fn with(self, name: &str, tree: &Tree) -> Result<ValueBindings, ExtError> {
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "with", vec![ToArg::arg(name), ToArg::arg(tree)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("with", |table| {
+                            let a0 = IntoApi::into_api(name, table)?;
+                            let a1 = IntoApi::into_api(tree, table)?;
+                            let this = entry!(table, self.handle, ValueBindings, ValueBindings).clone();
+                            let answer = this.with(a0, &*a1);
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
             }
 
             /// Mirrors `instantiate`: instantiates `template` under `bindings` as a new tree, attributed to the span of `site`.
-            pub fn instantiate(site: &Node, template: &CompiledTemplate, bindings: &PlaceholderBindings) -> Result<Node, ExtError> {
-                let reply = abi::call_module("lang/rewrites/userdefs", "instantiate", vec![arg(site, "instantiate")?, arg(template, "instantiate")?, arg(bindings, "instantiate")?])?;
-                JsonForm::from_value(&reply)
+            pub fn instantiate(site: &Node, template: &CompiledTemplate, bindings: &PlaceholderBindings) -> Result<Tree, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("lang/rewrites/userdefs", "instantiate", vec![ToArg::arg(site), ToArg::arg(template), ToArg::arg(bindings)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("instantiate", |table| {
+                        let template = template.lent(table)?;
+                        let site = IntoApi::into_api(site, table)?;
+                        let tree = extra::instantiate(table, &*site, template, bindings.handle)?;
+                        FromApi::from_api(tree, table)
+                    })
+                }
             }
         }
     }
 
     /// The guest's side of `flm:lang/structural`. Mirrors `flm_core::lang::structural`: the names of the structural elements, the elements of the node shapes no feature declares (text, comments, containers, groups, paragraphs, …).
     pub mod structural {
-        pub use crate::api::lang::structural::{TEXT, COMMENT, CONTAINER, GROUP, MATH, VERBATIM, OPAQUE_WRAPPER, PARAGRAPH, PARBREAK, PLACEHOLDER, UNKNOWN_MACRO, UNKNOWN_ENVIRONMENT, NAMES};
+        pub use crate::api::lang::structural::{TEXT, COMMENT, CONTAINER, GROUP, MATH, VERBATIM, OPAQUE_WRAPPER, PARAGRAPH, PARBREAK, PLACEHOLDER, FIELD, UNKNOWN_MACRO, UNKNOWN_ENVIRONMENT, NAMES};
     }
 
     /// The guest's side of `flm:lang/text`. Mirrors `flm_core::lang::text`: reading the characters of a run of nodes.
@@ -1210,14 +2443,36 @@ pub mod lang {
 
         /// Mirrors `chars_text`: the characters of `nodes`, or `None` when they hold anything but characters.
         pub fn chars_text(nodes: &[Node]) -> Result<Option<String>, ExtError> {
-            let reply = abi::call_module("lang/text", "chars_text", vec![arg(nodes, "chars_text")?])?;
-            JsonForm::from_value(&reply)
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call_module("lang/text", "chars_text", vec![ToArg::arg(nodes)])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("chars_text", |table| {
+                    let a0 = IntoApi::into_api(nodes, table)?;
+                    let answer = crate::api::lang::text::chars_text(&a0);
+                    FromApi::from_api(answer, table)
+                })
+            }
         }
 
         /// Mirrors `read_chars`: the characters of `nodes`, placeholders included.
         pub fn read_chars(nodes: &[Node]) -> Result<CharsContent, ExtError> {
-            let reply = abi::call_module("lang/text", "read_chars", vec![arg(nodes, "read_chars")?])?;
-            JsonForm::from_value(&reply)
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call_module("lang/text", "read_chars", vec![ToArg::arg(nodes)])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("read_chars", |table| {
+                    let a0 = IntoApi::into_api(nodes, table)?;
+                    let answer = crate::api::lang::text::read_chars(&a0);
+                    FromApi::from_api(answer, table)
+                })
+            }
         }
     }
 }
@@ -1259,8 +2514,19 @@ pub mod stdcore {
 
                 /// Mirrors `package_id`: the identifier of the package `name`, `ID_PREFIX` followed by `name`.
                 pub fn package_id(name: &str) -> Result<String, ExtError> {
-                    let reply = abi::call_module("stdcore/backends/latex/packages", "package_id", vec![arg(name, "package_id")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call_module("stdcore/backends/latex/packages", "package_id", vec![ToArg::arg(name)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("package_id", |table| {
+                            let a0 = IntoApi::into_api(name, table)?;
+                            let answer = crate::api::stdcore::backends::latex::packages::package_id(a0);
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
             }
 
@@ -1272,8 +2538,19 @@ pub mod stdcore {
 
                 /// Mirrors `piece_id`: the identifier of the piece `name`, `ID_PREFIX` followed by `name`.
                 pub fn piece_id(name: &str) -> Result<String, ExtError> {
-                    let reply = abi::call_module("stdcore/backends/latex/preamble", "piece_id", vec![arg(name, "piece_id")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call_module("stdcore/backends/latex/preamble", "piece_id", vec![ToArg::arg(name)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("piece_id", |table| {
+                            let a0 = IntoApi::into_api(name, table)?;
+                            let answer = crate::api::stdcore::backends::latex::preamble::piece_id(a0);
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
             }
         }
@@ -1282,7 +2559,7 @@ pub mod stdcore {
         pub mod lowering {
             use crate::guest::generated::prelude::*;
             use crate::guest::core::registry::LibraryStage;
-            use crate::guest::techy::node::Node;
+            use crate::guest::techy::node::Tree;
 
             /// Mirrors `LoweredTrees`: the lowered trees of one backend, the table `flm.lowered.<backend>`, each with the fields of its `LoweredTree`.
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1303,27 +2580,74 @@ pub mod stdcore {
 
             impl LoweredTrees {
                 /// Mirrors the field `LoweredTrees::trees`: every lowered tree, by the id of the document tree it was lowered from, in id order.
-                pub fn trees(&self) -> Result<Vec<(String, Node)>, ExtError> {
-                    let reply = abi::call(self.handle, "trees", vec![])?;
-                    JsonForm::from_value(&reply)
+                pub fn trees(&self) -> Result<Vec<(String, Tree)>, ExtError> {
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "trees", vec![])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("trees", |table| {
+                            let this = &**entry!(table, self.handle, LoweredTrees, LoweredTrees);
+                            let answer = this.trees();
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
-                /// Mirrors `LoweredTrees::get` and the field `LoweredTree::tree`: the root of the lowered form of the document tree `id`, or `None` when the backend has none for it (or `id` names no tree).
-                pub fn tree(&self, id: &str) -> Result<Option<Node>, ExtError> {
-                    let reply = abi::call(self.handle, "tree", vec![arg(id, "tree")?])?;
-                    JsonForm::from_value(&reply)
+                /// Mirrors `LoweredTrees::get` and the field `LoweredTree::tree`: the lowered form of the document tree `id`, or `None` when the backend has none for it (or `id` names no tree).
+                pub fn tree(&self, id: &str) -> Result<Option<Tree>, ExtError> {
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "tree", vec![ToArg::arg(id)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("tree", |table| {
+                            let a0 = IntoApi::into_api(id, table)?;
+                            let this = &**entry!(table, self.handle, LoweredTrees, LoweredTrees);
+                            let answer = this.tree(a0);
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
                 /// Mirrors the field `LoweredTree::requires` of the lowered form of the document tree `id`: the identifiers of the definitions its output needs, in order.
                 pub fn requires(&self, id: &str) -> Result<Option<Vec<String>>, ExtError> {
-                    let reply = abi::call(self.handle, "requires", vec![arg(id, "requires")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "requires", vec![ToArg::arg(id)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("requires", |table| {
+                            let a0 = IntoApi::into_api(id, table)?;
+                            let this = &**entry!(table, self.handle, LoweredTrees, LoweredTrees);
+                            let answer = this.requires(a0);
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
                 /// Mirrors the field `LoweredTree::rounds` of the lowered form of the document tree `id`: how many rounds of lowering ran over it, at least one.
                 pub fn rounds(&self, id: &str) -> Result<Option<u32>, ExtError> {
-                    let reply = abi::call(self.handle, "rounds", vec![arg(id, "rounds")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "rounds", vec![ToArg::arg(id)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("rounds", |table| {
+                            let a0 = IntoApi::into_api(id, table)?;
+                            let this = &**entry!(table, self.handle, LoweredTrees, LoweredTrees);
+                            let answer = this.rounds(a0);
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
             }
 
@@ -1335,15 +2659,37 @@ pub mod stdcore {
                 /// Mirrors `LoweringStage::new`: the lowering stage for the backend `backend`.
                 #[allow(clippy::new_ret_no_self, reason = "the type has no object of its own: its constructor answers one of another kind")]
                 pub fn new(backend: &str) -> Result<LibraryStage, ExtError> {
-                    let reply = abi::call_module("stdcore/backends/lowering", "LoweringStage::new", vec![arg(backend, "LoweringStage::new")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call_module("stdcore/backends/lowering", "LoweringStage::new", vec![ToArg::arg(backend)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("LoweringStage::new", |table| {
+                            let a0 = IntoApi::into_api(backend, table)?;
+                            let answer = crate::api::stdcore::backends::lowering::LoweringStage::new(a0);
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
             }
 
             /// Mirrors `lowered_table_name`: the name of the table of the backend `backend`'s lowered trees, `flm.lowered.<backend>`.
             pub fn lowered_table_name(backend: &str) -> Result<String, ExtError> {
-                let reply = abi::call_module("stdcore/backends/lowering", "lowered_table_name", vec![arg(backend, "lowered_table_name")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/backends/lowering", "lowered_table_name", vec![ToArg::arg(backend)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("lowered_table_name", |table| {
+                        let a0 = IntoApi::into_api(backend, table)?;
+                        let answer = crate::api::stdcore::backends::lowering::lowered_table_name(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
 
@@ -1400,20 +2746,57 @@ pub mod stdcore {
             impl ProviderCx {
                 /// Mirrors `ProviderCx::parse_entry`: the citation entry whose content is `source`, FLM parsed as inline content under the registry's language.
                 pub fn parse_entry(&self, source: &str, origin: &str) -> Result<CitationEntry, ExtError> {
-                    let reply = abi::call(self.handle, "parse_entry", vec![arg(source, "parse_entry")?, arg(origin, "parse_entry")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "parse_entry", vec![ToArg::arg(source), ToArg::arg(origin)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("parse_entry", |table| {
+                            let a0 = IntoApi::into_api(source, table)?;
+                            let a1 = IntoApi::into_api(origin, table)?;
+                            let this = *entry!(table, self.handle, ProviderCx, ProviderCx);
+                            let answer = this.parse_entry(a0, a1)?;
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
                 /// Mirrors `ProviderCx::build_entry`: the citation entry made of `pieces`, in order.
                 pub fn build_entry(&self, pieces: &[EntryPiece]) -> Result<CitationEntry, ExtError> {
-                    let reply = abi::call(self.handle, "build_entry", vec![arg(pieces, "build_entry")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "build_entry", vec![ToArg::arg(pieces)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("build_entry", |table| {
+                            let a0 = IntoApi::into_api(pieces, table)?;
+                            let this = *entry!(table, self.handle, ProviderCx, ProviderCx);
+                            let answer = this.build_entry(a0)?;
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
 
                 /// No `flm-core` counterpart: the host service `name`, which the provider's package declared, as a handle valid for the call; as `StageCx::host`.
                 pub fn host(&self, name: &str) -> Result<HostHandle, ExtError> {
-                    let reply = abi::call(self.handle, "host", vec![arg(name, "host")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "host", vec![ToArg::arg(name)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("host", |table| {
+                            let a0 = IntoApi::into_api(name, table)?;
+                            let this = *entry!(table, self.handle, ProviderCx, ProviderCx);
+                            let answer = this.host(a0)?;
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
             }
         }
@@ -1446,8 +2829,20 @@ pub mod stdcore {
             impl TemplateCx {
                 /// No `flm-core` counterpart: the host service `name`, which the module's package declared, as a handle valid for the call; as `StageCx::host`.
                 pub fn host(&self, name: &str) -> Result<HostHandle, ExtError> {
-                    let reply = abi::call(self.handle, "host", vec![arg(name, "host")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "host", vec![ToArg::arg(name)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("host", |table| {
+                            let a0 = IntoApi::into_api(name, table)?;
+                            let this = *entry!(table, self.handle, TemplateCx, TemplateCx);
+                            let answer = this.host(a0)?;
+                            FromApi::from_api(answer, table)
+                        })
+                    }
                 }
             }
         }
@@ -1467,80 +2862,253 @@ pub mod stdcore {
 
             /// Mirrors `equation_lines`: the equation lines of the display-math environment `node`, in order (none for another node).
             pub fn equation_lines(node: &Node) -> Result<Vec<EquationLine>, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "equation_lines", vec![arg(node, "equation_lines")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "equation_lines", vec![ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("equation_lines", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let answer = crate::api::stdcore::features::math::equation_lines(&*a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `formula_display`: whether the math group `node` is displayed (`\[…\]`); `false` for `\(…\)` and for a node that is not a math group.
             pub fn formula_display(node: &Node) -> Result<bool, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "formula_display", vec![arg(node, "formula_display")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "formula_display", vec![ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("formula_display", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let answer = crate::api::stdcore::features::math::formula_display(&*a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// No single `flm-core` counterpart: whether the lines of the display-math environment `node` can be numbered, read from its element value (`MathEnvironment`): an unstarred environment in a registry that numbers equations (`numbered` and `numbered_equations`), as `line_frames` reads it.
             pub fn environment_numbered(node: &Node) -> Result<bool, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "environment_numbered", vec![arg(node, "environment_numbered")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "environment_numbered", vec![ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("environment_numbered", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let answer = crate::api::stdcore::features::math::environment_numbered(&*a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `line_frames`: the frame of each equation line of the display-math environment `node`, in order.
             pub fn line_frames(reader: FrameReader, anchors: bool, counters: bool, node: &Node) -> Result<Vec<LineFrame>, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "line_frames", vec![arg(&reader, "line_frames")?, arg(&anchors, "line_frames")?, arg(&counters, "line_frames")?, arg(node, "line_frames")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "line_frames", vec![ToArg::arg(&reader), ToArg::arg(&anchors), ToArg::arg(&counters), ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("line_frames", |table| {
+                        let node = IntoApi::into_api(node, table)?;
+                        let frames = extra::line_frames(table, reader.handle(), anchors, counters, &*node)?;
+                        FromApi::from_api(frames, table)
+                    })
+                }
             }
 
             /// Mirrors `number_text`: the number a line shows, as plain characters; `None` where the line shows nothing or a tag.
             pub fn number_text(frame: &LineFrame) -> Result<Option<String>, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "number_text", vec![arg(frame, "number_text")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "number_text", vec![ToArg::arg(frame)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("number_text", |table| {
+                        let a0 = IntoApi::into_api(frame, table)?;
+                        let answer = crate::api::stdcore::features::math::number_text(&a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `stage_tag_content`: stages what an equation line shows at its tag's place (the number's segments spliced; the tag lowered, between `(` and `)` when unstarred; nothing) and answers the nodes to emit.
             pub fn stage_tag_content(cx: &mut LowerCx, lw: &mut Lowerer, frame: &LineFrame) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "stage_tag_content", vec![arg(&*cx, "stage_tag_content")?, arg(&*lw, "stage_tag_content")?, arg(frame, "stage_tag_content")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "stage_tag_content", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(frame)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("stage_tag_content", |table| {
+                        let a2 = IntoApi::into_api(frame, table)?;
+                        let answer = match table.entries_mut("stage_tag_content", [cx.handle, lw.handle])? {
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::stage_tag_content(&mut **a0, &mut **a1, &a2),
+                            [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `environment_opening`: the opening part of a display-math environment in the recomposed LaTeX.
             pub fn environment_opening(cx: &mut LowerCx, lw: &mut Lowerer, node: &Node) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "environment_opening", vec![arg(&*cx, "environment_opening")?, arg(&*lw, "environment_opening")?, arg(node, "environment_opening")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "environment_opening", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("environment_opening", |table| {
+                        let a2 = IntoApi::into_api(node, table)?;
+                        let answer = match table.entries_mut("environment_opening", [cx.handle, lw.handle])? {
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::environment_opening(&mut **a0, &mut **a1, &*a2),
+                            [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `line_closing`: the closing part of an equation line in the recomposed LaTeX.
             pub fn line_closing(cx: &mut LowerCx, lw: &mut Lowerer, frame: &LineFrame) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "line_closing", vec![arg(&*cx, "line_closing")?, arg(&*lw, "line_closing")?, arg(frame, "line_closing")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "line_closing", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(frame)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("line_closing", |table| {
+                        let a2 = IntoApi::into_api(frame, table)?;
+                        let answer = match table.entries_mut("line_closing", [cx.handle, lw.handle])? {
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::line_closing(&mut **a0, &mut **a1, &a2),
+                            [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `stage_lines`: stages the equation lines of a display-math environment in the recomposed LaTeX as they were written: for each line, its content written by the mathematics writer of the `userdefs` feature under the newline rule, its closing part (`line_closing`), and the run of whitespace the rule took off the content's end.
             pub fn stage_lines(cx: &mut LowerCx, lw: &mut Lowerer, frames: &[LineFrame]) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "stage_lines", vec![arg(&*cx, "stage_lines")?, arg(&*lw, "stage_lines")?, arg(frames, "stage_lines")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "stage_lines", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(frames)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("stage_lines", |table| {
+                        let a2 = IntoApi::into_api(frames, table)?;
+                        let answer = match table.entries_mut("stage_lines", [cx.handle, lw.handle])? {
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::stage_lines(&mut **a0, &mut **a1, &a2),
+                            [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `normalize_line_newlines`: applies the newline rule to one text part of a line's content: every run of spaces, tabs and newlines that holds a newline becomes one newline and the indentation after it; the run that begins `content` is dropped when `after_line_end` (what was written just before the part ends a line); the run that ends it is answered apart as the trailing run, to be written after the line's closing part, unless `inner` (the part is not the last of the line's content).
             pub fn normalize_line_newlines(content: &str, after_line_end: bool, inner: bool) -> Result<NormalizedLine, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "normalize_line_newlines", vec![arg(content, "normalize_line_newlines")?, arg(&after_line_end, "normalize_line_newlines")?, arg(&inner, "normalize_line_newlines")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "normalize_line_newlines", vec![ToArg::arg(content), ToArg::arg(&after_line_end), ToArg::arg(&inner)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("normalize_line_newlines", |table| {
+                        let a0 = IntoApi::into_api(content, table)?;
+                        let a1 = IntoApi::into_api(after_line_end, table)?;
+                        let a2 = IntoApi::into_api(inner, table)?;
+                        let answer = crate::api::stdcore::features::math::normalize_line_newlines(a0, a1, a2);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `environment_closing`: the closing part of a display-math environment in the recomposed LaTeX.
             pub fn environment_closing(cx: &mut LowerCx, lw: &mut Lowerer, node: &Node) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "environment_closing", vec![arg(&*cx, "environment_closing")?, arg(&*lw, "environment_closing")?, arg(node, "environment_closing")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "environment_closing", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("environment_closing", |table| {
+                        let a2 = IntoApi::into_api(node, table)?;
+                        let answer = match table.entries_mut("environment_closing", [cx.handle, lw.handle])? {
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::environment_closing(&mut **a0, &mut **a1, &*a2),
+                            [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `group_opening`: the opening part of a math group in the recomposed LaTeX.
             pub fn group_opening(cx: &mut LowerCx, lw: &mut Lowerer, node: &Node) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "group_opening", vec![arg(&*cx, "group_opening")?, arg(&*lw, "group_opening")?, arg(node, "group_opening")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "group_opening", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("group_opening", |table| {
+                        let a2 = IntoApi::into_api(node, table)?;
+                        let answer = match table.entries_mut("group_opening", [cx.handle, lw.handle])? {
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::group_opening(&mut **a0, &mut **a1, &*a2),
+                            [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `group_closing`: the closing part of a math group in the recomposed LaTeX.
             pub fn group_closing(cx: &mut LowerCx, lw: &mut Lowerer, node: &Node) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call_module("stdcore/features/math", "group_closing", vec![arg(&*cx, "group_closing")?, arg(&*lw, "group_closing")?, arg(node, "group_closing")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/math", "group_closing", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("group_closing", |table| {
+                        let a2 = IntoApi::into_api(node, table)?;
+                        let answer = match table.entries_mut("group_closing", [cx.handle, lw.handle])? {
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::group_closing(&mut **a0, &mut **a1, &*a2),
+                            [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
 
@@ -1572,14 +3140,36 @@ pub mod stdcore {
             impl Counters {
                 /// Mirrors `Counters::record`: what the table holds for `point`, or `None` for a point the table holds no number for (an unnumbered point).
                 pub fn record(&self, point: PointId) -> Result<Option<CounterRecord>, ExtError> {
-                    let reply = abi::call(self.handle, "record", vec![arg(&point, "record")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "record", vec![ToArg::arg(&point)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("record", |table| {
+                            let point = IntoApi::into_api(point, table)?;
+                            let record = extra::counters_record(table, self.handle, &point)?;
+                            FromApi::from_api(record, table)
+                        })
+                    }
                 }
 
                 /// Mirrors `Counters::format`: the number of `point` in the counter style its record holds, as its segments, or `None` for a point the table holds no number for.
                 pub fn format(&self, point: PointId, options: &FormatOptions) -> Result<Option<Vec<NumberSegment>>, ExtError> {
-                    let reply = abi::call(self.handle, "format", vec![arg(&point, "format")?, arg(options, "format")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "format", vec![ToArg::arg(&point), ToArg::arg(options)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("format", |table| {
+                            let point = IntoApi::into_api(point, table)?;
+                            let segments = extra::counters_format(table, self.handle, &point, options)?;
+                            FromApi::from_api(segments, table)
+                        })
+                    }
                 }
             }
         }
@@ -1600,32 +3190,96 @@ pub mod stdcore {
 
             /// Mirrors `label_fields_arg`: the argument that reads the `\label{…}` fields written after a construct, named `FIELDS_ARG`, to place last in the construct's argument list.
             pub fn label_fields_arg() -> Result<ArgDef, ExtError> {
-                let reply = abi::call_module("stdcore/features/refs", "label_fields_arg", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/refs", "label_fields_arg", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("label_fields_arg", |table| {
+                        let answer = crate::api::stdcore::features::refs::label_fields_arg();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `label_uses`: the labels written in the `FIELDS_ARG` argument of `node`, in order; none when the node has no such argument.
             pub fn label_uses(node: &Node) -> Result<Vec<LabelUse>, ExtError> {
-                let reply = abi::call_module("stdcore/features/refs", "label_uses", vec![arg(node, "label_uses")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/refs", "label_uses", vec![ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("label_uses", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let answer = crate::api::stdcore::features::refs::label_uses(&*a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `point_labels`: the labels of a reference point from the labels written on its construct: the parsed ones, in order, and the texts that do not parse, each with its span and its position among `uses`.
             pub fn point_labels(uses: &[LabelUse]) -> Result<(Vec<Label>, Vec<MalformedLabel>), ExtError> {
-                let reply = abi::call_module("stdcore/features/refs", "point_labels", vec![arg(uses, "point_labels")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/refs", "point_labels", vec![ToArg::arg(uses)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("point_labels", |table| {
+                        let a0 = IntoApi::into_api(uses, table)?;
+                        let answer = crate::api::stdcore::features::refs::point_labels(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `stage_label`: stages the `\label{…}` of one label use on the recomposed LaTeX backend, its spelling the one the table `SAFE_LABELS` holds for it.
             pub fn stage_label(cx: &mut LowerCx, lw: &mut Lowerer, text: &str, label: Option<Label>) -> Result<Staged, ExtError> {
-                let reply = abi::call_module("stdcore/features/refs", "stage_label", vec![arg(&*cx, "stage_label")?, arg(&*lw, "stage_label")?, arg(text, "stage_label")?, arg(&label, "stage_label")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/refs", "stage_label", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(text), ToArg::arg(&label)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("stage_label", |table| {
+                        let a2 = IntoApi::into_api(text, table)?;
+                        let a3 = IntoApi::into_api(label, table)?;
+                        let answer = match table.entries_mut("stage_label", [cx.handle, lw.handle])? {
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::refs::stage_label(&mut **a0, &mut **a1, a2, a3),
+                            [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `stage_label_group`: the nodes to emit for the labels `labels` of a construct on the recomposed LaTeX backend: the labels themselves, or, when the document's options ask for the label hooks, the labels inside the group that the hooks read (with `empty_group`, a group even when there is no label).
             pub fn stage_label_group(cx: &mut LowerCx, lw: &mut Lowerer, labels: Vec<Staged>, empty_group: bool) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call_module("stdcore/features/refs", "stage_label_group", vec![arg(&*cx, "stage_label_group")?, arg(&*lw, "stage_label_group")?, arg(&labels, "stage_label_group")?, arg(&empty_group, "stage_label_group")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/refs", "stage_label_group", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(&labels), ToArg::arg(&empty_group)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("stage_label_group", |table| {
+                        let a2 = IntoApi::into_api(labels, table)?;
+                        let a3 = IntoApi::into_api(empty_group, table)?;
+                        let answer = match table.entries_mut("stage_label_group", [cx.handle, lw.handle])? {
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::refs::stage_label_group(&mut **a0, &mut **a1, a2, a3),
+                            [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `Anchors`: the table of the reference points' anchors, as a stage's context or a rule's lowerer answers it for `ANCHORS` (`TableValue::Anchors`).
@@ -1648,8 +3302,18 @@ pub mod stdcore {
             impl Anchors {
                 /// Mirrors `Anchors::id`: the anchor of `point`, or `None` both for a point the stage never saw and for one that received no anchor.
                 pub fn id(&self, point: PointId) -> Result<Option<String>, ExtError> {
-                    let reply = abi::call(self.handle, "id", vec![arg(&point, "id")?])?;
-                    JsonForm::from_value(&reply)
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "id", vec![ToArg::arg(&point)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("id", |table| {
+                            let point = IntoApi::into_api(point, table)?;
+                            extra::anchors_id(table, self.handle, &point)
+                        })
+                    }
                 }
             }
         }
@@ -1667,20 +3331,59 @@ pub mod stdcore {
 
             /// Mirrors `element_name_under`: the element name of `definition` under the prefix `prefix`.
             pub fn element_name_under(prefix: &str, definition: &Definition) -> Result<String, ExtError> {
-                let reply = abi::call_module("stdcore/features/userdefs", "element_name_under", vec![arg(prefix, "element_name_under")?, arg(definition, "element_name_under")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/userdefs", "element_name_under", vec![ToArg::arg(prefix), ToArg::arg(definition)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("element_name_under", |table| {
+                        let a0 = IntoApi::into_api(prefix, table)?;
+                        let a1 = IntoApi::into_api(definition, table)?;
+                        let answer = crate::api::stdcore::features::userdefs::element_name_under(a0, &a1);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `expand_in_tree_rule_for`: the lowering rule that has the element `element` of `definition` expanded in the tree before lowering.
             pub fn expand_in_tree_rule_for(element: &str, definition: &Definition) -> Result<LoweringRule, ExtError> {
-                let reply = abi::call_module("stdcore/features/userdefs", "expand_in_tree_rule_for", vec![arg(element, "expand_in_tree_rule_for")?, arg(definition, "expand_in_tree_rule_for")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/userdefs", "expand_in_tree_rule_for", vec![ToArg::arg(element), ToArg::arg(definition)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("expand_in_tree_rule_for", |table| {
+                        let a0 = IntoApi::into_api(element, table)?;
+                        let a1 = IntoApi::into_api(definition, table)?;
+                        let answer = crate::api::stdcore::features::userdefs::expand_in_tree_rule_for(a0, &a1);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `write_math_run`: writes a run of nodes in mathematics mode for the recomposed LaTeX, the mathematics writer of the `userdefs` feature (the source byte for byte, a use of a user definition written as its call or its expansion, a text command and a comment lowered through the rules), the content writer of a processing feature's rules on that backend.
             pub fn write_math_run(cx: &mut LowerCx, lw: &mut Lowerer, nodes: &[Node]) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call_module("stdcore/features/userdefs", "write_math_run", vec![arg(&*cx, "write_math_run")?, arg(&*lw, "write_math_run")?, arg(nodes, "write_math_run")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdcore/features/userdefs", "write_math_run", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(nodes)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("write_math_run", |table| {
+                        let a2 = IntoApi::into_api(nodes, table)?;
+                        let answer = match table.entries_mut("write_math_run", [cx.handle, lw.handle])? {
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::userdefs::write_math_run(&mut **a0, &mut **a1, &a2),
+                            [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                        }?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
     }
@@ -1701,8 +3404,19 @@ pub mod techy {
 
         /// Mirrors `parse_keyval_drop_annotations`: reads `nodes` as a key-value list.
         pub fn parse_keyval_drop_annotations(nodes: &[Node]) -> Result<KeyVals, ExtError> {
-            let reply = abi::call_module("techy/extract", "parse_keyval_drop_annotations", vec![arg(nodes, "parse_keyval_drop_annotations")?])?;
-            JsonForm::from_value(&reply)
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call_module("techy/extract", "parse_keyval_drop_annotations", vec![ToArg::arg(nodes)])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("parse_keyval_drop_annotations", |table| {
+                    let a0 = IntoApi::into_api(nodes, table)?;
+                    let answer = crate::api::techy::extract::parse_keyval_drop_annotations(&a0)?;
+                    FromApi::from_api(answer, table)
+                })
+            }
         }
 
         /// Mirrors `KeyVals`: a key-value list.
@@ -1725,32 +3439,89 @@ pub mod techy {
         impl KeyVals {
             /// Mirrors `KeyVals::len`.
             pub fn len(&self) -> Result<usize, ExtError> {
-                let reply = abi::call(self.handle, "len", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "len", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("len", |table| {
+                        let this = &**entry!(table, self.handle, KeyVals, KeyVals);
+                        let answer = this.len();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `KeyVals::is_empty`.
             pub fn is_empty(&self) -> Result<bool, ExtError> {
-                let reply = abi::call(self.handle, "is_empty", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "is_empty", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("is_empty", |table| {
+                        let this = &**entry!(table, self.handle, KeyVals, KeyVals);
+                        let answer = this.is_empty();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `KeyVals::keyval`: the entry at position `i`.
             pub fn keyval(&self, i: usize) -> Result<Option<KeyValEntry>, ExtError> {
-                let reply = abi::call(self.handle, "keyval", vec![arg(&i, "keyval")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "keyval", vec![ToArg::arg(&i)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("keyval", |table| {
+                        let a0 = IntoApi::into_api(i, table)?;
+                        let this = &**entry!(table, self.handle, KeyVals, KeyVals);
+                        let answer = this.keyval(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `KeyVals::get`: the entry of key `key`.
             pub fn get(&self, key: &str) -> Result<Option<KeyValEntry>, ExtError> {
-                let reply = abi::call(self.handle, "get", vec![arg(key, "get")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "get", vec![ToArg::arg(key)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("get", |table| {
+                        let a0 = IntoApi::into_api(key, table)?;
+                        let this = &**entry!(table, self.handle, KeyVals, KeyVals);
+                        let answer = this.get(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `KeyVals::iter`.
             pub fn iter(&self) -> Result<Vec<KeyValEntry>, ExtError> {
-                let reply = abi::call(self.handle, "iter", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "iter", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("iter", |table| {
+                        let this = &**entry!(table, self.handle, KeyVals, KeyVals);
+                        let answer = this.iter();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
 
@@ -1774,25 +3545,58 @@ pub mod techy {
         impl KeyValEntry {
             /// Mirrors `KeyValEntry::key`.
             pub fn key(&self) -> Result<String, ExtError> {
-                let reply = abi::call(self.handle, "key", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "key", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("key", |table| {
+                        let this = &**entry!(table, self.handle, KeyValEntry, KeyValEntry);
+                        let answer = this.key();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `KeyValEntry::value`.
             pub fn value(&self) -> Result<Option<Vec<Node>>, ExtError> {
-                let reply = abi::call(self.handle, "value", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "value", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("value", |table| {
+                        let this = &**entry!(table, self.handle, KeyValEntry, KeyValEntry);
+                        let answer = this.value();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `KeyValEntry::value_content`.
             pub fn value_content(&self) -> Result<Option<Vec<Node>>, ExtError> {
-                let reply = abi::call(self.handle, "value_content", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "value_content", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("value_content", |table| {
+                        let this = &**entry!(table, self.handle, KeyValEntry, KeyValEntry);
+                        let answer = this.value_content();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
     }
 
-    /// The guest's side of `flm:techy/node`. Mirrors techy's node module, reached as `flm_core::techy::core::node`: the node reader.
+    /// The guest's side of `flm:techy/node`. Mirrors techy's node module, reached as `flm_core::techy::core::node`: the node reader, and the trees `flm-core` shares.
     pub mod node {
         use crate::guest::generated::prelude::*;
         use crate::guest::lang::mint::Mode;
@@ -1819,182 +3623,557 @@ pub mod techy {
         impl Node {
             /// Mirrors `NodeRef::kind`.
             pub fn kind(&self) -> Result<NodeKindName, ExtError> {
-                let reply = abi::call(self.handle, "kind", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "kind", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("kind", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.kind();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::is_chars`.
             pub fn is_chars(&self) -> Result<bool, ExtError> {
-                let reply = abi::call(self.handle, "is_chars", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "is_chars", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("is_chars", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.is_chars();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::is_group`.
             pub fn is_group(&self) -> Result<bool, ExtError> {
-                let reply = abi::call(self.handle, "is_group", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "is_group", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("is_group", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.is_group();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::is_callable`.
             pub fn is_callable(&self) -> Result<bool, ExtError> {
-                let reply = abi::call(self.handle, "is_callable", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "is_callable", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("is_callable", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.is_callable();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::is_comment`.
             pub fn is_comment(&self) -> Result<bool, ExtError> {
-                let reply = abi::call(self.handle, "is_comment", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "is_comment", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("is_comment", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.is_comment();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::is_list`.
             pub fn is_list(&self) -> Result<bool, ExtError> {
-                let reply = abi::call(self.handle, "is_list", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "is_list", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("is_list", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.is_list();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::span`.
             pub fn span(&self) -> Result<Span, ExtError> {
-                let reply = abi::call(self.handle, "span", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "span", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("span", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.span();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::span_content`.
             pub fn span_content(&self) -> Result<String, ExtError> {
-                let reply = abi::call(self.handle, "span_content", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "span_content", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("span_content", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.span_content();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::parent`.
             pub fn parent(&self) -> Result<Option<Node>, ExtError> {
-                let reply = abi::call(self.handle, "parent", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "parent", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("parent", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.parent();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::child_count`.
             pub fn child_count(&self) -> Result<usize, ExtError> {
-                let reply = abi::call(self.handle, "child_count", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "child_count", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("child_count", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.child_count();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::child`.
             pub fn child(&self, i: usize) -> Result<Option<Node>, ExtError> {
-                let reply = abi::call(self.handle, "child", vec![arg(&i, "child")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "child", vec![ToArg::arg(&i)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("child", |table| {
+                        let a0 = IntoApi::into_api(i, table)?;
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.child(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::children`.
             pub fn children(&self) -> Result<Vec<Node>, ExtError> {
-                let reply = abi::call(self.handle, "children", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "children", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("children", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.children();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::descendants`.
             pub fn descendants(&self) -> Result<Vec<Node>, ExtError> {
-                let reply = abi::call(self.handle, "descendants", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "descendants", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("descendants", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.descendants();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::chars`.
             pub fn chars(&self) -> Result<Option<String>, ExtError> {
-                let reply = abi::call(self.handle, "chars", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "chars", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("chars", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.chars();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::name`.
             pub fn name(&self) -> Result<Option<String>, ExtError> {
-                let reply = abi::call(self.handle, "name", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "name", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("name", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.name();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::group_delimiters`.
             pub fn group_delimiters(&self) -> Result<Option<(String, String)>, ExtError> {
-                let reply = abi::call(self.handle, "group_delimiters", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "group_delimiters", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("group_delimiters", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.group_delimiters();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::argument_nodes`.
             pub fn argument_nodes(&self, i: usize) -> Result<Option<Vec<Node>>, ExtError> {
-                let reply = abi::call(self.handle, "argument_nodes", vec![arg(&i, "argument_nodes")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "argument_nodes", vec![ToArg::arg(&i)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("argument_nodes", |table| {
+                        let a0 = IntoApi::into_api(i, table)?;
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.argument_nodes(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::argument_content_nodes`.
             pub fn argument_content_nodes(&self, i: usize) -> Result<Option<Vec<Node>>, ExtError> {
-                let reply = abi::call(self.handle, "argument_content_nodes", vec![arg(&i, "argument_content_nodes")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "argument_content_nodes", vec![ToArg::arg(&i)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("argument_content_nodes", |table| {
+                        let a0 = IntoApi::into_api(i, table)?;
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.argument_content_nodes(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::argument_nodes_named`.
             pub fn argument_nodes_named(&self, name: &str) -> Result<Option<Vec<Node>>, ExtError> {
-                let reply = abi::call(self.handle, "argument_nodes_named", vec![arg(name, "argument_nodes_named")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "argument_nodes_named", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("argument_nodes_named", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.argument_nodes_named(a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::argument_content_nodes_named`.
             pub fn argument_content_nodes_named(&self, name: &str) -> Result<Option<Vec<Node>>, ExtError> {
-                let reply = abi::call(self.handle, "argument_content_nodes_named", vec![arg(name, "argument_content_nodes_named")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "argument_content_nodes_named", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("argument_content_nodes_named", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.argument_content_nodes_named(a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors the reading `node.arguments().get_named(name).is_provided()` of `NodeRef::arguments`: whether the argument named `name` was written.
             pub fn argument_is_provided(&self, name: &str) -> Result<bool, ExtError> {
-                let reply = abi::call(self.handle, "argument_is_provided", vec![arg(name, "argument_is_provided")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "argument_is_provided", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("argument_is_provided", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.argument_is_provided(a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::body`.
             pub fn body(&self) -> Result<Option<Vec<Node>>, ExtError> {
-                let reply = abi::call(self.handle, "body", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "body", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("body", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.body();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::slot_content_nodes_named`.
             pub fn slot_content_nodes_named(&self, name: &str) -> Result<Vec<Node>, ExtError> {
-                let reply = abi::call(self.handle, "slot_content_nodes_named", vec![arg(name, "slot_content_nodes_named")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "slot_content_nodes_named", vec![ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("slot_content_nodes_named", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.slot_content_nodes_named(a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `element_of``(node).name`: the name of the node's element.
             pub fn element_name(&self) -> Result<String, ExtError> {
-                let reply = abi::call(self.handle, "element_name", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "element_name", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("element_name", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.element_name();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `element_value`: the data of the node's element.
             pub fn element_value(&self) -> Result<Option<Value>, ExtError> {
-                let reply = abi::call(self.handle, "element_value", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "element_value", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("element_value", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.element_value();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `node.parsing_state().mode()`: the parsing mode the node was read in.
             pub fn mode(&self) -> Result<Mode, ExtError> {
-                let reply = abi::call(self.handle, "mode", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "mode", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("mode", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.mode();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors the field `FlmNodeExt::payload` through `project_payload`: the payload of a presentation node, as its projection in JSON form (the shapes the presentation elements' module lists, or the value a rule staged for an element declared with a data payload).
             pub fn payload(&self) -> Result<Option<Value>, ExtError> {
-                let reply = abi::call(self.handle, "payload", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "payload", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("payload", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.payload()?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `node.slots().map(ParsedSlots::len)` of `NodeRef::slots`: the number of the node's slots (a list's `label` and `item` per entry, a presentation node's named slots), 0 for a node without slots.
             pub fn slot_count(&self) -> Result<usize, ExtError> {
-                let reply = abi::call(self.handle, "slot_count", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "slot_count", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("slot_count", |table| {
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.slot_count();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `node.slots()?.get(i)?.name()` of `NodeRef::slots`: the name of the slot at index `i`, or `None` for an unnamed slot or an index past the last.
             pub fn slot_name(&self, i: usize) -> Result<Option<String>, ExtError> {
-                let reply = abi::call(self.handle, "slot_name", vec![arg(&i, "slot_name")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "slot_name", vec![ToArg::arg(&i)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("slot_name", |table| {
+                        let a0 = IntoApi::into_api(i, table)?;
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.slot_name(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors `NodeRef::slot_content_nodes`: the content of the slot at index `i`, or `None` for an index past the last.
             pub fn slot_content_nodes(&self, i: usize) -> Result<Option<Vec<Node>>, ExtError> {
-                let reply = abi::call(self.handle, "slot_content_nodes", vec![arg(&i, "slot_content_nodes")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "slot_content_nodes", vec![ToArg::arg(&i)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("slot_content_nodes", |table| {
+                        let a0 = IntoApi::into_api(i, table)?;
+                        let this = &**entry!(table, self.handle, Node, Node);
+                        let answer = this.slot_content_nodes(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
+            }
+        }
+
+        /// Mirrors `Arc<NodeTree<Flm>>`, techy's `NodeTree` over the FLM language shared through an `Arc`: a whole tree, as `flm-core` answers one (a document's tree, a rewrite's output tree, a lowered tree, a synthesized value, an instantiated template) and takes one (the value of an extra placeholder, a value to splice).
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub struct Tree {
+            /// The handle the host lent for it.
+            pub(crate) handle: Handle,
+        }
+
+        impl JsonForm for Tree {
+            fn to_value(&self) -> Value {
+                handle_to_value(self.handle)
+            }
+
+            fn from_value(value: &Value) -> Result<Self, ExtError> {
+                Ok(Tree { handle: abi::handle_of(value, HandleKind::Tree)? })
+            }
+        }
+
+        impl Tree {
+            /// Mirrors `NodeTree::root`: the tree's root node.
+            pub fn root(&self) -> Result<Node, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "root", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("root", |table| {
+                        let this = &**entry!(table, self.handle, Tree, Tree);
+                        let answer = this.root();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
     }
@@ -2028,62 +4207,192 @@ pub mod techy {
         impl Restager {
             /// Mirrors techy's `RestageContext::restage_subtree`: restages `node` and its whole subtree through the handler, and answers the nodes that replace `node`.
             pub fn restage_subtree(&mut self, node: &Node) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call(self.handle, "restage_subtree", vec![arg(node, "restage_subtree")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "restage_subtree", vec![ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("restage_subtree", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let this = entry!(table, self.handle, Restager, Restager);
+                        let answer = this.restage_subtree(&*a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors techy's `RestageContext::restage_children`: restages every child subtree of `node`, the node itself excluded, and answers their replacements concatenated.
             pub fn restage_children(&mut self, node: &Node) -> Result<Vec<Staged>, ExtError> {
-                let reply = abi::call(self.handle, "restage_children", vec![arg(node, "restage_children")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "restage_children", vec![ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("restage_children", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let this = entry!(table, self.handle, Restager, Restager);
+                        let answer = this.restage_children(&*a0)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors techy's `RestageContext::restage_argument`: restages argument `index` of the callable `node` through the handler, and answers the bundle to pass to `restage_invocation`.
             pub fn restage_argument(&mut self, node: &Node, index: usize) -> Result<RestagedArgument, ExtError> {
-                let reply = abi::call(self.handle, "restage_argument", vec![arg(node, "restage_argument")?, arg(&index, "restage_argument")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "restage_argument", vec![ToArg::arg(node), ToArg::arg(&index)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("restage_argument", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let a1 = IntoApi::into_api(index, table)?;
+                        let this = entry!(table, self.handle, Restager, Restager);
+                        let answer = this.restage_argument(&*a0, a1)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors techy's `RestageContext::restage_argument_named`: as `restage_argument`, for the argument named `name`.
             pub fn restage_argument_named(&mut self, node: &Node, name: &str) -> Result<RestagedArgument, ExtError> {
-                let reply = abi::call(self.handle, "restage_argument_named", vec![arg(node, "restage_argument_named")?, arg(name, "restage_argument_named")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "restage_argument_named", vec![ToArg::arg(node), ToArg::arg(name)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("restage_argument_named", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let a1 = IntoApi::into_api(name, table)?;
+                        let this = entry!(table, self.handle, Restager, Restager);
+                        let answer = this.restage_argument_named(&*a0, a1)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors techy's `RestageContext::restage_slot`: restages slot `index` of the callable `node` through the handler, and answers the bundle to pass to `restage_invocation`.
             pub fn restage_slot(&mut self, node: &Node, index: usize) -> Result<RestagedSlot, ExtError> {
-                let reply = abi::call(self.handle, "restage_slot", vec![arg(node, "restage_slot")?, arg(&index, "restage_slot")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "restage_slot", vec![ToArg::arg(node), ToArg::arg(&index)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("restage_slot", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let a1 = IntoApi::into_api(index, table)?;
+                        let this = entry!(table, self.handle, Restager, Restager);
+                        let answer = this.restage_slot(&*a0, a1)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors techy's `RestageContext::restage_invocation`: stages a copy of the callable `node` whose arguments and slots are the bundles given, in the order given, and answers it.
             pub fn restage_invocation(&mut self, node: &Node, args: Vec<RestagedArgument>, slots: Vec<RestagedSlot>) -> Result<Staged, ExtError> {
-                let reply = abi::call(self.handle, "restage_invocation", vec![arg(node, "restage_invocation")?, arg(&args, "restage_invocation")?, arg(&slots, "restage_invocation")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "restage_invocation", vec![ToArg::arg(node), ToArg::arg(&args), ToArg::arg(&slots)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("restage_invocation", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let a1 = IntoApi::into_api(args, table)?;
+                        let a2 = IntoApi::into_api(slots, table)?;
+                        let this = entry!(table, self.handle, Restager, Restager);
+                        let answer = this.restage_invocation(&*a0, a1, a2)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors techy's `RestageContext::restage_argument_with_content`: restages argument `index` of the callable `node` with its content replaced by `content`, its surroundings copied unchanged.
             pub fn restage_argument_with_content(&mut self, node: &Node, index: usize, content: Vec<Staged>) -> Result<RestagedArgument, ExtError> {
-                let reply = abi::call(self.handle, "restage_argument_with_content", vec![arg(node, "restage_argument_with_content")?, arg(&index, "restage_argument_with_content")?, arg(&content, "restage_argument_with_content")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "restage_argument_with_content", vec![ToArg::arg(node), ToArg::arg(&index), ToArg::arg(&content)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("restage_argument_with_content", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let a1 = IntoApi::into_api(index, table)?;
+                        let a2 = IntoApi::into_api(content, table)?;
+                        let this = entry!(table, self.handle, Restager, Restager);
+                        let answer = this.restage_argument_with_content(&*a0, a1, a2)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Mirrors techy's `RestageContext::restage_slot_with_content`: restages slot `index` of the callable `node` with its content replaced by `content`, its surroundings copied unchanged.
             pub fn restage_slot_with_content(&mut self, node: &Node, index: usize, content: Vec<Staged>) -> Result<RestagedSlot, ExtError> {
-                let reply = abi::call(self.handle, "restage_slot_with_content", vec![arg(node, "restage_slot_with_content")?, arg(&index, "restage_slot_with_content")?, arg(&content, "restage_slot_with_content")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "restage_slot_with_content", vec![ToArg::arg(node), ToArg::arg(&index), ToArg::arg(&content)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("restage_slot_with_content", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let a1 = IntoApi::into_api(index, table)?;
+                        let a2 = IntoApi::into_api(content, table)?;
+                        let this = entry!(table, self.handle, Restager, Restager);
+                        let answer = this.restage_slot_with_content(&*a0, a1, a2)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// No techy counterpart: stages one characters node holding `text`, with the span and the parsing state of the node `like`, as a pass stages a characters node through the output tree's builder (and as `ExpandCx::stage_chars` does at a use site).
             pub fn stage_chars(&mut self, text: &str, like: &Node) -> Result<Staged, ExtError> {
-                let reply = abi::call(self.handle, "stage_chars", vec![arg(text, "stage_chars")?, arg(like, "stage_chars")?])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "stage_chars", vec![ToArg::arg(text), ToArg::arg(like)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("stage_chars", |table| {
+                        let a0 = IntoApi::into_api(text, table)?;
+                        let a1 = IntoApi::into_api(like, table)?;
+                        let this = entry!(table, self.handle, Restager, Restager);
+                        let answer = this.stage_chars(a0, &*a1)?;
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
 
             /// Reports `diagnostic` (the diagnostics of `flm-core`'s `RewriteStage::rewrite`), at the node of the call unless it has a place of its own, as `Lowerer::diagnose` does.
             pub fn diagnose(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError> {
-                abi::call(self.handle, "diagnose", vec![arg(&diagnostic, "diagnose")?])?;
-                Ok(())
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(self.handle, "diagnose", vec![ToArg::arg(&diagnostic)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("diagnose", |table| {
+                        let a0 = IntoApi::into_api(&diagnostic, table)?;
+                        let this = entry!(table, self.handle, Restager, Restager);
+                        this.diagnose(a0)?;
+                        Ok(())
+                    })
+                }
             }
         }
 
@@ -2107,8 +4416,19 @@ pub mod techy {
         impl RestagedArgument {
             /// Mirrors techy's `RestagedArgument::is_provided`: whether the argument was provided (an emptied argument is provided; an absent one is not).
             pub fn is_provided(&self) -> Result<bool, ExtError> {
-                let reply = abi::call(self.handle, "is_provided", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "is_provided", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("is_provided", |table| {
+                        let this = &**entry!(table, self.handle, RestagedArgument, RestagedArgument);
+                        let answer = this.is_provided();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
 
@@ -2132,18 +4452,29 @@ pub mod techy {
         impl RestagedSlot {
             /// Mirrors techy's `RestagedSlot::name`: the slot's name, if it has one.
             pub fn name(&self) -> Result<Option<String>, ExtError> {
-                let reply = abi::call(self.handle, "name", vec![])?;
-                JsonForm::from_value(&reply)
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "name", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("name", |table| {
+                        let this = &**entry!(table, self.handle, RestagedSlot, RestagedSlot);
+                        let answer = this.name();
+                        FromApi::from_api(answer, table)
+                    })
+                }
             }
         }
     }
 }
 
-/// The compile-time assertions of the hand-written items (refresh section
-/// 6.2): one per item of `GUEST_HAND` and per method of each extension
-/// trait, binding the item written in `src/guest/hand/` to the signature the
-/// type mapping derives from the api, so that a hand-written item that is
-/// missing or whose types drifted fails the build.
+/// The compile-time assertions of the hand-written items: one per item of
+/// `GUEST_HAND` and per method of each extension trait, binding the item
+/// written in `src/guest/hand/` to the signature the type mapping derives
+/// from the api, so that a hand-written item that is missing or whose types
+/// drifted fails the build.
 #[allow(dead_code, clippy::type_complexity, reason = "the assertions are checked when the crate compiles, nothing calls them, and each writes a whole signature")]
 mod assertions {
     use std::sync::Arc;
@@ -2151,7 +4482,6 @@ mod assertions {
     use crate::guest::generated::prelude::*;
     use crate::guest::model::element::Aspect;
     use crate::guest::core::registry::BackendDef;
-    use crate::guest::core::registry::BackendStage;
     use crate::guest::lang::BuiltLang;
     use crate::guest::stdcore::features::citations::CitationProvider;
     use crate::guest::stdcore::features::citations::CitationRequest;
@@ -2203,6 +4533,7 @@ mod assertions {
         let _: fn(&FeatureBuilder) -> Result<String, ExtError> = FeatureBuilder::feature;
         let _: fn(&mut FeatureBuilder, Arc<dyn Stage>) -> Result<(), ExtError> = FeatureBuilder::stage;
         let _: fn(&mut FeatureBuilder, Arc<dyn RewriteStage>) -> Result<(), ExtError> = FeatureBuilder::rewrite_stage;
+        let _: fn(&mut FeatureBuilder, BackendDef) -> Result<(), ExtError> = FeatureBuilder::backend;
         let _: fn(&mut FeatureBuilder, &str, Contributed) -> Result<(), ExtError> = FeatureBuilder::contribute_to;
         let _: fn(&mut FeatureBuilder, &str, Contributed) -> Result<(), ExtError> = FeatureBuilder::contribute_first_to;
         let _: fn(&mut FeatureBuilder, &str, Contributed) -> Result<(), ExtError> = FeatureBuilder::peer_slot;
@@ -2212,7 +4543,6 @@ mod assertions {
         let _: fn(ElementSpec, Aspect) -> Result<ElementSpec, ExtError> = ElementSpec::with;
         let _: fn(&UserDefinition, &str, &str, Arc<dyn Expand>) -> Result<ElementDef, ExtError> = UserDefinition::element_def_with;
         let _: fn(String, String, LoweringDecl, Arc<dyn Lower>, DefaultMark) -> Result<LoweringRule, ExtError> = LoweringRule::new;
-        let _: fn(String, Vec<String>, BackendStage, BackendStage, BackendStage) -> Result<BackendDef, ExtError> = BackendDef::new;
     }
 
     /// The methods of `Lower`, on any type implementing it.

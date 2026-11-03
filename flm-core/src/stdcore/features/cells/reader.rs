@@ -441,10 +441,9 @@ impl<'s, 't> Reader<'s, 't> {
         self.current_row = Mapping::get(&mapping.rows, 0, self.current_row).0;
         self.current_col = Mapping::get(&mapping.cols, 0, self.current_col).0;
         let mut rows = split(data, ROW);
-        // A trailing `\\` ends the last row and adds none: an empty last part
-        // after a final `\\` is dropped, while a `\\` on its own inside the
-        // data still makes an empty row. See decision rationale at
-        // [§flm-dd-dr:std-cells-reader]
+        // A trailing `\\` ends the last row and adds none, as LaTeX reads it: an
+        // empty last part after a final `\\` is dropped, while a `\\` on its own
+        // inside the data still makes an empty row.
         if rows.len() > 1 && rows.last().is_some_and(|row| row.iter().all(|node| is_comment_or_blank(&node))) {
             rows.pop();
         }

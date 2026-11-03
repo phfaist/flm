@@ -15,7 +15,7 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::lang::text::plain_text;
-use flm_core::lang::mint::FIELD;
+use flm_core::lang::structural::FIELD;
 use flm_core::model::addr::TreeId;
 use flm_core::model::aspects::{Label, Referencing};
 use flm_core::model::element::element_of;

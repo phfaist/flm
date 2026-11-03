@@ -1,4 +1,4 @@
-//! The fixture `tests/js/bibfile/` (E6, plan section 7.1): a citation
+//! The fixture `tests/js/bibfile/`: a citation
 //! provider written in JavaScript reading the entries of the cited keys from
 //! `bib.json` beside the document through the host service `files`, a
 //! service slot `bibfile.notes` the package `_` declares and the package
@@ -48,11 +48,11 @@ fn manifest() -> Value {
     } })
 }
 
-/// The document of plan section 7.1, its body (the title `Three works` is
+/// The document, its body (the title `Three works` is
 /// set as the document's metadata, [`run_doc`]).
 const DOCUMENT: &str = "See \\cite{knuth84} and \\cite{lamport94}; the code of \\cite{Shor95} (also \\cite{shor95}).\n";
 
-/// The file `bib.json` beside the document, as plan section 7.1 writes it.
+/// The file `bib.json` beside the document.
 const BIB_JSON: &str = r#"{
   "knuth84": { "author": "D. E. Knuth", "title": "The TeXbook", "year": 1984 },
   "lamport94": { "author": "L. Lamport", "title": "LaTeX: A Document Preparation System", "year": 1994 },
@@ -152,7 +152,7 @@ fn latex_of(registry: &Arc<FlmRegistry>) -> (String, Vec<String>) {
     (out, common::diagnostics(&run))
 }
 
-// --- the document of section 7.1 ---------------------------------------------------------------
+// --- the document ------------------------------------------------------------------------------
 
 #[test]
 fn the_bibliography_of_three_works_renders_as_text() {
@@ -215,7 +215,7 @@ fn a_missing_entries_file_fails_each_cited_key_and_the_check_reports_no_entry() 
 #[test]
 fn entries_that_are_not_json_fail_the_provider_at_each_cited_key() {
     // `JSON.parse` throws: the handler fails, and each key is reported with
-    // the handler's failure (D13).
+    // the handler's failure.
     let service = Arc::new(MemoryHostFiles::new(MemoryFiles::new().with_text("bib.json", "{ not json")));
     let registry = registry(&service, &["bibfile"]);
     let (_, diagnostics) = on_worker(|| text_of(&registry));

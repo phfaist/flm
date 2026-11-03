@@ -3,9 +3,10 @@
 // the class of the `flm-core` type `Definition`, the class
 // `DefinitionBindings` (whose constructor answers a `PlaceholderBindings`),
 // `UserDefinition.element_def_with` (the protocol for expansion hooks), the
-// data class `TemplateSpec`, the durable class `TemplateLanguage`, and
+// data class `TemplateSpec`, the durable class `TemplateLanguage`,
 // `ValueBindings` (a `PlaceholderBindings` whose `with` answers the same
-// instance). An import line here is copied into the stub.
+// instance), and the data class `ExtraValues`, whose `over` the host
+// answers. An import line here is copied into the stub.
 import { BlockRole } from "flm:model/aspects";
 import { Durable } from "flm:_runtime";
 
@@ -106,14 +107,43 @@ register_class("template_language", TemplateLanguage);
 // @hand export ValueBindings
 // Mirrors `ValueBindings`: bindings that give each extra placeholder
 // (`#{name}`) of a template the content of a finished tree: `new
-// ValueBindings()`, then `with(name, node)` for each placeholder, `node` the
-// root node of a tree (a number segment's content, a synthesized tree).
-// `with` answers the same instance, now holding the new binding.
+// ValueBindings()`, then `with(name, tree)` for each placeholder, `tree` a
+// `Tree` (a number segment's content, a tree `instantiate` answered). `with`
+// answers the same instance, holding the new binding.
 export class ValueBindings extends PlaceholderBindings {
   constructor() { return call(MODULE, "ValueBindings::new", []); }
-  with(name, node) {
-    this._token = call(this, "with", [name, node])._token;
+  with(name, tree) {
+    this._token = call(this, "with", [name, tree])._token;
     return this;
   }
 }
 register_class("value_bindings", ValueBindings);
+// @hand export ExtraValues
+// Mirrors `ExtraValues`: the values a hook computed for the extra
+// placeholders of a template, each under the placeholder's name and the text
+// of its substitution argument (`null` for none): `new ExtraValues()`, then
+// `template(name, substitution, template)` (a variant's template or default
+// value, or a template that `compile_template_with` answered),
+// `tree(name, substitution, tree)` (`tree` a `Tree`) and
+// `no_value(name, substitution)`, each answering the same instance;
+// `over(base)` answers the bindings that give an extra placeholder its value
+// and every other placeholder the value of `base`. It crosses as the list
+// `[{ name, substitution, value }]`, the value `{ template }`, `{ tree }` or
+// `"no-value"`.
+export class ExtraValues {
+  constructor() { this.entries = []; }
+  template(name, substitution, template) {
+    this.entries.push({ name, substitution: substitution ?? null, value: { template } });
+    return this;
+  }
+  tree(name, substitution, tree) {
+    this.entries.push({ name, substitution: substitution ?? null, value: { tree } });
+    return this;
+  }
+  no_value(name, substitution) {
+    this.entries.push({ name, substitution: substitution ?? null, value: "no-value" });
+    return this;
+  }
+  over(base) { return call(MODULE, "ExtraValues::over", [this, base]); }
+  toJSON() { return this.entries; }
+}

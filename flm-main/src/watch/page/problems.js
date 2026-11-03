@@ -28,7 +28,8 @@
 
   // The function that opens a place of a source in the editor, `openPlace(file, start)`,
   // when the page has a server to ask (`gestures.js` sets it); without it, the list offers
-  // no *Open in editor*. See decision rationale at [§flm-dd-dr:host-watch-open-problem].
+  // no *Open in editor*. A problem's place is sent as a clicked element's place is: the
+  // update already carries it, and the server already opens such a place.
   var openPlace = null;
 
   // An element `tag` with the class `name` (without its prefix) and the text `text`; the

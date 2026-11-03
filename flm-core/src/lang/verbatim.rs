@@ -230,8 +230,7 @@ fn dispatch_invocation(
                         // installs an unknown-macro fallback at the bottom of
                         // the scope stack for every parsing mode, so every
                         // command name resolves. A miss here means a scope
-                        // stack this language did not build. See the design
-                        // rationale at [§flm-dd-dr:err-unknown-callables].
+                        // stack this language did not build.
                         let span = cx.tokens.source_span_of(token);
                         return Err(cx.implementation_error(
                             format!(
@@ -683,8 +682,7 @@ impl FlmVerbatimBodyParser<'_> {
         // but designated out of the content. It is read under the interior state
         // (the token rules that make the body raw) and staged under the
         // *surrounding* state, because it stands outside the verbatim group and
-        // is not verbatim content. See the design rationale at
-        // [§flm-dd-dr:lang-verbatim-newline].
+        // is not verbatim content.
         let mut children = Vec::new();
         let mut content_start_index = 0u32;
         if let Some(token) = cx.probe_token(&state)? {

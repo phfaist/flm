@@ -320,7 +320,9 @@ impl CascadeOrigin for Origin {
     /// normalized ([`fold`](crate::files::fold)); `None` for an absolute path and for a
     /// source that is no file (a value of the command line is relative to the current
     /// folder already).
-    // See decision rationale at [§flm-dd-dr:host-settings-path-resolve]
+    // Paths are resolved here, where the settings are combined, the one place that knows the
+    // file each value was written in: one rule serves every feature, and a package names a
+    // file it ships beside itself as it lies.
     fn resolve_path(&self, path: &str) -> Option<String> {
         let folder = self.source.file().and_then(|file| Path::new(file).parent())?;
         let path = Path::new(path);

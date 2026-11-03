@@ -30,12 +30,14 @@
 //! | `trees_table` | `trees`, `tree` |
 //! | `lowered_trees` | `trees`, `tree`, `requires`, `rounds` |
 //! | `node` | every method of [`Node`](crate::api::techy::node::Node) |
+//! | `tree` | `root` |
 //! | `key_vals` | `len`, `is_empty`, `keyval`, `get`, `iter` |
 //! | `key_val_entry` | `key`, `value`, `value_content` |
 //! | `expand_cx` | `stage_chars`, `definition` |
 //! | `expander` | `depth`, `recursion_limit`, `lang`, `instantiate`, `recover`, `diagnose` |
 //! | `user_definition` | `definition`, `element_def`, `element_def_with`, `variant_for_use` |
-//! | `mode_variant` | `template` |
+//! | `mode_variant` | `template`, `defaults` |
+//! | `compiled_template` | `placeholders` (on a durable token too) |
 //! | `element_def` | `docs`, `modes` (a declaration a helper made; each answers a new one) |
 //! | `lowering_rule` | `docs` (answers a new rule) |
 //! | `lowerer` | `rule`, `lang`, `backend`, `comment_start`, `tree_id`, `addr`, `addr_of`, `placement`, `get`, `get_at`, `producer_of`, `option`, `lower_children`, `lower_body`, `lower_arg`, `lower_arg_named`, `lower_nodes`, `default`, `pres`, `pres_slots`, `text`, `splice`, `require`, `diagnose` (every method of [`Lowerer`](crate::api::core::lowering::Lowerer) but `lower_region`, whose address cannot be read back from data) |
@@ -43,7 +45,7 @@
 //! | `restager` | `restage_subtree`, `restage_children`, `restage_argument`, `restage_argument_named`, `restage_slot`, `restage_invocation`, `restage_argument_with_content`, `restage_slot_with_content`, `stage_chars`, `diagnose` |
 //! | `restaged_argument` | `is_provided` |
 //! | `restaged_slot` | `name` |
-//! | `compiled_template`, `placeholder_bindings`, `staged`, `stage`, `expand`, `lower`, `lower_cx`, `library_stage`, `rewrite_stage`, `citation_entry`, `citation_provider`, `template_module`, `referenceable`, `sectioning`, `arg_def`, `built_lang`, `late_init`, `finalizer`, `template_language` | none: they are passed back as arguments |
+//! | `placeholder_bindings`, `staged`, `stage`, `expand`, `lower`, `lower_cx`, `library_stage`, `rewrite_stage`, `citation_entry`, `citation_provider`, `template_module`, `referenceable`, `sectioning`, `built_lang`, `late_init`, `finalizer`, `template_language` | none: they are passed back as arguments |
 //! | `flm_diagnostics` | `push` |
 //! | `counters` | `record`, `format` |
 //! | `anchors` | `id` |
@@ -57,7 +59,7 @@
 //! | `core/lowering` | `chars_at_lowering`, `spelling_at_lowering`, `LoweringRule::new`, `pres_tree` |
 //! | `techy/extract` | `parse_keyval_drop_annotations` |
 //! | `lang/rewrites/blocks` | `argument_holds_blocks` |
-//! | `lang/rewrites/userdefs` | `UserDefinition::new`, `DefinitionBindings::new`, `TemplateLanguage::new`, `compile_template_with`, `ValueBindings::new`, `instantiate` |
+//! | `lang/rewrites/userdefs` | `UserDefinition::new`, `DefinitionBindings::new`, `TemplateLanguage::new`, `compile_template_with`, `ValueBindings::new`, `instantiate`, `ExtraValues::over` |
 //! | `stdcore/features/userdefs` | `element_name_under`, `expand_in_tree_rule_for`, `write_math_run` |
 //! | `lang/structural` | `names` |
 //! | `stdcore/backends/html` | `names` |
@@ -68,11 +70,12 @@
 //!
 //! # The value shapes
 //!
-//! Arguments and results are the shapes of plan A, section 4.5: a handle is
+//! Arguments and results cross in these shapes: a handle is
 //! `{"@handle": {"kind", "call", "index"}}`; `Option<T>` is `T` or `null`; a
-//! tuple is the list of its elements (`trees()` answers `[[id, node], …]`,
-//! `group_delimiters()` `[open, close]`); `&[u8]` is a string whose UTF-8
-//! bytes are taken; a method answering nothing answers `null`. No number may
+//! tuple is the list of its elements (`trees()` answers `[[id, tree], …]`,
+//! `group_delimiters()` `[open, close]`); `&[u8]` is the bytes in a form of
+//! an artifact's content, a string (its UTF-8 bytes), `{"text": text}` or
+//! `{"base64": text}`; a method answering nothing answers `null`. No number may
 //! be a floating-point one, no map key may begin with `$`, and a data map may
 //! not hold the key `@handle` or `@durable`, in either direction ([`ExtError::Value`]).
 //!
@@ -124,7 +127,8 @@
 //! The durable objects (a template language, a compiled template; see
 //! [`durable`](crate::adapter::durable)): answered as a durable token `{"@durable": {"kind", "table",
 //! "index"}}`, the kind `template_language` or `compiled_template`, plain data
-//! a handler may keep beyond its call; passed back as an argument, a token is
+//! a handler may keep beyond its call; passed back as an argument or as the
+//! receiver of a call (a compiled template's `placeholders`), a token is
 //! resolved against the durable table of the running handler's feature and
 //! lent into the call as the object it names (a token of another feature's
 //! table, of another registry's, or naming no entry is
@@ -134,8 +138,17 @@
 //! as [`template_spec_from_value`](crate::adapter::values::template_spec_from_value)
 //! reads it; `instantiate` takes `[site, template, bindings]`, the bindings a
 //! handle of kind `placeholder_bindings` or `value_bindings`, and answers the
-//! root node of the new tree; `ValueBindings.with` takes `[name, node]`, the
-//! node the root of a tree.
+//! new tree, a handle of kind `tree`; `ValueBindings.with` takes `[name,
+//! tree]`. `placeholders` answers a list of `{"written",
+//! "target", "substitution"}`, the target `{"argument": index}`, `"body"` or
+//! `{"extra": name}`, the substitution a text or `null`; `defaults` answers
+//! `[[index, template], …]`. `ExtraValues::over` takes `[values, base]`, the
+//! values as
+//! [`extra_values_from_value`](crate::adapter::values::extra_values_from_value)
+//! reads them (a list of `{"name", "substitution", "value"}`, the value
+//! `{"template": <handle or durable token>}`, `{"tree": <tree>}` or
+//! `"no-value"`), the base a handle of kind `placeholder_bindings` or
+//! `value_bindings`, and answers a handle of kind `placeholder_bindings`.
 //!
 //! The data-valued slots and the numbering's tables: `contribute_to`,
 //! `contribute_first_to` and `peer_slot` given one of the standard
@@ -170,8 +183,9 @@
 //! `[name, docs]`; `peer_argument_role` takes `[name]`; `scoped_package` takes
 //! `[{"name", "elements": [declaration, …], "docs"}]`, each declaration
 //! read as `element` reads one; `late_init` and `finalizer` take a handle of
-//! the kind `late_init` or `finalizer`. An argument list takes a handle of
-//! the kind `arg_def` in place of a code (`label_fields_arg` answers one).
+//! the kind `late_init` or `finalizer`. An argument list is data, each
+//! argument a code or an argument's map, as `label_fields_arg` and
+//! `arg_def_from_code` answer one.
 //! A late-initialization hook's `push` takes a diagnostic in the shape a
 //! stage's diagnostics take.
 //!
@@ -215,10 +229,12 @@
 
 use serde_json::Value;
 
-use crate::adapter::durable::DurableKind;
+use crate::adapter::durable::{DurableKind, DurableToken};
 use crate::adapter::generated;
 use crate::adapter::handles::{CallTable, Entry, Handle, HandleKind, MODULE_PATHS};
-use crate::adapter::values::{argument, check_arguments, durable_from_value, handle_to_value, is_durable, Args};
+use crate::adapter::values::{
+    argument, check_arguments, durable_from_value, durable_table_for, handle_to_value, is_durable, Args,
+};
 use crate::api::lang::rewrites::userdefs::TemplateLanguage;
 use crate::runtime::ExtError;
 
@@ -238,16 +254,22 @@ use crate::runtime::ExtError;
 /// text beginning with the method's name: "`push`: a number must be an
 /// integer, not `0.5`"), and whatever the façade's method reports.
 pub fn call<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Value) -> Result<Value, ExtError> {
-    dispatch(table, handle, method, args).map_err(|error| match error {
-        // An argument error found below the arm (a stale node in a list, a
-        // handle of the wrong kind) names the method it was found in.
+    dispatch(table, handle, method, args).map_err(|error| named(method, error))
+}
+
+/// `error`, found while the method or function `method` ran, with `method`
+/// named: an argument error found below the arm (a stale node in a list, a
+/// handle of the wrong kind) names the method it was found in, and so does
+/// a value that cannot cross. Both routes of a request name it so
+/// ([`call`], and the guest client's typed route).
+pub(crate) fn named(method: &str, error: ExtError) -> ExtError {
+    match error {
         ExtError::Argument { method: found, detail } if found.is_empty() => {
             ExtError::Argument { method: method.to_string(), detail }
         }
-        // So does a value that cannot cross, as an argument or as an answer.
         ExtError::Value { detail } => ExtError::Value { detail: format!("`{method}`: {detail}") },
         other => other,
-    })
+    }
 }
 
 /// [`call`], before the method is named in its argument errors.
@@ -303,28 +325,44 @@ fn resolve_durables(table: &mut CallTable<'_>, args: &Value) -> Result<Option<Va
     }
     let mut out = Vec::with_capacity(list.len());
     for item in list {
-        if !is_durable(item) {
+        if is_durable(item) {
+            out.push(handle_to_value(lend_durable(table, item)?));
+        } else {
             out.push(item.clone());
-            continue;
         }
-        let token = durable_from_value(item)?;
-        let durable = table.durable().cloned().ok_or_else(|| {
-            argument(format!(
-                "the `{}` object {} can be used only in a call given the builder, a stage's context, the expander, the lowerer or a late-initialization hook's language",
-                token.kind.name(),
-                token.index
-            ))
-        })?;
-        let entry = match token.kind {
-            DurableKind::TemplateLanguage => {
-                durable.template_language(token)?;
-                Entry::TemplateLanguage(TemplateLanguage::from_token(token))
-            }
-            DurableKind::CompiledTemplate => Entry::CompiledTemplate(Box::new(durable.compiled_template(token)?)),
-        };
-        out.push(handle_to_value(table.lend(entry)));
     }
     Ok(Some(Value::Array(out)))
+}
+
+/// The durable object the token `value` names, resolved against the call's
+/// durable table and lent into the call: its handle. A durable token given
+/// as the receiver of a call (a compiled template's `placeholders`) is lent
+/// so too, by the call native.
+///
+/// # Errors
+///
+/// As [`resolve_durables`].
+pub(crate) fn lend_durable(table: &mut CallTable<'_>, value: &Value) -> Result<Handle, ExtError> {
+    lend_durable_token(table, durable_from_value(value)?)
+}
+
+/// The durable object `token` names, resolved against the call's durable
+/// table and lent into the call: its handle ([`lend_durable`], the token
+/// read).
+///
+/// # Errors
+///
+/// As [`resolve_durables`], but for the token's form.
+pub(crate) fn lend_durable_token(table: &mut CallTable<'_>, token: DurableToken) -> Result<Handle, ExtError> {
+    let durable = durable_table_for(table, token)?;
+    let entry = match token.kind {
+        DurableKind::TemplateLanguage => {
+            durable.template_language(token)?;
+            Entry::TemplateLanguage(TemplateLanguage::from_token(token))
+        }
+        DurableKind::CompiledTemplate => Entry::CompiledTemplate(Box::new(durable.compiled_template(token)?)),
+    };
+    Ok(table.lend(entry))
 }
 
 /// The error of a method the object's kind does not have.
@@ -350,26 +388,31 @@ macro_rules! entry {
 pub(crate) use entry;
 
 /// The arms the generator cannot express, each with its reason; the generated
-/// kind functions and the generated module function end in these.
+/// kind functions and the generated module function end in these. Each arm
+/// reads its arguments and calls a function that takes them typed, which the
+/// guest client's typed route calls too (the cargo feature `native`): one
+/// body per hand-written method, reached by both routes of a request.
 pub(crate) mod extra {
     use serde_json::Value;
 
     use super::no_method;
     use crate::adapter::handles::{CallTable, Entry, Handle, HandleKind, LangEntry, TableEntry};
+    use crate::adapter::tables::PointsCore;
+    use crate::adapter::values::{
+        argument, format_options_from_value, handle_to_value, mismatch, node_from_table, Args, FromArg, IntoReply,
+    };
+    use crate::api::core::data::table::TableValue;
+    use crate::api::core::lowering::Staged;
     use crate::api::lang::rewrites::userdefs;
     use crate::api::lang::BuiltLang;
-    use crate::adapter::values::{
-        argument, arg_def_to_value, check_data, format_options_from_value, handle_to_value, mismatch, node_from_table, Args,
-        FromArg, IntoReply,
-    };
-    use crate::api::stdcore::features::numbering::{Counters, NumberSegment};
-    use crate::api::stdcore::features::refs::Anchors;
-    use crate::sealed::Token;
-    use crate::api;
-    use crate::api::core::data::table::TableValue;
-    use crate::api::techy::node::Node;
+    use crate::api::model::aspects::PointId;
     use crate::api::stdcore::features::math;
+    use crate::api::stdcore::features::numbering::{CounterRecord, Counters, FormatOptions, NumberSegment};
+    use crate::api::stdcore::features::refs::Anchors;
+    use crate::api::techy::node::{Node, Tree};
+    use crate::adapter::durable::DurableTemplateFacade;
     use crate::runtime::ExtError;
+    use crate::sealed::Token;
 
     /// `StageOut::table` answers `&mut dyn TablePiece`, a borrow of the
     /// output, which cannot be lent into the table beside it: the piece is
@@ -379,12 +422,21 @@ pub(crate) mod extra {
         match method {
             "table" => {
                 args.arity(1)?;
-                let name = args.text(0)?;
-                entry!(table, handle, StageOut, StageOut).table(name)?;
-                Ok(crate::adapter::values::handle_to_value(table.lend(Entry::TablePiece { out: handle, name: name.to_string() })))
+                Ok(handle_to_value(stage_out_table(table, handle, args.text(0)?)?))
             }
             _ => Err(no_method(HandleKind::StageOut, method)),
         }
+    }
+
+    /// The piece of the table `name` the output `out` writes, recorded
+    /// ([`stage_out`]): its handle.
+    ///
+    /// # Errors
+    ///
+    /// `out` is not an output of the call; what the output answers.
+    pub(crate) fn stage_out_table(table: &mut CallTable<'_>, out: Handle, name: &str) -> Result<Handle, ExtError> {
+        entry!(table, out, StageOut, StageOut).table(name)?;
+        Ok(table.lend(Entry::TablePiece { out, name: name.to_string() }))
     }
 
     /// `TablePiece::push`: the piece is resolved anew through its output's
@@ -393,15 +445,24 @@ pub(crate) mod extra {
         match method {
             "push" => {
                 args.arity(1)?;
-                let (out, name) = match table.entry(handle)? {
-                    Entry::TablePiece { out, name } => (*out, name.clone()),
-                    other => return Err(mismatch(HandleKind::TablePiece, other.kind())),
-                };
-                entry!(table, out, StageOut, StageOut).table(&name)?.push(args.get(0).clone())?;
+                table_piece_push(table, handle, args.get(0).clone())?;
                 Ok(Value::Null)
             }
             _ => Err(no_method(HandleKind::TablePiece, method)),
         }
+    }
+
+    /// Appends `item` to the piece `piece` ([`table_piece`]).
+    ///
+    /// # Errors
+    ///
+    /// `piece` is not a piece of the call; what the output answers.
+    pub(crate) fn table_piece_push(table: &mut CallTable<'_>, piece: Handle, item: Value) -> Result<(), ExtError> {
+        let (out, name) = match table.entry(piece)? {
+            Entry::TablePiece { out, name } => (*out, name.clone()),
+            other => return Err(mismatch(HandleKind::TablePiece, other.kind())),
+        };
+        entry!(table, out, StageOut, StageOut).table(&name)?.push(item)
     }
 
     /// `Expander::instantiate` takes the context, the use site, the template
@@ -414,39 +475,101 @@ pub(crate) mod extra {
             "instantiate" => {
                 args.arity(4)?;
                 let handles = [handle, args.handle(0)?, args.handle(1)?, args.handle(2)?, args.handle(3)?];
-                let staged = match table.entries_mut(method, handles)? {
-                    [Entry::Expander(xp), Entry::ExpandCx(cx), Entry::Node(site), Entry::CompiledTemplate(template), Entry::PlaceholderBindings(bindings)] => {
-                        xp.instantiate(&mut **cx, &**site, &**template, &**bindings)?
-                    }
-                    [Entry::Expander(xp), Entry::ExpandCx(cx), Entry::Node(site), Entry::CompiledTemplate(template), Entry::ValueBindings(bindings)] => {
-                        xp.instantiate(&mut **cx, &**site, &**template, &*bindings)?
-                    }
-                    [_, cx, site, template, bindings] => {
-                        let bindings = match bindings.kind() {
-                            HandleKind::ValueBindings => HandleKind::PlaceholderBindings,
-                            other => other,
-                        };
-                        let expected = [
-                            (cx.kind(), HandleKind::ExpandCx),
-                            (site.kind(), HandleKind::Node),
-                            (template.kind(), HandleKind::CompiledTemplate),
-                            (bindings, HandleKind::PlaceholderBindings),
-                        ];
-                        let (actual, kind) = expected
-                            .into_iter()
-                            .find(|(actual, kind)| actual != kind)
-                            .unwrap_or((HandleKind::Expander, HandleKind::Expander));
-                        return Err(mismatch(kind, actual));
-                    }
-                };
-                staged.into_reply(table)
+                expander_instantiate(table, handles)?.into_reply(table)
             }
             "lang" => {
                 args.arity(0)?;
-                entry!(table, handle, Expander, Expander);
-                Ok(handle_to_value(table.lend(Entry::BuiltLang(LangEntry::Of(handle)))))
+                Ok(handle_to_value(expander_lang(table, handle)?))
             }
             _ => Err(no_method(HandleKind::Expander, method)),
+        }
+    }
+
+    /// `Expander::instantiate` ([`expander`]) on the objects of `handles`:
+    /// the expander, the context, the use site, the template and the
+    /// bindings (of the kind `placeholder_bindings` or `value_bindings`).
+    ///
+    /// # Errors
+    ///
+    /// The first handle in the wrong place, by its position; what the
+    /// expander answers.
+    pub(crate) fn expander_instantiate(table: &mut CallTable<'_>, handles: [Handle; 5]) -> Result<Vec<Staged>, ExtError> {
+        match table.entries_mut("instantiate", handles)? {
+            [Entry::Expander(xp), Entry::ExpandCx(cx), Entry::Node(site), Entry::CompiledTemplate(template), Entry::PlaceholderBindings(bindings)] => {
+                xp.instantiate(&mut **cx, &**site, &**template, &**bindings)
+            }
+            [Entry::Expander(xp), Entry::ExpandCx(cx), Entry::Node(site), Entry::CompiledTemplate(template), Entry::ValueBindings(bindings)] => {
+                xp.instantiate(&mut **cx, &**site, &**template, &*bindings)
+            }
+            [_, cx, site, template, bindings] => {
+                let bindings = match bindings.kind() {
+                    HandleKind::ValueBindings => HandleKind::PlaceholderBindings,
+                    other => other,
+                };
+                let expected = [
+                    (cx.kind(), HandleKind::ExpandCx),
+                    (site.kind(), HandleKind::Node),
+                    (template.kind(), HandleKind::CompiledTemplate),
+                    (bindings, HandleKind::PlaceholderBindings),
+                ];
+                let (actual, kind) = expected
+                    .into_iter()
+                    .find(|(actual, kind)| actual != kind)
+                    .unwrap_or((HandleKind::Expander, HandleKind::Expander));
+                Err(mismatch(kind, actual))
+            }
+        }
+    }
+
+    /// The built language of the expander `handle`, recorded as the
+    /// expander's handle and asked of it again on every use (`Expander::lang`
+    /// answers a borrow of the expander, which cannot be lent beside it): its
+    /// handle.
+    ///
+    /// # Errors
+    ///
+    /// `handle` is not an expander of the call.
+    pub(crate) fn expander_lang(table: &mut CallTable<'_>, handle: Handle) -> Result<Handle, ExtError> {
+        entry!(table, handle, Expander, Expander);
+        Ok(table.lend(Entry::BuiltLang(LangEntry::Of(handle))))
+    }
+
+    /// The built language of the lowerer `handle`, recorded as
+    /// [`expander_lang`] records an expander's: its handle.
+    ///
+    /// # Errors
+    ///
+    /// `handle` is not a lowerer of the call.
+    pub(crate) fn lowerer_lang(table: &mut CallTable<'_>, handle: Handle) -> Result<Handle, ExtError> {
+        entry!(table, handle, Lowerer, Lowerer);
+        Ok(table.lend(Entry::BuiltLang(LangEntry::Of(handle))))
+    }
+
+    /// A table as a rule's lowerer answers it ([`lowerer_get`]), its objects
+    /// lent or recorded in the call's table.
+    pub(crate) enum LowererTable<'c> {
+        /// A projection, as data.
+        Projection(Value),
+        /// The numbering feature's counters table, recorded
+        /// ([`TableEntry::Recorded`]): its handle.
+        Counters(Handle),
+        /// The references feature's anchors table, recorded: its handle.
+        Anchors(Handle),
+        /// An extension's own table, a rewrite's trees or a backend's lowered
+        /// trees, as an owned copy.
+        Owned(TableValue<'c>),
+    }
+
+    /// `{"projection": data}`, `{"counters": handle}`, `{"anchors": handle}`,
+    /// or an owned table as `TableValue`'s reply writes it.
+    impl<'c> IntoReply<'c> for LowererTable<'c> {
+        fn into_reply(self, table: &mut CallTable<'c>) -> Result<Value, ExtError> {
+            match self {
+                LowererTable::Projection(projection) => Ok(serde_json::json!({ "projection": projection })),
+                LowererTable::Counters(handle) => Ok(serde_json::json!({ "counters": handle_to_value(handle) })),
+                LowererTable::Anchors(handle) => Ok(serde_json::json!({ "anchors": handle_to_value(handle) })),
+                LowererTable::Owned(owned) => owned.into_reply(table),
+            }
         }
     }
 
@@ -456,7 +579,11 @@ pub(crate) mod extra {
     /// trees and a backend's lowered trees as owned copies
     /// ([`get_owned`](crate::sealed::LowererCore::get_owned)); any other
     /// table as its projection.
-    fn lowerer_get(table: &mut CallTable<'_>, handle: Handle, name: &str) -> Result<Value, ExtError> {
+    ///
+    /// # Errors
+    ///
+    /// `handle` is not a lowerer of the call; what the lowerer answers.
+    pub(crate) fn lowerer_get<'c>(table: &mut CallTable<'c>, handle: Handle, name: &str) -> Result<Option<LowererTable<'c>>, ExtError> {
         enum Got {
             None,
             Projection(Value),
@@ -471,16 +598,19 @@ pub(crate) mod extra {
             Some(TableValue::Anchors(_)) => Got::Anchors,
             Some(TableValue::Ext(_) | TableValue::Trees(_) | TableValue::Lowered(_)) => Got::Owned,
         };
-        match got {
-            Got::None => Ok(Value::Null),
-            Got::Projection(projection) => Ok(serde_json::json!({ "projection": projection })),
-            Got::Counters => Ok(serde_json::json!({ "counters": handle_to_value(table.lend(Entry::Counters(TableEntry::Recorded { lowerer: handle, name: name.to_string() }))) })),
-            Got::Anchors => Ok(serde_json::json!({ "anchors": handle_to_value(table.lend(Entry::Anchors(TableEntry::Recorded { lowerer: handle, name: name.to_string() }))) })),
-            Got::Owned => {
-                let owned = entry!(table, handle, Lowerer, Lowerer).get_owned(Token::new(), name)?;
-                owned.into_reply(table)
+        Ok(match got {
+            Got::None => None,
+            Got::Projection(projection) => Some(LowererTable::Projection(projection)),
+            Got::Counters => {
+                let recorded = TableEntry::Recorded { lowerer: handle, name: name.to_string() };
+                Some(LowererTable::Counters(table.lend(Entry::Counters(recorded))))
             }
-        }
+            Got::Anchors => {
+                let recorded = TableEntry::Recorded { lowerer: handle, name: name.to_string() };
+                Some(LowererTable::Anchors(table.lend(Entry::Anchors(recorded))))
+            }
+            Got::Owned => entry!(table, handle, Lowerer, Lowerer).get_owned(Token::new(), name)?.map(LowererTable::Owned),
+        })
     }
 
     /// The counters table `handle` stands for, given to `f`: the façade
@@ -531,31 +661,78 @@ pub(crate) mod extra {
         }
     }
 
+    /// A point's identifier as a request gives it, read back by a table's
+    /// façade against the trees its reader sees ([`PointsCore`]), which no
+    /// argument conversion can do.
+    pub(crate) enum PointArg<'a> {
+        /// As data, `{ addr: { tree, node }, index }`: a request sent as JSON.
+        Data(&'a Value),
+        /// By its parts: the guest client's typed route.
+        #[cfg(feature = "native")]
+        Parts {
+            /// The tree's identifier, as written (`tree#0`).
+            tree: String,
+            /// The node's index in the tree.
+            node: usize,
+            /// The point's index among the node's points.
+            index: u32,
+        },
+    }
+
+    impl PointArg<'_> {
+        /// The point, read back by `points` for its method `method`.
+        fn read<P: PointsCore + ?Sized>(&self, points: &P, method: &str) -> Result<PointId, ExtError> {
+            match self {
+                PointArg::Data(value) => points.point_from_value(Token::new(), method, value),
+                #[cfg(feature = "native")]
+                PointArg::Parts { tree, node, index } => points.point_at(Token::new(), method, tree, *node, *index),
+            }
+        }
+    }
+
     /// `Counters.record` and `Counters.format`: the point is read back from
     /// data by the façade, against the trees its reader sees
     /// ([`PointsCore::point_from_value`]), which no argument conversion
     /// can do; a recorded table is asked of its lowerer again.
-    pub(crate) fn counters<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    pub(crate) fn counters(table: &mut CallTable<'_>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
         match method {
             "record" => {
                 args.arity(1)?;
-                let record = with_counters(table, handle, |counters| {
-                    let point = counters.point_from_value(Token::new(), method, args.get(0))?;
-                    Ok(counters.record(point))
-                })?;
-                record.into_reply(table)
+                counters_record(table, handle, &PointArg::Data(args.get(0)))?.into_reply(table)
             }
             "format" => {
                 args.arity(2)?;
                 let options = format_options_from_value(args.get(1))?;
-                let segments: Option<Vec<NumberSegment<'c>>> = with_counters(table, handle, |counters| {
-                    let point = counters.point_from_value(Token::new(), method, args.get(0))?;
-                    counters.format(point, &options)
-                })?;
-                segments.into_reply(table)
+                counters_format(table, handle, &PointArg::Data(args.get(0)), &options)?.into_reply(table)
             }
             _ => Err(no_method(HandleKind::Counters, method)),
         }
+    }
+
+    /// `Counters.record` ([`counters`]) of `point` in the counters table
+    /// `handle`.
+    ///
+    /// # Errors
+    ///
+    /// `handle` is not a counters table of the call; the point does not read
+    /// back.
+    pub(crate) fn counters_record(table: &mut CallTable<'_>, handle: Handle, point: &PointArg<'_>) -> Result<Option<CounterRecord>, ExtError> {
+        with_counters(table, handle, |counters| Ok(counters.record(point.read(counters, "record")?)))
+    }
+
+    /// `Counters.format` ([`counters`]) of `point` in the counters table
+    /// `handle`, with `options`.
+    ///
+    /// # Errors
+    ///
+    /// As [`counters_record`]; what the table answers.
+    pub(crate) fn counters_format(
+        table: &mut CallTable<'_>,
+        handle: Handle,
+        point: &PointArg<'_>,
+        options: &FormatOptions,
+    ) -> Result<Option<Vec<NumberSegment>>, ExtError> {
+        with_counters(table, handle, |counters| counters.format(point.read(counters, "format")?, options))
     }
 
     /// `Anchors.id`, as [`counters`].
@@ -563,113 +740,187 @@ pub(crate) mod extra {
         match method {
             "id" => {
                 args.arity(1)?;
-                let id = with_anchors(table, handle, |anchors| {
-                    let point = anchors.point_from_value(Token::new(), method, args.get(0))?;
-                    Ok(anchors.id(point))
-                })?;
-                id.into_reply(table)
+                anchors_id(table, handle, &PointArg::Data(args.get(0)))?.into_reply(table)
             }
             _ => Err(no_method(HandleKind::Anchors, method)),
         }
     }
 
-    /// `Lowerer.get_at` has no façade method: `addr_of`, then `get`, then
-    /// [`ExtTableRead::items_at`](api::core::data::table::ExtTableRead::items_at),
-    /// composed here (an extension's own table, restricted to the items at
-    /// one node).
+    /// `Anchors.id` ([`anchors`]) of `point` in the anchors table `handle`.
+    ///
+    /// # Errors
+    ///
+    /// `handle` is not an anchors table of the call; the point does not read
+    /// back.
+    pub(crate) fn anchors_id(table: &mut CallTable<'_>, handle: Handle, point: &PointArg<'_>) -> Result<Option<String>, ExtError> {
+        with_anchors(table, handle, |anchors| Ok(anchors.id(point.read(anchors, "id")?)))
+    }
+
+    /// `Lowerer.get` answers a borrow of the lowerer ([`lowerer_get`]);
+    /// `Lowerer.lang` too ([`lowerer_lang`]); `Lowerer.get_at` has no façade
+    /// method: `addr_of`, then `get`, then
+    /// [`ExtTableRead::items_at`](crate::api::core::data::table::ExtTableRead::items_at),
+    /// composed in [`lowerer_get_at`].
     pub(crate) fn lowerer(table: &mut CallTable<'_>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
         match method {
             "get" => {
                 args.arity(1)?;
-                lowerer_get(table, handle, args.text(0)?)
+                lowerer_get(table, handle, args.text(0)?)?.into_reply(table)
             }
             "lang" => {
                 args.arity(0)?;
-                entry!(table, handle, Lowerer, Lowerer);
-                Ok(handle_to_value(table.lend(Entry::BuiltLang(LangEntry::Of(handle)))))
+                Ok(handle_to_value(lowerer_lang(table, handle)?))
             }
             "get_at" => {
                 args.arity(2)?;
                 let name = args.text(0)?;
                 let node = node_from_table(table, args.handle(1)?)?;
-                let lw = entry!(table, handle, Lowerer, Lowerer);
-                let addr = lw.addr_of(&*node)?;
-                match lw.get(name)? {
-                    None => Ok(Value::Null),
-                    Some(TableValue::Ext(read)) => {
-                        // Data, checked on its way out (the reply's conversion
-                        // would need the table, which the read borrows).
-                        let items = Value::Array(read.items_at(&addr));
-                        check_data(&items)?;
-                        Ok(items)
-                    }
-                    Some(_) => Err(argument(format!(
-                        "the table `{name}` must be a table an extension declared, whose items are data"
-                    ))),
-                }
+                lowerer_get_at(table, handle, name, &*node)?.into_reply(table)
             }
             _ => Err(no_method(HandleKind::Lowerer, method)),
         }
     }
 
-    /// The module functions written by hand: `arg_def_from_code`, whose
-    /// reply (an `ArgDef`) is written with the code it was read from, which
-    /// the reply's conversion cannot know; `line_frames`, whose first
+    /// The items of the table `name` at `node`, as the lowerer `handle`
+    /// answers them (an extension's own table, restricted to the items at
+    /// one node); `None` when the lowerer has no table `name`.
+    ///
+    /// # Errors
+    ///
+    /// `handle` is not a lowerer of the call; the table is not one an
+    /// extension declared ([`ExtError::Argument`]); what the lowerer answers.
+    pub(crate) fn lowerer_get_at(table: &mut CallTable<'_>, handle: Handle, name: &str, node: &dyn Node<'_>) -> Result<Option<Vec<Value>>, ExtError> {
+        let lw = entry!(table, handle, Lowerer, Lowerer);
+        let addr = lw.addr_of(node)?;
+        match lw.get(name)? {
+            None => Ok(None),
+            Some(TableValue::Ext(read)) => Ok(Some(read.items_at(&addr))),
+            Some(_) => Err(argument(format!("the table `{name}` must be a table an extension declared, whose items are data"))),
+        }
+    }
+
+    /// The module functions written by hand: `line_frames`, whose first
     /// argument is one of two kinds (`stage_cx` or `lowerer`), the
-    /// `FrameReader` borrowing the entry across the call. Any other name is
-    /// no function of the module.
+    /// `FrameReader` borrowing the entry across the call; `TemplateLanguage::new`
+    /// and `compile_template_with`, which take a built language, which a
+    /// recorded entry asks of its lowerer or expander again; `instantiate`,
+    /// whose bindings are one of two kinds; `ExtraValues::over`, whose
+    /// receiver is data and whose base is one of two kinds
+    /// (`placeholder_bindings` or `value_bindings`). Any other name is no
+    /// function of the module.
     pub(crate) fn module<'c>(table: &mut CallTable<'c>, path: &str, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
         match (path, method) {
-            ("lang/mint", "arg_def_from_code") => {
-                args.arity(1)?;
-                let code = args.text(0)?;
-                Ok(arg_def_to_value(&api::lang::mint::arg_def_from_code(code)?))
-            }
             ("stdcore/features/math", "line_frames") => {
                 args.arity(4)?;
                 let (anchors, counters) = (args.flag(1)?, args.flag(2)?);
                 let node = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 3)?;
-                let frames = match table.entry(args.handle(0)?)? {
-                    Entry::StageCx(cx) => math::line_frames(math::FrameReader::Stage(*cx), anchors, counters, &*node)?,
-                    Entry::Lowerer(lw) => math::line_frames(math::FrameReader::Rule(&**lw), anchors, counters, &*node)?,
-                    other => {
-                        return Err(argument(format!(
-                            "argument 1 must be a stage's context (`stage_cx`) or a rule's lowerer (`lowerer`), not an \
-                             object of the kind `{}`",
-                            other.kind().name()
-                        )));
-                    }
-                };
-                frames.into_reply(table)
+                line_frames(table, args.handle(0)?, anchors, counters, &*node)?.into_reply(table)
             }
             ("lang/rewrites/userdefs", "TemplateLanguage::new") => {
                 args.arity(1)?;
-                let language = with_lang(table, args.handle(0)?, |lang| userdefs::TemplateLanguage::new(lang))?;
-                language.into_reply(table)
+                template_language_new(table, args.handle(0)?)?.into_reply(table)
             }
             ("lang/rewrites/userdefs", "compile_template_with") => {
                 args.arity(3)?;
                 let spec = <userdefs::TemplateSpec as FromArg>::from_arg(table, args, 0)?;
                 let language = entry!(table, args.handle(2)?, TemplateLanguage, TemplateLanguage).clone();
-                let template = with_lang(table, args.handle(1)?, |lang| userdefs::compile_template_with(&spec, lang, &language))?;
-                template.into_reply(table)
+                compile_template_with(table, &spec, args.handle(1)?, &language)?.into_reply(table)
             }
             ("lang/rewrites/userdefs", "instantiate") => {
                 args.arity(3)?;
                 let site = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 0)?;
-                let node = match table.entries_mut(method, [args.handle(1)?, args.handle(2)?])? {
-                    [Entry::CompiledTemplate(template), Entry::PlaceholderBindings(bindings)] => {
-                        userdefs::instantiate(&*site, &**template, &**bindings)?
-                    }
-                    [Entry::CompiledTemplate(template), Entry::ValueBindings(bindings)] => {
-                        userdefs::instantiate(&*site, &**template, &*bindings)?
-                    }
-                    [Entry::CompiledTemplate(_), other] => return Err(mismatch(HandleKind::PlaceholderBindings, other.kind())),
-                    [other, _] => return Err(mismatch(HandleKind::CompiledTemplate, other.kind())),
-                };
-                node.into_reply(table)
+                instantiate(table, &*site, args.handle(1)?, args.handle(2)?)?.into_reply(table)
+            }
+            ("lang/rewrites/userdefs", "ExtraValues::over") => {
+                args.arity(2)?;
+                let values = <userdefs::ExtraValues as FromArg>::from_arg(table, args, 0)?;
+                extra_values_over(table, &values, args.handle(1)?)?.into_reply(table)
             }
             _ => Err(argument(format!("the module `{path}` has no function `{method}`"))),
+        }
+    }
+
+    /// `line_frames` ([`module`]) with the reader `reader`, a handle of the
+    /// kind `stage_cx` or `lowerer`.
+    ///
+    /// # Errors
+    ///
+    /// `reader` is an object of another kind ([`ExtError::Argument`]); what
+    /// `line_frames` answers.
+    pub(crate) fn line_frames<'t>(
+        table: &mut CallTable<'_>,
+        reader: Handle,
+        anchors: bool,
+        counters: bool,
+        node: &dyn Node<'t>,
+    ) -> Result<Vec<math::LineFrame<'t>>, ExtError> {
+        match table.entry(reader)? {
+            Entry::StageCx(cx) => math::line_frames(math::FrameReader::Stage(*cx), anchors, counters, node),
+            Entry::Lowerer(lw) => math::line_frames(math::FrameReader::Rule(&**lw), anchors, counters, node),
+            other => Err(argument(format!(
+                "argument 1 must be a stage's context (`stage_cx`) or a rule's lowerer (`lowerer`), not an object of the kind `{}`",
+                other.kind().name()
+            ))),
+        }
+    }
+
+    /// `TemplateLanguage::new` ([`module`]) of the built language `lang`.
+    ///
+    /// # Errors
+    ///
+    /// `lang` is not a built language of the call; what the constructor
+    /// answers.
+    pub(crate) fn template_language_new(table: &mut CallTable<'_>, lang: Handle) -> Result<userdefs::TemplateLanguage, ExtError> {
+        with_lang(table, lang, |lang| userdefs::TemplateLanguage::new(lang))
+    }
+
+    /// `compile_template_with` ([`module`]) of `spec` against the built
+    /// language `lang`, in `language`.
+    ///
+    /// # Errors
+    ///
+    /// `lang` is not a built language of the call; what the function
+    /// answers.
+    pub(crate) fn compile_template_with(
+        table: &mut CallTable<'_>,
+        spec: &userdefs::TemplateSpec,
+        lang: Handle,
+        language: &userdefs::TemplateLanguage,
+    ) -> Result<DurableTemplateFacade, ExtError> {
+        with_lang(table, lang, |lang| userdefs::compile_template_with(spec, lang, language))
+    }
+
+    /// `instantiate` ([`module`]) of the template `template` with the
+    /// bindings `bindings` (of the kind `placeholder_bindings` or
+    /// `value_bindings`) at the use site `site`.
+    ///
+    /// # Errors
+    ///
+    /// A handle of another kind, by its position; what the function answers.
+    pub(crate) fn instantiate(table: &mut CallTable<'_>, site: &dyn Node<'_>, template: Handle, bindings: Handle) -> Result<Box<dyn Tree>, ExtError> {
+        match table.entries_mut("instantiate", [template, bindings])? {
+            [Entry::CompiledTemplate(template), Entry::PlaceholderBindings(bindings)] => userdefs::instantiate(site, &**template, &**bindings),
+            [Entry::CompiledTemplate(template), Entry::ValueBindings(bindings)] => userdefs::instantiate(site, &**template, &*bindings),
+            [Entry::CompiledTemplate(_), other] => Err(mismatch(HandleKind::PlaceholderBindings, other.kind())),
+            [other, _] => Err(mismatch(HandleKind::CompiledTemplate, other.kind())),
+        }
+    }
+
+    /// `ExtraValues::over` ([`module`]): `values` over the bindings `base`
+    /// (of the kind `placeholder_bindings` or `value_bindings`).
+    ///
+    /// # Errors
+    ///
+    /// `base` is an object of another kind.
+    pub(crate) fn extra_values_over<'c>(
+        table: &mut CallTable<'c>,
+        values: &userdefs::ExtraValues,
+        base: Handle,
+    ) -> Result<Box<dyn userdefs::PlaceholderBindings + 'c>, ExtError> {
+        match table.entry(base)? {
+            Entry::PlaceholderBindings(base) => Ok(values.over(&**base)),
+            Entry::ValueBindings(base) => Ok(values.over(&*base)),
+            other => Err(mismatch(HandleKind::PlaceholderBindings, other.kind())),
         }
     }
 

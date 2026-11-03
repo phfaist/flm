@@ -131,7 +131,10 @@ pub struct HtmlTagPayload {
     ///
     /// The emitter checks it
     /// ([`is_valid_tag_name`](super::names::is_valid_tag_name)); a node whose
-    /// name fails is reported and written as the unsupported stand-in.
+    /// name fails is reported and written as the unsupported stand-in. A
+    /// paragraph holding a tag that HTML does not allow inside a `<p>` (a
+    /// `div`, a `ul`, a `table`, …) is written as a `<div>` (see [the
+    /// emitter](super::emit)).
     pub tag: String,
     /// The attributes, each a name and a value, written in this order.
     ///

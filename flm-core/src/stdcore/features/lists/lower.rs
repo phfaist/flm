@@ -100,7 +100,6 @@ pub(super) fn report_reading(
     report_problems(&options.problems, environment, node.span(), lw);
     // Accepted and set aside, so that a list switched between a numbered and
     // an unnumbered kind keeps its bracket.
-    // See decision rationale at [§flm-dd-dr:std-item-labels].
     if options.ref_label.is_some() && !value.kind.numbered {
         lw.diagnose(Diagnostic::note(
             RefIgnored { environment: environment.to_string() },
@@ -222,7 +221,6 @@ impl ListRule {
     // The text is compiled a second time here, as a number format, since
     // the compiled label holds a template, not the compiled number format a
     // counter style needs; once per list.
-    // See decision rationale at [§flm-dd-dr:std-item-labels].
     fn label_style(
         &self,
         body: &ListBody<'_>,
@@ -339,7 +337,6 @@ fn stage_compiles(value: &ListElement, body: &ListBody<'_>, counted: bool, text:
 ///
 /// The template is compiled against the language the [`Lowerer`] gives the
 /// rule, since nothing else compiles it where the numbering stage does not.
-// See decision rationale at [§flm-dd-dr:rend-rule-lang].
 pub(super) fn own_label(
     labels: &Labels,
     node: &NodeRef<'_, Flm>,
@@ -617,8 +614,9 @@ impl Lower for ListRule {
                 }
             }
         }
-        // Each item is a link target, anchored as its reference point is.
-        // See decision rationale at [§flm-dd-dr:rend-list-entry-anchors].
+        // Each item is a link target, anchored as its reference point is. The
+        // entries are slots of the list node, not nodes of their own, so their
+        // anchors travel on the list's payload, one per entry.
         let anchors = item_anchors(&node, &body, lw)?;
         let mut entry_anchors: Vec<Option<String>> = Vec::new();
         let mut slots: Vec<(String, Vec<BuildId>)> = Vec::new();

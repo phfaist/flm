@@ -132,8 +132,8 @@ impl Stage for Count {
         let min = cx.option("wordcount.counting")?["min_length"].as_u64().unwrap_or(1) as usize;
         let tree = cx.tree_id()?.unwrap_or_default();
         let mut words = 0;
-        if let Some(root) = cx.my_tree()? {
-            for node in root.descendants()? {
+        if let Some(my_tree) = cx.my_tree()? {
+            for node in my_tree.root()?.descendants()? {
                 if node.is_chars()? {
                     words += helpers::count_words(&node.chars()?.unwrap_or_default(), min);
                 }
@@ -167,8 +167,8 @@ impl Stage for Todos {
 
     fn run(&self, cx: &StageCx, out: &mut StageOut) -> Result<(), ExtError> {
         let Some(TableValue::Trees(trees)) = cx.get("flm.userdefs.always-expanded")? else { return Ok(()) };
-        for (tree, root) in trees.trees()? {
-            for node in root.descendants()? {
+        for (tree, expanded) in trees.trees()? {
+            for node in expanded.root()?.descendants()? {
                 if node.is_callable()? && node.element_name()? == self.element {
                     let text = chars_text(&node.argument_content_nodes_named("text")?.unwrap_or_default())?;
                     out.table(TODOS)?.push(json!({ "tree": tree, "text": text }))?;

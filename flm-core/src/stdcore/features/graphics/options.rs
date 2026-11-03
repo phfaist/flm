@@ -310,8 +310,8 @@ fn read(node: &NodeRef<'_, Flm>) -> Result<(ImageOptions, Vec<Finding>), LowerEr
         };
         match dimension(key, &written) {
             Ok(length) => {
-                // A Warning for a dimension taken, none for one refused.
-                // See decision rationale at [§flm-dd-dr:std-graphics-options].
+                // A Warning for a dimension taken, none for one refused: a
+                // refused dimension resizes nothing, and its Error says why.
                 if key == WIDTH_KEY {
                     options.width = Some(length);
                 } else {

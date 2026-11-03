@@ -158,7 +158,6 @@ impl CacheStore for MemoryStore {
 /// when polled and never wait for a wake-up, so the loop needs no asynchronous runtime. A
 /// fetcher whose future stays pending until something wakes it keeps this loop polling it,
 /// with only a yield of the thread between two polls, until the future is ready.
-// See decision rationale at [§flm-dd-dr:host-citations-per-call]
 pub(super) fn block_on<F: Future>(future: F) -> F::Output {
     let mut future = std::pin::pin!(future);
     let mut cx = Context::from_waker(Waker::noop());

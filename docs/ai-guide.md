@@ -51,16 +51,25 @@ and for the everyday embedding flow. For deeper work, load at most one more page
   (the engine `native`, under the cargo feature `native`), and
   lets their features reach `flm-core` through an interface that mirrors `flm-core`'s
   own items. See [Extensions](crate::guide::extending#extensions).
-- **`flm-phfpack`** is an extension crate, the package `phfpack` (macros for the notation
-  and quantities of quantum information), written over `flm-core`'s public interface
-  alone. The `flm` program carries it under its default cargo feature `phfpack`; a
-  document uses it by listing it under `use` in its front matter.
 - **`flmdoc`** is a Rust extension compiled into the program (engine `native`): the markup
   of documentation pages, a Markdown-style code span between backticks, the constructs
   `docitem`, `\docsignature`, `\docsummary`, `docparams`/`\docparam`, `\docfield`, and the
   link `\docref{path}{text}` with the render setting `flmdoc.link_style` (`command`, `path`).
   `flm info` writes its pages in it; a document uses it with `use: [flmdoc]`
   ([the extension flmdoc](crate::guide::extending#writing-documentation-pages-the-extension-flmdoc)).
+- **`phfpack`** is a Rust extension compiled into the program (engine `native`), written
+  against the guest client `flm_ext::guest` alone: notation and quantity macros for
+  quantum information in formulas (bras and kets, norms, operators, gates, groups,
+  entropies), with delimiters drawn at the size a use asks for, the backtick form, and
+  macros a front matter declares under `flm.features.phfqit.macro_definitions`. A document uses it
+  with `use: [phfpack]` ([A Rust extension, end to
+  end](crate::guide::extending#a-rust-extension-end-to-end)).
+- **The other shipped extensions** come with the `flm` program, compiled in under its
+  cargo feature `bundled-extensions` (on by default), as `flmdoc` and `phfpack` do:
+  `profile-pdf-latex` (the profile `pdf-latex`) and `syntax-highlight` (the highlighting of
+  code listings), written in Rust; `math-mathjax` (JavaScript: the default math
+  processor); `lecturenotes` (data: a compose template for HTML)
+  ([Where extensions are looked for](crate::guide::command_line#where-extensions-are-looked-for)).
 
 Two facts constrain everything a caller does:
 
@@ -88,10 +97,11 @@ canonical one; the link leads to where the term is documented in full.
 | fragment, tree, document | a fragment is one piece of source as the parser delivered it (its tree, its source, its parse diagnostics); a tree is one placement of a fragment's node tree in a document, numbered by the document's arena; a document is its content (the tree arena, the traversal list and the resolution map) and the option values bound on it, and nothing else | [`Fragment`](crate::model::doc::Fragment), [`TreeId`](crate::model::addr::TreeId), [`Doc`](crate::model::doc::Doc) |
 | raw tree, structured tree | a raw tree is a tree the block-structure rewrite has not laid out: it stays as parsed, without paragraphs and with its text unresolved (the capability `flm.blocks.raw`); a structured tree is a tree that rewrite has laid out in paragraphs and blocks, with its text resolved (`flm.blocks.structured`) | [`RAW`](crate::stdcore::features::blocks::RAW), [`STRUCTURED`](crate::stdcore::features::blocks::STRUCTURED) |
 | frozen tree | a document tree after the rewrite stages have run: it is never changed again, and everything a later stage computes about it is stored in tables beside it, keyed by node address | [frozen trees and computed data](crate::guide::concepts_overview#frozen-trees-and-computed-data) |
-| structural elements | the elements of the node shapes no feature declares: text, comments, containers, groups of each class, paragraph breaks, template placeholders, and the macros and environments a parse could not attribute to any feature (`flm.unknown.macro`, `flm.unknown.environment`) | [`StructuralElements`](crate::lang::structural::StructuralElements) |
+| structural elements | the elements of the node shapes no feature declares: text, comments, containers, groups of each class, paragraph breaks, template placeholders, fields (`flm.field`), and the macros and environments a parse could not attribute to any feature (`flm.unknown.macro`, `flm.unknown.environment`) | [`StructuralElements`](crate::lang::structural::StructuralElements) |
 | content region | a run of sibling nodes laid out together: a fragment's top level, a body, an argument, a group's children; the block-structure pass lays each out as blocks, inline, or opaque (its region layout) | [`crate::lang::rewrites::blocks`] |
+| block, paragraph, block role, displayed item | a block is content laid out vertically among other blocks (a paragraph, a list, a heading, a float); a paragraph is the block that holds running text, and it holds no block; an element's block role ([`BlockRole`](crate::model::aspects::BlockRole): `Block`, `Inline`, `Displayed`, `BlockDecorator`) says whether a node is a block, inline content, a displayed item or a decorator attached to its block; a displayed item stands inside its paragraph, set on lines of its own, with the whitespace on both sides removed (`\[…\]`, `$$…$$`, the six display-math environments); text after a block is a new paragraph, text after a displayed item with no blank line continues its paragraph | [paragraphs, blocks and displayed items](crate::guide::concepts_overview#paragraphs-blocks-and-displayed-items) |
 | opaque region, verbatim region, opaque wrapper | an opaque region is a part of a tree that the rewrite passes carry over untouched (mathematics and verbatim content, any run parsed in math mode, the content of an opaque wrapper); the lowering copies mathematics and verbatim content unchanged and writes an opaque wrapper through its children; a verbatim region is a run of raw text in which no markup character means anything, always inside a group of the verbatim class; an opaque wrapper is a group with no delimiters (`flm.opaque-wrapper`) that the parser places around the content of an argument or a body declared `with_opaque_wrapper()`, of every characters-only group, and of a proof title that begins with a star, so that the element reads the text as typed (`\cite`'s keys, `\label`, `\ref`, `\hyperref`'s target, a proof's back-reference) | [opaque regions](crate::guide::concepts_overview#opaque-regions) |
-| field, tack-on argument | a field is a macro that a construct absorbs as data rather than as content (`\label` after a heading; `\\`, `\label`, `\tag` and `\nonumber` in a display-math body); a tack-on argument is the trailing argument through which a construct absorbs the field macros written after its other arguments | [fields](crate::guide::concepts_overview#fields-data-a-construct-reads) |
+| field, tack-on argument | a field is a macro that a construct absorbs as data rather than as content (`\label` after a heading; `\\`, `\label`, `\tag` and `\nonumber` in a display-math body); a tack-on argument is the argument through which a construct absorbs the field macros written at its position in a call, after the arguments declared before it | [fields](crate::guide::concepts_overview#fields-data-a-construct-reads) |
 | scoped package | a set of element declarations that can be written only inside the environment bodies and arguments whose declarations refer to the package by name, for instance `\item` inside a list's body or `\caption` inside a float's body | [`ScopedPackageDef`](crate::lang::mint::ScopedPackageDef) |
 | synthesized value | a small tree that a stage builds while a run is under way, held outside the document's trees and numbered per stage invocation; a consumer brings it up to date through value catch-up before reading it as document content | [synthesized values](crate::guide::concepts_overview#synthesized-values) |
 | diagnostic, condition | a diagnostic reports a problem with a document: a severity (Error, Warning or Note), a position, and a typed condition with its data; its message is written for a person and is not a stable interface. A condition is the typed body of a diagnostic, identified as `flm.<feature>.<condition>` | [diagnostics](crate::guide::concepts_overview#diagnostics) |
@@ -325,20 +335,24 @@ flm:
 structured syntax is a map whose key `syntax` names a standard kind (`mandatory`,
 `optional`, `star`, `marker`, `delimited-group`, `optional-delimited-group`,
 `any-delimited-group`, `optional-any-delimited-group`, `braced-only`, `embellishments`,
-`key-vals`, `chars-group`, `verbatim`, `terminated`) with the kind's parameters beside it
-(`delimiters: ["<", ">"]`, `markers`, `marker`, `terminator`, …: [the kind as
+`key-vals`, `chars-group`, `verbatim`, `tack-on`, `terminated`) with the kind's parameters
+beside it (`delimiters: ["<", ">"]`, `markers`, `marker`, `terminator`, `fields`, …: [the kind as
 data](crate::lang::mint::ArgStdKind#the-kind-as-data)). An argument code is its shorthand
 (`{` or `m` mandatory, `[` or `o` optional, `*` or `s` star, `v` verbatim, `r<c1><c2>` a
 `delimited-group`, and others: [the table of argument
 codes](crate::lang::mint::codes#the-codes)), written alone or under the key `code` of a
-map; `chars-group`, `key-vals` and a `terminated` argument with an `opener` or a `head`
-have no code. A map holds exactly one of `syntax` and `code`, beside the argument's
+map; `chars-group`, `key-vals`, `tack-on` and a `terminated` argument with an `opener` or
+a `head` have no code. A `tack-on` argument absorbs the fields written at its position in
+a call, as `\section{…}` absorbs `\label{…}`: `{syntax: tack-on, fields: [{name: label, args:
+[{syntax: chars-group}], repeatable: true}]}`; a template cannot refer to it. A map holds exactly one of `syntax` and `code`, beside the argument's
 `name`, `layout`, `opaque_wrapper`, `docs`, `mode`, `scoped` and `role`. A placeholder is
 replaced by the argument's content nodes and nothing else, whatever the argument's kind and
 its `opaque_wrapper`: the text is kept as typed only where the template places the
 placeholder in an argument that its command reads as typed (`\cite{#1}`, `\ref{#1}`).
-Other keys: `defaults`, `argument_number_offset`, `block_role`, `expand` (`per-plan`, the
-default, or `always`), `overrides`, `docs`. The template language and its conditionals
+Other keys: `defaults`, `argument_number_offset`, `block_role` (`block`, `displayed`,
+`{inline: {absorb_before: …, absorb_after: …}}` or `{block-decorator: leads|trails|free}`;
+inline content by default), `expand` (`per-plan`, the default, or `always`), `overrides`,
+`docs`. The template language and its conditionals
 (`\IfValueT`, `\IfProvidedTF`, `\ifblank`, …) are described under [the template
 language](crate::guide::language_syntax#the-template-language).
 

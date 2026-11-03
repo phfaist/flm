@@ -402,7 +402,9 @@ fn bibtex_type(csl: &str) -> &'static str {
 /// ([`latex_text`]), except the identifiers and the address (`doi`, `eprint`, `arxivid`,
 /// `url`), which BibTeX passes to LaTeX unchanged and which are written character for
 /// character.
-// See decision rationale at [§flm-dd-dr:host-citations-exports]
+// The entry is written here rather than by the `biblatex` crate's writer, which escapes the
+// characters of a formula (`$x\^2$`) and the backslash of a command, so that its output
+// loses formulas.
 fn bibtex_entry(key: &str, record: &CslValue) -> String {
     let record = with_family_names(record);
     let csl_type = record.get("type").and_then(CslValue::as_str).unwrap_or_default();

@@ -4,7 +4,7 @@
 
 use crate::api::core::data::store::StageOut;
 use crate::api::core::run::{RewriteCx, StageCx};
-use crate::api::techy::node::Node;
+use crate::api::techy::node::{Node, Tree};
 use crate::api::techy::transform::{Restage, Restager};
 use crate::runtime::ExtError;
 use crate::sealed::Sealed;
@@ -35,8 +35,7 @@ pub trait Stage: Send + Sync {
     /// Mirrors [`Stage::run`](flm_core::core::stage::Stage::run): the stage's
     /// work, reading through `cx` and writing through `out`. What differs: both
     /// borrows share one lifetime, the call's `'c`, so that a binding can lend
-    /// them into one [`CallTable<'c>`](crate::adapter::handles::CallTable)
-    /// (plan A, A18).
+    /// them into one [`CallTable<'c>`](crate::adapter::handles::CallTable).
     ///
     /// # Errors
     ///
@@ -288,17 +287,15 @@ impl RewriteDecl {
 
 /// Mirrors [`TreesTable`](flm_core::core::stage::TreesTable): a rewrite's
 /// output tree for each tree it ran on. What differs: a façade over the table,
-/// reading its public field `trees`; tree ids are their display text and each
-/// tree is its root node. `'t` is the lifetime of the trees, as for
-/// [`Node`].
+/// reading its public field `trees`; tree ids are their display text.
 ///
 /// The trait is sealed: the adapter alone implements it.
-pub trait TreesTable<'t>: Sealed {
+pub trait TreesTable: Sealed {
     /// The table's trees, by id, in id order.
-    fn trees(&self) -> Vec<(String, Box<dyn Node<'t> + 't>)>;
+    fn trees(&self) -> Vec<(String, Box<dyn Tree>)>;
 
-    /// The root of the tree of id `id`, if the table holds it.
-    fn tree(&self, id: &str) -> Option<Box<dyn Node<'t> + 't>>;
+    /// The tree of id `id`, if the table holds it.
+    fn tree(&self, id: &str) -> Option<Box<dyn Tree>>;
 }
 
-fn _object_safe(_: &dyn Stage, _: &dyn RewriteStage, _: &dyn TreesTable<'_>) {}
+fn _object_safe(_: &dyn Stage, _: &dyn RewriteStage, _: &dyn TreesTable) {}

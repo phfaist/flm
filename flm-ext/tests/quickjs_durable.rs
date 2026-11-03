@@ -1,11 +1,11 @@
-//! Durable tokens through JavaScript (plan E4, sections 6.2 and 3.6): a
+//! Durable tokens through JavaScript: a
 //! template compiled in a late-initialization hook and found again by a rule
 //! on another engine instance without a second compilation; a token kept in
 //! module scope across calls, and stale under a second registry built from the
 //! same package; `lw.lang()` and `xp.lang()` given to `new TemplateLanguage`;
 //! `instantiate` spliced by a rule and `xp.instantiate` in a hook, with
-//! `ValueBindings`; and the refusals a script meets (a node that is not a
-//! tree's root, a specification that does not compile).
+//! `ValueBindings`; and the refusal a script meets when a specification does
+//! not compile.
 //!
 //! Run also under `--features flm-core/parallel`, where the run's stages go
 //! to the runner's thread pool.
@@ -44,7 +44,6 @@ use common::{js_factory, registry_with, text_of};
 ///   instantiating it through `xp.instantiate` with the number `5`, its note
 ///   the token of `new TemplateLanguage(xp.lang())`;
 /// - `\wclang{}`: a rule noting the token of `new TemplateLanguage(lw.lang())`;
-/// - `\wcroot{}`: a rule giving `ValueBindings.with` the node it lowers;
 /// - `\wcbad{}`: a rule compiling a template that names an unknown placeholder.
 const MAIN: &str = r#"
 import { LoweringRule, LoweringDecl, DefaultMark, Lowering } from "flm:core/lowering";
@@ -71,10 +70,10 @@ function spec(text) {
 function compile(lang, text) { return compile_template_with(spec(text), lang, new TemplateLanguage(lang)); }
 
 // The tree of `title` with the number `number`, itself a template
-// instantiated with no value, whose root node the bindings take.
+// instantiated with no value, whose tree the bindings take.
 function title_tree(node, lang, title, number) {
-  const root = instantiate(node, compile(lang, number), new ValueBindings());
-  return instantiate(node, title, new ValueBindings().with("number", root));
+  const tree = instantiate(node, compile(lang, number), new ValueBindings());
+  return instantiate(node, title, new ValueBindings().with("number", tree));
 }
 
 function caught(error) { return `${error.kind}|${error.message}`; }
@@ -111,10 +110,6 @@ function register(b) {
     catch (error) { return [caught(error), []]; }
   });
   rule(b, "lang", (node, cx, lw) => [JSON.stringify(new TemplateLanguage(lw.lang())), []]);
-  rule(b, "root", (node, cx, lw) => {
-    try { new ValueBindings().with("number", node); return ["accepted", []]; }
-    catch (error) { return [caught(error), []]; }
-  });
   rule(b, "bad", (node, cx, lw) => {
     try { compile(lw.lang(), "A #{nope}"); return ["compiled", []]; }
     catch (error) { return [JSON.stringify({ name: error.name, kind: error.kind, core_kind: error.data.core_kind, texts: error.data.data }), []]; }
@@ -126,8 +121,8 @@ function register(b) {
       const language = new TemplateLanguage(xp.lang());
       xp.diagnose({ id: "wc.note", severity: "warning", message: JSON.stringify(language) });
       const title = compile(xp.lang(), "Hook #{number}");
-      const root = instantiate(node, compile(xp.lang(), "5"), new ValueBindings());
-      return Expansion.Emit(xp.instantiate(cx, node, title, new ValueBindings().with("number", root)));
+      const tree = instantiate(node, compile(xp.lang(), "5"), new ValueBindings());
+      return Expansion.Emit(xp.instantiate(cx, node, title, new ValueBindings().with("number", tree)));
     },
   }));
   b.lowering_rule(expand_in_tree_rule_for(element, hook.definition()));
@@ -251,15 +246,6 @@ fn a_hook_instantiates_through_the_expander_with_value_bindings() {
     let (_, others) = notes(&diagnostics);
     assert!(others.is_empty(), "{others:?}");
     assert_eq!(text, "A Hook 5 b.\n");
-}
-
-#[test]
-fn value_bindings_refuse_a_node_that_is_not_a_tree_s_root() {
-    let registry = registry_of(&factory());
-    let (_, diagnostics) = text_of(&registry, "A \\wcroot{}.");
-    let (notes, others) = notes(&diagnostics);
-    assert!(others.is_empty(), "{others:?}");
-    assert_eq!(notes, ["argument|`with`: the value of the placeholder `number` must be the root node of a tree"]);
 }
 
 #[test]

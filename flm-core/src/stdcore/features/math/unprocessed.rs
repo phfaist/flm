@@ -24,8 +24,6 @@
 //! display-math environment, so the plan of a standard workflow builds for a
 //! registry that holds the `math` feature and no processing feature.
 
-// See decision rationale at [§flm-dd-dr:math-processor-demands-content].
-
 use std::sync::Arc;
 
 use techy::core::node::NodeRef;
@@ -36,7 +34,7 @@ use crate::core::lowering::{
 };
 use crate::core::registry::{BuildError, FeatureBuilder};
 use crate::lang::Flm;
-use crate::lang::mint::FIELD;
+use crate::lang::structural::FIELD;
 use crate::lang::structural::MATH;
 use crate::model::element::element_of;
 use crate::model::names::{ElementName, Name};

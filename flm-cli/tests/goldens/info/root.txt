@@ -160,8 +160,8 @@ Features
   registry is built, which also records whether each definition can be written
   as one LaTeX definition.
 
-• lowering <flm info features/lowering>: the presentation vocabulary, the field
-  element and the structural elements’ default lowering rules
+• lowering <flm info features/lowering>: the presentation vocabulary and the
+  structural elements’ default lowering rules
 
 • meta <flm info features/meta>: The document’s metadata (its title, its
   authors, its date and any other key) as an option set per document, and the

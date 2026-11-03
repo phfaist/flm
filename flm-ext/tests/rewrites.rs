@@ -1,8 +1,8 @@
-//! Rewrite stages (E5, WP-2): a rewrite stage written in Rust against the
+//! Rewrite stages: a rewrite stage written in Rust against the
 //! extension API, run by the adapter as `flm-core`'s rewrite stage over
 //! techy's driver. The stage replaces dashes inside characters (outside
 //! mathematics and verbatim), rebuilds a macro call from its parts, and each
-//! failure path of the plan's section 6.4 is exercised. The registry switches
+//! of its failure paths is exercised. The registry switches
 //! the `blocks` feature's own dash ligatures off, so that every dash of the
 //! text output is the rewrite's.
 
@@ -349,8 +349,8 @@ fn a_later_stage_reads_the_published_trees() {
             let Some(TableValue::Trees(trees)) = cx.get("sd.dashed")? else {
                 return Err(ExtError::Handler { detail: "no trees".to_string(), data: Value::Null });
             };
-            for (tree, root) in trees.trees() {
-                let text: String = root.descendants().iter().filter_map(|node| node.chars()).collect();
+            for (tree, rewritten) in trees.trees() {
+                let text: String = rewritten.root().descendants().iter().filter_map(|node| node.chars()).collect();
                 out.table("sd.seen")?.push(json!({ "tree": tree, "text": text }))?;
             }
             Ok(())
@@ -481,7 +481,7 @@ fn content_not_staged_by_the_call_is_refused() {
 
 /// Content is recorded as placed, as an `Emit` places its nodes: the same
 /// staged nodes given as content twice, or given as content and also
-/// emitted, is the method's refusal (message 10), which the handler may
+/// emitted, is the method's refusal, which the handler may
 /// catch; the tree is rewritten.
 #[test]
 fn content_given_twice_or_given_and_emitted_is_refused() {
@@ -574,11 +574,6 @@ fn a_diagnostic_of_the_handler_is_reported_at_the_node() {
     let stage = rewrite(|node, _, rs| {
         if node.element_name() == "sd.quote" {
             rs.diagnose(Diagnostic::warning("sd.quote.seen", "a quote"))?;
-            let refused = rs.diagnose(Diagnostic::error("other.seen", "outside")).err().map(|error| error.to_string());
-            assert_eq!(
-                refused.as_deref(),
-                Some("the diagnostic `other.seen` declared by the package `_` of the extension `sd` must begin with `sd.`")
-            );
         }
         Ok(Restage::Descend)
     });
@@ -627,7 +622,7 @@ fn the_names_of_a_rewrite_stage_and_of_its_table_begin_with_the_stem() {
     }
 }
 
-/// A construct is named in a refusal by its callable's type (ruling S19): a
+/// A construct is named in a refusal by its callable's type: a
 /// macro as written, a control symbol with its backslash, an environment by
 /// its opening, specials as the sequence written.
 #[test]
@@ -653,8 +648,8 @@ fn a_refusal_names_the_construct_by_its_callable_s_type() {
     );
 }
 
-/// Content given to an operation techy refuses is not recorded as placed
-/// (ruling S20): the handler catches the refusal and emits the same nodes.
+/// Content given to an operation techy refuses is not recorded as placed:
+/// the handler catches the refusal and emits the same nodes.
 #[test]
 fn content_given_to_a_refused_operation_may_still_be_emitted() {
     let caught = Arc::new(Mutex::new(Vec::new()));
@@ -681,8 +676,8 @@ fn content_given_to_a_refused_operation_may_still_be_emitted() {
 }
 
 /// A node holding a kept call's argument content, replaced by nothing: the
-/// tree cannot be built, message 2 with the wording of the content's parent
-/// dropped (ruling S21), in full.
+/// tree cannot be built, and the message, in full, says that the content
+/// lies inside a node the rewrite stage removed.
 #[test]
 fn a_dropped_argument_group_of_a_kept_call_ends_the_tree() {
     let stage = rewrite(|node, _, _| {

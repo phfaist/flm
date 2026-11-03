@@ -1345,7 +1345,13 @@ The emitter ([`mod@crate::stdcore::backends::text::emit`]) maps each presentatio
 onto the constructs of the [layout engine](#the-layout-engine), and the layout engine
 breaks the lines and produces the characters. The emitter works in two contexts.
 
-In **block context**, a run of blocks is printed one blank line between every two blocks:
+In **block context**, a run of blocks is printed one blank line between every two blocks.
+The blocks of a run are a `par`, a `block-heading`, a `block`, a `list`, a `cells` node, a
+`lines` node, a placed subtree, a block `verbatim` node, a block `image`, an `unknown`
+environment, and a container holding one of them; a blank line separates blocks only.
+Everything else in the run, a displayed formula, an `unsupported` node and a `dropped` mark
+included, is inline content: each stretch of it is filled as one paragraph (inline context,
+below). The blocks, and the marks that stand in their place, print as follows:
 
 - A `par` (paragraph) is filled word by word.
 - A `block-heading` prints its title, then a line under it as wide as what the title
@@ -1373,11 +1379,6 @@ In **block context**, a run of blocks is printed one blank line between every tw
 - A `lines` node prints one line per `line`, indented by the line's left indentation
   converted to columns ([Render options](#render-options)); a quotation's `\lines` section
   is written so.
-- A display `math-passthrough` prints its source inside `\[…\]`, or inside
-  `\begin{env}…\end{env}` for a math environment, indented by two columns. Content inside
-  the formula (a text command's argument, an equation line's tag) is printed as the text it
-  became, inside its command (`\text{…}`), so that markup written inside it and the escapes
-  an author typed there do not show in this output.
 - A block `verbatim` node prints its content byte for byte.
 - A block `image` prints `[image: <alternative text or address>]`.
 - An `unsupported` node prints `[unsupported: <element>]`, and a `dropped` mark prints
@@ -1405,6 +1406,14 @@ prints whole and never splits across two lines.
 - An inline `math-passthrough` prints as one atom, `\(source\)`, and an inline `verbatim` node
   prints as one atom too; verbatim content holding a line break or a tab is printed as a
   block instead.
+- A display `math-passthrough` (a displayed formula) prints its source inside `\[…\]`, or
+  inside `\begin{env}…\end{env}` for a math environment, on lines of its own indented by
+  two columns, wherever it stands in inline content (a paragraph, or the inline content of
+  a run of blocks): the text before it ends its line, the text after it starts a new line,
+  and no blank line separates the formula from either. Content inside the formula (a text
+  command's argument, an equation line's tag) is printed as the text it became, inside its
+  command (`\text{…}`), so that markup written inside it and the escapes an author typed
+  there do not show in this output.
 - A decoration mark prints the decoration attached at that mark. A run-in decoration
   prints as `content.` followed by a breakable space; the stop after it is the render
   option `run_in_stop`, added only where the content does not already end in `.`, `,`,
@@ -1593,10 +1602,10 @@ any label does.
 An **in-place** xnote holding inline content is printed where it is written, in brackets,
 with its xnote mark at the head, and with the author's spacing kept: `case.\footnote{…}`
 prints `case.[¹…]` and `case. \footnote{…}` prints `case. [¹…]`; an unnumbered xnote kind
-with no mark prints `[An aside.]`. An in-place xnote holding paragraphs interrupts its
-paragraph as a displayed formula does: the paragraph before it ends, the xnote's
-paragraphs follow with `[` and the mark at the head of the first and `]` at the end of the
-last, and then the paragraph continues:
+with no mark prints `[An aside.]`. An in-place xnote holding paragraphs is a block, as a
+list is: the paragraph it is written in ends before it, the xnote's paragraphs follow
+with `[` and the mark at the head of the first and `]` at the end of the last, and the
+text after it is a new paragraph:
 
 ```text
 Two paragraphs.
@@ -2095,16 +2104,33 @@ registry without the `refs` feature no anchor is computed, and a heading has no 
 
 ### When the page holds a paragraph
 
-The emitter writes a `<p>` for each `flm.pres.par` node and adds no paragraph of its own.
+The emitter writes one element for each `flm.pres.par` node and adds no paragraph of its
+own. The element is a `<p>` where everything inside the paragraph is *phrasing content*,
+the only content HTML allows inside a `<p>`: text, spans, links, images, formulas. Where
+the paragraph holds *flow content*, an element written with a tag at whose start a
+browser closes an open `<p>` (a `<div>`, a list, a table, a `<pre>`, a heading), the
+element is a `<div class="flm-pres-par" role="paragraph">`; the role tells assistive
+technology that the `<div>` is a paragraph. A paragraph holds flow content where a rule
+writes such an element inside it, typically for a [displayed
+item](crate::guide::language_syntax#displayed-items): the `mathml` mode of the
+`math-mathjax` extension, for example, writes a display-math environment as a `<div>`.
+The emitter decides the tag for each paragraph from what the paragraph holds, so no
+lowering rule has to know of HTML's restriction. The class and the attributes are the
+same for both tags, and the tag is not part of [the HTML contract](#the-html-contract),
+so a stylesheet selects a paragraph by the class `flm-pres-par`, never by the tag `p`.
+
 The paragraphs are built before lowering, by the block-structure pass
-([`crate::lang::rewrites::blocks`]), and lowered to `flm.pres.par` nodes. Whether the
-top level of a fragment is made of paragraphs depends on the layout declared for it
-([`FragmentLayout`](crate::model::doc::FragmentLayout)):
+([`crate::lang::rewrites::blocks`]), and lowered to `flm.pres.par` nodes. A displayed
+formula, written `\[…\]` or with a display-math environment, stands inside its
+paragraph, at the place where the author wrote it, and the whitespace the author wrote
+beside it is removed. Whether the top level of a fragment is made of paragraphs depends on
+the layout declared for it ([`FragmentLayout`](crate::model::doc::FragmentLayout)):
 
 - under `Blocks`, the top level is made of paragraphs and blocks;
 - under `Inline`, the top level is inline content and holds no paragraph;
 - under `InlineOrBlocks`, the default, the top level is inline content unless it holds a
-  paragraph break or a block element, in which case it is made of paragraphs and blocks.
+  paragraph break or a block element (a displayed formula is not one), in which case it
+  is made of paragraphs and blocks.
 
 A fragment parsed as inline content, such as a title or a caption, is written as bare
 inline HTML with no `<p>` around it. A host that wants a fragment written as paragraphs
@@ -2200,7 +2226,7 @@ tests compare the output, the rows and the table below, which that function prin
 
 | element | tag | classes | attributes | dropped | style definition |
 |---|---|---|---|---|---|
-| `flm.pres.par` | `<p>` | `flm-pres-par` | `id` ← `anchor` | — | `flm.html.style.core` |
+| `flm.pres.par` | `<p>`; `<div>` with `role="paragraph"` when the paragraph holds flow content | `flm-pres-par` | `id` ← `anchor` | — | `flm.html.style.core` |
 | `flm.pres.block` | by role: `<blockquote>` for the role `flm.quote`, `<figure>` for the role `flm.floats.float`, `<figcaption>` for the role `flm.floats.float.caption`, `<nav>` for the role `flm.toc`; `<div>` otherwise | `flm-pres-block`, the role's own class | `id` ← `anchor`, `role` ← `doc_role`, `data-flm-kind` ← `kinds` | — | `flm.html.style.core` |
 | `flm.pres.block-heading` | `<h1>`–`<h6>` by level counted from `root_heading_level`, `<h6>` five levels below it and deeper; a render option maps a heading kind to a tag of its own | `flm-pres-block--heading` | `id` ← `anchor`, `data-flm-heading` ← `name`, `data-flm-level` ← `level`, `data-flm-toc` ← `in_toc` | `number` (the number stands in the content) | `flm.html.style.headings` |
 | `flm.pres.runin-heading` | `<span>` | `flm-pres-runin--heading` | `id` ← `anchor`, `data-flm-heading` ← `name`, `data-flm-level` ← `level`, `data-flm-toc` ← `in_toc` | `number` (the number stands in the content) | `flm.html.style.core` |
@@ -2551,11 +2577,14 @@ decoration (`flm.pres.deco.final`) at the end of the last paragraph:
 ```
 
 A theorem with no anchor (a proof, which accepts no label, or any theorem in a registry
-without the `refs` feature) has no `id`. Where the body begins with another block, a list
-or a displayed formula, the heading is in a paragraph of its own before it; where the body
-ends with one, the closing mark is in a paragraph of its own after it; an empty body is one
-paragraph holding both. No tag or class belongs to the feature alone: a host's own theorem
-kinds and classes appear on the page as kind tokens, as the shipped ones do.
+without the `refs` feature) has no `id`. Where the body begins with another block, such as
+a list or a quotation, the heading is in a paragraph of its own before it; where the body
+ends with one, the closing mark is in a paragraph of its own after it; an empty body is
+one paragraph holding both. A displayed formula is not a block but part of its paragraph,
+so a body that begins with one has the heading in that paragraph, before the formula, and
+a body that ends with one has the closing mark after the formula, in the same paragraph.
+No tag or class belongs to the feature alone: a host's own theorem kinds and classes
+appear on the page as kind tokens, as the shipped ones do.
 
 The `theorems` feature's stylesheet, `flm.theorems.style`, sets the name in bold, the rest
 of the heading in the weight of the text, and the name of a kind of the `prooflike` class
@@ -2652,12 +2681,13 @@ written where its mark is, holding a span of role `flm.annotations.initials`:
 A **reviewer's comment** is written in the same way under the role
 `flm.annotations.comment`, with the remark in place of the passage. An annotator with no
 initials has no decoration. An annotation across a paragraph break is cut into parts: one
-span per paragraph, with the initials on the first part only. A part around a list or a
-displayed formula is a `<div>` of the role around that block, holding the initials at its
-start when it is the first part. Each part of a cut annotation also carries the kind token
-`mark-continues` when a part follows it and `mark-continued` when a part precedes it; an
-annotation that was not cut carries neither. The hyphen keeps these two tokens apart from
-the command name beside them, which is made of letters only:
+span per paragraph, with the initials on the first part only. A part around a list is a
+`<div>` of the role around that block, holding the initials at its start when it is the
+first part. A displayed formula inside an annotation is part of the paragraph's text, so
+it stands inside the annotation's span. Each part of a cut annotation also carries the
+kind token `mark-continues` when a part follows it and `mark-continued` when a part
+precedes it; an annotation that was not cut carries neither. The hyphen keeps these two
+tokens apart from the command name beside them, which is made of letters only:
 
 ```html
 <p class="flm-pres-par">Some text <span class="flm-pres-span flm-annotations-comment" data-flm-kind="phf annotator-0 mark-continues"><span class="flm-pres-deco-margin"><span class="flm-pres-span flm-annotations-initials" data-flm-kind="phf annotator-0">PhF</span></span>A comment.</span></p>
@@ -2842,8 +2872,9 @@ is right there) and no bracket text:
 …every case. <span class="flm-pres-span flm-xnotes-xnote-inplace" id="fn-1" role="doc-footnote" data-flm-kind="xnotes footnote"><sup class="flm-pres-span flm-xnotes-xnote-mark" id="fnref--1yuhk" data-flm-style="superscript">1</sup>Except the empty one, which we exclude by convention.</span> The next…
 ```
 
-An xnote shown in place whose content holds paragraphs is a block between the two halves
-of the paragraph it interrupts, with the mark at the start of its first paragraph:
+An xnote shown in place whose content holds paragraphs is a block: it stands between the
+paragraph it is written in and the text after it, which is a new paragraph, with the mark
+at the start of its first paragraph:
 
 ```html
 <p class="flm-pres-par">Two paragraphs.</p>
@@ -3084,15 +3115,16 @@ c &amp;= d\end{align}</span>
 ```
 
 The delimiters are `\(…\)` for inline mathematics, `\[…\]` for displayed mathematics
-without an environment, and `\begin{…}…\end{…}` for an environment. A displayed formula
-is distinguished from an inline one by `data-flm-display`, and the math stylesheet makes
-it look like a block: on a line of its own, with margins, and scrolling sideways when it
-is wider than the text. Both use a `<span>` because FLM treats displayed mathematics as
-part of the text around it, so `\[…\]` may appear between two runs of text in one
-paragraph, and HTML allows no block element such as a `<div>` inside a paragraph: a
-browser would close the paragraph before the formula. Nothing wraps a line and nothing is
-rearranged, so a multi-line formula is aligned at its `&` marks by the renderer, exactly
-as the author wrote it. The formula's element has no identifier of its own.
+without an environment, and `\begin{…}…\end{…}` for an environment. A displayed formula is
+distinguished from an inline one by `data-flm-display`, and the math stylesheet makes it
+look like a block: on a line of its own, with margins, and scrolling sideways when it is
+wider than the text. Both use a `<span>` because a displayed formula is a [displayed
+item](crate::guide::language_syntax#displayed-items), part of the paragraph around it, so
+`\[…\]` or an environment may appear between two runs of text in one paragraph, and a
+`<span>` lets that paragraph be a `<p>`, which can hold no `<div>`. Nothing wraps a line
+and nothing is rearranged, so a multi-line formula is aligned at its `&` marks by the
+renderer, exactly as the author wrote it. The formula's element has no identifier of its
+own.
 
 Writing a formula **requires** two definitions ([Style and script definitions](#style-and-script-definitions) below):
 the style definition `flm.html.style.math-passthrough` that the mathematics rows of the HTML contract
@@ -3672,7 +3704,7 @@ definition, delivered like any other ([Style and script definitions](#style-and-
 | `flm.html.style.core` | paragraphs, blocks, the display styles of a span (the unresolved reference among them), links, images, the three decorations | the elements every document has |
 | `flm.html.style.headings` | the six heading sizes | a block heading |
 | `flm.html.style.verbatim` | verbatim content | verbatim content |
-| `flm.html.style.math-passthrough` | a displayed formula, which it makes a block, and content written inside a formula | mathematics |
+| `flm.html.style.math-passthrough` | a displayed formula, which it sets on a line of its own, and content written inside a formula | mathematics |
 | `flm.html.style.lists` | lists with their entries and labels, and runs of lines | a list, a run of lines |
 | `flm.html.style.errors` | what the page shows where something could not be produced | a macro or an environment no feature declares, an element the backend cannot write, a dropped mark |
 | `flm.html.style.page` | the page's own typography and the width of its content | the page itself, always, and no element |
@@ -4088,7 +4120,9 @@ the plain text do, so a workflow may list `latex-rendered` together with `html` 
 and one plan produces all of them. Paragraphs are built before lowering
 ([When the page holds a paragraph](#when-the-page-holds-a-paragraph) describes how a
 fragment's layout decides them); the rendered LaTeX writes each `flm.pres.par` node as a
-LaTeX paragraph.
+LaTeX paragraph. A displayed formula inside a paragraph is written on lines of its own
+with no blank line before or after it, so that LaTeX continues the paragraph after the
+formula, as the document does.
 
 ### The rendered LaTeX contract
 
@@ -6793,8 +6827,8 @@ Every other definition is written as a LaTeX definition, regardless of what it h
 
 - arguments of every shape that can be declared, at any position: a `{…}` group, an
   optional `[…]` group, a characters-only group, a key-value group, a verbatim argument, a
-  `*` marker, and a trailing tack-on argument, which absorbs the field macros (such as
-  `\label`) written after the call
+  `*` marker, and a tack-on argument, which absorbs the field macros (such as `\label`)
+  written at its position in the call
   ([fields](crate::guide::concepts_overview#fields-data-a-construct-reads)) and which the
   template cannot refer to (below);
 - every conditional and every declared default;
@@ -6890,9 +6924,9 @@ effective argument, and its begin code and end code both read from that group wi
 A definition of nine effective arguments or fewer keeps the plain form, with `#1` to `#9`
 in its body.
 
-**Tack-on arguments.** A tack-on argument is the last argument a definition may declare:
-it absorbs the macros written *after* the call (a `\label{…}` after a theorem, for
-instance) rather than anything between braces
+**Tack-on arguments.** A tack-on argument absorbs the field macros written at its position
+in a call, after the arguments declared before it (a `\label{…}` after a theorem's title,
+for instance), rather than anything between braces
 ([fields](crate::guide::concepts_overview#fields-data-a-construct-reads)). A template cannot refer to such an argument:
 what it absorbed is whole commands, which a parameter cannot hold. Referring to one is an
 error, reported when the definitions are read, on every backend. A definition that declares

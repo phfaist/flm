@@ -508,8 +508,9 @@ impl<A> Recomposer<Flm, A> for Spelling {
 /// ```
 pub fn spelling_identity<'t>(nodes: impl IntoIterator<Item = NodeRef<'t, Flm>>) -> String {
     let nodes: Vec<NodeRef<'t, Flm>> = nodes.into_iter().filter(|node| !node.is_comment()).collect();
-    // Each node re-emitted from what it records of its own spelling, never a
-    // slice of a source: see decision rationale at [§flm-dd-dr:std-defterm-identity].
+    // Each node re-emitted from what it records of its own spelling, never its
+    // span or a slice of a source: a node's span is not its spelling once two
+    // text nodes are merged, and a term from a template spans two sources.
     collapse_whitespace(&recompose_source(&nodes))
 }
 

@@ -11,6 +11,7 @@ import "flm:core/lowering";
 import "flm:core/registry";
 import "flm:core/run";
 import "flm:core/services";
+import "flm:core/settings";
 import "flm:core/stage";
 import "flm:host";
 import "flm:lang";

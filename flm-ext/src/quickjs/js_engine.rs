@@ -9,7 +9,7 @@ use std::sync::Arc;
 use super::engine::{self, Engine as Instance};
 use super::host::JsHost;
 use super::package::{self, JsExtension};
-use crate::binding::packages::read_packages;
+use crate::binding::packages::{read_packages, unreadable};
 use crate::binding::{self, BindingRuntime};
 use crate::engine::{Engine, ExtensionIdentity, LoadError, Loaded};
 use crate::loader::ExtensionLoader;
@@ -121,7 +121,8 @@ impl Engine for JsEngine {
             None => return Err(vec![LoadError::Load { detail: format!("the files of the extension `{stem}` were lost") }]),
         };
         let defined = created.defined.unwrap_or_default();
-        let packages = read_packages(extension, &defined, &*files)?;
+        let items: Vec<serde_json::Value> = serde_json::from_str(&defined).map_err(|error| unreadable(extension, error))?;
+        let packages = read_packages(extension, &items, &*files)?;
         drop(files);
         let digest = package::digest(&self.host, &created.recorded);
         loading.modules = created.recorded;

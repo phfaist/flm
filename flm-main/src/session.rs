@@ -333,7 +333,6 @@ pub struct Request {
     /// folder and the search path are, and never a setting, so that no document can choose a
     /// program for the host to start. A converter added later that runs a program gets its
     /// program the same way, from a field of its own.
-    // See decision rationale at [§flm-dd-dr:host-magick-program]
     #[cfg(feature = "graphics")]
     pub magick_program: std::ffi::OsString,
     /// What the host's citation provider is given of the machine (cargo feature
@@ -870,17 +869,17 @@ fn find_packages(
         .map_err(|error| PrepareError::one(PrepareErrorKind::Packages, Problem::new(error.to_string())))?;
     // The profile's package comes last, unless no compiled package, no folder of the search
     // path and no bundled extension holds its name: that absence adds nothing and is no
-    // problem. A lookup that fails adds the entry, whose resolution below reports the failure
-    // as an entry's of `use` is reported.
-    // See decision rationale at [§flm-dd-dr:profiles]
+    // problem, since the packages already listed may declare the profile's workflow. A lookup
+    // that fails adds the entry, whose resolution below reports the failure as an entry's of
+    // `use` is reported, so that an extension that exists but is broken is never skipped.
     let (name, place) = profile_name(request, &seed);
     let package = format!("{PROFILE_PACKAGE_PREFIX}{name}");
     let known = !matches!(catalog.resolve(&package), Ok(None));
     let profile_entry = known.then(|| (package.clone(), EntrySource::Given(format!("the profile `{name}`"))));
     let profile = Profile { name, place, package: known.then_some(package) };
     // The request's packages follow those of `use`, as if written last there, and come
-    // before the profile's package.
-    // See decision rationale at [§flm-dd-dr:use-option]
+    // before the profile's package: the request adds an optional package to a document as
+    // one more entry of its front matter's `use` would.
     let named: Vec<(String, EntrySource)> = initial_list(request, &seed)
         .into_iter()
         .chain(math_entry(request, &seed))
@@ -944,10 +943,10 @@ fn given_entries(list: &GivenList) -> impl Iterator<Item = (String, EntrySource)
 /// when the front matter chooses it, else the words that say where the choice comes from.
 /// `None` when the choice is no processor.
 fn math_entry(request: &Request, seed: &Seed) -> Option<(String, EntrySource)> {
-    // The processor is chosen apart from the initial list: a list that the front matter or
-    // the request writes does not change it, and the processor's package follows that list
-    // whatever its source.
-    // See decision rationale at [§flm-dd-dr:math-processor-choice]
+    // The processor is chosen apart from the initial list, so that two settings that read as
+    // independent do not act on each other: a list that the front matter or the request
+    // writes does not change it, and the processor's package follows that list whatever its
+    // source.
     let (choice, source) = match (&request.math, &seed.math) {
         (Some(given), _) => (&given.choice, EntrySource::Given(given.source.clone())),
         (None, Some((written, place))) => (written, EntrySource::File(*place)),
@@ -1023,7 +1022,9 @@ fn prepare_reading(
     };
     let mut overrides = Overrides::none();
     overrides.render_options = render;
-    // See decision rationale at [§flm-dd-dr:rend-output-made-from].
+    // The outputs are set up before the run's stages are scheduled, so only an output's
+    // declaration (`made_from`) can say which outputs it is made from; each of those gets its
+    // compose template too.
     for output in with_sources(&registry, &outputs) {
         compose(&registry, &settings, &output, &mut overrides)?;
     }
@@ -1050,9 +1051,9 @@ fn prepare_reading(
         .map_err(|error| PrepareError::one(PrepareErrorKind::Plan, Problem::new(error.to_string())))?;
     let layout = request.layout.or(seed.layout.map(|(layout, _)| layout)).unwrap_or_default();
     let ReadSettings { packages: package_settings, document: mut document_options, .. } = read;
-    // The metadata is set only where a feature of the registry declares it: a
-    // registry without the `meta` feature shows none.
-    // See decision rationale at [§flm-dd-dr:host-meta-declared].
+    // The metadata is set only where a feature of the registry declares it: a value set for
+    // an option type that no feature declares is refused when the run is made, so a document
+    // that switches the `meta` feature off is processed with its metadata unshown.
     if !meta.is_empty() && registry.option_decl(&OptionKey::of::<DocMeta>()).is_some() {
         document_options.set(meta);
     }
@@ -1346,7 +1347,8 @@ fn choose_workflow(
     profile: &Profile,
     file: Option<&str>,
 ) -> Result<(String, Vec<String>), PrepareError> {
-    // See decision rationale at [§flm-dd-dr:profiles]
+    // The workflow may come from any package, not only from `profile-NAME`: the registry does
+    // not say which package declared a workflow, whose fields may come from several.
     let workflow = profile.name.clone();
     if registry.workflow(&workflow).is_none() {
         let detail = match &profile.package {
@@ -1356,7 +1358,9 @@ fn choose_workflow(
         let problem = Problem { file: profile.place.and(file).map(str::to_string), place: profile.place, detail };
         return Err(PrepareError::one(PrepareErrorKind::Workflow, problem));
     }
-    // See decision rationale at [§flm-dd-dr:feat-format-order]
+    // A format selects one of the outputs of the workflow that runs and never chooses the
+    // workflow: the profile says what kind of output to produce, and several workflows may
+    // provide one format, with nothing to say which should run.
     let provided = outputs_of(registry, &workflow);
     let outputs = match &request.format {
         None => provided,
@@ -1464,8 +1468,10 @@ fn build_reading(prepared: &Prepared, reads: BuildFiles) -> Result<Built, Prepar
         .map_err(|error| PrepareError::one(PrepareErrorKind::Run, Problem::new(error.to_string())))?;
     let mut options = RunOptions::new();
     options.continue_with_errors = prepared.request.continue_with_errors;
-    // The services of the registry read through this build's reading while it runs.
-    // See decision rationale at [§flm-dd-dr:host-service-files].
+    // The services of the registry read through this build's reading while it runs: the
+    // library hands a service no context of the run, so the reading reaches a service only
+    // through the handle it already holds, and builds take turns so that their lists of
+    // files read stay apart.
     let attached = prepared.service_files.attach(reads.clone());
     let executed = run.execute(&options);
     drop(attached);

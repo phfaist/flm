@@ -1,6 +1,5 @@
-//! WP-1: the node reader — `NodeFacade` over fragments parsed with the
-//! standard package, the key-value façades and the text readers (plan A,
-//! section 7.2).
+//! The node reader: `NodeFacade` over fragments parsed with the standard
+//! package, the key-value façades and the text readers.
 
 mod common;
 
@@ -269,7 +268,7 @@ fn mode_is_math_inside_a_formula() {
     assert_eq!(formula.mode(), Mode::Math);
 }
 
-// --- E5: a node's payload and its slots by index ------------------------------------------------
+// --- a node's payload and its slots by index ----------------------------------------------------
 
 #[test]
 fn a_parsed_node_answers_its_slots_by_index_and_no_payload() {
@@ -307,8 +306,8 @@ fn a_lowered_list_node_answers_its_slots_and_a_heading_its_payload() {
         b.stage(common::double::stage(decl, Needs::new().reads("flm.lowered.text"), move |cx, _| {
             let Some(TableValue::Lowered(lowered)) = cx.get("flm.lowered.text")? else { return Ok(()) };
             let mut lines = Vec::new();
-            for (_, root) in lowered.trees() {
-                for node in root.descendants() {
+            for (_, tree) in lowered.trees() {
+                for node in tree.root().descendants() {
                     let element = node.element_name();
                     if element == pres::BLOCK_HEADING {
                         let payload = node.payload()?.unwrap_or_default();

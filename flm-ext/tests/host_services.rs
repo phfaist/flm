@@ -1,9 +1,8 @@
-//! Host services (E6, plan section 4), through the Rust test double and a
+//! Host services, through the Rust test double and a
 //! memory host: a stage reaches a service its package declared through
 //! `cx.host`, the `files` service in its two scopes (the extension's own files
 //! served by the adapter, the document's folder by the host's object), any
-//! other service through the generic handle; the service sees its caller
-//! (ruling S4).
+//! other service through the generic handle; the service sees its caller.
 
 mod common;
 

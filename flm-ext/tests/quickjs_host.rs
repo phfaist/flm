@@ -137,7 +137,7 @@ fn an_unknown_import_names_the_module_and_the_specifier() {
         )),
         "{detail}"
     );
-    assert_eq!(detail.matches("`flm:").count(), 34, "{detail}");
+    assert_eq!(detail.matches("`flm:").count(), 35, "{detail}");
     // J4 worded for a host module.
     let host = host_with(&[("lib", r#"import "other";"#)]);
     let from_host = package(&host, r#"import "lib";"#, &[]);

@@ -16,6 +16,7 @@ pub(crate) const API_MODULES: &[(&str, &str)] = &[
     ("flm:core/registry", include_str!("js/api/core/registry.js")),
     ("flm:core/run", include_str!("js/api/core/run.js")),
     ("flm:core/services", include_str!("js/api/core/services.js")),
+    ("flm:core/settings", include_str!("js/api/core/settings.js")),
     ("flm:core/stage", include_str!("js/api/core/stage.js")),
     ("flm:host", include_str!("js/api/host.js")),
     ("flm:lang", include_str!("js/api/lang.js")),

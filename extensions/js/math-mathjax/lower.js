@@ -2,10 +2,10 @@
 //
 // | rule | element | backend | what it stages |
 // |---|---|---|---|
-// | `math-mathjax.formula.lower.html`, `math-mathjax.environment.lower.html` | `flm.math`, `flm.math.environment` | `html` | by mode: in `load-in-browser`, the formula's TeX in a span for MathJax to typeset in the browser (`register_browser_rules`); in `mathml`, the formula's MathML, read from the render stage's table (`render.js`) and converted to HTML constructs (`register_mathml_rules`, `mathml_construct`), with the stylesheet `math-mathjax.style` |
+// | `math-mathjax.formula.lower.html`, `math-mathjax.environment.lower.html` | `flm.math`, `flm.math.environment` | `html` | by mode: in `load-in-browser`, the formula's TeX in a span for MathJax to typeset in the browser (`register_browser_rules`); in `mathml`, the formula's MathML in a span, read from the render stage's table (`render.js`) and converted to HTML constructs (`register_mathml_rules`, `mathml_construct`), with the stylesheet `math-mathjax.style` |
 // | `math-mathjax.formula.lower.latex-recomposed`, `math-mathjax.environment.lower.latex-recomposed` | the two | `latex-recomposed` | the formula recomposed as written, through the `math` library and the mathematics writer |
 // | `math-mathjax.formula.lower.latex-rendered`, `math-mathjax.environment.lower.latex-rendered` | the two | `latex-rendered` | the formula staged as `flm.pres.math-passthrough` over its source, each text command lowered through the rules, an environment's lines with their anchors and tags in `flm.pres.math-text` nodes |
-// | `math-mathjax.formula.lower.text`, `math-mathjax.environment.lower.text` | the two | `text` | the formula's TeX as text, each text command lowered, each line's tag after the line, in a span or block |
+// | `math-mathjax.formula.lower.text`, `math-mathjax.environment.lower.text` | the two | `text` | the formula staged as `flm.pres.math-passthrough` over its TeX, each text command lowered through the rules, each line's tag after the line in a `flm.pres.math-text` node (the backend sets a displayed formula on lines of its own) |
 // | `math-mathjax.macro.lower.source`, `math-mathjax.environment-command.lower.source` | `math-mathjax.macro`, `math-mathjax.environment` | every backend | the node's source as text (a command of MathJax's is written by the rule of the formula around it; this rule makes the element writable on its own) |
 import { LoweringRule, LoweringDecl, DefaultMark, Lowering } from "flm:core/lowering";
 import {
@@ -14,7 +14,7 @@ import {
 } from "flm:stdcore/features/math";
 import { write_math_run } from "flm:stdcore/features/userdefs";
 import { StyleDef, DefContent } from "flm:core/registry";
-import { SPAN, BLOCK, MATH_TEXT, MATH_PASSTHROUGH } from "flm:stdcore/backends/pres";
+import { SPAN, MATH_TEXT, MATH_PASSTHROUGH } from "flm:stdcore/backends/pres";
 import { TAG } from "flm:stdcore/backends/html";
 import { formula_tex, NOTAG, TAG_OPEN, TAG_CLOSE } from "./tex.js";
 import { RENDERED_TABLE, FIRST_MARKER } from "./render.js";
@@ -36,8 +36,8 @@ const SAFE_LABELS = "flm.labels.safe";
 // The option types the LaTeX parts of the `math` library read.
 const LATEX_OPTIONS = ["MathRecomposeOptions", "LatexRecomposedRenderOptions"];
 
-// The role (and kind) of a formula's span, and of an environment's block, on
-// the text backend.
+// The role of a formula's span, and of an environment's span, in `mathml`
+// mode.
 export const FORMULA_ROLE = "math-mathjax.formula";
 export const ENVIRONMENT_ROLE = "math-mathjax.environment";
 
@@ -439,61 +439,87 @@ function register_mathml_rules(b, settings) {
       }
       const tree = tex.environment === null
         ? { element: SPAN, payload: { role: FORMULA_ROLE, kinds: [tex.display ? "display" : "inline"] }, children }
-        : { element: BLOCK, payload: { role: ENVIRONMENT_ROLE, kinds: [tex.environment] }, children };
+        : { element: SPAN, payload: { role: ENVIRONMENT_ROLE, kinds: [tex.environment] }, children };
       return Lowering.Emit([lw.pres_tree(cx, tree)]);
     },
   };
-  const decl = () => new LoweringDecl().produces(TAG).reads(RENDERED_TABLE);
+  const decl = () => new LoweringDecl().produces(TAG).produces(SPAN).reads(RENDERED_TABLE);
   b.lowering_rule(new LoweringRule(
-    "math-mathjax.formula.lower.html", MATH, decl().produces(SPAN), body, DefaultMark.OnBackends([HTML]),
+    "math-mathjax.formula.lower.html", MATH, decl(), body, DefaultMark.OnBackends([HTML]),
   ).docs("Inline or displayed mathematics lowers to the MathML MathJax made of it, in a span; the argument "
     + "of each text command is document content inside its `mtext` element. A formula MathJax could not "
     + "typeset lowers to its source as text."));
   b.lowering_rule(new LoweringRule(
     "math-mathjax.environment.lower.html", ENVIRONMENT,
-    decl().produces(BLOCK).reads_opt(ANCHORS).reads_opt(COUNTERS), body, DefaultMark.OnBackends([HTML]),
-  ).docs("A display-math environment lowers to the MathML MathJax made of it, in a block; each line's row "
+    decl().reads_opt(ANCHORS).reads_opt(COUNTERS), body, DefaultMark.OnBackends([HTML]),
+  ).docs("A display-math environment lowers to the MathML MathJax made of it, in a span; each line's row "
     + "carries the line's anchor, and its last cell the line's number or tag."));
 }
 
-// The rules of the `text` backend: the formula's TeX as text inside a span
-// (a math group) or a block (an environment), each text command written as
-// its command around its lowered argument, each line's tag content after the
-// line (without `\tag*{…}`, which is MathJax's input, not the source).
+// The parts of `tex` as the body of a `flm.pres.math-passthrough`: an
+// environment's name is the node's payload, which the backend writes as
+// `\begin{…}` and `\end{…}`, so the two texts are taken off its parts.
+function passthrough_parts(tex) {
+  const parts = [...tex.parts];
+  if (tex.environment !== null) {
+    const begin = `\\begin{${tex.environment}}`;
+    const end = `\\end{${tex.environment}}`;
+    parts[0] = parts[0].slice(begin.length);
+    const last = parts.length - 1;
+    parts[last] = parts[last].slice(0, parts[last].length - end.length);
+  }
+  return parts;
+}
+
+// The payload of the `flm.pres.math-passthrough` node of `tex`.
+function passthrough_payload(tex) {
+  return tex.environment === null
+    ? { display: tex.display ? "display" : "inline" }
+    : { display: "display", env: tex.environment };
+}
+
+// The rules of the `text` backend: the formula staged as a
+// `flm.pres.math-passthrough` node over its TeX (displayed or inline, by its
+// form; an environment's node carries its name), so that the backend sets a
+// displayed formula on lines of its own inside its paragraph and an inline one
+// in the line. Each text command is lowered through the rules (its own rule
+// stages a `flm.pres.math-text` node carrying the command), and each line's
+// tag content stands after the line in a `flm.pres.math-text` node without a
+// command (without `\tag*{…}`, which is MathJax's input, not the source).
 function register_text_rules(b) {
   const body = {
     lower(node, cx, lw) {
       const tex = formula_tex(node, frames_of(lw, node, true));
-      const [open, close] = delimiters(tex);
-      const children = [{ text: open }];
-      for (const part of tex.parts) {
-        if (typeof part === "string") { children.push({ text: part }); continue; }
+      const children = [];
+      for (const part of passthrough_parts(tex)) {
+        if (typeof part === "string") {
+          if (part !== "") children.push({ text: part });
+          continue;
+        }
         if (part === NOTAG || part === TAG_OPEN || part === TAG_CLOSE) continue;
         const hole = tex.holes[part.hole];
         if (hole.kind === "text") {
-          children.push({ text: `\\${hole.command}{` });
           children.push(...lw.lower_nodes(cx, [hole.node]).map((build) => ({ build })));
-          children.push({ text: "}" });
         } else if (hole.kind === "tag") {
-          children.push(...stage_tag_content(cx, lw, hole.frame).map((build) => ({ build })));
+          const content = stage_tag_content(cx, lw, hole.frame).map((build) => ({ build }));
+          if (content.length > 0) children.push({ element: MATH_TEXT, payload: {}, children: content });
         }
       }
-      children.push({ text: close });
-      const tree = tex.environment === null
-        ? { element: SPAN, payload: { role: FORMULA_ROLE, kinds: [tex.display ? "display" : "inline"] }, children }
-        : { element: BLOCK, payload: { role: ENVIRONMENT_ROLE, kinds: [tex.environment] }, children };
-      return Lowering.Emit([lw.pres_tree(cx, tree)]);
+      return Lowering.Emit([lw.pres_tree(cx, { element: MATH_PASSTHROUGH, payload: passthrough_payload(tex), children })]);
     },
   };
   b.lowering_rule(new LoweringRule(
-    "math-mathjax.formula.lower.text", MATH, new LoweringDecl().produces(SPAN), body, DefaultMark.OnBackends([TEXT]),
-  ).docs("Inline or displayed mathematics lowers to its TeX as text inside a span, the argument of each "
-    + "text command lowered as document content."));
+    "math-mathjax.formula.lower.text", MATH, new LoweringDecl().produces(MATH_PASSTHROUGH), body,
+    DefaultMark.OnBackends([TEXT]),
+  ).docs("Inline or displayed mathematics lowers to `flm.pres.math-passthrough` over its TeX, with the "
+    + "argument of every text command inside it lowered as document content."));
   b.lowering_rule(new LoweringRule(
     "math-mathjax.environment.lower.text", ENVIRONMENT,
-    new LoweringDecl().produces(BLOCK).reads_opt(ANCHORS).reads_opt(COUNTERS), body, DefaultMark.OnBackends([TEXT]),
-  ).docs("A display-math environment lowers to its TeX as text inside a block, rebuilt from its equation "
-    + "lines, each line's number or tag after the line."));
+    new LoweringDecl().produces(MATH_PASSTHROUGH).produces(MATH_TEXT).reads_opt(ANCHORS).reads_opt(COUNTERS),
+    body, DefaultMark.OnBackends([TEXT]),
+  ).docs("A display-math environment lowers to a displayed `flm.pres.math-passthrough` that carries its "
+    + "name, over its TeX rebuilt from its equation lines; each line's number or tag stands after the line "
+    + "in a `flm.pres.math-text`."));
 }
 
 // The rules of the recomposed LaTeX: the formula as written, through the
@@ -547,18 +573,7 @@ function register_rendered_rules(b) {
     lower(node, cx, lw) {
       const tex = formula_tex(node, frames_of(lw, node, true));
       const children = [];
-      const parts = [...tex.parts];
-      if (tex.environment !== null) {
-        // The environment's name is the node's payload, which the backend
-        // writes as `\begin{…}` and `\end{…}`: the two texts are taken off.
-        const begin = `\\begin{${tex.environment}}`;
-        const end = `\\end{${tex.environment}}`;
-        parts[0] = parts[0].slice(begin.length);
-        const last = parts.length - 1;
-        parts[last] = parts[last].slice(0, parts[last].length - end.length);
-      }
-      for (let index = 0; index < parts.length; index += 1) {
-        const part = parts[index];
+      for (const part of passthrough_parts(tex)) {
         if (typeof part === "string") {
           if (part !== "") children.push({ text: part });
           continue;
@@ -578,10 +593,7 @@ function register_rendered_rules(b) {
           }
         }
       }
-      const payload = tex.environment === null
-        ? { display: tex.display ? "display" : "inline" }
-        : { display: "display", env: tex.environment };
-      return Lowering.Emit([lw.pres_tree(cx, { element: MATH_PASSTHROUGH, payload, children })]);
+      return Lowering.Emit([lw.pres_tree(cx, { element: MATH_PASSTHROUGH, payload: passthrough_payload(tex), children })]);
     },
   };
   b.lowering_rule(new LoweringRule(

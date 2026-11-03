@@ -1,11 +1,17 @@
-//! The package `phfpack` in the program (acceptance tests 11, 14, 15 and 16 of
-//! the step that added it): a document that uses it, its settings from a front
-//! matter and from an extension written in YAML, the schema, the program without
-//! it, and a program of its own over the library entry point.
+//! The package `phfpack` in the program, and the compiled packages of a program of
+//! its own: a document that uses `phfpack`, its settings from a front matter and
+//! from an extension written in YAML, the schema, a program of its own over the
+//! library entry point that carries the package of the example `own_package`, and a
+//! program refusing a document that names a package nothing provides.
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Output};
+
+/// The package `shout` that the example `own_package` carries, from the example's
+/// own folder.
+#[path = "../examples/own_package/shout.rs"]
+mod shout;
 
 fn folder(name: &str) -> PathBuf {
     let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("flm-cli-phfpack-{name}"));
@@ -41,7 +47,7 @@ const NORMS: &str = "flm:\n  features:\n    phfqit:\n      macro_definitions:\n 
 
 const REPLACED: &str = r"Let \(\lvert{\psi}\rangle\), \(\Bigl \lVert{A}\Bigr \rVert_\infty\) and \(\mathopen{}\left \lVert{B}\right \rVert\mathclose{}_1\).";
 
-#[cfg(feature = "phfpack")]
+#[cfg(feature = "bundled-extensions")]
 #[test]
 fn render_writes_the_replacements_with_macros_declared_in_a_front_matter_and_a_package() {
     let dir = folder("render");
@@ -57,10 +63,10 @@ fn render_writes_the_replacements_with_macros_declared_in_a_front_matter_and_a_p
 /// math processor is `math-mathjax`: the double angle brackets alone, at a
 /// size, and after `\left`, `\middle` and `\right`, and `\bitstring` (a template
 /// that writes `\ensuremath`) in text and inside a formula.
-#[cfg(all(feature = "phfpack", feature = "js", feature = "bundled-extensions"))]
+#[cfg(all(feature = "js", feature = "bundled-extensions"))]
 const BRACKETS: &str = "---\nflm:\n  use: [phfpack]\n---\nLet \\(\\oket{\\psi}\\), \\(\\obra`\\Big{\\phi}\\), \\(\\obraket*{a}{b}\\) and \\(\\oketbra{x}{y}\\); the string \\bitstring{0110} and \\(s = \\bitstring{01}\\).\n";
 
-#[cfg(all(feature = "phfpack", feature = "js", feature = "bundled-extensions"))]
+#[cfg(all(feature = "js", feature = "bundled-extensions"))]
 #[test]
 fn the_package_loads_beside_math_mathjax_in_both_of_its_modes() {
     let dir = folder("brackets");
@@ -91,11 +97,15 @@ fn the_package_loads_beside_math_mathjax_in_both_of_its_modes() {
     assert!(!page.contains("ensuremath"), "{page}");
 }
 
-#[cfg(feature = "phfpack")]
+/// The schema of a document that uses the package, which covers the packages
+/// the document uses.
+#[cfg(feature = "bundled-extensions")]
 #[test]
 fn schema_prints_the_settings_of_phfqit() {
     let dir = folder("schema");
-    let output = flm(&dir, &["schema"]);
+    write(&dir, "paper.flm", PAPER);
+    write(&dir, "norms.yaml", NORMS);
+    let output = flm(&dir, &["schema", "--extensions-dir", ".", "paper.flm"]);
     let text = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success(), "{output:?}");
     for key in ["phfqit", "macro_definitions", "delimited_args", "spaceKets", "AfterComma"] {
@@ -115,49 +125,57 @@ fn run_in_process(dir: &Path, packages: Vec<flm_core::core::registry::PackageFac
     flm_cli::run(args, packages)
 }
 
+/// A document that uses the package `shout` of the example `own_package`.
+const SHOUTING: &str = "---\nflm:\n  use: [shout]\n---\nPlease \\shout{listen} now.\n";
+
+/// A program that carries the package of the example `own_package`, as the example
+/// does, renders a document that uses it. In the text output, `\shout{listen}` is
+/// its argument alone: plain text shows no bold.
 #[test]
 fn a_program_of_its_own_carrying_the_package_renders_a_document_that_uses_it() {
     let dir = folder("own");
-    write(&dir, "paper.flm", PAPER);
-    write(&dir, "norms.yaml", NORMS);
+    write(&dir, "paper.flm", SHOUTING);
     let out = dir.join("paper.txt");
-    let code = run_in_process(&dir, vec![flm_phfpack::factory().unwrap()], &out);
+    let code = run_in_process(&dir, vec![shout::factory().unwrap()], &out);
     assert_eq!(code, ExitCode::SUCCESS);
     let text = std::fs::read_to_string(&out).unwrap();
-    assert!(holds_replacements(&text), "{text}");
+    assert!(text.contains("Please listen now."), "{text}");
 }
 
+/// A document that names a package that no extension and no compiled package
+/// provides.
+const UNPROVIDED: &str = "---\nflm:\n  use: [no-such-package]\n---\nLet \\(x\\).\n";
+
 /// Set in the environment of the child process that
-/// [`a_program_without_the_package_refuses_a_document_that_names_it`] runs: the
-/// child is this test binary running that one test, which then runs the
-/// program over no package and exits with its status, so that the parent reads
-/// what the program wrote on its standard error.
-const WITHOUT_THE_PACKAGE: &str = "FLM_CLI_TEST_RUN_WITHOUT_PHFPACK";
+/// [`a_program_refuses_a_document_that_names_a_package_nothing_provides`] runs:
+/// the child is this test binary running that one test, which then runs the
+/// program over no compiled package and exits with its status, so that the
+/// parent reads what the program wrote on its standard error.
+const NOTHING_PROVIDES: &str = "FLM_CLI_TEST_RUN_WITH_NO_PROVIDER";
 
 #[test]
-fn a_program_without_the_package_refuses_a_document_that_names_it() {
-    if std::env::var_os(WITHOUT_THE_PACKAGE).is_some() {
-        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("flm-cli-phfpack-without");
+fn a_program_refuses_a_document_that_names_a_package_nothing_provides() {
+    if std::env::var_os(NOTHING_PROVIDES).is_some() {
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("flm-cli-phfpack-unprovided");
         let code = run_in_process(&dir, Vec::new(), &dir.join("paper.txt"));
         std::process::exit(if code == ExitCode::SUCCESS { 0 } else { 1 });
     }
-    let dir = folder("without");
+    let dir = folder("unprovided");
     let out = dir.join("paper.txt");
-    write(&dir, "paper.flm", PAPER);
-    write(&dir, "norms.yaml", NORMS);
+    write(&dir, "paper.flm", UNPROVIDED);
     let child = Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", "a_program_without_the_package_refuses_a_document_that_names_it"])
+        .args(["--exact", "a_program_refuses_a_document_that_names_a_package_nothing_provides"])
         .args(["--nocapture", "--test-threads=1"])
-        .env(WITHOUT_THE_PACKAGE, "1")
+        .env(NOTHING_PROVIDES, "1")
         .output()
         .unwrap();
     assert!(!child.status.success(), "{child:?}");
     assert!(!out.exists());
     // What the program reports is an error naming the package it does not
-    // know (the folder's own path, which holds the word too, left out).
+    // know (the folder's own path left out).
     let reported = String::from_utf8_lossy(&child.stderr).replace(dir.to_str().unwrap(), "");
     assert!(
-        reported.lines().any(|line| line.starts_with("error") && line.contains("phfpack")),
+        reported.lines().any(|line| line.starts_with("error") && line.contains("no-such-package")),
         "{reported}"
     );
 }

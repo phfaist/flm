@@ -414,7 +414,6 @@ impl fmt::Display for Length {
 /// The `fixed` crate's own printing is not used: it prints the shortest
 /// decimal nearer to the amount than to its neighbors, which does not always
 /// read back to it (`0.1` for 6553 scaled points, which reads as 6554).
-// See decision rationale at [§flm-dd-dr:rend-pres-length].
 fn decimal(amount: I48F16) -> String {
     let bits = i128::from(amount.to_bits());
     let magnitude = bits.unsigned_abs();

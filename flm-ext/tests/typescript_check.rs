@@ -1,4 +1,4 @@
-//! The TypeScript check (step E2b, the plan's section 6.3): the fixtures
+//! The TypeScript check: the fixtures
 //! `tests/js/lowerjs/main.js` and `tests/js/wordcount/main.js`, checked as
 //! JavaScript against the declarations `flm.d.ts` by the TypeScript compiler
 //! of the repository's npm workspace, with the project of its member `flm-ext`

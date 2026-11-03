@@ -101,8 +101,8 @@ use techy::core::constructs::{
     parse_declared_arguments, ConstructParser, ConstructParserResult, Invocation, ParseContext,
 };
 use techy::core::node::{
-    BuildId, CallableData, ContentNodes, NodeBuildError, NodeId, NodeKind, NodeTree,
-    ParsedArgument, ParsedArguments, ParsedSlots,
+    BuildId, CallableData, ContentNodes, NodeBuildError, NodeId, NodeKind, NodeRef, NodeSlice,
+    NodeTree, ParsedArgument, ParsedArguments, ParsedSlots,
 };
 use techy::core::specs::{
     ArgumentSpec, CallableQuery, CallableSpec, CallableSyntax, Package, ProviderError,
@@ -263,8 +263,33 @@ pub struct PlaceholderRef {
     /// What it refers to.
     pub target: PlaceholderTarget,
     /// Whether a substitution argument (`#[…]{…}`) was written; its nodes are the
-    /// placeholder node's first argument.
+    /// placeholder node's first argument, and
+    /// [`CompiledTemplate::substitution_text`] gives their text.
     pub substitution: bool,
+}
+
+/// The substitution argument of a placeholder node (`#[…]{…}`), when one is
+/// written: the nodes between the brackets.
+pub(crate) fn substitution_of<'t>(node: &NodeRef<'t, Flm>) -> Option<NodeSlice<'t, Flm>> {
+    let provided = node
+        .arguments()
+        .and_then(|arguments| arguments.get(0))
+        .is_some_and(ParsedArgument::is_provided);
+    if provided {
+        node.argument_content_nodes(0)
+    } else {
+        None
+    }
+}
+
+/// The text of a substitution argument's nodes ([`substitution_of`]): their
+/// source text, with the whitespace around it removed; an empty text for an
+/// empty argument (`#[]{name}`). [`ExtraValues`](super::ExtraValues) keys a
+/// value by this text, and [`CompiledTemplate::substitution_text`] gives it for
+/// each placeholder of a template, so that the text a hook reads from a template
+/// is the key the bindings match on.
+pub(crate) fn substitution_text_of(nodes: &NodeSlice<'_, Flm>) -> String {
+    nodes.source_text().map(|text| text.trim().to_string()).unwrap_or_default()
 }
 
 /// A placeholder name whose content a definition's expansion hook computes.
@@ -465,7 +490,7 @@ impl CallableSpec<Flm> for PlaceholderSpec {
     fn stack_frame_title(&self, role: FrameRole, name: &str) -> String {
         match role {
             FrameRole::Argument { index } => {
-                format!("argument #{} of placeholder beginning ‘{}’", index + 1, name)
+                format!("argument {} of placeholder beginning ‘{}’", index + 1, name)
             }
             _ => format!("placeholder beginning ‘{name}’"),
         }
@@ -744,7 +769,7 @@ impl ConstructParser<Flm> for PlaceholderParser<'_> {
 // because the restricted-interior policy gates the specials scan as a whole: a
 // specials-shaped placeholder would make every feature's specials visible inside
 // a template's verbatim content, whereas the policy lists command escapes
-// individually. See the design rationale at [§flm-dd-dr:lang-userdef-escape].
+// individually.
 
 /// The provider, among those of a parsing state, of the placeholder
 /// specification. It returns the specification for every command written with
@@ -1022,6 +1047,26 @@ impl CompiledTemplate {
     /// Every placeholder, with its node, in the tree's storage order.
     pub fn placeholders(&self) -> impl Iterator<Item = (NodeId, &PlaceholderRef)> + '_ {
         self.placeholders.iter().map(|(id, reference)| (*id, reference))
+    }
+
+    /// The text of the substitution argument written on the placeholder at
+    /// `node` (`#[…]{name}`): the source text between the brackets, with the
+    /// whitespace around it removed. `#[ \lvert ]{DelimLeft}` gives `\lvert`, and
+    /// `#[]{DelimLeft}` an empty text. `None` when `node` is not a placeholder of
+    /// this template, or when the placeholder carries no substitution argument
+    /// (`#{DelimLeft}`).
+    ///
+    /// This text, with the placeholder's name, is the key under which
+    /// [`ExtraValues`](super::ExtraValues) holds the value of an extra
+    /// placeholder: an expansion hook lists the placeholders of a template
+    /// ([`placeholders`](CompiledTemplate::placeholders)) and fills a value for
+    /// each name and text it finds.
+    pub fn substitution_text(&self, node: NodeId) -> Option<String> {
+        if !self.placeholders.contains_key(&node) {
+            return None;
+        }
+        let content = substitution_of(&self.tree.get(node)?)?;
+        Some(substitution_text_of(&content))
     }
 
     /// The diagnostics of the template parse that are not errors.

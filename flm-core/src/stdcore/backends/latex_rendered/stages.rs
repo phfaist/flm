@@ -416,7 +416,8 @@ pub fn resolve<'s>(
     diags: &mut FlmDiagnostics,
 ) -> Resolved<'s> {
     // Of the pieces with one identifier, the one of the feature placed last
-    // defines it (see decision rationale at [§flm-dd-dr:feat-order]).
+    // defines it, since the order of the features, which the user states,
+    // decides which definition applies.
     let definitions = preamble::definitions(services);
     // The pieces wanted, closed over what each requires in turn.
     let mut wanted: BTreeSet<Name> = BTreeSet::from([Name::from(CORE_CHUNK)]);

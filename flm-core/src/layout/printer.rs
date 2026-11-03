@@ -308,7 +308,6 @@ pub(crate) fn print_with_measure(
 /// only on the cell and the width (the separate run starts from an empty
 /// indentation stack and reports no marks), so one printing serves every
 /// later request for the same cell and width, and the output is the same.
-// See decision rationale at [§flm-dd-dr:layout-table].
 #[derive(Default)]
 struct CellRenders(RefCell<BTreeMap<CellAtWidth, Rc<str>>>);
 
@@ -1093,8 +1092,8 @@ impl<'a> Printer<'a> {
 
         // -- emit ------------------------------------------------------------
         // A table that prints nothing is not a block: it leaves the current
-        // line and any pending break untouched. See design rationale at
-        // [§flm-dd-dr:layout-empty-table].
+        // line and any pending break untouched, since output that does not
+        // exist must not push the following text onto a new line.
         if lines.is_empty() {
             return;
         }
@@ -1233,7 +1232,6 @@ impl<'a> Printer<'a> {
                     // shapes decidable without rendering, no columns and no
                     // rows, count as zero width and force no break; a table
                     // whose rows all render empty is still a block to the scan.
-                    // See design rationale at [§flm-dd-dr:layout-empty-table].
                     let def = buf.table_def(def);
                     let prints_nothing = buf.cols_at(def.cols).is_empty()
                         || buf.rows_at(def.rows).is_empty();

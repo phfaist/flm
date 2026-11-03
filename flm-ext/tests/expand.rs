@@ -1,4 +1,4 @@
-//! Expansion (plan A, WP-4): scripted definitions expanded by their own
+//! Expansion: scripted definitions expanded by their own
 //! templates and by scripted hooks — computed characters, recoveries, the
 //! definition's own template instantiated through the façades, diagnostics
 //! kept beside the node, the pass's depth and limit, hooks nested inside an
@@ -165,7 +165,7 @@ fn a_definition_in_force_in_math_alone_is_an_error_in_running_text() {
             DiagnosticValue::Str("flm.userdefs.bad-definition".to_string())
         )]))
     );
-    // The error carries the condition's own data (plan A, A34): the same
+    // The error carries the condition's own data: the same
     // value the definition's own expansion reports with the condition.
     let own_run = common::run(&registry_with([defining("wc", vec![(ket_definition(), None)]).package()]), text::WORKFLOW, document);
     let expected = data_of(&own_run, "flm.userdefs.bad-definition").expect("the condition is reported");
@@ -238,7 +238,7 @@ fn a_hook_instantiates_its_definition_s_own_template() {
     assert_eq!(with, "Say <hey> and <you>.\n");
 }
 
-/// Plan A, A37: a hook that holds no definition of its own instantiates the
+/// A hook that holds no definition of its own instantiates the
 /// definition its element was registered with, which its context answers;
 /// an element declared in the data form has none.
 #[test]
@@ -287,21 +287,6 @@ fn a_hook_that_keeps_its_node_reports_through_diagnose() {
     assert_eq!(notes[0].severity(), flm_core::techy::error::Severity::Note);
     let text = run.table(text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone()).unwrap_or_default();
     assert_eq!(text, "Say seen.\n");
-}
-
-#[test]
-fn a_diagnostic_outside_the_package_is_the_hook_s_failure() {
-    let hook = expand(ExpandPolicy::PerPlan, |_, _, xp| {
-        xp.diagnose(Diagnostic::note("other.seen", "seen"))?;
-        Ok(Expansion::Default)
-    });
-    let registry = registry(vec![(shout_definition(), Some(hook))]);
-    let (text, diagnostics) = text_of(&registry, "Say \\shout{hey}.");
-    assert_eq!(
-        diagnostics,
-        ["flm.ext.handler-failed: the expansion hook of `wc.macro.shout` failed: the diagnostic `other.seen` declared by the package `_` of the extension `wc` must begin with `wc.`"]
-    );
-    assert!(text.contains("\\shout{hey}"), "{text}");
 }
 
 #[test]
@@ -505,7 +490,7 @@ fn a_hook_instantiating_itself_without_end_stops_at_the_limit() {
     assert!(diagnostics[0].starts_with("flm.userdefs.recursion-limit"), "{diagnostics:?}");
 }
 
-// --- plan A, A32: the follow-ups of WP-1 -----------------------------------------------------
+// --- an element's value, and the lowering readers --------------------------------------------
 
 #[test]
 fn element_value_answers_a_scripted_element_s_value() {
@@ -563,7 +548,7 @@ fn the_lowering_readers_refuse_content_holding_a_placeholder() {
     assert_eq!(chars_at_lowering(&first), Ok(Ok("ab ".to_string())));
 }
 
-// --- E4 (section 7.5): a definition with neither a template nor a hook -------------------------
+// --- a definition with neither a template nor a hook -------------------------------------------
 
 #[test]
 fn a_definition_with_neither_a_template_nor_a_hook_is_the_adapter_s_error_naming_the_extension() {
@@ -580,7 +565,7 @@ fn a_definition_with_neither_a_template_nor_a_hook_is_the_adapter_s_error_naming
 
 #[test]
 fn a_definition_needing_a_template_is_spelled_by_its_kind() {
-    // S11: the definition is spelled as `flm-core` displays it.
+    // The definition is spelled as `flm-core` displays it.
     use flm_ext::api::lang::rewrites::userdefs::{Definition, UserDefinition};
     let package =
         common::double::defining("ex", vec![(UserDefinition::new(Definition::environment("barenv", Vec::new())), None)]).package();
@@ -593,7 +578,7 @@ fn a_definition_needing_a_template_is_spelled_by_its_kind() {
     );
 }
 
-// --- a template compiled at the use site (plan E4, section 7.2) ------------------------------------
+// --- a template compiled at the use site -----------------------------------------------------------
 
 /// A text-mode template of `text` for `\shout`, with the extra placeholder
 /// `word`.
@@ -627,7 +612,7 @@ fn a_hook_compiles_a_template_at_the_use_site_and_instantiates_it_with_value_bin
             )
         };
         let word = instantiate(node, &word, &ValueBindings::new())?;
-        let bindings = ValueBindings::new().with("word", &*word)?;
+        let bindings = ValueBindings::new().with("word", &*word);
         Ok(Expansion::Emit(xp.instantiate(cx, node, &template, &bindings)?))
     });
     let registry = registry(vec![(shout_definition(), Some(hook))]);

@@ -75,9 +75,11 @@
 //! of the line that follows it. They are therefore unknown commands, kept as
 //! source like any unknown command in mathematics.
 
-// Why the commands are the math feature's and declared for math mode only, why
-// the argument's mode is part of the declaration, and which commands were left
-// out: see decision rationale at [§flm-dd-dr:std-math-text-commands].
+// The argument's mode is part of each declaration: the argument is stated to be
+// text once, where the command is declared, and every later step reads it off
+// the parsed node without being taught about mathematics. `\fbox` is not
+// declared: it draws a frame, a construct of its own, not a change of the text's
+// face.
 
 use std::sync::Arc;
 

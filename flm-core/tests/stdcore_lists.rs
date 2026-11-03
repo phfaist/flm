@@ -799,10 +799,10 @@ fn the_python_roman_short_form_row() {
 
 // The Python implementation's `test_blocks_paragraphs_correct_number`
 // (`test_flmenvironment.py`), whole: its document is four blocks there and
-// six here, since a display-mathematics environment is a block here and
-// splits the paragraph around it; the list is one block in both.
+// here, since a display-mathematics environment is a displayed item, which
+// stays inside the paragraph it is written in; the list is one block.
 #[test]
-fn the_python_block_count_document_is_six_blocks_the_list_one_of_them() {
+fn the_python_block_count_document_is_four_blocks_the_list_one_of_them() {
     let document = "\n     \n\nTest\nsome\ninput \\textbf{string} here. Does this\n\
                     \\begin{equation}\n a = b\n\\end{equation}\nwork?\n\n\
                     \\textbf{A   new} paragraph is started    here.\n\n\
@@ -816,8 +816,8 @@ fn the_python_block_count_document_is_six_blocks_the_list_one_of_them() {
         .iter()
         .map(|node| node.ext().element.name.to_string())
         .collect();
-    use flm_core::stdcore::backends::pres::{LIST, MATH_PASSTHROUGH, PAR};
-    assert_eq!(blocks, [PAR, MATH_PASSTHROUGH, PAR, PAR, LIST, PAR]);
+    use flm_core::stdcore::backends::pres::{LIST, PAR};
+    assert_eq!(blocks, [PAR, PAR, LIST, PAR]);
 }
 
 // ---------------------------------------------------------------------------------------------

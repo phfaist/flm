@@ -37,7 +37,7 @@ collections, ordering and workflows; lowering rules and output formats; options,
 and services; the two build hooks; bundling features as a package; choosing packages at
 run time; extensions, written as data, in JavaScript, or in Rust compiled to WebAssembly or into the program; a table of the standard features to read for each extension point, with
 recipes that extend the numbering, headings, xnotes and cells features; and an extension
-crate of this repository, end to end.
+of this repository written in Rust, `phfpack`, end to end.
 
 ## A feature, end to end
 
@@ -321,17 +321,16 @@ what a node means.
   lowering rule, or a declaration elsewhere that carries its own syntax creates nodes of
   it.
 
-The field element ([`FIELD`](crate::lang::mint::FIELD)) is declared as `Synthesized`, by
-the `lowering` feature
-([`LoweringFeature`](crate::stdcore::backends::lowering::LoweringFeature)). A field is a
-macro that a construct absorbs as data rather than as content, such as `\label` after a
-heading ([fields: data a construct
-reads](crate::guide::concepts_overview#fields-data-a-construct-reads)). The `lowering`
-feature's declaration creates only the element type name `flm.field` and the default
-lowering rule of field nodes. Each field gets its own element value from its own
-declaration ([`field_element`](crate::lang::mint::field_element)), and the construct that
-accepts the field gives it the macro syntax by which it is parsed there (see [Fields
-absorbed after a construct](#fields-absorbed-after-a-construct)).
+The field element ([`FIELD`](crate::lang::structural::FIELD), `flm.field`) is one of the
+language's structural elements, which no feature declares. A field is a macro that a
+construct absorbs as data rather than as content, such as `\label` after a heading
+([fields: data a construct
+reads](crate::guide::concepts_overview#fields-data-a-construct-reads)). The construct that
+accepts the field declares it as data, with the macro syntax by which it is parsed there,
+and its node carries the field element (see [Fields absorbed after a
+construct](#fields-absorbed-after-a-construct)). The `lowering` feature
+([`LoweringFeature`](crate::stdcore::backends::lowering::LoweringFeature)) registers the
+default lowering rule of field nodes.
 
 A declaration is available in text mode unless it lists its parsing modes with
 [`ElementDef::modes`](crate::lang::mint::ElementDef::modes): a command of mathematics
@@ -357,7 +356,7 @@ that finds it by position does not.
 | [`Mandatory`](crate::lang::mint::ArgStdKind::Mandatory) | a `{…}` group; a single token also counts, as in TeX |
 | [`Optional`](crate::lang::mint::ArgStdKind::Optional) | an optional `[…]` group |
 | [`Star`](crate::lang::mint::ArgStdKind::Star) | an optional `*` marker |
-| [`Marker`](crate::lang::mint::ArgStdKind::Marker) | an optional marker of one other character, as the `!` of `\name!` |
+| [`Marker`](crate::lang::mint::ArgStdKind::Marker) | an optional marker of one or more characters other than a lone `*`, matched as written, as the `!` of `\name!` or the `\big` of `\name\big` |
 | [`DelimitedGroup`](crate::lang::mint::ArgStdKind::DelimitedGroup) | a group between a prescribed pair of characters, as the `(…)` of `\name(arg)`; a single token does not count |
 | [`OptionalDelimitedGroup`](crate::lang::mint::ArgStdKind::OptionalDelimitedGroup) | the same, optional |
 | [`AnyDelimitedGroup`](crate::lang::mint::ArgStdKind::AnyDelimitedGroup) | a group in `{…}`, `[…]`, `(…)` or `<…>`, whichever the use site opens |
@@ -398,9 +397,11 @@ data, in one of two forms:
   holds the kind's name, in lowercase with hyphens, and whose other keys hold the kind's
   parameters, as in `{syntax: delimited-group, delimiters: ["(", ")"]}` for a group in
   parentheses or `{syntax: chars-group}` for a group read as plain characters. Every
-  standard kind above can be written this way except `TackOn`: its fields are
-  declarations that a feature makes in Rust, each with an element of its own, so settings
-  cannot declare one. The [documentation of
+  standard kind above can be written this way. A tack-on argument lists its fields, each
+  with its name, its own arguments (an argument list, described below), whether it may be
+  repeated and its documentation: `{syntax: tack-on, fields: [{name: label, args:
+  [{syntax: chars-group}], repeatable: true}]}` accepts any number of `\label{…}` written
+  after the command. The [documentation of
   `ArgStdKind`](crate::lang::mint::ArgStdKind#the-kind-as-data) lists each kind's name and
   parameters, and what reading a kind refuses.
 - An **argument code** is a short text that stands for one structured syntax: `{` for a
@@ -412,10 +413,11 @@ data, in one of two forms:
   after a run of the character `<c>`, up to the same run followed by the terminator, which
   may be empty) and `F<c><terminator>` (the same, raw text); these four are FLM's own. The
   [table of codes](crate::lang::mint::codes#the-codes) gives each code with the
-  structured syntax it stands for. Three forms have no code and are written with the
+  structured syntax it stands for. Four forms have no code and are written with the
   structured syntax: a group read as plain characters (`chars-group`), a group of
-  `key=value` pairs (`key-vals`), and a terminated argument with an opener or with fixed
-  text before the repeated run of its terminator (`terminated` with `opener` or `head`).
+  `key=value` pairs (`key-vals`), a tack-on argument (`tack-on`), and a terminated
+  argument with an opener or with fixed text before the repeated run of its terminator
+  (`terminated` with `opener` or `head`).
 
 An argument list ([`ArgListData`](crate::lang::mint::ArgListData)) is written in one of
 three shapes: one text of one-character codes, such as `"[{"`; a list of codes; or a list
@@ -444,13 +446,21 @@ settings file.
 An extension in JavaScript, or in Rust written against the guest client `flm_ext::guest`
 (see [A Rust extension compiled to
 WebAssembly](#a-rust-extension-compiled-to-webassembly)), declares its arguments with the
-same data, since its declarations cross to FLM as data: `new ArgDef(syntax)` and
-`ArgDef.named(name, syntax)` in JavaScript, and `ArgDef::new(syntax)` and
-`ArgDef::named(name, syntax)` in Rust, take a code (`"r()"`) or a structured syntax
-(`{ syntax: "chars-group" }` in JavaScript, `ArgStdKind::CharsGroup` in Rust). When FLM
-gives a declaration to an extension, it writes each argument in the form it was read
-from: with its code, with its structured syntax, or, for a tack-on argument or a parser
-of a feature's own, with neither.
+same data, since its declarations cross to FLM as data. In JavaScript, `new ArgDef(syntax)`
+and `ArgDef.named(name, syntax)` take a code (`"r()"`) or a structured syntax
+(`{ syntax: "chars-group" }`), and `arg_def_from_code(code)` answers the argument a code
+stands for. In Rust, `ArgDef::new(kind)` and `ArgDef::named(name, kind)` take a standard
+kind (`ArgStdKind::CharsGroup`), and `ArgDef::from_code(code)` and
+`ArgDef::named_from_code(name, code)` read a code where the argument is made, with the
+library's reader, `define` included; a text that is not a code is an error of kind
+`arg-code`, with the library's message. A tack-on
+argument is declared the same way, its fields as data: `{ syntax: "tack-on", fields: [{
+name: "label", args: [new ArgDef({ syntax: "chars-group" })], repeatable: true }] }` in
+JavaScript, and `ArgStdKind::TackOn { fields }` in Rust, each field a
+`TackOnField::new("label", args)` with its own `ArgDef`s. When FLM gives an argument to an
+extension, in a declaration or as the answer of a function such as `label_fields_arg()`,
+it writes the argument in the form it was read from: with its code, with its structured
+syntax, or, for a parser of a feature's own, with neither.
 
 ### What an argument holds: its role
 
@@ -609,15 +619,21 @@ accepts nothing.
 ### Fields absorbed after a construct
 
 A field is a macro that a construct absorbs as data rather than as content, and a
-construct takes its fields through its **tack-on argument**, a trailing argument
-([`ArgStdKind::TackOn`](crate::lang::mint::ArgStdKind::TackOn)) that absorbs the field
-macros written after the construct's other arguments ([fields: data a construct
-reads](crate::guide::concepts_overview#fields-data-a-construct-reads)).
+construct takes its fields through its **tack-on argument**
+([`ArgStdKind::TackOn`](crate::lang::mint::ArgStdKind::TackOn)), the argument that absorbs
+the field macros written at its position in a call, after the arguments declared before
+it ([fields: data a construct
+reads](crate::guide::concepts_overview#fields-data-a-construct-reads)). Its fields must
+have distinct names; minting reports a declaration that breaks this rule
+([`MintError::FieldDeclaredTwice`](crate::lang::mint::MintError::FieldDeclaredTwice)).
 
 The fields a tack-on argument absorbed are **data that the construct which declared the
-argument reads**, and nothing else reads them. Every field node carries the one element
-type `flm.field` ([`FIELD`](crate::lang::mint::FIELD)), whose value holds the field's
-name as written ([`field_name`](crate::lang::mint::field_name) returns it). A field's
+argument reads**, and nothing else reads them. Every field node is a macro node that
+carries the element `flm.field` ([`FIELD`](crate::lang::structural::FIELD)), and its macro
+name is the field's name as written ([`field_name`](crate::lang::mint::field_name) returns
+it). A field is declared as data ([`TackOnField`](crate::lang::mint::TackOnField): its
+name, its arguments, whether it may be repeated, and its documentation), in Rust or in
+settings given as data, and chooses no element. A field's
 name means what its declaring construct says it means, and nothing across the document is
 keyed on it: your `\label` field is your construct's own, even though the `refs` feature
 declares a field of that name too.
@@ -812,7 +828,10 @@ The aspects that many features implement, and the aspects that state what an ele
 are in [`model::aspects`](crate::model::aspects):
 
 - [`BlockRoleAspect`](crate::model::aspects::BlockRoleAspect): whether an occurrence is a
-  block, inline content, or a decorator attached to its block;
+  block, inline content, a displayed item (content set on lines of its own inside its
+  paragraph, such as a display equation; see [paragraphs, blocks and displayed
+  items](crate::guide::concepts_overview#paragraphs-blocks-and-displayed-items)), or a
+  decorator attached to its block;
 - [`Referenceable`](crate::model::aspects::Referenceable): the reference points an
   occurrence declares;
 - [`Referencing`](crate::model::aspects::Referencing): the reference sites an occurrence
@@ -830,17 +849,17 @@ are in [`model::aspects`](crate::model::aspects):
 - [`Whitespace`](crate::model::aspects::Whitespace): that each occurrence is whitespace,
   as `~` and `\ ` are. The block-structure pass removes such a node where it removes
   whitespace: beside an element whose block role removes the whitespace on that side
-  ([`InlineSpacing`](crate::model::aspects::InlineSpacing), as `\cite` does before it), at
-  the edges of a paragraph, and between blocks. A paragraph that a lowering rule writes
-  itself, over content it cuts out of a longer run (a quotation's passage, attribution and
-  lines, a `\celldata` entry), is trimmed by
+  ([`InlineSpacing`](crate::model::aspects::InlineSpacing), as `\cite` does before it), on
+  both sides of a displayed item, at the edges of a paragraph, and between blocks. A
+  paragraph that a lowering rule writes itself, over content it cuts out of a longer run
+  (a quotation's passage, attribution and lines, a `\celldata` entry), is trimmed by
   [`stage_trimmed`](crate::stdcore::backends::lowering::stage_trimmed), which removes the
   same whitespace at its edges as the pass does, whitespace nodes included, and the
   standard features' tests for blank content count such a node as whitespace (a footnote
   holding only `~` is empty), except the tests of text read as typed or with its markup,
   such as a citation key or a term, of which the node is part (a term holding only `~` is
-  not empty). Everywhere else the node is kept, as a node of its own,
-  which its element's lowering rule lowers. The aspect has no method: attach its
+  not empty). Everywhere else the node is kept, as a node of its own, which its element's
+  lowering rule lowers. The aspect has no method: attach its
   implementation
   [`IsWhitespace`](crate::model::aspects::IsWhitespace), and read it with
   [`is_whitespace_of`](crate::model::aspects::is_whitespace_of).
@@ -976,6 +995,16 @@ other reference to
 [`DefinitionBindings`](crate::lang::rewrites::userdefs::DefinitionBindings), the
 bindings a user definition's own expansion uses. `#1`, a named argument and a default
 value therefore mean the same in the feature's templates as in an author's.
+[`ExtraValues`](crate::lang::rewrites::userdefs::ExtraValues) give such bindings
+without an implementation of
+[`PlaceholderBindings`](crate::lang::rewrites::userdefs::PlaceholderBindings): the
+feature adds a value for each extra placeholder written in the template and in the
+default values of the definition's arguments
+([`ModeVariant::defaults`](crate::lang::rewrites::userdefs::ModeVariant::defaults)),
+under the placeholder's name and the text of its substitution argument
+([`CompiledTemplate::substitution_text`](crate::lang::rewrites::userdefs::CompiledTemplate::substitution_text)),
+and lays the values over `DefinitionBindings` with
+[`ExtraValues::over`](crate::lang::rewrites::userdefs::ExtraValues::over).
 
 A value the feature computes is given as a finished tree
 ([`PlaceholderValue::Tree`](crate::lang::rewrites::userdefs::PlaceholderValue::Tree)),
@@ -1025,8 +1054,11 @@ rule of the user definitions:
   `per-plan` one), so the plan schedules that stage. Only the `userdefs` feature declares that table, so a registry that holds such a rule without the `userdefs`
   feature does not build.
 
-The crate `flm-phfpack` uses these functions (see [An extension crate, end to
-end](#an-extension-crate-end-to-end)).
+The extension `phfpack`, written in Rust, uses these functions through the guest client
+of the extension interface (see [A Rust extension, end to
+end](#a-rust-extension-end-to-end)), with
+[`ExtraValues`](crate::lang::rewrites::userdefs::ExtraValues) for the values it
+computes at each use.
 
 ### User definitions in the recomposed LaTeX
 
@@ -1331,9 +1363,9 @@ flm:
 `flm render -p draft paper.flm` then uses `mystyle` and runs `draft`; a command with
 another profile uses neither the extension `profile-draft` nor `mystyle`. A feature of a
 scripted extension `profile-NAME` may name what it declares after the profile as well as
-after the extension's stem ([Extensions](#extensions)): its output `NAME`, its tables,
-stages and diagnostics `NAME.SOMETHING`, so that the output, like the workflow, carries
-the profile's name. The guide of the `flm` program describes profiles in full
+after the extension's stem ([Extensions](#extensions)): its output `NAME`, its tables and
+stages `NAME.SOMETHING`, so that the output, like the workflow, carries the profile's
+name. The guide of the `flm` program describes profiles in full
 ([Profiles and workflows](crate::guide::command_line#profiles-and-workflows)).
 
 ## Lowering rules
@@ -1676,10 +1708,10 @@ whose stem is `profile-NAME` may also use `NAME` in place of its stem. The three
   feature declares with `b.table_named(lowered_table_name(backend),
   StandardTable.LoweredTrees, docs)`;
 - the emit stage is a stage object, as `b.stage` takes one: it reads the lowered trees
-  by the table's name (`cx.get(name).lowered`, whose `tree(id)` answers a tree's root),
-  walks their nodes (`element_name()`, `payload()`, `body()`, `children()`,
-  `slot_count()`, `slot_content_nodes(index)`) and pushes the text it writes into a table
-  of the extension's own;
+  by the table's name (`cx.get(name).lowered`, whose `tree(id)` answers a tree), walks
+  the nodes of each from its `root()` (`element_name()`, `payload()`, `body()`,
+  `children()`, `slot_count()`, `slot_content_nodes(index)`) and pushes the text it
+  writes into a table of the extension's own;
 - the final stage is a stage object that reads that text and pushes the artifact set
   into a table declared with `b.table_named(name, StandardTable.ArtifactSet, docs)`:
   each artifact is written as data, `Artifact.bytes(new ArtifactId(owner, name),
@@ -2725,7 +2757,8 @@ without `#` names, and any other name (letters, digits, `-` and `_`) is reached 
 |---|---|
 | `title`, `docs`, `version` | texts, optional: the feature's information, as a compiled feature's [`FeatureInfo`](crate::core::registry::FeatureInfo) |
 | `settings` | optional: the feature's settings, declared as data (below) |
-| `register(b, settings)` | a function: it declares what the feature contributes through the feature builder `b`, a JavaScript object with the methods of [`FeatureBuilder`](crate::core::registry::FeatureBuilder); `settings` is the feature's configuration as written in the document's settings (`{}` when nothing is written) |
+| `register(b, settings)` | a function: it declares what the feature contributes through the feature builder `b`, a JavaScript object with the methods of [`FeatureBuilder`](crate::core::registry::FeatureBuilder); `settings` is the feature's configuration as written in the document's settings (`{}` when nothing is written under the feature), or as its reader answered it |
+| `read(settings)` | a function, optional: the feature's configuration reader (below) |
 
 **Settings.** A feature in JavaScript declares its settings as data, since it has no Rust
 type to derive them from. `settings.config` is the feature's configuration, fixed when
@@ -2742,6 +2775,23 @@ configuration; a stage reads an option type by its name, after declaring the rea
 its needs: `new Needs().option(name)` in `needs()`, then `cx.option(name)` in `run`,
 which answers the option's settings as a map.
 
+**The configuration reader.** The library checks the keys of a configuration declared as
+data and nothing else of its values. A feature that reads its configuration gives
+`read(settings)`, which the program calls whenever it reads a document's settings, for
+every feature of a package the document uses that declares a reader and is not switched
+off in the document's settings, before the registry is built: it receives the
+configuration written under the feature (`{}` when nothing is written under the feature,
+or none of the configuration's own keys) and answers `{ value }`, `value` being the
+configuration that `register` receives (the configuration itself, for a reader that only
+checks it), or `{ error: { path, detail } }`, the value at fault: `path` is its key path
+below the feature's name (`macros.abs`; left out for the configuration as a whole) and
+`detail` the condition it violates (``must be a text, not `3` ``), the shape of
+`ReadError` in `flm:core/settings`. The program reports a fault as it reports a compiled
+feature's settings that cannot be read, where the document wrote the value, and with no
+place in the document when its settings do not name the feature
+([`SettingsDecl::config_data_read`](crate::core::settings::SettingsDecl::config_data_read)).
+A feature written in Rust gives its reader with `Feature::read`.
+
 **Imports.** A module imports:
 
 - the modules of the extension interface, under the prefix `flm:` (`flm:core/stage`,
@@ -2755,15 +2805,16 @@ A dynamic `import()` is refused: every module is imported by an `import` declara
 the top of a module, and the extension's files are read once, when it is loaded.
 
 **Names.** Every element, table, stage, capability, option type, scoped package, lowering
-rule, style and script definition and diagnostic identifier that a feature of an extension declares, and the name of
-every value it contributes as data (a counter, a definition piece), must begin with the extension's
-*stem* and a dot: the stem is the last segment of the locator through which the extension
-was first reached (`wordcount` for `wordcount`, `style` for `@acme/style`). An extension
-whose stem is `profile-NAME`, which the profile `NAME` uses ([Capabilities, collections,
-ordering and workflows](#capabilities-collections-ordering-and-workflows)), may also begin
-these names with `NAME` and a dot: wherever this chapter speaks of the stem, `NAME` may
-take its place. A name that
-another feature owns, such as a table a stage reads, is not checked.
+rule, style and script definition that a feature of an extension declares, and the name of
+every value it contributes as data (a counter, a definition piece), must begin with the
+extension's *stem* and a dot: the stem is the last segment of the locator through which
+the extension was first reached (`wordcount` for `wordcount`, `style` for `@acme/style`).
+An extension whose stem is `profile-NAME`, which the profile `NAME` uses ([Capabilities,
+collections, ordering and workflows](#capabilities-collections-ordering-and-workflows)),
+may also begin these names with `NAME` and a dot: wherever this chapter speaks of the
+stem, `NAME` may take its place. A name that another feature owns, such as a table a
+stage reads, is not checked. Nor is the identifier of a diagnostic a feature reports,
+which is not a declaration: it may be any identifier, a library condition's included.
 
 A feature's own name carries no stem, so that a front matter configures it under a short
 key (`features: { wordcount: … }`). Two extensions that declare features of one name
@@ -3011,14 +3062,34 @@ JavaScript.
   TemplateLanguage(lang))` (from `flm:lang/rewrites/userdefs`) compiles a
   `TemplateSpec`, with the language that `lw.lang()`, `xp.lang()` or a
   late-initialization hook gives; `instantiate(node, template, new
-  ValueBindings().with(name, root))` instantiates it, giving each extra placeholder the
-  tree whose root is `root` (see [Templates with values the feature
-  computes](#templates-with-values-the-feature-computes)). The template language and
+  ValueBindings().with(name, tree))` instantiates it as a new tree, giving each extra
+  placeholder a tree (a `Tree`, such as a number segment's `content`), and
+  `lw.splice(cx, tree)` places that new tree in the rule's output (see [Templates with
+  values the feature computes](#templates-with-values-the-feature-computes)). The template language and
   the compiled template are *durable objects*: FLM keeps them for the feature as long as
   the registry is in use, and a script may use them on any thread and in any later call.
   Compiling a second time with an equal specification answers the same object without
   compiling the text again, so a rule may compile its template at every use. The
   `myhead` extension writes its heading's number this way.
+- **Computed placeholders.** An expansion hook gives the extra placeholders of its
+  definition (`extra_placeholder(name, substitution)` on a `Definition`) values it
+  computes at each use. It lists the placeholders of the templates it instantiates:
+  `template.placeholders()` answers one `{ written, target, substitution }` per
+  placeholder, the target `{ argument: index }`, `"body"` or `{ extra: name }`, and
+  `substitution` the text written between the brackets of `#[…]{name}`, trimmed, or
+  `null` when there are none; `variant.defaults()` answers the default values of the
+  arguments as `[index, template]` pairs, whose placeholders count too. It then fills
+  `new ExtraValues()` (from `flm:lang/rewrites/userdefs`) under each name and
+  substitution text it found: `template(name, substitution, template)` gives a compiled
+  template (one that `compile_template_with` answered, or the variant's template or one
+  of its default values), `tree(name, substitution, tree)` a tree (a `Tree`), and
+  `no_value(name, substitution)` no value. `values.over(new
+  DefinitionBindings(node, variant))` answers the bindings that
+  `xp.instantiate(cx, node, variant.template(), bindings)` takes: an extra placeholder
+  is given its value from `values`, and the arguments and the body from the use site; a
+  name and a substitution text that `values` does not hold make the use an error (see
+  [Templates with values the feature
+  computes](#templates-with-values-the-feature-computes)).
 
 ### Host services
 
@@ -3344,7 +3415,7 @@ function register(b, settings) {
     run(cx, out) {
       const min = cx.option("wordcount.counting").min_length ?? 1;
       let words = 0;
-      for (const node of cx.my_tree().descendants()) if (node.is_chars()) words += count_words(node.chars(), min);
+      for (const node of cx.my_tree().root().descendants()) if (node.is_chars()) words += count_words(node.chars(), min);
       out.table("wordcount.words").push({ tree: cx.tree_id(), words });
       if (cx.option("wordcount.reporting").report_counts === true)
         out.diags({ id: "wordcount.count", severity: "note", message: `the tree \`${cx.tree_id()}\` holds ${words} words` });
@@ -3558,8 +3629,8 @@ impl Stage for Count {
         let min = cx.option("wordcount.counting")?["min_length"].as_u64().unwrap_or(1) as usize;
         let tree = cx.tree_id()?.unwrap_or_default();
         let mut words = 0;
-        if let Some(root) = cx.my_tree()? {
-            for node in root.descendants()? {
+        if let Some(my_tree) = cx.my_tree()? {
+            for node in my_tree.root()?.descendants()? {
                 if node.is_chars()? {
                     words += helpers::count_words(&node.chars()?.unwrap_or_default(), min);
                 }
@@ -3624,17 +3695,27 @@ and a document lists its packages under `use` as it lists any extension's.
 
 **One crate for both forms.** The extension's source is the same in both forms: it is
 written against `flm_ext::guest`, its crate depends on `flm-ext` with the feature `guest`
-alone, and its root invokes the macro `extension!` once. How the guest client reaches the
-host depends on whether `flm-ext`'s cargo feature `native` is on in the build:
+alone, and its root invokes the macro `extension!` once. The guest client alone chooses
+how the extension's calls reach FLM, by whether `flm-ext`'s cargo feature `native` is on in
+the build:
 
 - without `native`, the crate compiled for `wasm32-unknown-unknown` is a WebAssembly
   module, and every call of the API crosses as JSON text through the module's import (the
   section above);
-- with `native`, which a program that carries the engine `native` turns on, the crate is a
-  Rust library of that program, built for any target, `wasm32-unknown-unknown` included (a
-  program that runs the library in a web browser, for instance); every call of the API is
-  answered in the same process, by the same code of the host, passed as a JSON value
-  (`serde_json::Value`) with no text.
+- with `native`, which a program that carries the engine `native` turns on, the crate is
+  a Rust library of that program, built for any target, `wasm32-unknown-unknown`
+  included (a program that runs the library in a web browser, for instance); every call
+  of the API is a direct, typed call of the extension API (`flm_ext::api`) in the same
+  process: the guest client converts the extension's Rust values into the API's, calls
+  the API's method, and converts its answer back, with no JSON value written or read.
+  FLM's calls of the extension's handlers are direct calls too, their arguments and
+  replies Rust values. Only the data that is JSON by nature stays JSON: a feature's
+  settings, which its `register` and its template modules' `describe` receive as a
+  `serde_json::Value`, and the declarations of the extension's packages.
+
+In both forms, the calls reach the same code on FLM's side: a façade stands for FLM's
+object by the same handle, valid for the handler call that received it, and the same
+objects of FLM call the extension's handlers.
 
 A crate meant for both forms keeps the default type of its library, which a program
 depends on, and builds its WebAssembly form with `cargo rustc --target
@@ -3682,10 +3763,13 @@ being `native` (the manifest specifies no module); the loader then gives the ext
 the engine `native`, which finds it by its stem. A manifest that specifies the engine
 `native` for a stem the engine does not hold is refused, and the message lists the stems
 the engine holds. The module documentation of `flm_ext::native` shows the whole set-up
-in a compiled example. The `flm` program carries the extension `profile-pdf-latex` this way (see
-[PDF through LaTeX](crate::guide::command_line#pdf-through-latex)): its crate is in the
-repository's folder `extensions/rust/`, and the same crate builds as a WebAssembly module
-with the script `extensions/rust/build-wasm.sh`.
+in a compiled example. The `flm` program carries the four extensions written in Rust
+that ship with FLM this way: `flmdoc` ([Writing documentation pages: the extension
+`flmdoc`](#writing-documentation-pages-the-extension-flmdoc)), `phfpack` ([A Rust
+extension, end to end](#a-rust-extension-end-to-end)), `profile-pdf-latex` ([PDF through
+LaTeX](crate::guide::command_line#pdf-through-latex)) and `syntax-highlight`. Their
+crates are in the repository's folder `extensions/rust/`, and the script
+`extensions/rust/build-wasm.sh` builds each crate as a WebAssembly module.
 
 **What differs from a WebAssembly module:**
 
@@ -3696,8 +3780,15 @@ with the script `extensions/rust/build-wasm.sh`.
   run from finishing. Nor is the depth of a value bounded: the engines `js` and `wasm` refuse
   a value nested deeper than 127 levels when they read JSON text, and the engine
   `native` reads no text;
-- every call of the API is a call in the same process, so a loop over many nodes runs
-  without the cost of JSON text;
+- a JSON value (a `serde_json::Value`) is passed as it is, whether it is an argument of
+  a call of the API, the call's answer, or the data a template module's `files` and
+  `render` receive: the engines `js` and `wasm` refuse, in each of these, a number that
+  is not a whole number or a reserved map key (one beginning with `$`, for instance),
+  and the engine `native` passes it. On every engine, the API itself refuses such a
+  value where it keeps it as data: an item of an extension's table, a presentation
+  node's data payload, a diagnostic's data, the data contributed to a service slot;
+- every call of the API is a direct call in the same process, with no JSON value written
+  or read, so a loop over many nodes runs without the cost of JSON;
 - a panic in a handler, or in FLM while it answers one of the handler's calls, fails the
   handler with the panic's message ("… must run without a panic: MESSAGE"), and the
   thread's instance of the extension is replaced, as a module's instance is after a trap.
@@ -4977,67 +5068,400 @@ definition) in a stylesheet of your own on HTML, or, in LaTeX, define `\flmCells
 where its cell style is of the structural form, as the `cells` feature's own three
 (`align`, `head`, `rule`) are; a value on a custom style is an error.
 
-## An extension crate, end to end
+## A Rust extension, end to end
 
-The crate `flm-phfpack` of this repository is a crate of extensions written as a third
-party would write it: it depends on no crate of this repository other than `flm-core`
-(besides `serde`, `schemars` and `serde_json`, which declaring settings asks of any
-crate), reaches the parser toolkit techy
-only through the library's re-export (`flm_core::techy`), and holds one package,
-`phfpack`, with one feature, `phfqit`. The feature declares notation macros for quantum
-information, whose delimiters are drawn at the size a use asks for, and quantity macros
-such as entropies. The crate shows the whole path from declaration to program:
+The extension `phfpack`, which ships with FLM, is written in Rust as a third party writes
+an extension: against the guest client `flm_ext::guest` alone (see [A Rust extension
+compiled to WebAssembly](#a-rust-extension-compiled-to-webassembly)). Its crate, the folder
+`extensions/rust/phfpack/` of the repository, depends on `flm-ext` with the cargo feature
+`guest` and on no other crate of the repository; it also depends on `serde`, `serde_json`
+and `schemars`, with which it reads and describes its settings. The extension provides one
+package, the default package `_`, which a document uses with `use: [phfpack]`. The package
+holds one feature, `phfqit`, which declares notation macros for quantum information (such
+as `\ket{\psi}` and `\braket{\phi}{\psi}`), whose delimiters are drawn at the size a use
+asks for, and quantity macros such as entropies. Each macro is a *user definition*, a
+macro defined by substitution: a name, an argument syntax and a template ([author
+definitions](crate::guide::language_syntax#author-definitions)). An expansion hook of the
+feature's own replaces every use of a macro by its template before any output is written.
 
-- **The macros are data.** Each macro is one row of a table: its name, its arguments, its
-  template. A macro that a document declares in the feature's settings becomes the same
-  kind of value as a row. Each becomes a
-  [`Definition`](crate::lang::rewrites::userdefs::Definition) whose arguments are read by
-  the library's readers of an argument's syntax (a row's codes by
-  [`arg_def_from_code`](crate::lang::mint::arg_def_from_code); the arguments of a macro
-  declared in the settings by [`ArgData`](crate::lang::mint::ArgData), each a structured
-  syntax or a code) and whose templates may use the feature's computed placeholders,
-  declared on the definition with
-  [`Definition::extra_placeholder`](crate::lang::rewrites::userdefs::Definition::extra_placeholder)
-  (see [Templates with values the feature
-  computes](#templates-with-values-the-feature-computes)).
-- **One argument parser of its own.** A size written as one token (a size command or a
-  star) after a backtick is read by an
-  [`FlmArgumentParser`](crate::lang::mint::FlmArgumentParser) of the crate, since no
-  standard argument kind reads a command in that position. Every other argument is of a
-  standard kind.
-- **Elements and rules.** Every macro registers the element declaration that
-  [`UserDefinition::element_def_with`](crate::lang::rewrites::userdefs::UserDefinition::element_def_with)
-  builds, with the feature's own [`Expand`](crate::lang::rewrites::userdefs::Expand)
-  aspect in place of the definition's, under a name that
-  [`element_name_under`](crate::stdcore::features::userdefs::element_name_under) gives
-  with the feature's prefix. It registers the lowering rule that
-  [`expand_in_tree_rule_for`](crate::stdcore::features::userdefs::expand_in_tree_rule_for)
-  builds for it, which requires
-  [`ALWAYS_EXPANDED`](crate::stdcore::features::userdefs::ALWAYS_EXPANDED): the
-  `userdefs` feature's rewrite stage replaces the macros in the tree before any output is
-  written, in every workflow. The `userdefs` feature is therefore necessary, since a
-  registry without it does not declare what the rule requires. A macro is available in
-  the parsing modes where its text parses, as a user definition declared by one text is,
-  and a declared macro's `content` is read by
-  [`DefinitionContent::definitions`](crate::stdcore::features::userdefs::DefinitionContent::definitions).
-- **Templates compiled once.** A [`LateInit`](crate::core::registry::LateInit) hook
-  compiles every definition's templates, then each value that a computed placeholder
-  stands for (a delimiter at each size, a named value) into a small tree. Each value is
-  kept in the parsing modes where its text parses, through the library's
-  [`compile_in_modes`](crate::lang::rewrites::userdefs::compile_in_modes) (a delimiter
-  with a size command parses in formulas only). The hook's placeholder bindings return
-  that tree at each use, and pass every other reference to
-  [`DefinitionBindings`](crate::lang::rewrites::userdefs::DefinitionBindings).
-- **Settings.** The feature declares its settings through
-  [`FlmFeature::settings`](crate::core::registry::FlmFeature::settings): a data type that
-  is read and converted to the feature's configuration, with the keys that hold named
-  things merged entry by entry. It passes its configuration to the registry digest with
-  [`digest_input`](crate::core::registry::FeatureBuilder::digest_input).
-- **The program.** A program carries the crate's
-  [`PackageFactory`](crate::core::registry::PackageFactory): the `flm` program passes it
-  to its library entry point behind a cargo feature, and a program of your own passes its
-  own list of factories in the same way (see [building a program that carries other
-  packages](crate::guide::command_line#building-a-program-that-carries-other-packages)).
+The paragraphs below follow the extension from the declaration of its package to the two
+forms in which a program runs it. The crate's own documentation (its `src/lib.rs`) lists
+every macro an author can write, and the items of the guest client that each step uses.
+
+**The package and the feature.** The crate's root invokes the macro `extension!` once,
+with the function `define`, which declares the package `_`. The package uses the standard
+package `stdcore`. Its `flm` block states the feature order `math-mathjax < phfqit`: where
+the extension `math-mathjax` is in use, the macros that MathJax also defines (`\Re`,
+`\Im`) take the definitions of `phfqit`. The package holds the feature `phfqit`, with its
+title, its documentation (abridged here), its settings, its configuration reader and its
+`register` function:
+
+```ignore
+flm_ext::guest::extension!(define);
+
+fn define(ext: &mut Extension) {
+    ext.package(
+        "_",
+        Package::new().uses(["stdcore"]).flm(json!({ "feature_order": ["math-mathjax < phfqit"] })).feature(
+            feature::FEATURE,
+            Feature::new()
+                .title("Quantum-information notation")
+                .docs("Notation macros for quantum information: …")
+                .settings(feature::settings())
+                .read(settings::read)
+                .register(feature::register),
+        ),
+    );
+}
+```
+
+**The macros as data.** The built-in macros are the rows of the crate's module `tables`.
+A row gives a macro's name, its arguments, the number of leading arguments that the
+numbered placeholders skip (`#1` is the first argument after them), its template, its
+parsing modes and the default values of its optional arguments. Each argument of a row is
+a size slot (an argument through which a use asks for a size; see the size slots below) or
+an argument code ([An argument's syntax in settings](#an-arguments-syntax-in-settings)).
+The row of `\abs` is built by the function `delimited`, which makes `#1` the first
+argument after the three size slots:
+
+```ignore
+/// The three size slots of a delimited macro, then one braced argument.
+const SIZED_1: &[RowArg] = &[Size(Backtick), Size(Star), Size(Bracket), Code("{")];
+
+delimited("abs", SIZED_1, r"#[{\lvert}]{DelimLeft}{#1}#[{\rvert}]{DelimRight}"),
+```
+
+Each row becomes a value of the guest's `Definition`, the mirror of
+[`Definition`](crate::lang::rewrites::userdefs::Definition). A row's argument code is read
+with the guest's `ArgDef::from_code`, or with `ArgDef::named_from_code` for an argument
+that the template refers to by its name, in `register`, which answers the error of a code
+that is not one; a size slot is declared by its standard kind. Every
+definition also declares four *computed placeholders* with
+`Definition::extra_placeholder`: names whose content the feature computes at each use,
+which take a substitution argument (`#[…]{name}`). `#[\lvert]{DelimLeft}`,
+`#[\vert]{DelimMiddle}` and `#[\rvert]{DelimRight}` write the delimiter between the
+brackets at the size the use asks for; `#[spaceKets.Bar]{config}` writes a named value of
+the settings (here the spacing around the bar of `\braket`).
+
+A macro that a document declares in the feature's settings, under the key
+`macro_definitions`, becomes the same kind of value. Its arguments are written under
+`args` in the forms of a user definition's arguments ([Arguments](#arguments)): one text
+whose characters are argument codes, or a list whose entries are each an argument code,
+an argument's map, or the name of a size slot (`SizeArgBacktick`, `SizeArgStar` or
+`SizeArgOptArg`). An argument's map gives the argument's syntax either as a code
+(`code: "r()"`) or as a structured syntax
+(`syntax: delimited-group, delimiters: ["(", ")"]`), beside the argument's other keys.
+A delimited macro writes its arguments under `delimited_args`, as one text or as a list
+of codes and maps: the three size slots come first without being written, and the
+numbered placeholders count from the first argument after them, as in a row built by
+`delimited`. The crate's settings types hold each argument as the guest's
+`lang::mint::ArgDef`, the mirror of [`ArgDef`](crate::lang::mint::ArgDef): `serde` reads
+it in the data form of [`ArgData`](crate::lang::mint::ArgData), with the library's own
+reading, and its JSON schema is that form's, which lists the argument codes and the
+standard kinds. They hold the list of `delimited_args` as the guest's
+`lang::mint::ArgListData`, the mirror of
+[`ArgListData`](crate::lang::mint::ArgListData), read in that list's shapes and described
+with its schema. A size slot is declared as a row's is, and the hook reads it as it reads
+the slots of a row. A declaration whose `content` gives one template for running text and
+one for formulas becomes one definition per parsing mode.
+
+**The size slots.** A use of a delimited macro asks for the size of its delimiters in one
+of three ways: a size command after a backtick (``\abs`\Big{x}``), a star (`\abs*{x}`,
+delimiters as tall as the content), or a size command in brackets (`\abs[\Big]{x}`). The
+size commands are `\big`, `\Big`, `\bigg` and `\Bigg`. Each way is one argument of a
+standard kind ([Arguments](#arguments)), declared by that kind:
+
+```ignore
+pub fn arg(self) -> ArgDef {
+    ArgDef::new(match self {
+        SlotKind::Backtick => ArgStdKind::Embellishments { markers: vec!['`'] },
+        SlotKind::Star => ArgStdKind::Star,
+        SlotKind::Bracket => ArgStdKind::Optional,
+        SlotKind::Marker(i) => ArgStdKind::Marker { marker: SIZE_COMMANDS[i].to_string() },
+    })
+}
+```
+
+- `Embellishments` (the code ``e{`}``) is the
+  [embellishment argument](crate::lang::mint::ArgStdKind::Embellishments) whose one marker
+  is the backtick. The parser matches a marker against the characters as they are
+  written, so the backtick matches even in a formula, where the feature declares it as the
+  trigger of the backtick form (below). The size is the expression that follows the
+  marker: a command such as `\Big`, or the star.
+- `Star` (the code `*`) is the star, and `Optional` (`[`) an optional argument in
+  brackets.
+- `Marker` (the code `t{\Big}`) is an optional
+  [marker argument](crate::lang::mint::ArgStdKind::Marker) spelled as a size command; only
+  the backtick form declares such arguments.
+
+At a use, the hook finds the slot that the use writes with the guest's
+`Node::argument_content_nodes(index)`, which answers `Some` for an argument the use writes,
+and reads the size's text with `span_content`: after a backtick, the text of the children
+of the group that the embellishment argument holds for its marker; in brackets, the text
+between the brackets. A text that is neither a size command nor the star, or a size given
+in two ways, is the Error `phfpack.phfqit.bad-size` at the use.
+
+The *backtick form*, such as `` `\Big(a+b) `` in a formula, writes a group between its own
+delimiters at the size written right after the backtick. It is a special character
+sequence (characters that trigger a definition, here the backtick alone), declared for
+formulas only, since a backtick in running text is a quotation mark. Its size follows the
+backtick with no marker between them, so no embellishment argument can read it. Its row
+therefore declares one optional marker argument per size command, then the star, then the
+group in braces, brackets, parentheses or angle brackets:
+
+```ignore
+pub const BACKTICK: &[Row] = &[Row {
+    kind: RowKind::Specials,
+    name: "`",
+    args: &[
+        Size(Marker(3)),
+        Size(Marker(1)),
+        Size(Marker(2)),
+        Size(Marker(0)),
+        Size(Star),
+        Named(MAIN_DELIMITED_ARGUMENT, "AnyDelimited"),
+    ],
+    offset: 0,
+    template: "#{DelimLeft}#{MainDelimitedArgument}#{DelimRight}",
+    modes: DefinitionModes::Math,
+    defaults: &[],
+}];
+```
+
+`Marker(i)` is the marker argument of the size command at index `i` of `\big`, `\Big`,
+`\bigg`, `\Bigg`, so the row declares `t{\Bigg}`, `t{\Big}`, `t{\bigg}` and `t{\big}`, in
+this order. A marker matches the characters written after the backtick as they are, so a
+marker that begins another (`\Big` begins `\Bigg`) comes after it. A size that is none of
+these (`` `\huge(x) ``) matches no marker, and the parser reports that the group which
+must follow the backtick is missing. The template writes `#{DelimLeft}` and
+`#{DelimRight}` without a substitution argument: the feature then writes the delimiters
+that correspond to the one opening the group (`\langle` and `\rangle` for `<`).
+
+**Elements and lowering rules.** The function `register` receives the feature builder `b`
+and the feature's configuration. It declares one element and one lowering rule per macro,
+in a fixed order: the rows in the order of the tables, except each row that a declared
+macro of the same name replaces, then the declared macros in the order of their names. It
+then passes the settings to the registry digest (see below):
+
+```ignore
+pub fn register(b: &mut FeatureBuilder, settings: &Value) -> Result<(), ExtError> {
+    let data = PhfqitData::from_settings(settings).map_err(settings::refused)?;
+    let digest = data.digest_bytes();
+    let config = PhfqitConfig::from_data(data).map_err(settings::refused)?;
+    let owner = b.feature()?;
+    let values = Arc::new(config.values.clone());
+    for m in macros(config) {
+        let definition = m.definition.expand(ExpandPolicy::Always);
+        let element = element_name_under(PREFIX, &definition)?;
+        // The rule covers the element on every backend and schedules the
+        // `userdefs` feature's stage that expands the `always` definitions,
+        // which makes that feature necessary.
+        b.lowering_rule(expand_in_tree_rule_for(&element, &definition)?)?;
+        let hook: Arc<dyn Expand> = Arc::new(MacroHook { slots: m.slots, values: Arc::clone(&values) });
+        let value = UserDefinition::new(definition)?;
+        b.element(value.element_def_with(&owner, &element, hook)?)?;
+    }
+    b.digest_input(&digest)
+}
+```
+
+For each macro:
+
+- The definition takes the expansion policy `always`. The element's name is the one that
+  the guest's `stdcore::features::userdefs::element_name_under`, the mirror of
+  [`element_name_under`](crate::stdcore::features::userdefs::element_name_under), derives
+  with the prefix `phfpack.phfqit` (`phfpack.phfqit.macro.ket` for `\ket`).
+- The lowering rule is the one that the guest's `expand_in_tree_rule_for`, the mirror of
+  [`expand_in_tree_rule_for`](crate::stdcore::features::userdefs::expand_in_tree_rule_for),
+  builds. The rule requires the trees table
+  [`ALWAYS_EXPANDED`](crate::stdcore::features::userdefs::ALWAYS_EXPANDED), which the
+  `userdefs` feature's rewrite stage for `always` definitions writes. Every plan that
+  lowers one of the macros therefore runs that stage, which replaces each use by its
+  template before any output is written, and a registry without the `userdefs` feature
+  does not build.
+- The element declaration is the one that the guest's `UserDefinition::element_def_with`,
+  the mirror of
+  [`UserDefinition::element_def_with`](crate::lang::rewrites::userdefs::UserDefinition::element_def_with),
+  builds with the feature's own expansion hook `MacroHook`, an implementation of the
+  guest's trait `Expand` that holds the macro's size slots and the named values of the
+  settings. `owner`, the name of the feature, comes from `b.feature()`.
+
+The feature registers no build hook to compile its templates: the extension interface
+compiles the templates of every definition that an extension registers once the language
+is built, as the `userdefs` feature compiles an author's user definitions.
+
+**Placeholders computed at each use.** The hook `MacroHook` expands every use of every
+macro of the feature. Its method `expand` receives the use's node, the context of the
+expansion `cx` and the expander `xp` (the guest's `ExpandCx` and `Expander`), and takes
+these steps:
+
+1. It finds the use's definition with `cx.definition()`, since a handle that `register`
+   held is valid only during that call. It then asks the definition for its *variant* for
+   the use's parsing mode, the template and default values compiled for that mode, with
+   `UserDefinition::variant_for_use`, the mirror of
+   [`UserDefinition::variant_for_use`](crate::lang::rewrites::userdefs::UserDefinition::variant_for_use).
+   Where the definition has no variant for that mode, the answer is the library's
+   condition `flm.userdefs.bad-definition`, which the hook reports at the use with
+   `xp.recover`, under that identifier.
+2. It reads the size the use asks for (see the size slots above).
+3. It lists the computed placeholders that the variant's template and default values
+   write, each as a name and the text of its substitution argument.
+   `CompiledTemplate::placeholders` answers each placeholder of a template with its target
+   (an argument, the body, or the name of a computed placeholder) and the text of its
+   substitution argument; `ModeVariant::defaults`, the mirror of
+   [`ModeVariant::defaults`](crate::lang::rewrites::userdefs::ModeVariant::defaults),
+   answers the compiled default values, whose placeholders count too:
+
+   ```ignore
+   let template = variant.template()?;
+   let mut written = BTreeSet::new();
+   let defaults = variant.defaults()?.into_iter().map(|(_, default)| default);
+   for compiled in std::iter::once(template).chain(defaults) {
+       for reference in compiled.placeholders()? {
+           if let PlaceholderTarget::Extra(name) = reference.target {
+               written.insert((name, reference.substitution));
+           }
+       }
+   }
+   ```
+
+4. It writes the text of each placeholder it listed: for a delimiter placeholder, the
+   delimiter at the use's size (`\Bigl \langle` for the left `\langle` at the size
+   `\Big`); for `config`, the named value of the settings that the substitution argument
+   gives. A named value that the settings do not hold is the Error
+   `phfpack.phfqit.unknown-value` at the use.
+5. It compiles each text in the use's parsing mode with the guest's
+   `compile_template_with`, the mirror of
+   [`compile_template_with`](crate::lang::rewrites::userdefs::compile_template_with),
+   against the built language of the expansion (`xp.lang()`) and the feature's
+   `TemplateLanguage`. The compiled template is kept by the extension interface for the
+   feature while the registry is in use, and compiling an equal specification again
+   answers it without compiling the text a second time, so a second use at the same size
+   compiles nothing. A text that does not compile in the use's parsing mode (a delimiter
+   at a size command, in running text) is left out; the library then reports its
+   placeholder as an Error at the use (`flm.userdefs.bad-placeholder`):
+
+   ```ignore
+   match compile_template_with(&spec, &self.lang, language) {
+       Ok(template) => Ok(Some(template)),
+       Err(ExtError::Core { kind, .. }) if kind == COMPILE_TEMPLATE => Ok(None),
+       Err(error) => Err(error),
+   }
+   ```
+
+6. It gives each compiled text to its placeholder with the guest's `ExtraValues`, the
+   mirror of [`ExtraValues`](crate::lang::rewrites::userdefs::ExtraValues), under the
+   placeholder's name and substitution text
+   (`values.template(name, substitution.as_deref(), compiled)`). It lays these values over
+   the bindings of the use's arguments, the guest's `DefinitionBindings`, the mirror of
+   [`DefinitionBindings`](crate::lang::rewrites::userdefs::DefinitionBindings), and
+   instantiates the template. Every other placeholder (`#1`, a named argument, a default
+   value) therefore means in the feature's templates what it means in an author's user
+   definition:
+
+   ```ignore
+   let bindings = values.over(&DefinitionBindings::new(node, &variant)?)?;
+   Ok(Expansion::Emit(xp.instantiate(cx, node, &template, &bindings)?))
+   ```
+
+**Settings as data.** The feature declares its settings as data, the value that the
+function `settings` answers and that `Feature::settings` takes:
+
+```ignore
+pub fn settings() -> Value {
+    json!({
+        "config": {
+            "schema": settings::schema(),
+            "docs": "The macros declared in addition to the built-in ones (`macro_definitions`), and the named \
+                     values the macros' templates read (`spaceKets`, `spaceOKets`, `space`). Fixed when the \
+                     registry is built: it cannot vary per document or per render.",
+        },
+        "merge_entries": {
+            "macro_definitions": {},
+            "spaceKets": default_values("spaceKets"),
+            "spaceOKets": default_values("spaceOKets"),
+            "space": default_values("space"),
+        },
+        "markup": [
+            "macro_definitions.*.content",
+            "macro_definitions.*.defaults",
+            "spaceKets.*",
+            "spaceOKets.*",
+            "space.*",
+        ],
+    })
+}
+```
+
+- `config` is the feature's configuration: the JSON schema of the crate's own settings
+  types, which they derive with `schemars` (`settings::schema`), and its documentation.
+- `merge_entries` lists the four keys that are combined entry by entry, each with its
+  default entries, so that a document that sets `spaceKets.Bar` keeps the default of
+  `spaceKets.RLAngle`.
+- `markup` lists the paths of the values written in FLM markup: the templates, the
+  default values and the named values.
+
+The feature also declares its configuration reader, `Feature::read(settings::read)`: a
+function that receives the configuration written and answers the configuration
+`register` receives, or the value at fault as a `ReadError`, its path below the feature's
+name and the condition it violates. `settings::read` reads the configuration into the
+crate's settings types one key at a time (`PhfqitData::from_settings`), each declaration
+under `macro_definitions` with `serde`, converts each declaration
+(`PhfqitConfig::from_data`), and answers the configuration unchanged.
+
+The library registers these settings as it registers a compiled feature's
+([`SettingsDecl::config_data_read`](crate::core::settings::SettingsDecl::config_data_read),
+[`SettingsDecl::merge_entries_data`](crate::core::settings::SettingsDecl::merge_entries_data),
+[`SettingsDecl::markup`](crate::core::settings::SettingsDecl::markup)). A document
+therefore writes them under `flm`, `features`, `phfqit`, and `flm schema`, given a
+document that uses the package, describes them. The reader runs whenever the program reads
+the settings of a document that uses the package, with `{}` when the settings write
+nothing under `phfqit`: a value it cannot read is reported there, with the place in the
+front matter where it was written, and its path (the value of `phfqit.spaceKets.Bar`
+must be a text; the value of `phfqit.macro_definitions.abs.args`, for a declaration).
+`register` receives the final configuration, combined from every source of settings, as
+a JSON value, and reads it the same way.
+
+**The registry digest.** The named values and the templates of the declared macros change
+what the feature writes in ways the feature's declarations do not show (see [the registry
+digest](crate::model::digest)), so `register` passes the settings to the digest with the
+guest's `FeatureBuilder::digest_input`, the mirror of
+[`FeatureBuilder::digest_input`](crate::core::registry::FeatureBuilder::digest_input).
+The bytes are those of `PhfqitData::digest_bytes`: the settings as data, in a binary form
+in which every list and every text is preceded by its count, a little-endian 64-bit
+number, and the keys of every map are in their sorted order, so that the bytes do not
+depend on the order in which a document writes the keys. `digest_input` takes the bytes as
+they are.
+
+**The two forms.** The same source has the two forms that [A Rust extension compiled into
+a program](#a-rust-extension-compiled-into-a-program) describes:
+
+- **Compiled into the `flm` program.** The crate `flm-extensions` (the folder
+  `extensions/` of the repository) depends on the extension's crate under its cargo
+  feature `native`, which the program's cargo feature `bundled-extensions` (on by default)
+  turns on, and lists the extension in its table `NATIVE_EXTENSIONS`:
+
+  ```ignore
+  flm_ext::native::NativeExtension {
+      stem: "phfpack",
+      manifest: include_str!("../rust/phfpack/flmextension.yaml"),
+      compiled: &phfpack::FLM_EXTENSION,
+  }
+  ```
+
+  The program runs the extension with the engine `native`, and finds it by the name
+  `phfpack` after every folder of its search path ([Where extensions are looked
+  for](crate::guide::command_line#where-extensions-are-looked-for)). A program built
+  without `bundled-extensions` does not carry it. The extension's tests load it as a
+  program does: an `ExtensionLoader` with a `NativeEngine` that holds the crate, and a
+  `MemorySource` that answers the name `phfpack` with the manifest
+  `{extension: {engine: native}}` (`tests/common/mod.rs` of the crate).
+- **A WebAssembly module.** The script `extensions/rust/build-wasm.sh phfpack` builds the
+  module in a cargo run of its own and writes the folder
+  `target/wasm-extensions/phfpack/`, which holds the manifest (`engine: wasm`, `wasm:
+  {module: phfpack.wasm}`), the extension's `README.md` and the module `phfpack.wasm`.
+  `flm render --extensions-dir target/wasm-extensions paper.flm` then reads the module in
+  place of the extension compiled into the program.
 
 ## See also
 

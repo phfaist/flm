@@ -30,8 +30,7 @@
 
 // The depth limit is configuration of the feature rather than a per-document
 // or per-render option, because the trees a run freezes depend on it and the
-// registry digest must see it. See design rationale at
-// [§flm-dd-dr:std-userdefs-config] and [§flm-dd-dr:feat-config-hash].
+// registry digest must see it.
 
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
@@ -222,6 +221,7 @@ fn put_role(out: &mut Vec<u8>, role: BlockRole) {
             put_count(out, usize::from(spacing.absorb_before));
             put_count(out, usize::from(spacing.absorb_after));
         }
+        BlockRole::Displayed => put(out, "displayed"),
         BlockRole::BlockDecorator(placement) => {
             put(out, "decorator");
             put(
@@ -245,8 +245,7 @@ fn put_role(out: &mut Vec<u8>, role: BlockRole) {
 /// holds, whether the argument was read from a code or from a structured
 /// syntax, so two arguments that differ in one parameter are written apart;
 /// for a tack-on argument, it gives each field's name, arguments and whether
-/// it repeats, and a field's element is built from its name, so the name
-/// covers it. The parsing mode is written as
+/// it repeats. The parsing mode is written as
 /// the `Debug` output of techy's parse mode (`Some(Math)`), which holds no
 /// memory address; the registry digest writes it the same way.
 fn put_arg(out: &mut Vec<u8>, arg: &ArgDef) {
@@ -420,7 +419,7 @@ pub struct DefinitionData {
     /// this index (counting from zero).
     pub argument_number_offset: usize,
     /// The block role of the definition's element: a block of its own, inline
-    /// content, or a block decorator.
+    /// content, a displayed item, or a block decorator.
     pub block_role: BlockRole,
     /// When the use sites are expanded: `always`, in every plan, or `per-plan`
     /// (the default), as each plan decides.

@@ -139,8 +139,8 @@ impl Stage for Count {
     fn run(&self, cx: &StageCx, out: &mut StageOut) -> Result<(), ExtError> {
         let tree = cx.tree_id()?.unwrap_or_default();
         let mut count = 0;
-        if let Some(root) = cx.my_tree()? {
-            for node in root.descendants()? {
+        if let Some(my_tree) = cx.my_tree()? {
+            for node in my_tree.root()?.descendants()? {
                 if node.is_chars()? {
                     count += node.chars()?.unwrap_or_default().chars().count();
                 }

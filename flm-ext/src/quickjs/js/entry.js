@@ -136,15 +136,21 @@ export function define(stem, main) {
       for (const [feature, value] of Object.entries(object.features ?? {})) {
         if (!is_object(value) || typeof value.register !== "function")
           refuse(`the feature \`${feature}\` ${where} must be an object with a \`register\` function`);
-        const { register, ...rest } = value;
-        // The feature object itself is open: `f.self = f` closes a cycle at `self` (A62).
+        if (!absent(value.read) && typeof value.read !== "function")
+          refuse(`\`read\` of the feature \`${feature}\` ${where} must be a function`);
+        const { register, read, ...rest } = value;
+        // The feature object itself is open: `f.self = f` closes a cycle at `self`.
         const found = find_not_data(rest, "", new Set([value]));
         if (found?.subject)
-          refuse(`${found.subject} of the feature \`${feature}\` ${where} must be a text, a number, a boolean, a list or a map; the one function of a feature object is \`register\``);
+          refuse(`${found.subject} of the feature \`${feature}\` ${where} must be a text, a number, a boolean, a list or a map; the functions of a feature object are \`register\` and \`read\``);
         if (found?.key)
           refuse(`${found.key} of the feature \`${feature}\` ${where} must be a text`);
         if (found?.cycle)
           refuse(`${found.cycle} of the feature \`${feature}\` ${where} must not contain itself`);
+        // A reader is stated in the settings' report; settings that are not
+        // a map are left as written, which the report's reading refuses.
+        if (typeof read === "function" && (absent(rest.settings) || is_object(rest.settings)))
+          rest.settings = { ...(rest.settings ?? {}), read: true };
         features.push({ name: feature, object: rest });
       }
       if (!PACKAGES.has(name)) PACKAGES.set(name, object);
@@ -224,6 +230,19 @@ export function rehearse(pkg, feature, settings) {
   }
 }
 
+// read_settings(pkg, feature, settingsJson): the feature's `read(settings)`,
+// its configuration reader, as JSON text: what it answers, `{ value }` (the
+// configuration `register` receives) or `{ error: { path, detail } }` (the
+// value at fault).
+export function read_settings(pkg, feature, settings) {
+  begin_call();
+  const read = find_feature(pkg, feature).read;
+  if (typeof read !== "function") {
+    throw new FlmError({ kind: "handler", detail: `the feature \`${feature}\` of the package \`${pkg}\` of the extension \`${STEM}\` must have a configuration reader` });
+  }
+  return JSON.stringify(read(JSON.parse(settings)) ?? null);
+}
+
 // run_stage(pkg, feature, name, cxJson, outJson): the stage's `run(cx, out)`.
 export function run_stage(pkg, feature, name, cx, out) {
   begin_call();
@@ -275,7 +294,7 @@ export function restage(pkg, feature, name, node, cx, rs) {
 // that the feature `feature` of the package `pkg` contributed: from the
 // `register` of that feature running now (a template module's `describe`
 // runs inside it), else from what its last `register` on this instance
-// recorded. `what` names it in the refusal (D8).
+// recorded. `what` names it in the refusal.
 function contributed_object(pkg, feature, kind, name, what) {
   const live = registering_now();
   const recorded = live !== null && live.pkg === pkg && live.feature === feature

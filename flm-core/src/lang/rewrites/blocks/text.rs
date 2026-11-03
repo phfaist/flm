@@ -11,8 +11,9 @@
 //!
 //! - every run of ASCII whitespace (space, tab, carriage return, line feed)
 //!   becomes one space; the whitespace at the start and at the end of the run
-//!   is removed where the caller says so (at the edges of a paragraph, or next
-//!   to an element that absorbs the whitespace beside it);
+//!   is removed where the caller says so (at the edges of a paragraph, next
+//!   to an element that absorbs the whitespace beside it, or next to a
+//!   displayed item);
 //! - the typographic substitutions that the [options](super::config::BlocksConfig)
 //!   enable are applied in the same scan (see [`super::typography`]);
 //! - a source-map piece ([`TextSourcePiece`]) is recorded wherever the output
@@ -159,14 +160,16 @@ impl Tape {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Edges {
     /// Drop the run's leading whitespace outright: the run opens a paragraph, or
-    /// the element before it absorbs the whitespace beside it.
+    /// the element before it absorbs the whitespace beside it (a displayed
+    /// item does).
     pub(crate) drop_leading: bool,
     /// Drop the run's trailing whitespace outright.
     pub(crate) drop_trailing: bool,
-    /// Whether a content sibling — a node other than a comment or a
-    /// whitespace node — precedes the run, comments looked through. The
-    /// position test for straight quotes reads this field, so that
-    /// `\(A_j\)'s` closes rather than opens, and `a~"x"` opens.
+    /// Whether a content sibling — a node other than a comment, a whitespace
+    /// node or a displayed item — precedes the run, comments looked through.
+    /// The position test for straight quotes reads this field, so that
+    /// `\(A_j\)'s` closes rather than opens, and `a~"x"` and `\[x\]"y"`
+    /// open.
     pub(crate) prev_is_content: bool,
 }
 

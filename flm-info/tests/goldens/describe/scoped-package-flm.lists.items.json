@@ -89,7 +89,7 @@
             "flm_core::model::aspects::BlockRoleAspect",
             "flm_core::model::aspects::Referenceable"
           ],
-          "number": 135
+          "number": 110
         },
         "within": "flm.lists.items",
         "available_in": [

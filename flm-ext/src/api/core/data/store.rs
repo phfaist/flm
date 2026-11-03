@@ -31,8 +31,7 @@ pub trait StageOut: Sealed {
     ///
     /// # Errors
     ///
-    /// The diagnostic's identifier does not begin with the extension's stem and a dot, or its data
-    /// cannot cross.
+    /// The diagnostic's data cannot cross ([`ExtError::Value`]).
     fn diags(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError>;
 }
 

@@ -72,8 +72,7 @@
 
 // The reading helpers live here, beside the table, rather than on the stage
 // context: they need the registry's aspect bit sets and the table, and a stage
-// already holds both. See design rationale at [§flm-dd-dr:std-index] and
-// [§flm-dd-dr:dm-element-index].
+// already holds both.
 
 use std::any::Any;
 use std::collections::BTreeMap;
@@ -250,7 +249,9 @@ fn in_document_order<'a, T>(
     cx: &StageCx<'a>,
     found: impl Iterator<Item = (NodeAddr, NodeRef<'a, Flm>, T)>,
 ) -> std::vec::IntoIter<(NodeAddr, NodeRef<'a, Flm>, T)> {
-    // See decision rationale at [§flm-dd-dr:dm-run-order-position].
+    // A per-tree table holds no place in the document, so the entries gathered
+    // from several trees are sorted by the position the run gives each node in
+    // its one walk of the document.
     // Every node of a tree of the run has a position; only a synthesized
     // value's nodes have none, and the stable sort keeps their order (first).
     let mut found: Vec<_> = found.collect();

@@ -4,7 +4,7 @@
 //! from a proof's title, the feature without the numbering and the references
 //! features, and documents that must neither panic nor loop; over the `text`
 //! workflow, with the `check` workflow where the tables are what a test
-//! reads.
+//! reads and the `html` workflow where a paragraph's shape is.
 
 mod common;
 
@@ -28,7 +28,7 @@ use flm_core::stdcore::features::theorems::{
     DEFAULT_CLOSING_MARK, DEFAULT_HEADING, DEFAULT_LABEL_TYPES, TheoremClass, TheoremElement,
     TheoremKind, TheoremsConfig, TitleReading, has_noproofref, title_reading,
 };
-use flm_core::stdcore::backends::text;
+use flm_core::stdcore::backends::{html, text};
 use flm_core::stdcore::{CHECK_WORKFLOW, StdcoreConfig, package};
 use techy::core::node::NodeRef;
 
@@ -520,6 +520,31 @@ fn the_heading_opens_the_first_paragraph_and_the_mark_closes_the_last() {
     ] {
         assert!(lowered.contains(expected), "{expected} in {lowered}");
     }
+}
+
+#[test]
+fn a_displayed_formula_shares_its_paragraph_with_the_heading_and_the_mark() {
+    // A body that opens and closes with a display environment is one
+    // paragraph: the heading runs in before the formula, and the mark
+    // follows it, as for a formula inside the text.
+    let document = "\\begin{proof}\n\\begin{equation*}\n  x = 1\n\\end{equation*}\n\\end{proof}\n";
+    assert_eq!(
+        clean(document),
+        "Proof.\n  \\begin{equation*}\n    x = 1\n  \\end{equation*}\n\u{25a1}\n"
+    );
+    let run = run_workflow(&std(), html::WORKFLOW, &[document], &Overrides::none());
+    assert_eq!(identifiers_but_missing_proof(&run), Vec::<String>::new());
+    let out = common::html::fragment(&run);
+    assert_eq!(out.matches("<p ").count(), 1, "{out}");
+    let at = |needle: &str| out.find(needle).unwrap_or_else(|| panic!("{needle} in {out}"));
+    let positions = [
+        at("<p class=\"flm-pres-par\">"),
+        at("flm-pres-deco-runin"),
+        at("data-flm-env=\"equation*\""),
+        at("flm-pres-deco-final"),
+        at("</p>"),
+    ];
+    assert!(positions.windows(2).all(|pair| pair[0] < pair[1]), "{out}");
 }
 
 #[test]

@@ -229,8 +229,9 @@ impl Lower for MarkOfRule {
             report_missing(lw, &node);
             return Ok(Lowering::Emit(Vec::new()));
         }
-        // Every xnote of the kinds written at the span, in the node's order.
-        // See decision rationale at [§flm-dd-dr:std-xnote-mark-of-several].
+        // Every xnote of the kinds written at the span, in the node's order: a
+        // copy asks a node once, so the node's one stand-in stands for all its
+        // xnotes.
         found.sort_by_key(|(_, record)| record.point);
         let mut marks = Vec::with_capacity(found.len());
         for (kind, record) in &found {

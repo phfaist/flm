@@ -161,7 +161,7 @@ fn document(front: &str, content: &str) -> String {
     format!("---\nflm:\n  features:\n    graphics:\n      global: true\n{front}---\n{content}\n")
 }
 
-// --- acceptance 1: where a file is looked for, and the list of files read ---------------------
+// --- where a file is looked for, and the list of files read -----------------------------------
 
 #[test]
 fn a_path_is_found_in_the_first_folder_of_the_search_path_that_holds_it() {
@@ -225,7 +225,7 @@ fn each_build_of_one_prepared_work_lists_its_own_reads() {
     assert_eq!(&second.files_read[..snapshot.len()], snapshot);
 }
 
-// --- acceptance 2: what the inspector reads of each format -----------------------------------
+// --- what the inspector reads of each format -------------------------------------------------
 
 /// What the inspector answers about `content`, a file of the media type `media_type`.
 fn inspect(content: Vec<u8>, media_type: &str) -> Result<GraphicsInspectedInformation, String> {
@@ -302,7 +302,7 @@ fn a_file_of_no_known_format_is_refused() {
     assert!(inspect(b"hello".to_vec(), "application/octet-stream").is_err());
 }
 
-// --- acceptance 3: the in-process converter ------------------------------------------------
+// --- the in-process converter --------------------------------------------------------------
 
 #[test]
 fn a_gif_made_a_png_has_the_same_size_in_pixels() {
@@ -317,7 +317,7 @@ fn a_gif_made_a_png_has_the_same_size_in_pixels() {
     assert_eq!((picture.width(), picture.height()), (5, 3));
 }
 
-// --- acceptance 5: the settings --------------------------------------------------------------
+// --- the settings ----------------------------------------------------------------------------
 
 /// Builds `request` over `files` into a `MemorySink`, and gives the files it received and
 /// the text of the entry.

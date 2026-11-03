@@ -68,11 +68,13 @@ use crate::lang::mint::opaque::OpaqueWrapperBodyParser;
 use crate::lang::mint::parsers::FlmBodyParser;
 use crate::lang::origin::FlmOrigin;
 
-/// Returns the title of a traceback frame covering an FLM command, worded as
-/// techy's own frames are.
+/// Returns the title of a traceback frame covering an FLM command: the
+/// command's kind and name for the invocation (`unknown macro ‘\foo’`), and,
+/// for an argument, its number counting from one and the command's name
+/// (`argument 1 of ‘\foo’`).
 fn frame_title(kind: &str, role: FrameRole, name: &str) -> String {
     match role {
-        FrameRole::Argument { index } => format!("argument #{} of ‘{}’", index + 1, name),
+        FrameRole::Argument { index } => format!("argument {} of ‘{}’", index + 1, name),
         _ => format!("{kind} ‘{name}’"),
     }
 }
@@ -377,7 +379,7 @@ pub fn reads_text_in_math(node: &NodeRef<'_, Flm>) -> bool {
 /// content where it is written, such as `\text{…}` and the other text commands
 /// of math mode.
 ///
-/// A [field](super::FIELD) is not one, although it may read a region of its own
+/// A [field](crate::lang::structural::FIELD) is not one, although it may read a region of its own
 /// in text mode: a field is data of the construct that holds it, not content
 /// at the place where it is written. `\tag{…}` reads its text in text mode,
 /// and the equation line it belongs to reads the field and renders that text;

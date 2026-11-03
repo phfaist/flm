@@ -111,9 +111,9 @@ pub const DEFINED_LABEL_ARG_ROLE: &str = core_refs::DEFINED_LABEL_ARG_ROLE;
 /// Mirrors [`label_fields_arg`](flm_core::stdcore::features::refs::label_fields_arg):
 /// the argument that reads the `\label{…}` fields written after a
 /// construct, named [`FIELDS_ARG`], to place last in the construct's
-/// argument list. Nothing differs; across a JSON binding the argument is a
-/// handle of the kind `arg_def`, which an argument list takes in place of a
-/// code.
+/// argument list. Nothing differs; across a JSON binding the argument is
+/// written as data, a tack-on argument in its structured syntax
+/// (`{"syntax": "tack-on", "fields": [...]}`), as an argument list takes it.
 ///
 /// The argument of the `\label` field has the argument role
 /// [`DEFINED_LABEL_ARG_ROLE`], which the references feature declares. A

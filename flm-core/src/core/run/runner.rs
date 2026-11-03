@@ -911,8 +911,7 @@ impl Run {
             }
         });
         // The whole batch is collected before anything is folded in, so a stage
-        // that panics leaves the store untouched and the run unadvanced. See the
-        // design rationale at [§flm-dd-dr:pipe-panic].
+        // that panics leaves the store untouched and the run unadvanced.
         for (k, outs) in outs.into_iter().enumerate() {
             let idx = stages[k];
             let entry = registry.stage(idx);

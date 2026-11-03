@@ -1,6 +1,10 @@
 //! The guest runtime's state, gathered into one value ([`State`]): what
 //! `define` declared, what each feature's `register` recorded, and the record
-//! of the `register` running now.
+//! of the `register` running now; compiled into a program (the cargo feature
+//! `native`), also the loaded extension the instance belongs to ([`Loaded`]:
+//! its identity, its load's number and its console sink), which the typed
+//! route reads to find the frame of the running handler call and to write a
+//! line of `console` output.
 //!
 //! **One state per instance.** In an extension's own WebAssembly module, one
 //! module is one extension, and the thread's one state is the module's.
@@ -17,15 +21,15 @@
 //!
 //! When no native instance's state is installed (in an extension's own
 //! WebAssembly module, in the guest client's own tests, on a thread an
-//! extension started) the current state is the thread's own, which has no
-//! host.
+//! extension started) the current state is the thread's own, which belongs
+//! to no loaded extension.
 //!
 //! **The thread's end.** Compiled into a program, an extension's code can
 //! still run while the thread's thread-locals are being destroyed: the `Drop`
 //! of an object an instance recorded, when the engine `native` drops the
 //! instances left on the thread. Once this module's thread-local is gone,
-//! [`current`] answers a fresh state with no host and [`install`] changes
-//! nothing: such code finds no instance's state, and a request it sends
+//! [`current`] answers a fresh state of no loaded extension and [`install`]
+//! changes nothing: such code finds no instance's state, and a request it sends
 //! answers [`ExtError::Unsupported`](crate::ExtError::Unsupported)
 //! ([`crate::guest::abi`]), instead of a panic inside a thread-local's
 //! destructor, which would abort the program.
@@ -39,6 +43,10 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
+#[cfg(feature = "native")]
+use crate::engine::ExtensionIdentity;
+#[cfg(feature = "native")]
+use crate::host::ConsoleSink;
 use crate::guest::entry::Defined;
 use crate::guest::registry::Shared;
 
@@ -51,36 +59,49 @@ pub(crate) struct State {
     pub(crate) records: RefCell<BTreeMap<(String, String), Shared>>,
     /// The record of the `register` (or the finalizer) running now.
     pub(crate) running: RefCell<Option<Shared>>,
-    /// The host that answers this instance's requests in the same process
-    /// (the engine `native`); `None` for the thread's own state, whose
-    /// requests answer `Unsupported` (with the feature `native` the module's
-    /// import is not compiled).
+    /// The loaded extension this instance belongs to (the engine `native`);
+    /// `None` for the thread's own state, whose requests answer
+    /// `Unsupported` (with the feature `native` the module's import is not
+    /// compiled).
     #[cfg(feature = "native")]
-    pub(crate) host: Option<InProcess>,
+    pub(crate) loaded: Option<Loaded>,
 }
 
-/// A host answering a guest's requests in the same process: a request
-/// (`{"native": NAME, …}`) in, its envelope out.
+/// The loaded extension a native instance belongs to, as the engine `native`
+/// gives it when it creates the instance: its identity, whose stem the
+/// refusal of a request sent outside its handler calls names; the load's
+/// number, which finds the frame of its running handler call
+/// ([`frames::with_current`](crate::binding::frames::with_current)), where
+/// its requests and lendings run (`abi::in_frame`); and its console sink,
+/// where its `console` output goes.
 #[cfg(feature = "native")]
-pub(crate) type InProcess = Rc<dyn Fn(&serde_json::Value) -> serde_json::Value>;
+pub(crate) struct Loaded {
+    /// The extension's identity.
+    pub(crate) extension: ExtensionIdentity,
+    /// The load's number ([`Binding::id`](crate::binding::Binding::id)).
+    pub(crate) load: u64,
+    /// Where the extension's `console` output goes.
+    pub(crate) console: ConsoleSink,
+}
 
 #[cfg(feature = "native")]
 impl State {
-    /// A fresh state whose requests `host` answers.
-    pub(crate) fn answered_by(host: InProcess) -> State {
-        State { host: Some(host), ..State::default() }
+    /// A fresh state of an instance of the loaded extension `loaded`.
+    pub(crate) fn for_load(loaded: Loaded) -> State {
+        State { loaded: Some(loaded), ..State::default() }
     }
 
     /// Moves what the extension's code recorded in this state (`defined`,
-    /// `records`, `running`) into a new state with no host, which the caller
-    /// drops when and under the current state it chooses; this state keeps
-    /// its host. Each cell is borrowed for a moment only.
+    /// `records`, `running`) into a new state of no loaded extension, which
+    /// the caller drops when and under the current state it chooses; this
+    /// state keeps its loaded extension. Each cell is borrowed for a moment
+    /// only.
     pub(crate) fn take_recorded(&self) -> State {
         State {
             defined: RefCell::new(self.defined.take()),
             records: RefCell::new(self.records.take()),
             running: RefCell::new(self.running.take()),
-            host: None,
+            loaded: None,
         }
     }
 }
@@ -93,7 +114,7 @@ thread_local! {
 
 /// The current state, shared; the thread-local's borrow is released before
 /// it is answered. Once the thread-local is destroyed (at the thread's end),
-/// a fresh state with no host.
+/// a fresh state of no loaded extension.
 pub(crate) fn current() -> Rc<State> {
     CURRENT.try_with(|current| Rc::clone(&current.borrow())).unwrap_or_else(|_| Rc::new(State::default()))
 }
@@ -121,7 +142,6 @@ impl Drop for Installed {
 /// Once the thread-local is destroyed (at the thread's end), changes nothing.
 #[cfg(feature = "native")]
 pub(crate) fn install(state: Rc<State>) -> Installed {
-    // See decision rationale at [§flm-dd-dr:ext-native-engine]
     let previous = CURRENT.try_with(|current| std::mem::replace(&mut *current.borrow_mut(), state)).ok();
     Installed { previous }
 }

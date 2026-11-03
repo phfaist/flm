@@ -21,8 +21,9 @@
 //! - [`writer`] creates a writing session over a built language
 //!   ([`BuiltLang`], available as
 //!   [`FlmRegistry::lang`](crate::core::registry::FlmRegistry::lang)). The
-//!   language supplies the writing environment ([`WriteEnvironment`]), which
-//!   records which specification carries which element.
+//!   language supplies the writing environment
+//!   ([`WriteEnvironment::for_lang`]), which records which specification
+//!   carries which element.
 //! - [`reader`] and [`reader_with`] create a reading session over a built
 //!   language. Reading needs the reading environment: the language's
 //!   specification providers ([`known_providers`]), its [structural
@@ -448,9 +449,10 @@ fn session(lang: &BuiltLang) -> Result<SerdeSession<Flm>, RegistrationError> {
 /// Creates a writing session over the built language `lang`.
 ///
 /// The session holds techy's standard tables and the fragments table, runs
-/// under the language's recursion guard, and carries the writing environment
-/// built from the language's packages, so that each node records the
-/// specification that carries its element. Writing needs no reading
+/// under the language's recursion guard, and carries the language's writing
+/// environment ([`WriteEnvironment::for_lang`]), so that each node records the
+/// specification that carries its element; a node of a [structural
+/// element](crate::lang::structural) records its element's name alone. Writing needs no reading
 /// environment. No profile is set (see the [module documentation](self)): a
 /// program that caches serialized data calls techy's
 /// [`set_profile`](SerdeSession::set_profile) on the returned session.
@@ -474,8 +476,7 @@ fn session(lang: &BuiltLang) -> Result<SerdeSession<Flm>, RegistrationError> {
 /// FLM's readers, [`register`]) can fail.
 pub fn writer(lang: &BuiltLang) -> SerdeSession<Flm> {
     let mut session = session(lang).expect("a fresh session accepts the fragments table");
-    let providers = lang.initial_state().scopes().providers().iter().chain(lang.providers());
-    session.set_user_data(WriteEnvironment::for_providers(providers));
+    session.set_user_data(WriteEnvironment::for_lang(lang));
     session
 }
 

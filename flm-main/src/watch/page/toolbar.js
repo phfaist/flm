@@ -30,7 +30,8 @@
   var KEPT = 'flm-preview-toolbar';
 
   // Where the browser keeps the name of the editor chosen in the menu, for the server's
-  // address. See decision rationale at [§flm-dd-dr:host-watch-editor-menu].
+  // address: the choice outlives the program with no file of settings for one value, and
+  // the server keeps no state of it, since each request names its editor.
   var EDITOR_KEPT = 'flm-preview-editor';
 
   var TOOLS = [

@@ -1,4 +1,4 @@
-//! Registration and the factory (plan A, WP-2): a scripted package described
+//! Registration and the factory: a scripted package described
 //! by the double becomes a package factory; its features declare elements,
 //! fallbacks, overrides, tables, stages, rules and service requirements; the
 //! name rule and the digest hold; the definitions' templates compile when the
@@ -285,7 +285,7 @@ fn a_read_of_an_undeclared_table_fails_the_plan() {
     assert!(error.to_string().contains("wc.nothing"), "{error}");
 }
 
-// --- the WP-2 review's test gaps (plan A, A30) -------------------------------------------------
+// --- helper-made declarations, the digest ------------------------------------------------------
 
 #[test]
 fn a_helper_made_declaration_with_a_hook_registers_with_the_hook() {

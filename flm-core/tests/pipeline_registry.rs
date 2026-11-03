@@ -787,8 +787,9 @@ fn the_digest_is_stable_across_builds() {
 #[test]
 fn the_digest_changes_with_an_element_declaration() {
     // Element declarations are semantic build inputs; the compute roster —
-    // capabilities, stages — deliberately stays out of the digest.
-    // See design rationale at [§flm-dd-dr:feat-digest].
+    // capabilities, stages — deliberately stays out of the digest, which would
+    // otherwise change for reasons unrelated to what processing a document
+    // produces.
     let first = registry(vec![feature("t", |b| b.element(macro_def("t", "foo", 0)))]);
     let second = registry(vec![feature("t", |b| {
         b.element(macro_def("t", "foo", 0))?;

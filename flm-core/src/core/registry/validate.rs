@@ -146,26 +146,10 @@ fn written_command(def: &ElementDef) -> String {
     }
 }
 
-/// Adds to `out` the element type name of the declaration `def`'s own
-/// element and of each field of each of its tack-on arguments.
-fn element_names_of(def: &ElementDef, out: &mut BTreeSet<ElementName>) {
-    out.insert(def.element.name.clone());
-    let args = match &def.syntax {
-        SyntaxDef::Macro { args } | SyntaxDef::Inclusion { args } | SyntaxDef::Specials { args, .. } => args.as_slice(),
-        SyntaxDef::Environment { args, .. } => args.as_slice(),
-        SyntaxDef::Synthesized => &[],
-    };
-    for arg in args {
-        for field in arg.kind.tack_on_fields().unwrap_or_default() {
-            out.insert(field.element().name.clone());
-        }
-    }
-}
-
 /// Every element type name that the declarations `roster` create: the
 /// structural element names passed in `structural`, the names of the declared
-/// elements and of their fields, of the fallbacks, of the elements of scoped
-/// packages, and of the presentation elements.
+/// elements, of the fallbacks, of the elements of scoped packages, and of the
+/// presentation elements.
 ///
 /// A reference to an element type outside this set is a reference to an
 /// element that no feature declares.
@@ -173,14 +157,14 @@ pub(crate) fn declared_elements(roster: &Roster, structural: &[&str]) -> BTreeSe
     let mut names: BTreeSet<ElementName> =
         structural.iter().map(|n| ElementName::from(*n)).collect();
     for def in &roster.elements {
-        element_names_of(def, &mut names);
+        names.insert(def.element.name.clone());
     }
     for fallback in &roster.fallbacks {
         names.insert(fallback.element.name.clone());
     }
     for package in &roster.scoped_packages {
         for def in &package.elements {
-            element_names_of(def, &mut names);
+            names.insert(def.element.name.clone());
         }
     }
     for pres in &roster.presentation {
@@ -223,7 +207,6 @@ fn canonical_cycle<N: Clone + Ord>(chain: &[N], repeated: &N) -> Vec<N> {
 ///
 /// Runs before [`resolve_peers`] and [`validate`], so that each of them sees
 /// one entry per declared expectation.
-// See the design rationale at [§flm-dd-dr:feat-external-declarations].
 pub(crate) fn merge_repeated_peers(roster: &mut Roster) {
     let mut backends: BTreeSet<(FeatureName, BackendName)> = BTreeSet::new();
     roster
@@ -253,8 +236,8 @@ pub(crate) fn merge_repeated_peers(roster: &mut Roster) {
 /// ([`declared_elements`], with `structural` giving the names of the
 /// language's structural elements): the plain element declarations, the
 /// elements of scoped packages, the fallbacks, the presentation elements and
-/// the fields, without the peer declarations themselves. A declaration is
-/// resolved when its element type's name is among them.
+/// the structural elements, without the peer declarations themselves. A
+/// declaration is resolved when its element type's name is among them.
 ///
 /// Each record is marked as resolved or not, and the unresolved declarations
 /// are removed from [`Roster::elements`], so that no later step sees them;
@@ -262,7 +245,9 @@ pub(crate) fn merge_repeated_peers(roster: &mut Roster) {
 ///
 /// Returns each pair of feature and element type left unresolved, once, in
 /// declaration order.
-// See decision rationale at [§flm-dd-dr:feat-peer-element-value].
+// An unresolved declaration is dropped, not refused: a feature that adds a value of
+// another feature's element type must not make the registry unusable where that
+// feature is absent.
 pub(crate) fn resolve_peer_element_values(
     roster: &mut Roster,
     structural: &[&str],
@@ -550,22 +535,15 @@ pub(crate) fn validate(roster: &Roster, structural: &[&str]) -> Vec<BuildError> 
         for name in structural {
             note(ElementName::from(*name), &language_owner);
         }
-        let of_def = |def: &ElementDef, note: &mut dyn FnMut(ElementName, &FeatureName)| {
-            let mut names: BTreeSet<ElementName> = BTreeSet::new();
-            element_names_of(def, &mut names);
-            for name in names {
-                note(name, &def.owner);
-            }
-        };
         for def in &roster.elements {
-            of_def(def, &mut note);
+            note(def.element.name.clone(), &def.owner);
         }
         for fallback in &roster.fallbacks {
             note(fallback.element.name.clone(), &fallback.owner);
         }
         for package in &roster.scoped_packages {
             for def in &package.elements {
-                of_def(def, &mut note);
+                note(def.element.name.clone(), &def.owner);
             }
         }
     }
@@ -605,7 +583,6 @@ pub(crate) fn validate(roster: &Roster, structural: &[&str]) -> Vec<BuildError> 
     // must be declared by some feature, or declared as a peer by the feature
     // whose declaration holds the argument: the rule every other namespace
     // follows for a reference to another feature's entity.
-    // See decision rationale at [§flm-dd-dr:arg-role].
     let mut role_owners: BTreeMap<&Name, &FeatureName> = BTreeMap::new();
     for (owner, def) in &roster.argument_roles {
         if let Some(first) = role_owners.get(&def.name) {
@@ -653,8 +630,7 @@ pub(crate) fn validate(roster: &Roster, structural: &[&str]) -> Vec<BuildError> 
     // --- collections' members -------------------------------------------------------
     // A member of a collection no feature declares was already dropped by the
     // build module's `drop_members_of_undeclared_collections`; what remains is
-    // checked for its capability. See the design rationale at
-    // [§flm-dd-dr:feat-undeclared-collection].
+    // checked for its capability.
     for (owner, collection, member) in &roster.members {
         undeclared_cap(
             owner,
@@ -772,7 +748,6 @@ pub(crate) fn validate(roster: &Roster, structural: &[&str]) -> Vec<BuildError> 
     // duplicate, as in every other namespace (an identical repeat was merged by
     // `merge_repeated_peers`); two features each declaring the same name are not. A
     // rule's reference to a name its own feature declared is left to `resolve_peers`.
-    // See the design rationale at [§flm-dd-dr:feat-external-declarations].
     let mut peer_backends: BTreeSet<(&FeatureName, &BackendName)> = BTreeSet::new();
     for record in &roster.peer_backends {
         if !peer_backends.insert((&record.owner, &record.name)) {
@@ -864,7 +839,6 @@ pub(crate) fn validate(roster: &Roster, structural: &[&str]) -> Vec<BuildError> 
         // feature — which is how a rule reads another feature's table in a
         // registry that does not hold that feature. Anything else is a
         // misspelled name, reported here.
-        // See the design rationale at [§flm-dd-dr:feat-external-declarations].
         for table in rule.decl.reads.iter().chain(&rule.decl.reads_opt) {
             if peer_tables.contains(&(owner, &table.name)) && !tables.contains_key(&table.name) {
                 continue;
@@ -1165,26 +1139,6 @@ pub(crate) fn validate(roster: &Roster, structural: &[&str]) -> Vec<BuildError> 
     errors
 }
 
-/// Adds to `out`, under its element type name, the element value of the
-/// declaration `def`'s own element and of each field of each of its tack-on
-/// arguments.
-fn element_specs_of<'a>(
-    def: &'a ElementDef,
-    out: &mut BTreeMap<ElementName, Vec<&'a ElementSpec>>,
-) {
-    out.entry(def.element.name.clone()).or_default().push(&def.element);
-    let args = match &def.syntax {
-        SyntaxDef::Macro { args } | SyntaxDef::Inclusion { args } | SyntaxDef::Specials { args, .. } => args.as_slice(),
-        SyntaxDef::Environment { args, .. } => args.as_slice(),
-        SyntaxDef::Synthesized => &[],
-    };
-    for arg in args {
-        for field in arg.kind.tack_on_fields().unwrap_or_default() {
-            out.entry(field.element().name.clone()).or_default().push(field.element());
-        }
-    }
-}
-
 /// The check that every backend's native set satisfies every declared
 /// [native-set implication](crate::core::registry::NativeImplication).
 ///
@@ -1220,14 +1174,14 @@ pub(crate) fn native_implications(
         specs.entry(element.name.clone()).or_default().push(element);
     }
     for def in &roster.elements {
-        element_specs_of(def, &mut specs);
+        specs.entry(def.element.name.clone()).or_default().push(&def.element);
     }
     for fallback in &roster.fallbacks {
         specs.entry(fallback.element.name.clone()).or_default().push(&fallback.element);
     }
     for package in &roster.scoped_packages {
         for def in &package.elements {
-            element_specs_of(def, &mut specs);
+            specs.entry(def.element.name.clone()).or_default().push(&def.element);
         }
     }
     for pres in &roster.presentation {

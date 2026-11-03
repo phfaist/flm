@@ -20,8 +20,10 @@
 //! class's **closing mark** is placed at the end of the body's last paragraph
 //! as a [`flm.pres.deco.final`](crate::stdcore::backends::pres::DECO_FINAL)
 //! decoration. Where the body opens or closes with another block (a list, a
-//! display formula), the heading or the mark gets a paragraph of its own; an
-//! empty body gets one paragraph holding both.
+//! quotation), the heading or the mark gets a paragraph of its own; a
+//! displayed formula stands inside its paragraph, so the heading or the mark
+//! shares that paragraph with it. An empty body gets one paragraph holding
+//! both.
 //!
 //! The kind's word and number in the heading are the theorem's number as the
 //! numbering feature wrote it, with the kind's word (`Lemma~4`), read from the
@@ -122,8 +124,8 @@ impl Lower for TheoremRule {
         let value = element_value::<TheoremElement>(&node)
             .ok_or_else(|| LowerError::structure("a theorem without its element's data"))?;
         // The title is read once; a malformed back-reference is shown as
-        // written, the feature's check reporting it. See decision rationale
-        // at [§flm-dd-dr:std-theorem-relation-reading].
+        // written, the feature's check reporting it, so that a run that lowers
+        // nothing reports it too.
         let title = match title_reading(&node).unwrap_or(TitleReading::Absent) {
             TitleReading::Absent => TitleShown::Nothing,
             TitleReading::Title => TitleShown::Title,

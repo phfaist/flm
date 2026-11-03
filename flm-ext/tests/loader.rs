@@ -1,4 +1,4 @@
-//! The loader (plan A, 3.6): entries resolved through the host's sources to
+//! The loader: entries resolved through the host's sources to
 //! the factories of the extensions' packages, each extension loaded once, its
 //! problems answered where it is reached.
 
@@ -10,6 +10,7 @@ use std::sync::Arc;
 use flm_core::core::registry::{PackageResolver, ResolveError};
 use flm_core::core::settings::PackageSettings;
 use flm_ext::api::core::registry::FeatureBuilder;
+use flm_ext::api::core::settings::ReadError;
 use flm_ext::block::Block;
 use flm_ext::manifest::FLM_VERSION;
 use flm_ext::{
@@ -43,6 +44,10 @@ struct TestRuntime {
 impl ExtRuntime for TestRuntime {
     fn register(&self, _: &str, _: &str, _: &Value, b: &mut dyn FeatureBuilder) -> Result<(), ExtError> {
         b.table("myext.words", "")
+    }
+
+    fn read_settings(&self, _: &str, feature: &str, _: &Value) -> Result<Result<Value, ReadError>, ExtError> {
+        Err(ExtError::Handler { detail: format!("the feature `{feature}` has no configuration reader"), data: Value::Null })
     }
 
     fn digest_input(&self) -> Vec<u8> {
@@ -315,7 +320,7 @@ fn the_digest_changes_with_the_manifest_and_the_engine_s_bytes() {
     assert_ne!(base, digest(manifest("a"), b"two"));
 }
 
-// ---- E6 WP-2a: host services, places, the `\` rule ----
+// ---- host services, places, the `\` rule ----
 
 /// A host service named `name` that answers nothing.
 struct Named(&'static str);

@@ -166,8 +166,8 @@ def check_sample(browser, base):
           str(theorem and theorem['text'][:60]))
     equation = hover_preview(page, '#eq-tp')
     parts = equation and equation['parts']
-    check('hovering an equation reference shows the paragraph before, the formula and the paragraph after',
-          parts is not None and len(parts) == 3 and parts[0].startswith('p.') and parts[2].startswith('p.'),
+    check('hovering an equation reference shows the paragraph the formula stands in',
+          parts == ['p.flm-pres-par'] and 'The channel' in equation['text'] and 'Condition' in equation['text'],
           str(parts))
     mark = hover_preview(page, '#citation-5')
     check('hovering the [3–5] mark lists the works 3, 4 and 5',

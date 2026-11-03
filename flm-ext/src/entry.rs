@@ -226,9 +226,9 @@ mod tests {
     #[test]
     fn each_rule_refuses_with_the_entry_as_written() {
         let refused = |text: &str| UseEntry::parse(text).expect_err(text);
-        // E1
+        // An empty entry.
         assert_eq!(refused("").detail, "an entry of `use` must not be empty");
-        // E2
+        // A locator that is a path.
         for text in ["./x", "../x", "/x", "a//b", "a/./b", "a\\b", "..", "a/", "./shared/mystyle"] {
             let error = refused(text);
             assert_eq!(error.entry, text);
@@ -242,10 +242,10 @@ mod tests {
                 "{text}"
             );
         }
-        // E3, checked before the path rule
+        // A locator holding `:`, checked before the path rule.
         assert_eq!(refused("file:mystyle").detail, "the entry `file:mystyle` of `use` must not hold `:`, which is reserved");
         assert_eq!(refused("file:./x").detail, "the entry `file:./x` of `use` must not hold `:`, which is reserved");
-        // E4
+        // A segment with another character.
         assert_eq!(
             refused("my ext#core").detail,
             "the locator `my ext` of the entry `my ext#core` of `use` must be segments of letters, digits, `-` and \
@@ -253,7 +253,7 @@ mod tests {
         );
         assert!(refused("a/@b").detail.starts_with("the locator `a/@b` of the entry `a/@b`"));
         assert!(refused("@").detail.starts_with("the locator `@` of the entry `@`"));
-        // E5
+        // A package that is not one segment.
         assert_eq!(
             refused("myext#a#b").detail,
             "the package `a#b` of the entry `myext#a#b` of `use` must be letters, digits, `-` and `_`"

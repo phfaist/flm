@@ -11,7 +11,7 @@ use wasmi::{ExternType, Module, ValType};
 use super::host::WasmHost;
 use super::instance::{self, WasmExtension, WasmInstance};
 use super::ENGINE_VERSION;
-use crate::binding::packages::read_packages;
+use crate::binding::packages::{read_packages, unreadable};
 use crate::binding::{self, BindingRuntime};
 use crate::engine::{Engine, ExtensionIdentity, LoadError, Loaded};
 use crate::loader::ExtensionLoader;
@@ -242,7 +242,8 @@ impl Engine for WasmEngine {
         let created = WasmInstance::create(&loading).map_err(|error| vec![LoadError::Load { detail: error.to_string() }])?;
         let defined =
             created.call_load_entry(&loading, "packages", &[]).map_err(|error| vec![LoadError::Load { detail: error.to_string() }])?;
-        let packages = read_packages(extension, &defined.to_string(), &*files)?;
+        let items: Vec<serde_json::Value> = serde_json::from_value(defined).map_err(|error| unreadable(extension, error))?;
+        let packages = read_packages(extension, &items, &*files)?;
         drop(files);
         // Shared before it is kept: the thread's map holds it weakly.
         let loaded = Arc::new(loading);

@@ -80,15 +80,50 @@
 //! # How an extension runs
 //!
 //! The guest client runs in the program as it runs in a WebAssembly module,
-//! with two differences:
+//! and its source is the same; what differs is how it crosses to FLM. In a
+//! module, every request and every entry crosses as JSON text through the
+//! module's import and exports (`flm_ext::wasm`). Compiled into a program
+//! (the guest client built with this feature), each crossing is a direct,
+//! typed call in the same process:
 //!
-//! - **Requests.** A request of the extension (a call of an API method, the
-//!   lending of a handler object, a line of `console` output) is answered in
-//!   the same process by the host side every binding shares, the request and
-//!   its answer passed as JSON values, never as JSON text.
+//! - **Requests.** A request of the extension runs inside the frame of the
+//!   handler call it was sent from: the innermost handler call of the
+//!   extension on the thread, whose handle table the engine recorded when it
+//!   entered the instance. A call of an API method resolves the handles of
+//!   its receiver and arguments in that table, converts the guest's values
+//!   into the API's, calls the method of [`crate::api`], and converts its
+//!   answer back, lending the objects the answer holds into the same table.
+//!   The lending of a handler object builds the host's object over the
+//!   frame's registration, with the body every binding's lending native
+//!   shares, and hands it to the API method that takes it. A line of
+//!   `console` output goes to the console sink the engine gave the instance.
+//!   No JSON value is built or read.
+//! - **A request outside a handler call.** A request sent while no handler
+//!   call of the extension is the innermost one on the thread (from
+//!   `define`, from the `Drop` of an object the instance recorded) is
+//!   refused in the words a text binding uses for the same request: "the
+//!   extension `S` must call `M` of the extension API from a feature's
+//!   `register` or from a handler that `register` declared" (for a lending,
+//!   "must declare a stage", and the like). A request sent while no
+//!   instance's state is current (below) answers
+//!   [`ExtError::Unsupported`](crate::ExtError::Unsupported).
 //! - **Entries.** The engine calls the guest's entry points (`define`,
-//!   `packages`, `register`, `rehearse`, and the handlers' entries) directly,
-//!   their arguments and their answers passed as JSON values.
+//!   `packages`, `register`, `rehearse`, and the handlers' entries) directly:
+//!   their arguments are passed as they are (names, the configuration as a
+//!   value, positions, the handles of the objects the call lent, a citation
+//!   provider's requests and a template's data), and their replies are the
+//!   guest's values, which the handler converts into the API's as a request's
+//!   answer is converted, the handles it holds resolved in the call's table.
+//!   The configuration and the reports of `packages` are JSON values by their
+//!   nature, as the extension API states them.
+//!
+//! The text bindings (the engines `js` and `wasm`) carry the same
+//! requests and entries as JSON text: their requests reach the API through
+//! the by-name dispatcher of [`crate::adapter`] and the lending natives' JSON
+//! front door, and their entries' replies are read from their JSON forms.
+//! Both routes reach the same code of the host (the handle tables, the
+//! objects that call an extension's handlers, the bodies of the lending
+//! natives).
 //!
 //! Each thread has one instance of each extension the engine loaded, as each
 //! thread has one WebAssembly instance of a module: the guest runtime's state
@@ -124,7 +159,14 @@
 //! rights. Nor is the depth of the values a request carries bounded: the
 //! engines `js` and `wasm` refuse a value nested deeper than 127 levels when
 //! they read JSON text, a bound of their text reader, and this engine reads no
-//! text.
+//! text. Nor does it check a JSON value (a `serde_json::Value`): it passes
+//! each as it is, in a request's arguments, in its answer and in a template
+//! module's data, where the engines `js` and `wasm` refuse, in each of them,
+//! a number that is not an integer and a reserved map key (one beginning
+//! with `$`, for instance). On every engine, the extension API itself
+//! refuses such a value where it keeps it as data: an item of an
+//! extension's table, a presentation node's data payload, a diagnostic's
+//! data, the data contributed to a service slot.
 //!
 //! A panic during an entry fails the handler call with an
 //! [`ExtError::Handler`](crate::ExtError::Handler) carrying the panic's
@@ -159,6 +201,7 @@ use instance::{NativeInstance, NativeLoaded};
 use crate::binding::packages::read_packages;
 use crate::binding::{self, BindingRuntime};
 use crate::engine::{Engine, ExtensionIdentity, LoadError, Loaded};
+use crate::guest::entry::EntryReply;
 use crate::guest::CompiledExtension;
 use crate::host::ConsoleSink;
 use crate::manifest::Manifest;
@@ -268,7 +311,10 @@ impl Engine for NativeEngine {
         let created = NativeInstance::create(&loaded).map_err(|error| vec![LoadError::Load { detail: error.to_string() }])?;
         let defined =
             created.call_load_entry(&loaded, "packages", &[]).map_err(|error| vec![LoadError::Load { detail: error.to_string() }])?;
-        let packages = read_packages(extension, &defined.to_string(), &*files)?;
+        let EntryReply::Packages(reports) = defined else {
+            unreachable!("the guest's routing answers `packages` with the packages' reports")
+        };
+        let packages = read_packages(extension, &reports, &*files)?;
         drop(files);
         instance::keep(&loaded, created);
         Ok(Loaded { packages, runtime: Arc::new(BindingRuntime { binding: loaded, digest: digest(found.compiled) }) })

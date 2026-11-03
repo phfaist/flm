@@ -263,7 +263,9 @@ impl CollectionDef {
 /// let def = ArgumentRoleDef::new("flm.refs.target", "A label that a reference points to.");
 /// assert_eq!(def.name, "flm.refs.target");
 /// ```
-// See decision rationale at [§flm-dd-dr:arg-role].
+// A role is a name declared in the registry, not free text, so that it has an
+// owner, a documentation text and a listing, as every other dotted name has,
+// and a misspelled role is reported.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, schemars::JsonSchema)]
 pub struct ArgumentRoleDef {
     /// The role's dotted name, unique among the argument roles of a registry.

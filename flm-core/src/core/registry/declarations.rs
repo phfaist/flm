@@ -573,7 +573,7 @@ mod tests {
         assert_eq!(
             messages,
             [
-                "feature `t`: argument #1 of `\\k` has the argument role `t.kye`, which no \
+                "feature `t`: argument 1 of `\\k` has the argument role `t.kye`, which no \
                  registered feature declares; a feature that sets another feature's argument role \
                  must declare it with `FeatureBuilder::peer_argument_role`; declared argument role \
                  names: [t.key]",

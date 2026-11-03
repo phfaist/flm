@@ -15,8 +15,8 @@ export class LoweredTrees extends Handle {
   // Mirrors the field `LoweredTrees::trees`: every lowered tree, by the id of the document tree it
   // was lowered from, in id order.
   trees() { return call(this, "trees", []); }
-  // Mirrors `LoweredTrees::get` and the field `LoweredTree::tree`: the root of the lowered form of
-  // the document tree `id`, or `None` when the backend has none for it (or `id` names no tree).
+  // Mirrors `LoweredTrees::get` and the field `LoweredTree::tree`: the lowered form of the document
+  // tree `id`, or `None` when the backend has none for it (or `id` names no tree).
   tree(id) { return call(this, "tree", [id]); }
   // Mirrors the field `LoweredTree::requires` of the lowered form of the document tree `id`: the
   // identifiers of the definitions its output needs, in order.

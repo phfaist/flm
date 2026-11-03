@@ -65,7 +65,6 @@ fn raster(content: &[u8], format: ImageFormat) -> Result<GraphicsInspectedInform
 /// per inch) gives the size an author expects.
 fn rounded_dpi(dpi: f64) -> I48F16 {
     // 1/128 is 2^-7; the answer's sixteen fractional bits hold it exactly.
-    // See decision rationale at [§flm-dd-dr:host-graphics-inspector].
     I48F16::from_bits(((dpi * 128.0).round() as i64) << 9)
 }
 

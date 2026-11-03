@@ -5,8 +5,9 @@
 //! # What the feature provides to an author
 //!
 //! An author separates paragraphs with a blank line, and a block-level
-//! construct (a list, a display-math environment, a float) is placed between
-//! paragraphs, never inside one. The typographic spellings of TeX are shown as
+//! construct (a list, a quotation, a float) is placed between paragraphs,
+//! never inside one; a displayed formula stands inside the paragraph it is
+//! written in. The typographic spellings of TeX are shown as
 //! the characters they stand for: `--` as an en dash, ``` `` ``` and `''` as
 //! curly quotes, `...` as an ellipsis, each family switched on or off by the
 //! feature's configuration ([`BlocksConfig`]). The language guide describes
@@ -308,8 +309,10 @@ impl RewriteStage for StructureStage {
     /// ordering only), whenever the registry declares it. See the module
     /// documentation, section "Interaction with user definitions".
     fn needs(&self, cx: &PlanCx<'_>) -> Needs {
-        // Why a requirement and not only an ordering edge: see design rationale
-        // at [§flm-dd-dr:std-blocks-requires-userdefs].
+        // A requirement and not only an ordering edge: an unexpanded definition
+        // can hide a paragraph break, so the block structure waits until the
+        // user definitions are expanded or kept, and an ordering edge alone
+        // never schedules the stage that does either.
         let mut needs = Needs::new();
         if cx.registry().cap_id(USERDEFS).is_some() {
             needs = needs.requires(USERDEFS).after(USERDEFS);

@@ -36,7 +36,7 @@ use serde_json::{json, Value};
 use common::double::{stage, Double};
 use common::json_double::{module, JsonDouble};
 
-/// The media type the test's output declares (plan section 4.3).
+/// The media type the test's output declares.
 const MEDIA_TYPE: &str = "application/x-typst";
 
 /// The presentation element of the backend `tb` with a data payload, which
@@ -112,7 +112,7 @@ fn image_rule(stem: &str) -> LoweringRule {
 
 /// Writes the presentation node `node` and its content as text: characters as
 /// they are, a paragraph followed by a line break, the data element `NOTE` as
-/// `[kind: content]`, its kind read from its payload (ruling S8).
+/// `[kind: content]`, its kind read from its payload.
 fn emit<'t>(node: &dyn Node<'t>, out: &mut String, log: &Log) -> Result<(), ExtError> {
     if node.is_chars() {
         out.push_str(&node.chars().unwrap_or_default());
@@ -161,8 +161,8 @@ fn emit_stage(log: &Log) -> Arc<dyn flm_ext::api::core::stage::Stage> {
             return Ok(());
         };
         let mut text = String::new();
-        for (_, root) in lowered.trees() {
-            emit(&*root, &mut text, &log)?;
+        for (_, tree) in lowered.trees() {
+            emit(&*tree.root(), &mut text, &log)?;
         }
         out.table("tb.output")?.push(json!(text))
     })
@@ -297,8 +297,7 @@ fn a_backend_declared_through_the_facade_runs_on_a_demand_for_its_output() {
     let plan = Plan::build(&registry, &PlanRequest::new().demand("tb.document")).expect("the plan builds");
     let ran = run(plan, DOCUMENT);
     check_document(&ran);
-    // The emit stage read the data element's payload from the lowered tree
-    // (ruling S8).
+    // The emit stage read the data element's payload from the lowered tree.
     assert_eq!(lines(&log), [r#"payload {"kind":"tip"}"#]);
 }
 
@@ -436,7 +435,8 @@ fn tb_by_json(log: &Log) -> PackageEntry {
                     let trees = js.call(&read["lowered"], "trees", json!([]))?;
                     let mut text = String::new();
                     for pair in trees.as_array().into_iter().flatten() {
-                        for node in js.call(&pair[1], "descendants", json!([]))?.as_array().into_iter().flatten() {
+                        let root = js.call(&pair[1], "root", json!([]))?;
+                        for node in js.call(&root, "descendants", json!([]))?.as_array().into_iter().flatten() {
                             if js.call(node, "element_name", json!([]))? == json!(TBN_NOTE) {
                                 note(&emit_log, format!("payload {}", js.call(node, "payload", json!([]))?));
                             }

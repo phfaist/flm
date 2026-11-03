@@ -3,13 +3,15 @@
 //!
 //! An extension's namespaces ([`namespaces`]) are its stem and, for a stem
 //! `profile-X`, `X` as well: the extension of the profile `X` names its output,
-//! tables, stages and diagnostics after the profile (`profile-pdf-latex`
-//! declares the output `pdf-latex` and the diagnostic `pdf-latex.failed`).
+//! tables and stages after the profile (`profile-pdf-latex` declares the
+//! output `pdf-latex` and the stage `pdf-latex.compile`).
 //!
-//! The rule covers the elements, tables, stages and capabilities a feature
-//! declares through the builder, and the identifiers of the diagnostics its
-//! handlers report. A name another feature owns — a table a stage reads, a
-//! macro a feature overrides — is not checked: naming it is the point.
+//! The rule covers the elements, tables, stages, capabilities, options and
+//! the other names a feature declares through the builder. A name another
+//! feature owns — a table a stage reads, a macro a feature overrides — is not
+//! checked: naming it is the point. The identifier of a diagnostic a handler
+//! reports is not a declared name, and the rule does not apply to it: a
+//! handler may report a library condition under that condition's identifier.
 //!
 //! A backend's name and an output's name, which users write (`-f typst`), may
 //! also be a namespace itself ([`check_backend`]); the table the library's
@@ -34,9 +36,9 @@ pub fn namespaces(stem: &str) -> impl Iterator<Item = &str> {
 }
 
 /// Checks that `name`, a `what` (`element`, `table`, `stage`, `capability`,
-/// `diagnostic`, `option`) declared by the package `package` of the extension
-/// whose stem is `stem`, begins with one of the extension's [`namespaces`]
-/// followed by a dot.
+/// `option`, …) declared by the package `package` of the extension whose stem
+/// is `stem`, begins with one of the extension's [`namespaces`] followed by a
+/// dot.
 ///
 /// # Errors
 ///
@@ -120,7 +122,8 @@ pub const NAME_OUTSIDE_EXTENSION: &str = "flm.ext.name-outside-extension";
 /// Who declares a name: the extension's stem and the package's name within
 /// the extension, carried by the façades that check the rule; and the durable
 /// table of the feature's registration, carried by every handler object the
-/// registration makes, so that the table lives as long as the registry holds
+/// registration makes whose calls can reach a durable object (all but a
+/// rewrite stage), so that the table lives as long as the registry holds
 /// them.
 #[derive(Debug, Clone)]
 pub(crate) struct Owner {
@@ -204,7 +207,7 @@ mod tests {
     #[test]
     fn a_profile_s_extension_names_things_under_the_profile_too() {
         assert_eq!(check_backend("output", "draft", "profile-draft", "_"), Ok(()));
-        assert_eq!(check("diagnostic", "draft.failed", "profile-draft", "_"), Ok(()));
+        assert_eq!(check("stage", "draft.compile", "profile-draft", "_"), Ok(()));
         assert_eq!(check("table", "profile-draft.document", "profile-draft", "_"), Ok(()));
         assert!(check_backend("output", "other", "profile-draft", "_").is_err());
         assert!(check("table", "other.document", "profile-draft", "_").is_err());

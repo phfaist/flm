@@ -14,7 +14,7 @@
 // - `AnchorPolicy`: `"from_first_label"`, `{ explicit: id }`, `{ slug: {
 //   prefix, content } }`, `{ from_value: { prefix } }`, `{ auto: { prefix } }`;
 // - `ContentRef`: `{ argument: i }`, `{ argument_named: name }`, `"body"`,
-//   `{ node: node }`, `{ synthesized: node }` (a node handle each);
+//   `{ node: node }` (a node handle), `{ synthesized: tree }` (a tree handle);
 // - `AcceptedRefTypes`: `"any"` or `{ these: [type] }`.
 
 // @hand export RefPoint
@@ -72,7 +72,7 @@ export const ContentRef = Object.freeze({
   ArgumentNamed(name) { return { argument_named: name }; },
   Body: "body",
   Node(node) { return { node }; },
-  Synthesized(root) { return { synthesized: root }; },
+  Synthesized(tree) { return { synthesized: tree }; },
 });
 // @hand export AcceptedRefTypes
 // The label types a reference point accepts: any, or these.

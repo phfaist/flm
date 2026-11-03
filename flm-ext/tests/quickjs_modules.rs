@@ -1,10 +1,10 @@
-//! The prelude's stubs of step E4 reached from a script (WP-4a; that every
-//! export of every module is reachable is `tests/quickjs_exports.rs`'s): the
-//! new classes and functions of `flm:model/aspects`,
+//! The prelude's stubs reached from a script (that every export of every
+//! module is reachable is `tests/quickjs_exports.rs`'s): the classes and
+//! functions of `flm:model/aspects`,
 //! `flm:stdcore/features/refs`, `flm:stdcore/features/numbering`,
 //! `flm:stdcore/backends/latex` (its namespaces `latex.preamble` and `latex.packages`),
 //! `flm:core/registry`, `flm:model/element`, `flm:lang/mint` and
-//! `flm:lang/rewrites/userdefs`, one smoke call per new method forwarding to
+//! `flm:lang/rewrites/userdefs`, one smoke call per method forwarding to
 //! its arm: an
 //! extension `sm` whose feature declares a numbered, referenceable,
 //! sectioning box with a scoped package, contributes to the five data-valued

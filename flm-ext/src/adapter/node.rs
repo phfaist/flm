@@ -1,8 +1,9 @@
 //! [`NodeFacade`], the extension API's [`Node`] over a node of any tree the
-//! adapter holds, and the key-value façades [`KeyValsFacade`] and
+//! adapter holds; [`TreeFacade`], its [`Tree`] over a tree shared through an
+//! `Arc`; and the key-value façades [`KeyValsFacade`] and
 //! [`KeyValEntryFacade`].
 //!
-//! Two rules shape the types (plan A, A9, A15 and A16):
+//! Two rules shape the types:
 //!
 //! - `dyn Node<'t>` is invariant in `'t`, so [`NodeFacade<'t>`] implements the
 //!   trait, and its seal, for every lifetime shorter than its tree's:
@@ -28,9 +29,9 @@ use serde_json::Value;
 use crate::adapter::stage::projection_value;
 use crate::api::lang::mint::Mode;
 use crate::api::techy::extract::{KeyValEntry, KeyVals};
-use crate::api::techy::node::{Node, NodeKindName, Span};
+use crate::api::techy::node::{Node, NodeKindName, Span, Tree};
 use crate::runtime::ExtError;
-use crate::sealed::{NodeCore, Sealed, Token};
+use crate::sealed::{NodeCore, Sealed, Token, TreeCore};
 
 /// A node of any tree the adapter can hold onto: the one implementation of
 /// [`Node`].
@@ -49,8 +50,8 @@ pub enum NodeFacade<'t> {
     /// and its relatives).
     #[non_exhaustive]
     Lent(NodeRef<'t, Flm>),
-    /// A node of a tree held by an `Arc` (a frozen tree, a rewrite's output
-    /// tree).
+    /// A node of a tree held by an `Arc`: the root of a [`TreeFacade`] and
+    /// its relatives, a node of a stage's walk over the frozen trees.
     #[non_exhaustive]
     Shared {
         /// The tree.
@@ -138,13 +139,6 @@ impl<'t: 's, 's> NodeCore<'s> for NodeFacade<'t> {
 
     fn relative(&self, _: Token, id: NodeId) -> Box<dyn Node<'s> + 's> {
         Box::new(self.at(id))
-    }
-
-    fn shared_tree(&self, _: Token) -> Option<Arc<NodeTree<Flm>>> {
-        match self {
-            NodeFacade::Shared { tree, .. } => Some(Arc::clone(tree)),
-            NodeFacade::Lent(_) | NodeFacade::KeyVals { .. } => None,
-        }
     }
 }
 
@@ -291,6 +285,39 @@ impl<'t: 's, 's> Node<'s> for NodeFacade<'t> {
 
     fn slot_content_nodes(&self, i: usize) -> Option<Vec<Box<dyn Node<'s> + 's>>> {
         self.node_ref().slot_content_nodes(i).map(|nodes| self.slice(nodes))
+    }
+}
+
+/// A tree shared through an `Arc`: the one implementation of [`Tree`].
+///
+/// `TreeFacade` is `Clone`, and cheap to clone: it holds the tree's `Arc`.
+/// Its root, and every node reached from it, is a [`NodeFacade::Shared`]
+/// holding the same `Arc`.
+#[derive(Clone)]
+pub struct TreeFacade {
+    tree: Arc<NodeTree<Flm>>,
+}
+
+impl TreeFacade {
+    /// The façade of `tree`.
+    pub fn new(tree: Arc<NodeTree<Flm>>) -> TreeFacade {
+        TreeFacade { tree }
+    }
+}
+
+impl TreeCore for TreeFacade {
+    fn shared(&self, _: Token) -> Arc<NodeTree<Flm>> {
+        Arc::clone(&self.tree)
+    }
+
+    fn clone_box(&self, _: Token) -> Box<dyn Tree> {
+        Box::new(self.clone())
+    }
+}
+
+impl Tree for TreeFacade {
+    fn root<'s>(&self) -> Box<dyn Node<'s> + 's> {
+        Box::new(NodeFacade::shared(Arc::clone(&self.tree), self.tree.root().id()))
     }
 }
 

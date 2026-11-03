@@ -8,9 +8,9 @@
 //! [field](crate::guide::concepts_overview#fields-data-a-construct-reads): a
 //! macro that a construct absorbs as data after its own arguments, as in
 //! `\section{Introduction}\label{sec:intro}`. The parser builds it, inside
-//! the construct's trailing argument, as a node of the language's field
-//! element ([`FIELD`](crate::lang::mint::FIELD)), whose per-value data is the
-//! field's name, `label`. It can be written only after a construct that
+//! the construct's trailing argument, as a macro node named `label` that
+//! carries the language's field element
+//! ([`FIELD`](crate::lang::structural::FIELD)). It can be written only after a construct that
 //! declares it.
 //!
 //! A field is data that its parent construct reads, so no function here looks
@@ -33,9 +33,9 @@
 //! `type:label`, which the label scan reports.
 //!
 //! A `\label` that is not a tack-on field can be written in two other places.
-//! In both, its node carries the same field element with the same name, so
-//! that one function, [`label_use`], reads a `\label` node wherever it is
-//! written:
+//! In both, its node is a field node (its element is named `flm.field`)
+//! written `\label`, so that one function, [`label_use`], reads a `\label`
+//! node wherever it is written:
 //!
 //! - inside the body of a display-math environment, where the
 //!   [`math`](crate::stdcore::features::math) feature declares `\label` as a
@@ -236,10 +236,10 @@ pub struct HyperrefElement;
 /// `\label` field with one character-group argument, under the names that
 /// [`label_uses`] reads ([`FIELDS_ARG`], [`LABEL_FIELD`], [`TARGET_ARG`]).
 ///
-/// The field carries no element of this feature: like every field, its node
-/// carries the language layer's field element
-/// ([`FIELD`](crate::lang::mint::FIELD)) with the field's name as its
-/// per-value data, and only the construct that declared it reads it, through
+/// The field carries no element of this feature: like every tack-on field,
+/// its node carries the language's field element
+/// ([`FIELD`](crate::lang::structural::FIELD)) and is read by its name, and
+/// only the construct that declared it reads it, through
 /// [`label_uses`]. A construct that accepts other fields beside `\label`
 /// builds the argument itself and lists the same field ([`label_field`])
 /// among them.
@@ -382,9 +382,10 @@ pub fn label_uses_in<'t>(nodes: impl IntoIterator<Item = NodeRef<'t, Flm>>) -> V
 
 /// The scoped package [`LABEL_PACKAGE`], declared by `owner`: one command,
 /// `\label{type:label}`, whose one character-group argument is named
-/// [`TARGET_ARG`] and whose element is the field element named
-/// [`LABEL_FIELD`], the same node that a tack-on `\label` produces, so that
-/// [`label_use`] reads it as it reads any other.
+/// [`TARGET_ARG`] and whose element is named `flm.field`
+/// ([`field_element`]), so that its node is a field node named
+/// [`LABEL_FIELD`], which [`label_use`] reads as it reads a tack-on
+/// `\label`.
 ///
 /// The `refs` feature registers it. A scoped package
 /// ([`ScopedPackageDef`]) can be written only inside the bodies and arguments
@@ -420,7 +421,6 @@ pub fn label_package(owner: impl Into<FeatureName>) -> ScopedPackageDef {
             ],
         },
         field_element(
-            LABEL_FIELD,
             "A `\\label{type:label}` inside an argument that accepts labels: a label \
              attached to the construct the argument belongs to.",
         ),

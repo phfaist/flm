@@ -1,16 +1,12 @@
-//! The default lowering rules of the structural elements and of the field
-//! element, and the helpers other rules use to stage paragraphs and trimmed
-//! inline content.
+//! The default lowering rules of the structural elements, and the helpers
+//! other rules use to stage paragraphs and trimmed inline content.
 //!
 //! The **structural elements** are the elements of the node shapes no
 //! feature declares: text, comments, containers, groups of each class,
-//! paragraphs, paragraph breaks, template placeholders, and the macros and
+//! paragraphs, paragraph breaks, template placeholders, fields, and the macros and
 //! environments a parse could not attribute to any feature
 //! ([`StructuralElements`](crate::lang::structural::StructuralElements); see
 //! [structural elements](crate::guide::concepts_overview#structural-elements)).
-//! The field element ([`FIELD`]), the element of every field node, has its
-//! rule here too.
-//!
 //! Most structural elements need no rule: `flm.text`, `flm.group`,
 //! `flm.opaque-wrapper`, `flm.comment`, `flm.container` and `flm.parbreak` are
 //! elements a backend writes natively, so nothing lowers them; the `text`
@@ -123,8 +119,8 @@ use crate::core::lowering::{
     DefaultMark, Lower, LowerCx, LowerError, Lowerer, Lowering, LoweringDecl, LoweringRule,
 };
 use crate::model::names::{ElementName, Name};
-use crate::lang::mint::{FIELD, field_name};
-use crate::lang::structural::{MATH, PARAGRAPH, UNKNOWN_ENVIRONMENT, UNKNOWN_MACRO, VERBATIM};
+use crate::lang::mint::field_name;
+use crate::lang::structural::{FIELD, MATH, PARAGRAPH, UNKNOWN_ENVIRONMENT, UNKNOWN_MACRO, VERBATIM};
 use crate::lang::text::is_space;
 use crate::lang::{Flm, FlmGroupType};
 use crate::stdcore::backends::pres::{
@@ -208,11 +204,10 @@ pub fn lower_arg_named_or_nothing(
 ///
 /// # Errors
 ///
-/// Returns [`LowerError`] for a node of the field element carrying no field
-/// name. Every field node carries one (the name is part of the element
-/// value, given when the field is declared), so only a caller that builds a
-/// node of the field element without a field name can cause this; nothing in
-/// this crate does.
+/// Returns [`LowerError`] for a node of the field element that is not a
+/// macro node, and so has no field name. Every field node is a macro node
+/// named as the field is written, so only a caller that builds another node
+/// of the field element can cause this; nothing in this crate does.
 #[derive(Debug, Default)]
 pub struct FieldRule;
 
@@ -226,7 +221,8 @@ impl Lower for FieldRule {
         let field = field_name(&node)
             .ok_or_else(|| {
                 LowerError::structure(
-                    "a field node must carry its field name, and this one carries none",
+                    "a field node must be a macro node, which carries the field's name, and this \
+                     one is not",
                 )
             })?;
         let condition =
@@ -261,7 +257,9 @@ impl Lower for FieldRule {
 /// [`LowerError`] from the lowering of the paragraph's run, and when the
 /// calling rule did not declare that it produces `flm.pres.par` or the node
 /// could not be staged.
-// See decision rationale at [§flm-dd-dr:std-lower-paragraph].
+// A staged node cannot be changed afterwards, so a rule adding nodes at a
+// paragraph's edges cannot let the paragraph rule stage the paragraph and then
+// add to it; one function keeps one way of staging a paragraph.
 pub fn lower_paragraph(
     cx: &mut LowerCx<'_>,
     lw: &mut dyn Lowerer,
@@ -335,7 +333,9 @@ pub fn lower_blocks_with_edges(
         }
         return Ok(vec![lower_paragraph(cx, lw, None, [leading, run].concat(), trailing)?]);
     }
-    // See decision rationale at [§flm-dd-dr:std-xnote-edge-paragraphs].
+    // The edge nodes are inline, and a paragraph is the one block holding
+    // inline content, hence one more paragraph where another block stands first
+    // or last.
     let first = content.iter().position(|node| !node.is_comment());
     let last = content.iter().rposition(|node| !node.is_comment());
     let into_first = first.is_some_and(|at| is_paragraph(&content[at]));
@@ -414,7 +414,6 @@ pub fn stage_trimmed(
 // pass trims a paragraph's edges while it builds the paragraph, over text it
 // is resolving, and nothing of it can be called on a structured tree at
 // lowering, so the edge's trimmed text is staged through the façade.
-// See decision rationale at [§flm-dd-dr:std-quote-sections].
 pub fn stage_trimmed_runs(
     cx: &mut LowerCx<'_>,
     lw: &mut dyn Lowerer,
@@ -683,9 +682,9 @@ impl Lower for UnknownEnvironmentRule {
     }
 }
 
-/// The six default rules of this module (five for structural elements, one
-/// for the field element), as values a feature can register; the `lowering`
-/// feature registers them.
+/// The six default rules of this module, one per structural element that
+/// needs a rule, as values a feature can register; the `lowering` feature
+/// registers them.
 ///
 /// # Examples
 ///

@@ -50,19 +50,15 @@ function page(): { doc: FakeDocument; byId: (id: string) => FakeElement } {
     h('h3.flm-pres-block--heading#sec-b', { 'data-flm-level': '2' }, 'B'),
     h('p.flm-pres-par#p5'),
     h('h3.flm-pres-block--heading#sec-c', { 'data-flm-level': '2' }, 'C'),
-    h('span.flm-pres-math--source#f1', display, '\\begin{align}', h('tex-html', {}, h('span.flm-pres-math--text#eq-x')), 'x\\end{align}'),
-    h('p.flm-pres-par#p6'),
-    h('p.flm-pres-par#p7', {}, 'The channel'),
-    h('span.flm-pres-math--source#f2', display, h('tex-html', {}, h('span.flm-pres-math--text#eq-tp'))),
+    h('p.flm-pres-par#p7', {}, 'The channel',
+      h('span.flm-pres-math--source', display, h('tex-html', {}, h('span.flm-pres-math--text#eq-tp'))),
+      'is degradable.'),
     h('p.flm-pres-par#p8', {}, 'Condition ', h('a.flm-pres-link', { href: '#eq-tp', 'data-flm-kind': 'ref' }, 'Eq. (2)')),
     h('div.flm-pres-block.flm-theorems-theorem#theorem-1', { 'data-flm-kind': 'theoremlike theorem' },
-      h('p.flm-pres-par#p10', {}, 'if and only if'),
-      h('span.flm-pres-math--source#f3', display,
-        h('mjx-container', { display: 'true' }, h('mjx-html', {}, h('span.flm-pres-math--text#eq-kl')))),
-      h('p.flm-pres-par#p11', {}, 'for some matrix')),
-    h('p.flm-pres-par#p12'),
-    h('mjx-container#f4', { display: 'true' }, h('span#eq-y')),
-    h('p.flm-pres-par#p13'),
+      h('p.flm-pres-par', {}, 'if and only if',
+        h('span.flm-pres-math--source', display,
+          h('mjx-container', { display: 'true' }, h('mjx-html', {}, h('span.flm-pres-math--text')))),
+        'for some matrix')),
     h('p.flm-pres-par#p9', {}, 'Text.',
       h('sup.flm-pres-span.flm-xnotes-xnote-mark#fnref-1', {},
         h('a.flm-pres-link', { href: '#fn-1', 'data-flm-kind': 'xnote' }, 'a')),
@@ -105,15 +101,8 @@ test('a list entry, a block, an inline element preview as the rules say', () => 
   assert.deepEqual(ids(previewElements(asElement(byId('fn-1')))), ['fn-1'], 'a footnote: the entry');
   assert.deepEqual(ids(previewElements(asElement(byId('theorem-1')))), ['theorem-1'], 'a block: itself');
   assert.deepEqual(ids(previewElements(asElement(byId('fnref-1')))), ['p9'], 'an inline target: its paragraph');
-  assert.deepEqual(ids(previewElements(asElement(byId('eq-kl')))), ['theorem-1'],
-    'a formula inside a theorem: the theorem, the nearest enclosing block');
-});
-
-test('a displayed formula between paragraphs previews with the paragraph before and the paragraph after it', () => {
-  const { byId } = page();
-  assert.deepEqual(ids(previewElements(asElement(byId('eq-tp')))), ['p7', 'f2', 'p8']);
-  assert.deepEqual(ids(previewElements(asElement(byId('eq-x')))), ['f1', 'p6'], 'a heading before: no paragraph before');
-  assert.deepEqual(ids(previewElements(asElement(byId('eq-y')))), ['p12', 'f4', 'p13'], 'a typeset formula');
+  assert.deepEqual(ids(previewElements(asElement(byId('eq-tp')))), ['p7'],
+    'a target inside a displayed formula: the paragraph holding the formula');
 });
 
 test('the preview copies the content without ids, anchors or back-links', () => {
@@ -132,7 +121,7 @@ test('the preview copies the content without ids, anchors or back-links', () => 
 
   const formula = buildPreview(asElement(byId('p8').children[0]), asDocument(doc)) as unknown as FakeElement;
   assert.equal(outline(formula),
-    'div.ln-preview-content(p.flm-pres-par span.flm-pres-math--source(tex-html(span.flm-pres-math--text)) p.flm-pres-par(a.flm-pres-link))');
+    'div.ln-preview-content(p.flm-pres-par(span.flm-pres-math--source(tex-html(span.flm-pres-math--text))))');
 });
 
 test('a citation previews the entries its mark covers, ranges expanded, at most eight', () => {

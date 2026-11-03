@@ -55,7 +55,7 @@ use crate::adapter::diag::ExtCondition;
 use crate::adapter::names::Owner;
 use crate::adapter::node::NodeFacade;
 use crate::adapter::payloads::{payload_from_value, DataPayload};
-use crate::adapter::stage::{projection_value, root_of, tree_id_of, LoweredTreesFacade, TreesTableFacade};
+use crate::adapter::stage::{projection_value, tree_id_of, tree_of, LoweredTreesFacade, TreesTableFacade};
 use crate::adapter::table::ExtTable;
 use crate::adapter::tables::{AnchorsFacade, CountersFacade, Seen};
 use flm_core::stdcore::features::numbering::Counters as CoreCounters;
@@ -65,7 +65,7 @@ use crate::api::core::data::table::{ExtTableRead, TableValue};
 use crate::api::core::lowering::{ExtRule, Lower, LowerCx, Lowerer, Lowering, Staged};
 use crate::api::core::stage::TreesTable;
 use crate::api::techy::error::Diagnostic;
-use crate::api::techy::node::Node;
+use crate::api::techy::node::{Node, Tree};
 use crate::runtime::ExtError;
 use crate::adapter::builder::BuiltLangFacade;
 use crate::adapter::durable::DurableTable;
@@ -167,9 +167,7 @@ pub struct ExtLower {
     body: Arc<dyn Lower>,
     /// The rule's name, for the message of the body's failure.
     rule: String,
-    /// The extension and the package that registered the rule: the
-    /// identifiers of the diagnostics the body reports must begin with the
-    /// extension's stem.
+    /// The extension and the package that registered the rule.
     owner: Owner,
     /// Every table the rule reads, with the value type its read declares.
     tables: Arc<[(String, TableType)]>,
@@ -614,14 +612,9 @@ impl Lowerer for LowererFacade<'_, '_> {
         Ok(self.mint_one(id))
     }
 
-    fn splice(&mut self, cx: &mut dyn LowerCx, value: &dyn Node<'_>) -> Result<Vec<Staged>, ExtError> {
-        const METHOD: &str = "splice";
-        let root = value.core_node_ref(Token::new());
-        if root.parent().is_some() {
-            return Err(argument(METHOD, "`value` must be the root node of its tree"));
-        }
-        let tree: Arc<NodeTree<Flm>> = Arc::new(root.tree().clone());
-        self.staging(METHOD, cx, |cx, lw| lw.splice(cx, &tree))
+    fn splice(&mut self, cx: &mut dyn LowerCx, value: &dyn Tree) -> Result<Vec<Staged>, ExtError> {
+        let tree = value.shared(Token::new());
+        self.staging("splice", cx, |cx, lw| lw.splice(cx, &tree))
     }
 
     fn lower_region(&mut self, cx: &mut dyn LowerCx, at: NodeAddr, region: NodeRegion) -> Result<Vec<Staged>, ExtError> {
@@ -636,7 +629,6 @@ impl Lowerer for LowererFacade<'_, '_> {
     }
 
     fn diagnose(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError> {
-        self.owner.check("diagnostic", &diagnostic.id)?;
         let diagnostic = diagnostic_to_core(diagnostic, self.site.span().clone())?;
         self.lw.diagnose(diagnostic);
         Ok(())
@@ -668,14 +660,14 @@ struct TreesCopy(Vec<(TreeId, Arc<NodeTree<Flm>>)>);
 
 impl Sealed for TreesCopy {}
 
-impl<'s> TreesTable<'s> for TreesCopy {
-    fn trees(&self) -> Vec<(String, Box<dyn Node<'s> + 's>)> {
-        self.0.iter().map(|(id, tree)| (id.to_string(), root_of(tree))).collect()
+impl TreesTable for TreesCopy {
+    fn trees(&self) -> Vec<(String, Box<dyn Tree>)> {
+        self.0.iter().map(|(id, tree)| (id.to_string(), tree_of(tree))).collect()
     }
 
-    fn tree(&self, id: &str) -> Option<Box<dyn Node<'s> + 's>> {
+    fn tree(&self, id: &str) -> Option<Box<dyn Tree>> {
         let id = tree_id_of(id)?;
-        self.0.iter().find(|(held, _)| *held == id).map(|(_, tree)| root_of(tree))
+        self.0.iter().find(|(held, _)| *held == id).map(|(_, tree)| tree_of(tree))
     }
 }
 

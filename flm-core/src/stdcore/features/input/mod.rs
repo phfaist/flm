@@ -193,7 +193,8 @@ impl RewriteStage for SpliceStage {
     /// Ordering only: the stage runs before the rewrites of the user definitions
     /// and of the block structure, for those of them the registry declares.
     fn needs(&self, cx: &PlanCx<'_>) -> Needs {
-        // See decision rationale at [§flm-dd-dr:std-input-splice-scheduled].
+        // The order is declared here, by edges of this stage: no other feature
+        // knows of file inclusion, so none orders itself after this rewrite.
         let mut needs = Needs::new();
         for later in [ALWAYS_EXPANDED.name(), EXPANDED.name(), STRUCTURED.name()] {
             if cx.registry().cap_id(later).is_some() {
@@ -245,7 +246,8 @@ impl Lower for InputRule {
             Ok(Some(content)) => chars_at_lowering(content.iter())?.unwrap_or_default(),
             _ => String::new(),
         };
-        // See decision rationale at [§flm-dd-dr:std-input-dropped-mark].
+        // The mark's condition is the element's name: the parse's diagnostic is
+        // not at hand when lowering.
         let mark = DroppedPayload {
             condition: Name::from(ELEMENT),
             detail: format!("\\input{{{reference}}}"),

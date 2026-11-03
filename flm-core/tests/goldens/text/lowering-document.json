@@ -164,18 +164,24 @@
     }
   },
   {
-    "elem": "flm.pres.math-passthrough",
+    "elem": "flm.pres.par",
     "body": [
       {
-        "chars": "\n  a = b"
-      },
-      {
-        "chars": "\n"
+        "elem": "flm.pres.math-passthrough",
+        "body": [
+          {
+            "chars": "\n  a = b"
+          },
+          {
+            "chars": "\n"
+          }
+        ],
+        "payload": {
+          "display": "display",
+          "env": "equation"
+        }
       }
     ],
-    "payload": {
-      "display": "display",
-      "env": "equation"
-    }
+    "payload": {}
   }
 ]

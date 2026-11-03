@@ -20,9 +20,10 @@
 //!    available in, the scoped packages, the package holding the fallback
 //!    specifications, and the package holding the specifications of the field
 //!    macros (such as `\label`) that a tack-on argument absorbs. A tack-on
-//!    argument is a trailing argument of a construct that absorbs the field
-//!    macros written after the construct's other arguments (see [fields: data
-//!    a construct reads](crate::guide::concepts_overview#fields-data-a-construct-reads)).
+//!    argument is the argument of a construct that absorbs the field macros
+//!    written at its position in a call, after the arguments declared before
+//!    it (see [fields: data a construct
+//!    reads](crate::guide::concepts_overview#fields-data-a-construct-reads)).
 //! 2. **Derives the parsing state every parse starts from**
 //!    ([`BuiltLang::initial_state`]) in one step from the language's initial
 //!    parsing state (techy's `ParsingState::lang_initial`, built from

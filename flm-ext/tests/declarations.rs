@@ -407,11 +407,11 @@ fn the_dispatcher_declares_roles_and_reads_an_argument_s_role_from_data() {
     );
 }
 
-// --- E4: an argument's mode and scoped packages, extra placeholders, read back with codes -----
+// --- an argument's mode and scoped packages, extra placeholders, read back with codes ---------
 
 #[test]
 fn a_definition_reads_back_with_its_codes_modes_scoped_packages_and_extra_placeholders() {
-    use flm_ext::adapter::values::{definition_from_value, definition_to_value, no_handles};
+    use flm_ext::adapter::values::{definition_from_value, definition_to_value};
     use flm_ext::api::lang::mint::Mode;
     let data = json!({
         "kind": "macro", "name": "stamped",
@@ -420,7 +420,7 @@ fn a_definition_reads_back_with_its_codes_modes_scoped_packages_and_extra_placeh
         "block_role": { "inline": { "absorb_before": false, "absorb_after": false } }, "expand": "per-plan",
         "overrides": false, "docs": "", "extra_placeholders": [{ "name": "stamp", "substitution": false }],
     });
-    let definition = definition_from_value(&data, &mut no_handles).expect("a definition");
+    let definition = definition_from_value(&data).expect("a definition");
     let formula = &definition.args[1];
     assert_eq!((formula.code(), formula.mode, formula.scoped.len()), (Some("{"), Some(Mode::Math), 1));
     assert_eq!(formula.scoped[0].as_str(), "ex.hints");
@@ -431,9 +431,9 @@ fn a_definition_reads_back_with_its_codes_modes_scoped_packages_and_extra_placeh
     assert_eq!(written["args"][0], json!({ "code": "[", "name": null, "layout": "inline", "opaque_wrapper": false, "docs": "", "mode": null, "scoped": [], "role": null }));
     assert_eq!(written["args"][1], data["args"][1]);
     assert_eq!(written["extra_placeholders"], data["extra_placeholders"]);
-    let again = definition_from_value(&written, &mut no_handles).expect("it reads back");
+    let again = definition_from_value(&written).expect("it reads back");
     assert_eq!(definition_to_value(&again), written);
-    let error = definition_from_value(&json!({ "kind": "macro", "name": "x", "extra_placeholders": [{ "name": "s", "substitution": 1 }] }), &mut no_handles)
+    let error = definition_from_value(&json!({ "kind": "macro", "name": "x", "extra_placeholders": [{ "name": "s", "substitution": 1 }] }))
         .err()
         .map(|error| error.to_string());
     assert_eq!(error.as_deref(), Some("the field `substitution` of an extra placeholder must be a boolean, not `1`"));
@@ -441,17 +441,17 @@ fn a_definition_reads_back_with_its_codes_modes_scoped_packages_and_extra_placeh
 
 #[test]
 fn a_definition_writes_each_argument_back_in_the_form_it_was_read_from() {
-    use flm_ext::adapter::values::{definition_from_value, definition_to_value, no_handles};
+    use flm_ext::adapter::values::{definition_from_value, definition_to_value};
     let data = json!({
         "kind": "macro", "name": "sized", "content": "#{size}#{other}",
         "args": [{ "syntax": "delimited-group", "delimiters": ["(", ")"], "name": "size" }, { "code": "r()", "name": "other" }],
     });
-    let definition = definition_from_value(&data, &mut no_handles).expect("a definition");
+    let definition = definition_from_value(&data).expect("a definition");
     let written = definition_to_value(&definition);
     let (structured, coded) = (&written["args"][0], &written["args"][1]);
     assert_eq!((&structured["syntax"], &structured["delimiters"], structured.get("code")), (&json!("delimited-group"), &json!(["(", ")"]), None));
     assert_eq!((&coded["code"], coded.get("syntax")), (&json!("r()"), None));
-    let again = definition_from_value(&written, &mut no_handles).expect("it reads back");
+    let again = definition_from_value(&written).expect("it reads back");
     assert_eq!(again.args, definition.args);
 }
 
@@ -476,13 +476,13 @@ fn the_dispatcher_reads_a_definition_and_writes_it_back_with_its_codes() {
 
 #[test]
 fn an_argument_s_mode_and_a_body_s_scoped_package_are_read_from_data() {
-    use flm_ext::adapter::values::{body_def_from_value, no_handles, syntax_def_from_value};
+    use flm_ext::adapter::values::{body_def_from_value, syntax_def_from_value};
     use flm_ext::api::lang::mint::Mode;
     let body = body_def_from_value(&json!({ "layout": "blocks", "scoped": ["ex.hints", "ex.more"] })).expect("a body");
     assert_eq!(body.scoped.iter().map(|name| name.as_str()).collect::<Vec<_>>(), ["ex.hints", "ex.more"]);
     let error = body_def_from_value(&json!({ "scoped": "ex.hints" })).err().map(|error| error.to_string());
     assert_eq!(error.as_deref(), Some("the field `scoped` of a body must be a list of strings, not `\"ex.hints\"`"));
-    let syntax = syntax_def_from_value(&json!({ "macro": { "args": [{ "code": "{", "mode": "math" }] } }), &mut no_handles)
+    let syntax = syntax_def_from_value(&json!({ "macro": { "args": [{ "code": "{", "mode": "math" }] } }))
         .expect("a syntax");
     let SyntaxDef::Macro { args } = syntax else { panic!("a macro") };
     assert_eq!(args[0].mode, Some(Mode::Math));

@@ -182,11 +182,12 @@ number of leading arguments that `#1` skips is the definition's key
 `argument_number_offset`, not a marker written among the arguments. Besides the
 Python implementation's codes, this library accepts the code `BracedOnly`, taken
 from techy, the parser toolkit FLM is built on: a mandatory `{…}` group, never a
-single token; and four codes of its own for an argument that runs up to a
-terminator: `u<terminator>` (document content up to `<terminator>`, as in
-`\phf … \endphf`), `U<terminator>` (raw text up to it), `f<c><terminator>` and
-`F<c><terminator>` (the same after a run of the character `<c>`, up to the same
-run followed by `<terminator>`).
+single token; the code `t{<chars>}` of its own, an optional marker made of the
+characters between the braces (`t{\big}` reads `\m\big`); and four codes of its
+own for an argument that runs up to a terminator: `u<terminator>` (document
+content up to `<terminator>`, as in `\phf … \endphf`), `U<terminator>` (raw text
+up to it), `f<c><terminator>` and `F<c><terminator>` (the same after a run of
+the character `<c>`, up to the same run followed by `<terminator>`).
 
 The codes are shorthands for this library's **structured syntax**, which the
 Python implementation does not have: a map whose key `syntax` holds the name of
@@ -194,11 +195,12 @@ a standard kind of argument and whose other keys hold the kind's parameters,
 beside the argument's own keys:
 `{syntax: delimited-group, delimiters: ["(", ")"], name: size}` declares the
 argument that `{code: "r()", name: size}` declares. Every code has its
-structured syntax (the table of argument codes gives it), and three forms have
+structured syntax (the table of argument codes gives it), and four forms have
 a structured syntax but no code: a group read as plain characters
-(`chars-group`), a group of `key=value` pairs (`key-vals`), and a terminated
-argument with an opener or with fixed text before the repeated run of its
-terminator (`terminated` with `opener` or `head`). The kinds and their
+(`chars-group`), a group of `key=value` pairs (`key-vals`), the field macros a
+call absorbs (`tack-on`), and a terminated argument with an opener or with fixed
+text before the repeated run of its terminator (`terminated` with `opener` or
+`head`). The kinds and their
 parameters are listed in [the kind as
 data](crate::lang::mint::ArgStdKind#the-kind-as-data). A map gives exactly one
 of `syntax` and `code`.
@@ -398,13 +400,6 @@ writes it back as `\@`, as the Python implementation's LaTeX output does.
 
 ## Blocks, paragraphs and typography
 
-- **A display-mathematics environment is a block here.** `{equation}`,
-  `{align}`, `{gather}` and their starred forms have the block role, so text
-  written on the lines before and after one becomes two paragraphs, with the
-  environment between them. In the Python implementation the environment is
-  inline content, so the same source is one paragraph. A count of a document's
-  blocks therefore differs between the two. Display mathematics written
-  `\[…\]` is inline content in both.
 - **Whitespace is always collapsed, with no switch.** A run of spaces, tabs and
   line breaks in the source is one space in the text; a line break is a space,
   not a line break. The Python option `simplify_whitespace` turns the same
@@ -1111,8 +1106,8 @@ default. The differences:
   prints the mark alone and no note.
 - **Notes are never moved.** An xnote kind is either listed after the content
   or shown in place (`XnotePlacement::InPlace`): in brackets where it was
-  written; a note holding paragraphs then interrupts the paragraph around it, as
-  a displayed formula does. A note's content may hold paragraphs and lists; the
+  written; a note holding paragraphs is then a block, as a list is, and ends
+  the paragraph it is written in. A note's content may hold paragraphs and lists; the
   xnote kind's `layout` says how the content argument is laid out.
 - **Identifiers**: a numbered note is `fn-1` on the page, and its mark carries an
   identifier of its own, which the list's link back to the mark points at. The
@@ -1965,13 +1960,15 @@ Its two halves map as follows:
 
 ## The package `phfpack`
 
-The Python package `flm-phfpack` (its feature `flm_phfpack.phfqit`) is the crate
-`flm-phfpack` here, with its package `phfpack` and its feature `phfqit`. The
-differences:
+The Python implementation's package `flm-phfpack` (its feature
+`flm_phfpack.phfqit`) is the extension `phfpack` here, one of the extensions
+shipped with FLM, written in Rust and compiled into the `flm` program, with its
+package `phfpack` and its feature `phfqit` (see [A Rust extension, end to
+end](crate::guide::extending#a-rust-extension-end-to-end)). The differences:
 
 - **How it is turned on.** A document lists the package, `use: [phfpack]`, and
   writes the feature's settings under `phfqit`, instead of giving the Python
-  module among the features; the `flm` program includes the package, so there
+  module among the features; the `flm` program includes the extension, so there
   is nothing to install.
 - **How a macro is declared.** In `macro_definitions`, a declaration is written
   with the keys of a user definition: `args` (the Python `arguments_spec_list`,
@@ -2006,8 +2003,9 @@ differences:
   package: `\HH`, `\Hmin`, `\Hzero`, `\Hmaxf`, `\Hfn`, `\II`, `\DD`, `\Dmax`,
   `\Dminz`, `\Dminf`, `\Dr`, `\DHyp`, `\Dhyp`, `\IdentProc`, `\ee` and
   `\emptysystem`, the entropies and other measures of information of the LaTeX
-  package `phfqit`, written as that package renders them. The crate's
-  documentation lists their arguments.
+  package `phfqit`, written as that package renders them. The extension's
+  `README.md` (the folder `extensions/rust/phfpack/` of the repository) shows
+  each with its arguments.
 
 ## Recomposing to LaTeX
 
@@ -2212,9 +2210,9 @@ the recomposed LaTeX differs.
       `\ProvideDocumentEnvironment{flmUEwrap}{+m +b}…`; a template that never
       uses the body never writes that argument, and LaTeX drops the body as FLM
       does;
-    - a tack-on argument (the trailing argument that absorbs the field macros
-      written after a call's other arguments, as `\thm{Euclid}\label{thm:euclid}`
-      absorbs the `\label`; see
+    - a tack-on argument (the argument that absorbs the field macros written at
+      its position in a call, after the arguments declared before it, as
+      `\thm{Euclid}\label{thm:euclid}` absorbs the `\label`; see
       [fields](crate::guide::concepts_overview#fields-data-a-construct-reads))
       may be declared without being used by the template, and nothing is written
       for it. The Python implementation also drops what such a call absorbs when

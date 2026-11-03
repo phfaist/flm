@@ -2152,10 +2152,10 @@
           {
             "type": "string",
             "const": "in-place",
-            "description": "Where the xnote is written: one inline span holding the mark and the\ncontent, or, for content holding paragraphs, a block between the two\nparts of the paragraph it interrupts."
+            "description": "Where the xnote is written: one inline span holding the mark and the\ncontent, or, for content holding paragraphs, a block of its own, which\nends the paragraph it is written in."
           }
         ],
-        "description": "Where the xnotes of an xnote kind are shown: in a list after the\ndocument's content, or where each one is written.\n\nThe placement is part of the xnote kind's configuration, fixed when the\nregistry is built; no render request can change it. The reason is that an\nin-place xnote holding paragraphs is a *block* of the document: it\ninterrupts the paragraph it is written in, as a displayed formula does.\nThe block-structure pass decides whether\na node is a block before the document's trees are frozen (no longer\nchanged; see frozen\ntrees),\nfrom the element value and the node alone, so\nthe answer is a fact of the document, the same for every output; a listed\nxnote is always inline content. A document whose footnotes are listed on\none output and shown in place on another is therefore rendered with two\nconfigurations, that is, with two registries."
+        "description": "Where the xnotes of an xnote kind are shown: in a list after the\ndocument's content, or where each one is written.\n\nThe placement is part of the xnote kind's configuration, fixed when the\nregistry is built; no render request can change it. The reason is that an\nin-place xnote holding paragraphs is a *block* of the document: it ends\nthe paragraph it is written in, as a list does, and the text after it is a\nnew paragraph.\nThe block-structure pass decides whether\na node is a block before the document's trees are frozen (no longer\nchanged; see frozen\ntrees),\nfrom the element value and the node alone, so\nthe answer is a fact of the document, the same for every output; a listed\nxnote is always inline content. A document whose footnotes are listed on\none output and shown in place on another is therefore rendered with two\nconfigurations, that is, with two registries."
       },
       "ArgLayout": {
         "oneOf": [
@@ -4345,7 +4345,7 @@
           },
           "block_role": {
             "$ref": "#/$defs/BlockRole",
-            "description": "The block role of the definition's element: a block of its own, inline\ncontent, or a block decorator."
+            "description": "The block role of the definition's element: a block of its own, inline\ncontent, a displayed item, or a block decorator."
           },
           "expand": {
             "$ref": "#/$defs/ExpandPolicy",
@@ -4428,8 +4428,8 @@
               },
               {
                 "type": "string",
-                "pattern": "^t\\S$",
-                "description": "`t<c>`: an optional marker made of the one character after `t`"
+                "pattern": "^t(\\S|\\{[^\\s}]+\\})$",
+                "description": "`t<c>` or `t{<chars>}`: an optional marker made of the one character after `t`, or of the characters between the braces after `t`"
               },
               {
                 "type": "string",
@@ -4531,8 +4531,8 @@
                   },
                   {
                     "type": "string",
-                    "pattern": "^t\\S$",
-                    "description": "`t<c>`: an optional marker made of the one character after `t`"
+                    "pattern": "^t(\\S|\\{[^\\s}]+\\})$",
+                    "description": "`t<c>` or `t{<chars>}`: an optional marker made of the one character after `t`, or of the characters between the braces after `t`"
                   },
                   {
                     "type": "string",
@@ -4818,7 +4818,7 @@
           },
           {
             "type": "object",
-            "description": "An optional marker made of one character.",
+            "description": "An optional marker made of one or more characters.",
             "properties": {
               "syntax": {
                 "type": "string",
@@ -4826,8 +4826,8 @@
               },
               "marker": {
                 "type": "string",
-                "description": "The marker's character.",
-                "pattern": "^\\S$"
+                "description": "The marker's characters.",
+                "pattern": "^\\S+$"
               },
               "name": {
                 "type": [
@@ -5489,6 +5489,76 @@
           },
           {
             "type": "object",
+            "description": "The fields a command accepts at this argument's position in a call:\nmacros written after the arguments declared before it, which the\ncommand reads as data.",
+            "properties": {
+              "syntax": {
+                "type": "string",
+                "const": "tack-on"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/TackOnFieldData"
+                },
+                "description": "The fields, each with a distinct name."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's name, by which a user definition's template refers to\nit. No name by default.",
+                "default": null
+              },
+              "layout": {
+                "$ref": "#/$defs/ArgLayout",
+                "description": "How the argument's content is laid out: `inline` (running text with\nno paragraph, the default), `blocks` (paragraphs and other blocks), or\n`inline-or-blocks` (decided by the content); see `ArgLayout`.",
+                "default": "inline"
+              },
+              "opaque_wrapper": {
+                "type": "boolean",
+                "description": "Whether the argument's content is placed under an opaque wrapper, so\nthat it is kept as written: no whitespace is collapsed and no\ntypographic substitution is made inside it. `false` by default; see\n`ArgDef::with_opaque_wrapper`.",
+                "default": false
+              },
+              "docs": {
+                "type": "string",
+                "description": "Documentation of the argument. Empty by default.",
+                "default": ""
+              },
+              "mode": {
+                "description": "The parsing mode the argument is read in: `text` or `math`. Without\nit, the argument is read in the mode the command is written in; see\n`ArgDef::mode`.",
+                "enum": [
+                  "text",
+                  "math",
+                  null
+                ],
+                "default": null
+              },
+              "scoped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the scoped packages whose\ndeclarations are available inside the argument. None by default; see\n`ArgDef::scoped`.",
+                "default": []
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The argument's role: the registered name of what the argument holds,\nsuch as `flm.refs.target` for a label that a reference points to. No\nrole by default; see `ArgDef::role`.",
+                "default": null
+              }
+            },
+            "required": [
+              "syntax",
+              "fields"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
             "description": "An argument that runs up to a terminator: an optional run of a\nrepeated character and an opener, the content, then the terminator,\nwhich is the head, as many copies of the repeated character as the\nrun had, and the rest of the terminator.",
             "properties": {
               "syntax": {
@@ -5579,6 +5649,35 @@
           }
         ]
       },
+      "TackOnFieldData": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The field's name, without the backslash: `label` for a field written\n`\\label{…}`."
+          },
+          "args": {
+            "$ref": "#/$defs/ArgListData",
+            "description": "The field's own arguments, an argument list in any of its shapes. None\nby default.",
+            "default": []
+          },
+          "repeatable": {
+            "type": "boolean",
+            "description": "Whether the field may be written more than once after one command.\n`false` by default.",
+            "default": false
+          },
+          "docs": {
+            "type": "string",
+            "description": "The field's documentation. Empty by default.",
+            "default": ""
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "description": "A field that the command accepts at the position of its `tack-on`\nargument: a macro, which the command reads as data."
+      },
       "ArgLayout": {
         "oneOf": [
           {
@@ -5651,6 +5750,11 @@
             "description": "Inline content inside a block, with the whitespace beside it treated as\nthe `InlineSpacing` says."
           },
           {
+            "type": "string",
+            "const": "displayed",
+            "description": "A displayed item: a node that stands in inline content (a paragraph,\nor any content region laid out inline) and is set on lines of its own,\nwith the whitespace beside it removed, such as a display equation. A\ndisplayed item continues the paragraph it stands in, and may hold\nanything: its own lowering rule lays its content out."
+          },
+          {
             "type": "object",
             "properties": {
               "block-decorator": {
@@ -5664,7 +5768,7 @@
             "description": "Attached to the block it occurs in, at the `Placement` given."
           }
         ],
-        "description": "The role of an occurrence in the block and paragraph structure: a block,\ninline content, or a block decorator.\n\nThe block-structure rewrite pass (`crate::lang::rewrites::blocks`) reads\nit to cut content into blocks: the pass begins a new block at each `Block`\nnode and at each paragraph break, keeps `Inline` nodes inside the\nsurrounding block, and attaches a `BlockDecorator` to the block it occurs\nin. When the pass trims the whitespace at the edges of a block, it looks\npast a decorator, so a decorator at an edge does not keep the whitespace\nbeside it.\n\nAn element that declares no `BlockRoleAspect` has `BlockRole::DEFAULT`;\nread an occurrence's role with `block_role_of`."
+        "description": "The role of an occurrence in the block and paragraph structure: a block,\ninline content, a displayed item, or a block decorator.\n\nThe block-structure rewrite pass (`crate::lang::rewrites::blocks`) reads\nit to cut content into blocks: the pass begins a new block at each `Block`\nnode and at each paragraph break, keeps `Inline` and `Displayed` nodes\ninside the surrounding block, and attaches a `BlockDecorator` to the block\nit occurs in. The pass removes the whitespace on both sides of a\n`Displayed` node, as it does beside an `Inline` node whose\n`InlineSpacing` absorbs the whitespace on both sides. When the pass trims\nthe whitespace at the edges of a block, it looks past a decorator, so a\ndecorator at an edge does not keep the whitespace beside it.\n\nAn element that declares no `BlockRoleAspect` has `BlockRole::DEFAULT`;\nread an occurrence's role with `block_role_of`."
       },
       "InlineSpacing": {
         "type": "object",

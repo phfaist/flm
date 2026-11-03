@@ -1,4 +1,4 @@
-//! Durable handles (plan E4, section 6.2, design (A)): the template language
+//! Durable handles: the template language
 //! and the compiled templates a feature's handlers keep in the adapter's
 //! durable table, one per feature per registration; and the templates a
 //! rule instantiates (`instantiate`, `ValueBindings`, `DefinitionBindings`)
@@ -83,7 +83,7 @@ fn spec(text: &str) -> TemplateSpec {
 
 /// The title `Exercise #{number}` with the number `3`, instantiated at
 /// `node` and spliced: the number is itself a template instantiated with no
-/// value, whose root node the bindings take. Answers the title template.
+/// value, whose tree the bindings take. Answers the title template.
 fn splice_title(node: &dyn Node<'_>, cx: &mut dyn LowerCx, lw: &mut dyn Lowerer) -> Result<(Vec<flm_ext::api::core::lowering::Staged>, DurableToken), ExtError> {
     let (title, number) = {
         let lang = lw.lang();
@@ -91,7 +91,7 @@ fn splice_title(node: &dyn Node<'_>, cx: &mut dyn LowerCx, lw: &mut dyn Lowerer)
         (compile_template_with(&spec("Exercise #{number}"), &*lang, &language)?, compile_template_with(&spec("3"), &*lang, &language)?)
     };
     let number = instantiate(node, &number, &ValueBindings::new())?;
-    let bindings = ValueBindings::new().with("number", &*number)?;
+    let bindings = ValueBindings::new().with("number", &*number);
     let tree = instantiate(node, &title, &bindings)?;
     Ok((lw.splice(cx, &*tree)?, title.token()))
 }
@@ -152,7 +152,7 @@ fn a_token_kept_in_module_scope_resolves_in_a_later_call_and_is_stale_under_anot
                             compile_template_with(&spec("4"), &*lang, &language)?
                         };
                         let number = instantiate(node, &number, &ValueBindings::new())?;
-                        let tree = instantiate(node, &template, &ValueBindings::new().with("number", &*number)?)?;
+                        let tree = instantiate(node, &template, &ValueBindings::new().with("number", &*number))?;
                         Ok(Lowering::Emit(lw.splice(cx, &*tree)?))
                     }
                     Err(error) => {
@@ -278,19 +278,6 @@ fn a_rule_instantiates_a_variant_s_template_with_the_use_site_s_bindings() {
     assert_eq!(text, "A [x] b.\n");
 }
 
-#[test]
-fn value_bindings_take_the_root_node_of_a_tree_alone() {
-    static REFUSED: Mutex<Vec<String>> = Mutex::new(Vec::new());
-    let rule = body(|node, _cx, _lw| {
-        let refused = ValueBindings::new().with("number", node).expect_err("a node of the document");
-        REFUSED.lock().expect("the lock").push(refused.to_string());
-        Ok(Lowering::Emit(Vec::new()))
-    });
-    let registry = registry_with([titles(rule)]);
-    let _ = text_of(&registry, "\\extitle{}");
-    assert_eq!(*REFUSED.lock().expect("the lock"), ["the value of the placeholder `number` must be the root node of a tree"]);
-}
-
 // --- through the dispatcher ------------------------------------------------------------------
 
 /// The package `ex` through the JSON double: `\extitle{}` and a rule whose
@@ -399,5 +386,5 @@ fn the_dispatcher_refuses_a_stale_token_a_bad_specification_and_a_node_of_the_do
     );
     assert_eq!(answers[1], "`compile_template_with`: a template specification must have the field `mode`");
     assert!(answers[2].contains("other"), "{}", answers[2]);
-    assert_eq!(answers[3], "`with`: the value of the placeholder `number` must be the root node of a tree");
+    assert_eq!(answers[3], "`with`: an object of the kind `tree` is expected here, not one of the kind `node`");
 }

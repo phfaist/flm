@@ -4,10 +4,11 @@ This page lists every item of the public interface that can panic, states the
 condition under which it panics, and links the item's documentation. It covers
 every crate of this documentation: the library [`flm_core`](crate), the host
 library `flm-main`, the command-line program `flm-cli`, the introspection library
-`flm-info`, the extension layer `flm-ext`, the extension crate `flm-phfpack` and the
-extension `flmdoc`. Every item listed belongs to `flm_core`, except the one item of
-`flm-ext` in the last section; `flm-main`, `flm-cli`, `flm-info`, `flm-phfpack` and
-`flmdoc` document no panicking item.
+`flm-info`, the extension layer `flm-ext`, the crate of the shipped extensions
+`flm-extensions`, and the extensions written in Rust `flmdoc`, `phfpack`,
+`profile-pdf-latex` and `syntax-highlight`. Every item listed belongs to `flm_core`,
+except the one item of `flm-ext` in the last section; `flm-main`, `flm-cli`,
+`flm-info`, `flm-extensions` and the four extensions document no panicking item.
 
 An item that can panic states the condition in a `# Panics` section of its own
 documentation; this page restates that condition on the item's line. A change to the

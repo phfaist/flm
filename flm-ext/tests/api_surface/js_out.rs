@@ -1,5 +1,5 @@
-//! The emitter of the generated prelude (the plan's section 5.2,
-//! `dev-docs/ext/e2b`): one stub per module of the extension API under
+//! The emitter of the generated prelude: one stub per module of the
+//! extension API under
 //! `src/quickjs/js/api/`, the module `flm:_api` that imports them all
 //! (`api/_api.js`), and the module list `src/quickjs/generated_modules.rs`.
 //!
@@ -23,7 +23,7 @@
 //!
 //! # The fragments
 //!
-//! What does not forward (the plan's section 3.5) is written by hand under
+//! What does not forward is written by hand under
 //! `src/quickjs/js/hand/`, one file per module that needs any
 //! (`core/registry` is `core-registry.js`), each part introduced by a marker
 //! line, `// @hand export <Name>` or `// @hand method <Class>.<method>`
@@ -49,7 +49,7 @@ pub const HAND_DIR: &str = "src/quickjs/js/hand";
 /// The generated module list, from the crate's root.
 pub const MODULES_RS: &str = "src/quickjs/generated_modules.rs";
 
-/// The names of `flm:_runtime` every stub imports (the plan's section 3.5).
+/// The names of `flm:_runtime` every stub imports.
 const RUNTIME_NAMES: &str =
     "Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower";
 
@@ -95,8 +95,8 @@ pub fn fragment_file(path: &str) -> String {
 ///
 /// # Panics
 ///
-/// With the texts of the plan's section 8: a marker naming no item of the
-/// surface; an entry of the hand list without its marker.
+/// On a marker naming no item of the surface, and on an entry of the hand
+/// list without its marker.
 pub fn read_fragments(crate_root: &Path, inventory: &Inventory) -> BTreeMap<String, Fragments> {
     let mut out: BTreeMap<String, Fragments> = BTreeMap::new();
     let mut paths: Vec<&str> = mapping::HAND_WRITTEN.iter().map(|hand| hand.module).collect();
@@ -276,7 +276,7 @@ pub fn api_module_of(path: &str) -> String {
 
 /// The module that defines `name` when the module `path` re-exports it: an
 /// `api` item's module, or the first module in sorted order re-exporting
-/// the same `flm-core` type (the plan's section 3.2, rule 8); `None` when
+/// the same `flm-core` type (rule 8 of `ItemClass`); `None` when
 /// `path` defines it.
 pub fn defined_elsewhere(inventory: &Inventory, path: &str, item: &Item) -> Option<String> {
     match (&item.class, &item.kind) {
@@ -557,7 +557,7 @@ fn default_of(item: &Item, field: &str, ty: &str, module: &str) -> &'static str 
     }
 }
 
-/// The class of a data struct (rule 4 of the plan's section 3.2).
+/// The class of a data struct (rule 4 of `ItemClass`).
 fn data_class(item: &Item, fragments: &Fragments, module: &str) -> String {
     let ItemKind::Type { fields, methods, .. } = &item.kind else { unreachable!("a data class is a struct") };
     let new = methods.iter().find(|method| method.name == "new");

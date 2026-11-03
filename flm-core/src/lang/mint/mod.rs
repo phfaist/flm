@@ -82,9 +82,9 @@
 //!   map (`{syntax: delimited-group, delimiters: ["(", ")"]}`), and the
 //!   argument codes, the short texts that stand for the kinds (`{`, `[`,
 //!   `r()`, ...).
-//! - [`field`] — the element `flm.field` that every field node carries; a field
-//!   is a macro that a construct absorbs as data, such as the `\label` written
-//!   after a heading.
+//! - [`field`] — reading a field node by its name, and the element of a field
+//!   that a scoped package declares; a field is a macro that a construct
+//!   absorbs as data, such as the `\label` written after a heading.
 //! - [`specs`] — the FLM specification types, the language's own specifications
 //!   for unknown macros and environments, and [`resolve_element`].
 //! - [`packages`] — [`mint_packages`] and its result [`MintedProviders`]: the
@@ -107,7 +107,7 @@ pub mod parsers;
 pub mod specs;
 
 pub use codes::{
-    arg_def_from_code, deserialize_arg_list, ArgCodeError, ArgCodeProblem, ArgData,
+    arg_def_from_code, deserialize_arg_list, ArgCode, ArgCodeError, ArgCodeProblem, ArgData,
     ArgDataError, ArgDataFields, ArgListData, ArgListError,
 };
 pub use decl::{
@@ -119,7 +119,7 @@ pub use parsers::{
     ArgStdKind, DefinitionShape, FlmArgumentParser, FlmBodyParser, IntoFlmArgumentParser,
     IntoFlmBodyParser,
 };
-pub use field::{FIELD, Field, field_element, field_name, field_type_element, is_field_named};
+pub use field::{field_element, field_name, is_field_named};
 pub use packages::{
     mint_packages, ClashKind, FlmFallbackProvider, MintError, MintedProviders, Symbol,
     FALLBACK_PACKAGE_NAME, FALLBACK_PROVIDER_NAME, FIELDS_PACKAGE_NAME, LANGUAGE_OWNER,

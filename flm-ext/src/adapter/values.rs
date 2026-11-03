@@ -15,11 +15,11 @@
 //! and the projections of the LaTeX payloads (`flm-core`) stay where they are,
 //! and the pairs here call them.
 //!
-//! The declarations whose shape can hold a handle (an argument list, a
-//! syntax, an element, an element declaration, a fallback, a user
-//! definition) are read by reader functions (`*_from_value`) rather than a
-//! [`JsonForm`] pair; an `Expand` aspect inside one is a handle, which the
-//! reader's caller resolves. Beside the readers sit
+//! The declarations (an argument list, a syntax, an element, an element
+//! declaration, a fallback, a user definition) are read by reader functions
+//! (`*_from_value`) rather than a [`JsonForm`] pair; a handler aspect inside
+//! an element is a handle, which the reader's caller resolves. Beside the
+//! readers sit
 //! the conversions of the extension API's declarations into `flm-core`'s, which
 //! the registration makes (`element_def_to_core`, `fallback_def_to_core`),
 //! the rules every data value obeys ([`check_data`]), and the conversion of a
@@ -60,7 +60,7 @@ use flm_core::techy::error::DiagnosticValue;
 
 use crate::adapter::aspects::{ExtReferenceable, ExtSectioning};
 use crate::adapter::diag::ExtCondition;
-use crate::adapter::durable::{DurableTemplateFacade, DurableToken};
+use crate::adapter::durable::{DurableTable, DurableTemplateFacade, DurableToken};
 use crate::adapter::expand::ExtExpand;
 use crate::adapter::handles::{CallTable, Entry, Handle, HandleKind, TableEntry};
 use crate::api::stdcore::backends::latex::{
@@ -93,14 +93,15 @@ use crate::api::stdcore::features::compose::{Accepts, PieceValue, TemplateContex
 use crate::adapter::citations::CitationEntryFacade;
 use crate::api::core::lowering::{DefaultMark, Lower, LoweringDecl, Lowering, PresTree, Staged};
 use crate::api::core::run::WalkEntry;
+use crate::api::core::settings::ReadError;
 use crate::api::stdcore::features::math::{equation_lines, EquationLine, LineFrame, LineShows, NormalizedLine};
 use crate::api::core::stage::{Effect, Needs, RewriteDecl, RewriteStage, Scope, Stage, StageDecl};
 use crate::api::techy::transform::{Restage, RestagedArgument, RestagedSlot};
 use crate::api::lang::mint::{ElementDef, ElementDefForm, FallbackDef, Mode, ScopedPackageDef, SyntaxDef};
 use crate::api::core::lowering::LoweringRule;
 use crate::api::lang::rewrites::userdefs::{
-    CompiledTemplate, Expand, Expansion, ModeVariant, PlaceholderBindings, PlaceholderVocabulary, TemplateLanguage,
-    TemplateSpec, UserDefinition, ValueBindings,
+    CompiledTemplate, Expand, Expansion, ExtraValues, ModeVariant, PlaceholderBindings, PlaceholderRef, PlaceholderTarget,
+    PlaceholderVocabulary, TemplateLanguage, TemplateSpec, UserDefinition, ValueBindings,
 };
 use crate::api::techy::extract::{KeyValEntry, KeyVals};
 use crate::api::lang::text::{CharsContent, NotCharacters};
@@ -109,7 +110,7 @@ use crate::api::core::registry::{Finalizer, LateInit};
 use crate::api::stdcore::features::refs::LabelUse;
 use crate::api::model::element::{Aspect, ElementSpec};
 use crate::api::techy::error::{Diagnostic, Severity};
-use crate::api::techy::node::{Node, NodeKindName, Span};
+use crate::api::techy::node::{Node, NodeKindName, Span, Tree};
 use crate::sealed::Token;
 use crate::adapter::names::Owner;
 use crate::runtime::ExtError;
@@ -155,7 +156,7 @@ pub(crate) fn read<T: serde::de::DeserializeOwned>(what: &str, value: &Value) ->
 
 /// The error for a value that is not `expected` (a scalar's or a
 /// container's shape).
-fn not_a(expected: &str, value: &Value) -> ExtError {
+pub(crate) fn not_a(expected: &str, value: &Value) -> ExtError {
     ExtError::Value { detail: format!("the value must be {expected}, not `{value}`") }
 }
 
@@ -373,13 +374,14 @@ impl JsonForm for InlineSpacing {
     }
 }
 
-/// `"block"`, `{"inline": <InlineSpacing>}` or `{"block-decorator":
-/// <Placement>}`: the serde form `BlockRole` reads.
+/// `"block"`, `{"inline": <InlineSpacing>}`, `"displayed"` or
+/// `{"block-decorator": <Placement>}`: the serde form `BlockRole` reads.
 impl JsonForm for BlockRole {
     fn to_value(&self) -> Value {
         match self {
             BlockRole::Block => Value::String("block".to_string()),
             BlockRole::Inline(spacing) => json!({ "inline": spacing.to_value() }),
+            BlockRole::Displayed => Value::String("displayed".to_string()),
             BlockRole::BlockDecorator(placement) => json!({ "block-decorator": placement.to_value() }),
         }
     }
@@ -610,7 +612,6 @@ pub fn diagnostic_value_to_json(value: &DiagnosticValue) -> Value {
 /// A handler's diagnostic as `flm-core`'s: the condition an [`ExtCondition`]
 /// of the diagnostic's identifier, message and data, at the severity given,
 /// placed at the diagnostic's own span if it has one, else at `default_span`.
-/// The name rule is the caller's, which knows the package.
 ///
 /// # Errors
 ///
@@ -623,8 +624,7 @@ pub fn diagnostic_to_core(diagnostic: Diagnostic, default_span: FlmSpan) -> Resu
 // --- the declarations, read from JSON --------------------------------------------------------
 
 /// An object a declaration holds as a handle, as the running call's table
-/// lent it: an element's hook or handler aspect, or an argument a helper made
-/// ([`label_fields_arg`](crate::api::stdcore::features::refs::label_fields_arg)).
+/// lent it: an element's hook or handler aspect.
 pub enum Held {
     /// An expansion hook (the kind `expand`).
     Expand(Arc<dyn Expand>),
@@ -632,8 +632,6 @@ pub enum Held {
     Referenceable(Arc<dyn Referenceable>),
     /// A sectioning aspect (the kind `sectioning`).
     Sectioning(Arc<dyn Sectioning>),
-    /// An argument a helper made (the kind `arg_def`).
-    ArgDef(ArgDef),
 }
 
 impl Held {
@@ -643,28 +641,14 @@ impl Held {
             Held::Expand(_) => HandleKind::Expand,
             Held::Referenceable(_) => HandleKind::Referenceable,
             Held::Sectioning(_) => HandleKind::Sectioning,
-            Held::ArgDef(_) => HandleKind::ArgDef,
         }
     }
 }
 
-/// What resolves a handle written in a declaration (an element's aspect, an
-/// argument a helper made): the dispatcher's lookup in the running call's
-/// table ([`held_from_table`]).
+/// What resolves a handle written in a declaration (an element's aspect):
+/// the dispatcher's lookup in the running call's table
+/// ([`held_from_table`]).
 pub type Resolver<'r> = dyn FnMut(&Value) -> Result<Held, ExtError> + 'r;
-
-/// The resolver of a declaration read without a call: every handle is
-/// refused.
-///
-/// # Errors
-///
-/// Always ([`ExtError::Argument`]).
-pub fn no_handles(value: &Value) -> Result<Held, ExtError> {
-    Err(ExtError::Argument {
-        method: String::new(),
-        detail: format!("a declaration read outside a call cannot hold an object, not `{value}`"),
-    })
-}
 
 /// A map's fields, each a JSON value, refusing a field not in `known` and
 /// reading a missing one as `null`.
@@ -753,67 +737,42 @@ fn names_field(what: &str, map: &BTreeMap<String, &Value>, key: &str) -> Result<
 }
 
 /// An argument list in the `ArgListData` shape: a string of argument codes
-/// (`"[{"`), or a list whose entries are each a code, an argument's map or a
-/// handle of kind `arg_def` (an argument a helper made, resolved by
-/// `resolve`); `null` is the empty list. An argument's map ([`ArgDataFields`])
-/// gives the argument's syntax as `{"code"}` or as `{"syntax", ...}` with the
+/// (`"[{"`), or a list whose entries are each a code or an argument's map;
+/// `null` is the empty list. An argument's map ([`ArgDataFields`]) gives the
+/// argument's syntax as `{"code"}` or as `{"syntax", ...}` with the
 /// parameters of the syntax, exactly one of the two, beside `"name"`,
 /// `"layout"`, `"opaque_wrapper"`, `"docs"`, `"mode"`, `"scoped"` and
 /// `"role"`.
 ///
 /// # Errors
 ///
-/// The value is not of the shape ([`ExtError::Value`]; a helper's argument
-/// written with fields beside its handle, as a guest writes one its setters
-/// changed, is refused naming those fields), a code is not one or a map gives
-/// both a code and a structured syntax, or neither ([`ExtError::Core`] of
-/// kind `arg-code`), a handle stands for no argument, or what `resolve`
-/// reports. A message about an argument's code or map names the argument's
-/// position in the list.
-pub fn arg_defs_from_value(value: &Value, resolve: &mut Resolver<'_>) -> Result<Vec<ArgDef>, ExtError> {
-    let code_error =
-        |error: ArgListError| ExtError::Core { kind: "arg-code".to_string(), detail: error.to_string(), data: Value::Null };
+/// The value is not of the shape ([`ExtError::Value`]), a code is not one or
+/// a map gives both a code and a structured syntax, or neither
+/// ([`ExtError::Core`] of kind `arg-code`). A message about an argument's
+/// code or map names the argument's position in the list.
+pub fn arg_defs_from_value(value: &Value) -> Result<Vec<ArgDef>, ExtError> {
     match value {
         Value::Null => Ok(Vec::new()),
         Value::Array(items) => items
             .iter()
             .enumerate()
             .map(|(index, item)| {
-                if let Value::Object(map) = item
-                    && map.len() > 1
-                    && let Some(handle) = map.get(HANDLE_KEY)
-                {
-                    let fields: Vec<String> = map.keys().filter(|key| *key != HANDLE_KEY).map(|key| format!("`{key}`")).collect();
-                    let arg = match resolve(&serde_json::json!({ HANDLE_KEY: handle }))? {
-                        Held::ArgDef(arg) => arg,
-                        other => return Err(mismatch(HandleKind::ArgDef, other.kind())),
-                    };
-                    let what = match &arg.name {
-                        Some(name) => format!("the argument `{name}` that a helper made"),
-                        None => "an argument a helper made".to_string(),
-                    };
-                    return Err(ExtError::Value {
-                        detail: format!(
-                            "{what} must be used as the helper made it, without the fields {} set on it",
-                            fields.join(", ")
-                        ),
-                    });
-                }
-                if is_handle(item) {
-                    return match resolve(item)? {
-                        Held::ArgDef(arg) => Ok(arg),
-                        other => Err(mismatch(HandleKind::ArgDef, other.kind())),
-                    };
-                }
                 let data: ArgData = read(&format!("argument {}", index + 1), item)?;
-                ArgDef::try_from(data).map_err(|error| code_error(ArgListError { index, error }))
+                ArgDef::try_from(data).map_err(|error| arg_code_error(ArgListError { index, error }))
             })
             .collect(),
         _ => {
             let data: ArgListData = read("an argument list", value)?;
-            data.arg_defs().map_err(code_error)
+            data.arg_defs().map_err(arg_code_error)
         }
     }
+}
+
+/// The error of an argument that converts to no declaration (its code is not
+/// an argument code, or its map gives both a code and a structured syntax, or
+/// neither): [`ExtError::Core`] of kind `arg-code`, with `error`'s text.
+pub(crate) fn arg_code_error(error: impl std::fmt::Display) -> ExtError {
+    ExtError::Core { kind: "arg-code".to_string(), detail: error.to_string(), data: Value::Null }
 }
 
 /// A body `{"layout": "from-role", "opaque_wrapper": false, "verbatim":
@@ -889,7 +848,7 @@ impl JsonForm for BodyDef {
 /// # Errors
 ///
 /// As [`arg_defs_from_value`] and [`body_def_from_value`].
-pub fn syntax_def_from_value(value: &Value, resolve: &mut Resolver<'_>) -> Result<SyntaxDef, ExtError> {
+pub fn syntax_def_from_value(value: &Value) -> Result<SyntaxDef, ExtError> {
     const WHAT: &str = "a syntax";
     if value.as_str() == Some("synthesized") {
         return Ok(SyntaxDef::Synthesized);
@@ -905,12 +864,12 @@ pub fn syntax_def_from_value(value: &Value, resolve: &mut Resolver<'_>) -> Resul
     match kind.as_str() {
         "macro" => {
             let inner = fields("a macro's syntax", inner, &["args"])?;
-            Ok(SyntaxDef::Macro { args: arg_defs_from_value(field(&inner, "args"), resolve)? })
+            Ok(SyntaxDef::Macro { args: arg_defs_from_value(field(&inner, "args"))? })
         }
         "environment" => {
             let inner = fields("an environment's syntax", inner, &["args", "body"])?;
             Ok(SyntaxDef::Environment {
-                args: arg_defs_from_value(field(&inner, "args"), resolve)?,
+                args: arg_defs_from_value(field(&inner, "args"))?,
                 body: body_def_from_value(field(&inner, "body"))?,
             })
         }
@@ -919,7 +878,7 @@ pub fn syntax_def_from_value(value: &Value, resolve: &mut Resolver<'_>) -> Resul
             let inner = fields(INNER, inner, &["trigger", "args"])?;
             Ok(SyntaxDef::Specials {
                 trigger: required_text(INNER, &inner, "trigger")?,
-                args: arg_defs_from_value(field(&inner, "args"), resolve)?,
+                args: arg_defs_from_value(field(&inner, "args"))?,
             })
         }
         _ => Err(shape()),
@@ -932,13 +891,13 @@ pub fn syntax_def_from_value(value: &Value, resolve: &mut Resolver<'_>) -> Resul
 /// other field optional, with [`Definition::new`]'s defaults. Each extra
 /// placeholder is `{"name", "substitution"}`, applied through
 /// [`Definition::extra_placeholder`]. The arguments are read as
-/// [`arg_defs_from_value`] reads them, `resolve` resolving their handles.
+/// [`arg_defs_from_value`] reads them.
 ///
 /// # Errors
 ///
 /// The value is not of the shape ([`ExtError::Value`]); an argument code is
 /// not one ([`ExtError::Core`]).
-pub fn definition_from_value(value: &Value, resolve: &mut Resolver<'_>) -> Result<Definition, ExtError> {
+pub fn definition_from_value(value: &Value) -> Result<Definition, ExtError> {
     const WHAT: &str = "a definition";
     let map = fields(
         WHAT,
@@ -961,7 +920,7 @@ pub fn definition_from_value(value: &Value, resolve: &mut Resolver<'_>) -> Resul
     let kind = form_field::<DefinitionKind>(&map, "kind")?
         .ok_or_else(|| ExtError::Value { detail: format!("{WHAT} must have the field `kind`") })?;
     let name = required_text(WHAT, &map, "name")?;
-    let mut definition = Definition::new(kind, name, arg_defs_from_value(field(&map, "args"), resolve)?);
+    let mut definition = Definition::new(kind, name, arg_defs_from_value(field(&map, "args"))?);
     match field(&map, "content") {
         Value::Null => {}
         Value::String(text) => definition = definition.content(text.clone()),
@@ -1168,7 +1127,7 @@ pub fn element_def_from_value(value: &Value, resolve: &mut Resolver<'_>) -> Resu
     };
     let syntax = match field(&map, "syntax") {
         Value::Null => return Err(ExtError::Value { detail: format!("{WHAT} must have the field `syntax`") }),
-        syntax => syntax_def_from_value(syntax, resolve)?,
+        syntax => syntax_def_from_value(syntax)?,
     };
     let element = match field(&map, "element") {
         Value::Null => return Err(ExtError::Value { detail: format!("{WHAT} must have the field `element`") }),
@@ -1263,7 +1222,7 @@ pub(crate) fn element_name_of(def: &ElementDef) -> &str {
 }
 
 /// The `flm-core` declaration of `def`, and the user definition behind it
-/// when a helper made it (plan A, A10): a data declaration converted field by
+/// when a helper made it: a data declaration converted field by
 /// field; a helper-made one built now by the definition's own `element_def`,
 /// or its `element_def_with` with the hook wrapped as an [`ExtExpand`] for
 /// `declarer`, then given the docs and modes the value carries.
@@ -1438,7 +1397,7 @@ pub fn lend_node<'c>(table: &mut CallTable<'c>, node: Option<Box<dyn Node<'c> + 
     node.map_or(Value::Null, |node| handle_to_value(table.lend(Entry::Node(node))))
 }
 
-/// An owned copy of the node `handle` stands for in `table` (plan A, A16).
+/// An owned copy of the node `handle` stands for in `table`.
 ///
 /// # Errors
 ///
@@ -1448,6 +1407,41 @@ pub fn node_from_table<'c>(table: &mut CallTable<'c>, handle: Handle) -> Result<
         Entry::Node(node) => Ok(node.clone_box(Token::new())),
         other => Err(mismatch(HandleKind::Node, other.kind())),
     }
+}
+
+/// `trees` lent into `table`, as a JSON list of handles.
+pub fn lend_trees(table: &mut CallTable<'_>, trees: Vec<Box<dyn Tree>>) -> Value {
+    Value::Array(trees.into_iter().map(|tree| handle_to_value(table.lend(Entry::Tree(tree)))).collect())
+}
+
+/// An owned copy of the tree `handle` stands for in `table`, as a node is
+/// copied ([`node_from_table`]): the copy shares the tree.
+///
+/// # Errors
+///
+/// The handle is stale, or stands for no tree.
+pub fn tree_from_table(table: &mut CallTable<'_>, handle: Handle) -> Result<Box<dyn Tree>, ExtError> {
+    match table.entry(handle)? {
+        Entry::Tree(tree) => Ok(tree.clone_box(Token::new())),
+        other => Err(mismatch(HandleKind::Tree, other.kind())),
+    }
+}
+
+/// The trees a JSON list of tree handles stands for in `table`, each an owned
+/// copy ([`tree_from_table`]).
+///
+/// # Errors
+///
+/// `value` is not a list of handles, or a handle is stale or stands for no
+/// tree.
+pub fn trees_from_value(table: &mut CallTable<'_>, value: &Value) -> Result<Vec<Box<dyn Tree>>, ExtError> {
+    let Value::Array(items) = value else {
+        return Err(ExtError::Argument {
+            method: String::new(),
+            detail: format!("a list of trees is expected here, not `{value}`"),
+        });
+    };
+    items.iter().map(|item| tree_from_table(table, handle_from_value(item)?)).collect()
 }
 
 /// The nodes a JSON list of node handles stands for in `table`, each an owned
@@ -1485,18 +1479,17 @@ pub fn expand_from_table(table: &mut CallTable<'_>, value: &Value) -> Result<Arc
 /// # Errors
 ///
 /// `value` is not a handle, or stands for no object a declaration may hold
-/// (a hook, a handler aspect, an argument a helper made).
+/// (a hook, a handler aspect).
 pub fn held_from_table(table: &mut CallTable<'_>, value: &Value) -> Result<Held, ExtError> {
     match table.entry(handle_from_value(value)?)? {
         Entry::Expand(hook) => Ok(Held::Expand(Arc::clone(hook))),
         Entry::Referenceable(aspect) => Ok(Held::Referenceable(Arc::clone(aspect))),
         Entry::Sectioning(aspect) => Ok(Held::Sectioning(Arc::clone(aspect))),
-        Entry::ArgDef(arg) => Ok(Held::ArgDef(arg.clone())),
         other => Err(ExtError::Argument {
             method: String::new(),
             detail: format!(
-                "a declaration may hold objects of the kinds `expand`, `referenceable`, `sectioning` and `arg_def`, not \
-                 one of the kind `{}`",
+                "a declaration may hold objects of the kinds `expand`, `referenceable` and `sectioning`, not one of the \
+                 kind `{}`",
                 other.kind().name()
             ),
         }),
@@ -1764,9 +1757,21 @@ impl JsonForm for ArtifactData {
 /// The content `bytes` in its data form: `{"text": text}` when the bytes are
 /// UTF-8, `{"base64": text}` otherwise (the standard alphabet with padding).
 fn content_to_value(bytes: &[u8]) -> Value {
-    // See decision rationale at [§flm-dd-dr:ext-artifact-content].
+    // A JSON value holds no bytes: a file that is not text (a PDF, an image)
+    // crosses whole in base64, and a text file stays readable as its text.
     match std::str::from_utf8(bytes) {
         Ok(text) => json!({ "text": text }),
+        Err(_) => json!({ "base64": BASE64.encode(bytes) }),
+    }
+}
+
+/// The bytes `bytes` as an argument of a call: a text when they are UTF-8,
+/// `{"base64": text}` otherwise (the standard alphabet with padding), two of
+/// the forms of an artifact's content, which the reader of a `&[u8]`
+/// argument reads.
+pub fn bytes_to_value(bytes: &[u8]) -> Value {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => Value::String(text.to_string()),
         Err(_) => json!({ "base64": BASE64.encode(bytes) }),
     }
 }
@@ -1783,13 +1788,15 @@ fn data_from_value(value: &Value, id: Option<&ArtifactId>) -> Result<ArtifactDat
     let data_shape = || wrong("its field `data` must be `{ bytes: CONTENT }` or `{ files: [[path, CONTENT], …] }`".to_string());
     match value {
         Value::Object(data) if data.len() == 1 => match data.iter().next() {
-            Some((key, content)) if key == "bytes" => Ok(ArtifactData::Bytes(content_from_value(content, &artifact)?)),
+            Some((key, content)) if key == "bytes" => {
+                Ok(ArtifactData::Bytes(content_from_value(content, &|| format!("the content of {}", artifact()))?))
+            }
             Some((key, Value::Array(files))) if key == "files" => {
                 let mut read = Vec::with_capacity(files.len());
                 for file in files {
                     match file.as_array().map(Vec::as_slice) {
                         Some([Value::String(path), content]) => {
-                            let file = || format!("the file `{path}` of {}", artifact());
+                            let file = || format!("the content of the file `{path}` of {}", artifact());
                             read.push((RelPath::new(path.clone()), content_from_value(content, &file)?));
                         }
                         _ => return Err(wrong("each file of its field `data` must be `[path, CONTENT]`".to_string())),
@@ -1805,9 +1812,9 @@ fn data_from_value(value: &Value, id: Option<&ArtifactId>) -> Result<ArtifactDat
 
 /// The bytes of a `CONTENT`, `value`: a text or `{"text": text}` (its UTF-8
 /// bytes), or `{"base64": text}` (the bytes the text encodes, the standard
-/// alphabet with padding). `subject` gives the refusal's words for whose
-/// content it is ("the artifact `x:page`", "the file `a.png` of the artifact
-/// `x:page`").
+/// alphabet with padding). `subject` names the value in the refusal ("the
+/// content of the artifact `x:page`", "the content of the file `a.png` of the
+/// artifact `x:page`", "argument 1").
 fn content_from_value(value: &Value, subject: &dyn Fn() -> String) -> Result<Vec<u8>, ExtError> {
     let refused = |detail: String| ExtError::Value { detail };
     match value {
@@ -1815,15 +1822,15 @@ fn content_from_value(value: &Value, subject: &dyn Fn() -> String) -> Result<Vec
         Value::Object(map) => match (map.len(), map.get("text"), map.get("base64")) {
             (1, Some(Value::String(text)), None) => Ok(text.as_bytes().to_vec()),
             (1, None, Some(Value::String(encoded))) => BASE64.decode(encoded).map_err(|_| {
-                refused(format!("the content of {} must be base64 in the standard alphabet, with padding", subject()))
+                refused(format!("{} must be base64 in the standard alphabet, with padding", subject()))
             }),
             _ => Err(refused(format!(
-                "the content of {}, a map, must be `{{ text: text }}` or `{{ base64: text }}`",
+                "{}, a map, must be `{{ text: text }}` or `{{ base64: text }}`",
                 subject()
             ))),
         },
         other => Err(refused(format!(
-            "the content of {} must be a text, `{{ text: text }}` or `{{ base64: text }}`, not {}",
+            "{} must be a text, `{{ text: text }}` or `{{ base64: text }}`, not {}",
             subject(),
             kind_of_value(other)
         ))),
@@ -2017,15 +2024,17 @@ pub fn not_characters(error: NotCharacters) -> ExtError {
 }
 
 /// An argument written as an argument's map ([`ArgDataFields`]), which
-/// [`arg_defs_from_value`] reads back: what `arg_def_from_code` answers, and
-/// each argument of [`definition_to_value`]. The map gives the argument's
+/// [`arg_defs_from_value`] reads back: what a function answering an argument
+/// answers (`arg_def_from_code`, `label_fields_arg`), and each argument of
+/// [`definition_to_value`]. The map gives the argument's
 /// syntax in the form [`ArgDef::code`] states a declaration is written back
 /// in: `{"code"}` for an argument read from a code; otherwise, when its
-/// parser is a standard kind ([`ArgStdKind`]) other than a tack-on argument,
-/// `{"syntax", ...}`, the kind serialized with its parameters beside the key
-/// `syntax` (`{"syntax": "delimited-group", "delimiters": ["(", ")"]}`);
-/// otherwise neither, for a tack-on argument or a parser of a feature's own,
-/// which then does not read back. Beside the syntax stand `"name"`,
+/// parser is a standard kind ([`ArgStdKind`]), `{"syntax", ...}`, the kind
+/// serialized with its parameters beside the key `syntax`
+/// (`{"syntax": "delimited-group", "delimiters": ["(", ")"]}`, or
+/// `{"syntax": "tack-on", "fields": [...]}` for a tack-on argument);
+/// otherwise neither, for a parser of a feature's own, which then does not
+/// read back. Beside the syntax stand `"name"`,
 /// `"layout"`, `"opaque_wrapper"`, `"docs"`, `"mode"`, `"scoped"` and
 /// `"role"`: `opaque_wrapper` is whether the declaration places the
 /// argument's content under an opaque wrapper; `mode` is `null` when the
@@ -2038,10 +2047,9 @@ pub fn arg_def_to_value(arg: &ArgDef) -> Value {
 /// A user definition's declaration written as data, in the shape
 /// [`definition_from_value`] reads: each argument as [`arg_def_to_value`]
 /// writes it, with its code where it was read from one and otherwise with
-/// its structured syntax where its parser is a standard kind other than a
-/// tack-on argument, and the extra placeholders as `[{"name",
-/// "substitution"}]`. A definition reads back as written unless one of its
-/// arguments is a tack-on argument or has a parser of a feature's own.
+/// its structured syntax where its parser is a standard kind, and the extra
+/// placeholders as `[{"name", "substitution"}]`. A definition reads back as
+/// written unless one of its arguments has a parser of a feature's own.
 pub fn definition_to_value(definition: &Definition) -> Value {
     let args: Vec<Value> = definition.args.iter().map(arg_def_to_value).collect();
     let extras: Vec<Value> = definition
@@ -2169,7 +2177,16 @@ pub fn lower_from_table(table: &mut CallTable<'_>, value: &Value) -> Result<Arc<
 ///
 /// `value` is not a handle of that kind in the running call.
 pub fn staged_from_table(table: &mut CallTable<'_>, value: &Value) -> Result<Staged, ExtError> {
-    match table.entry(handle_from_value(value)?)? {
+    staged_at(table, handle_from_value(value)?)
+}
+
+/// The staged node `handle` stands for in `table`.
+///
+/// # Errors
+///
+/// The handle is stale, or stands for no staged node.
+pub(crate) fn staged_at(table: &mut CallTable<'_>, handle: Handle) -> Result<Staged, ExtError> {
+    match table.entry(handle)? {
         Entry::Staged(node) => Ok(*node),
         other => Err(mismatch(HandleKind::Staged, other.kind())),
     }
@@ -2276,15 +2293,55 @@ fn bundles_from_table<'c, T>(
     };
     let mut bundles = Vec::with_capacity(items.len());
     for item in items {
-        let entry = table.entry(handle_from_value(item)?)?;
-        let actual = entry.kind();
-        match take(entry) {
-            None => return Err(mismatch(kind, actual)),
-            Some(None) => return Err(crate::adapter::rewrite::spent()),
-            Some(Some(bundle)) => bundles.push(bundle),
-        }
+        bundles.push(bundle_at(table, handle_from_value(item)?, kind, &mut take)?);
     }
     Ok(bundles)
+}
+
+/// The bundle of the kind `kind` that `handle` stands for, taken out of
+/// `table` by `take` (as [`bundles_from_table`] takes each).
+///
+/// # Errors
+///
+/// The handle is stale or of another kind; the bundle was taken already
+/// ([`ExtError::Argument`]).
+pub(crate) fn bundle_at<'c, T>(
+    table: &mut CallTable<'c>,
+    handle: Handle,
+    kind: HandleKind,
+    take: impl FnOnce(&mut Entry<'c>) -> Option<Option<T>>,
+) -> Result<T, ExtError> {
+    let entry = table.entry(handle)?;
+    let actual = entry.kind();
+    match take(entry) {
+        None => Err(mismatch(kind, actual)),
+        Some(None) => Err(crate::adapter::rewrite::spent()),
+        Some(Some(bundle)) => Ok(bundle),
+    }
+}
+
+/// A restaged argument's bundle taken out of its entry: `None` for an entry
+/// of another kind, `Some(None)` for a bundle taken already.
+pub(crate) fn take_restaged_argument(entry: &mut Entry<'_>) -> Option<Option<Box<dyn RestagedArgument>>> {
+    match entry {
+        Entry::RestagedArgument(bundle) => Some(bundle.take_core(Token::new()).map(|core| {
+            Box::new(crate::adapter::rewrite::RestagedArgumentFacade::new(core)) as Box<dyn RestagedArgument>
+        })),
+        _ => None,
+    }
+}
+
+/// A restaged slot's bundle taken out of its entry, as
+/// [`take_restaged_argument`].
+pub(crate) fn take_restaged_slot(entry: &mut Entry<'_>) -> Option<Option<Box<dyn RestagedSlot>>> {
+    match entry {
+        Entry::RestagedSlot(bundle) => Some(
+            bundle
+                .take_core(Token::new())
+                .map(|core| Box::new(crate::adapter::rewrite::RestagedSlotFacade::new(core)) as Box<dyn RestagedSlot>),
+        ),
+        _ => None,
+    }
 }
 
 /// A tree of presentation nodes written as data ([`PresTree`]):
@@ -2358,16 +2415,16 @@ pub fn equation_line_to_value<'c>(table: &mut CallTable<'c>, line: EquationLine<
 
 /// A line's frame as data: `{"environment": node, "index", "line": <the
 /// line, as [`equation_line_to_value`]>, "anchor": text | null, "shows":
-/// {"kind": "nothing"} | {"kind": "number", "segments": [node, …], "text"} |
-/// {"kind": "tag", "starred", "content": [node, …]}}`, the nodes lent into
-/// `table`.
+/// {"kind": "nothing"} | {"kind": "number", "segments": [tree, …], "text"} |
+/// {"kind": "tag", "starred", "content": [node, …]}}`, the nodes and the
+/// trees lent into `table`.
 pub fn line_frame_to_value<'c>(table: &mut CallTable<'c>, frame: LineFrame<'c>) -> Value {
     let environment = lend_node(table, Some(frame.environment));
     let line = equation_line_to_value(table, frame.line);
     let shows = match frame.shows {
         LineShows::Nothing => json!({ "kind": "nothing" }),
         LineShows::Number { segments, text } => {
-            json!({ "kind": "number", "segments": lend_nodes(table, segments), "text": text })
+            json!({ "kind": "number", "segments": lend_trees(table, segments), "text": text })
         }
         LineShows::Tag { starred, content } => {
             json!({ "kind": "tag", "starred": starred, "content": lend_nodes(table, content) })
@@ -2406,7 +2463,7 @@ pub fn line_frame_from_value<'c>(table: &mut CallTable<'c>, value: &Value) -> Re
     let shows = match shows_value.get("kind").and_then(Value::as_str) {
         Some("nothing") => LineShows::Nothing,
         Some("number") => LineShows::Number {
-            segments: nodes_from_value(table, shows_value.get("segments").unwrap_or(&Value::Null))?,
+            segments: trees_from_value(table, shows_value.get("segments").unwrap_or(&Value::Null))?,
             text: shows_value.get("text").and_then(Value::as_str).ok_or_else(refuse)?.to_string(),
         },
         Some("tag") => LineShows::Tag {
@@ -2415,6 +2472,18 @@ pub fn line_frame_from_value<'c>(table: &mut CallTable<'c>, value: &Value) -> Re
         },
         _ => return Err(refuse()),
     };
+    Ok(line_frame_of(environment, index, anchor, shows))
+}
+
+/// The frame of the line at `index` of `environment`, its line read again
+/// from the environment (an empty line where none is there), as
+/// [`line_frame_from_value`] reads a frame back.
+pub(crate) fn line_frame_of<'c>(
+    environment: Box<dyn Node<'c> + 'c>,
+    index: usize,
+    anchor: Option<String>,
+    shows: LineShows<'c>,
+) -> LineFrame<'c> {
     let line = equation_lines(&*environment).into_iter().nth(index).unwrap_or_else(|| EquationLine {
         content: Vec::new(),
         labels: Vec::new(),
@@ -2422,7 +2491,7 @@ pub fn line_frame_from_value<'c>(table: &mut CallTable<'c>, value: &Value) -> Re
         nonumber: false,
         linebreak: None,
     });
-    Ok(LineFrame { environment, index, line, anchor, shows })
+    LineFrame { environment, index, line, anchor, shows }
 }
 
 // --- style and script definitions ------------------------------------------------------------
@@ -2706,10 +2775,11 @@ impl<'c> IntoReply<'c> for bool {
     }
 }
 
-/// `&[u8]`: a string whose UTF-8 bytes are taken (plan A, A3).
+/// `&[u8]`: the bytes in a form of an artifact's content, a text (its UTF-8
+/// bytes), `{"text": text}` or `{"base64": text}`.
 impl<'c> FromArg<'c> for Vec<u8> {
     fn from_arg(_: &mut CallTable<'c>, args: &Args<'_>, i: usize) -> Result<Self, ExtError> {
-        Ok(args.text(i)?.as_bytes().to_vec())
+        content_from_value(args.get(i), &|| format!("argument {}", i + 1))
     }
 }
 
@@ -2848,13 +2918,13 @@ impl<'c> FromArg<'c> for ScriptDef {
 
 /// [`definition_from_value`].
 impl<'c> FromArg<'c> for Definition {
-    fn from_arg(table: &mut CallTable<'c>, args: &Args<'_>, i: usize) -> Result<Self, ExtError> {
-        definition_from_value(args.get(i), &mut |held| held_from_table(table, held))
+    fn from_arg(_: &mut CallTable<'c>, args: &Args<'_>, i: usize) -> Result<Self, ExtError> {
+        definition_from_value(args.get(i))
     }
 }
 
 /// [`definition_to_value`], which reads back unless one of the definition's
-/// arguments is a tack-on argument or has a parser of a feature's own.
+/// arguments has a parser of a feature's own.
 impl<'c> IntoReply<'c> for &Definition {
     fn into_reply(self, _: &mut CallTable<'c>) -> Result<Value, ExtError> {
         Ok(definition_to_value(self))
@@ -2998,8 +3068,8 @@ impl<'c> FromArg<'c> for Vec<LineFrame<'c>> {
 
 // The objects that cross as handles.
 
-/// A node: an owned copy out of the table ([`node_from_table`], plan A,
-/// A16); lent when answered.
+/// A node: an owned copy out of the table ([`node_from_table`]); lent when
+/// answered.
 impl<'c> FromArg<'c> for Box<dyn Node<'c> + 'c> {
     fn from_arg(table: &mut CallTable<'c>, args: &Args<'_>, i: usize) -> Result<Self, ExtError> {
         node_from_table(table, args.handle(i)?)
@@ -3016,6 +3086,20 @@ impl<'c> IntoReply<'c> for Box<dyn Node<'c> + 'c> {
 impl<'c> FromArg<'c> for Vec<Box<dyn Node<'c> + 'c>> {
     fn from_arg(table: &mut CallTable<'c>, args: &Args<'_>, i: usize) -> Result<Self, ExtError> {
         nodes_from_value(table, args.get(i))
+    }
+}
+
+/// A tree: an owned copy out of the table ([`tree_from_table`]), as a node
+/// is; lent when answered.
+impl<'c> FromArg<'c> for Box<dyn Tree> {
+    fn from_arg(table: &mut CallTable<'c>, args: &Args<'_>, i: usize) -> Result<Self, ExtError> {
+        tree_from_table(table, args.handle(i)?)
+    }
+}
+
+impl<'c> IntoReply<'c> for Box<dyn Tree> {
+    fn into_reply(self, table: &mut CallTable<'c>) -> Result<Value, ExtError> {
+        lent(table, Entry::Tree(self))
     }
 }
 
@@ -3135,12 +3219,7 @@ impl<'c> IntoReply<'c> for Box<dyn RestagedSlot> {
 /// the table once ([`bundles_from_table`]).
 impl<'c> FromArg<'c> for Vec<Box<dyn RestagedArgument>> {
     fn from_arg(table: &mut CallTable<'c>, args: &Args<'_>, i: usize) -> Result<Self, ExtError> {
-        bundles_from_table(table, args.get(i), HandleKind::RestagedArgument, |entry| match entry {
-            Entry::RestagedArgument(bundle) => Some(bundle.take_core(Token::new()).map(|core| {
-                Box::new(crate::adapter::rewrite::RestagedArgumentFacade::new(core)) as Box<dyn RestagedArgument>
-            })),
-            _ => None,
-        })
+        bundles_from_table(table, args.get(i), HandleKind::RestagedArgument, take_restaged_argument)
     }
 }
 
@@ -3148,14 +3227,7 @@ impl<'c> FromArg<'c> for Vec<Box<dyn RestagedArgument>> {
 /// table once ([`bundles_from_table`]).
 impl<'c> FromArg<'c> for Vec<Box<dyn RestagedSlot>> {
     fn from_arg(table: &mut CallTable<'c>, args: &Args<'_>, i: usize) -> Result<Self, ExtError> {
-        bundles_from_table(table, args.get(i), HandleKind::RestagedSlot, |entry| match entry {
-            Entry::RestagedSlot(bundle) => Some(
-                bundle
-                    .take_core(Token::new())
-                    .map(|core| Box::new(crate::adapter::rewrite::RestagedSlotFacade::new(core)) as Box<dyn RestagedSlot>),
-            ),
-            _ => None,
-        })
+        bundles_from_table(table, args.get(i), HandleKind::RestagedSlot, take_restaged_slot)
     }
 }
 
@@ -3372,11 +3444,7 @@ pub fn citation_results_from_value(table: &mut CallTable<'_>, value: &Value) -> 
         if !is_handle(entry) {
             return Err(shape());
         }
-        let entry: Box<dyn CitationEntry> = match table.entry(handle_from_value(entry)?)? {
-            Entry::CitationEntry(entry) => Box::new(CitationEntryFacade(entry.core_entry(Token::new()))),
-            other => return Err(mismatch(HandleKind::CitationEntry, other.kind())),
-        };
-        let mut answer = CitationAnswer::new(entry);
+        let mut answer = CitationAnswer::new(citation_entry_at(table, handle_from_value(entry)?)?);
         match map.get("identity") {
             None | Some(Value::Null) => {}
             Some(Value::String(identity)) => answer = answer.with_identity(identity.clone()),
@@ -3395,6 +3463,19 @@ pub fn citation_results_from_value(table: &mut CallTable<'_>, value: &Value) -> 
         results.push(Ok(Some(answer)));
     }
     Ok(results)
+}
+
+/// The citation entry at `handle` in `table`, a façade over a copy of the
+/// entry the call made: an answer's entry, on both routes.
+///
+/// # Errors
+///
+/// The handle is stale, or stands for an object of another kind.
+pub(crate) fn citation_entry_at(table: &mut CallTable<'_>, handle: Handle) -> Result<Box<dyn CitationEntry>, ExtError> {
+    match table.entry(handle)? {
+        Entry::CitationEntry(entry) => Ok(Box::new(CitationEntryFacade(entry.core_entry(Token::new())))),
+        other => Err(mismatch(HandleKind::CitationEntry, other.kind())),
+    }
 }
 
 // The template modules.
@@ -3612,6 +3693,29 @@ pub fn template_files_from_value(value: &Value) -> Result<Vec<TemplateFile>, Ext
     items.into_iter().map(file_from_data).collect()
 }
 
+/// A configuration reader's answer read from data
+/// ([`ExtRuntime::read_settings`](crate::ExtRuntime::read_settings)): the
+/// map `{ "value": V }`, the configuration kept, or `{ "error": { "path",
+/// "detail" } }`, the value at fault ([`ReadError`]'s own form, `path`
+/// optional), with no other key.
+///
+/// # Errors
+///
+/// An answer of another shape ([`ExtError::Value`]).
+pub fn read_answer_from_value(value: &Value) -> Result<Result<Value, ReadError>, ExtError> {
+    let shape = || ExtError::Value {
+        detail: format!(
+            "the answer of a configuration reader must be `{{ value }}` or `{{ error: {{ path, detail }} }}`, not `{value}`"
+        ),
+    };
+    let Value::Object(answer) = value else { return Err(shape()) };
+    match (answer.len(), answer.get("value"), answer.get("error")) {
+        (1, Some(kept), None) => Ok(Ok(kept.clone())),
+        (1, None, Some(error)) => serde_json::from_value(error.clone()).map(Err).map_err(|_| shape()),
+        _ => Err(shape()),
+    }
+}
+
 /// The error of a file of a template module of another shape.
 fn files_shape() -> ExtError {
     ExtError::Value {
@@ -3661,7 +3765,8 @@ impl JsonForm for TemplateFile {
     }
 }
 
-// The crossing types of E4's mirror (WP-2a).
+// The aspects, the late-init hooks and finalizers, the argument declarations
+// and the labels.
 
 /// [`aspect_from_value`], its handles resolved in the table.
 impl<'c> FromArg<'c> for Aspect {
@@ -3697,11 +3802,11 @@ impl<'c> FromArg<'c> for Arc<dyn Finalizer> {
     }
 }
 
-/// An argument a helper made, lent as `Entry::ArgDef`: an argument list
-/// takes the handle in place of a code ([`arg_defs_from_value`]).
+/// [`arg_def_to_value`]: the argument with its code or its structured
+/// syntax, which an argument list reads back ([`arg_defs_from_value`]).
 impl<'c> IntoReply<'c> for ArgDef {
-    fn into_reply(self, table: &mut CallTable<'c>) -> Result<Value, ExtError> {
-        lent(table, Entry::ArgDef(self))
+    fn into_reply(self, _: &mut CallTable<'c>) -> Result<Value, ExtError> {
+        Ok(arg_def_to_value(&self))
     }
 }
 
@@ -3960,6 +4065,7 @@ mod tests {
             BlockRole::Inline(InlineSpacing { absorb_before: true, absorb_after: false }),
             json!({ "inline": { "absorb_before": true, "absorb_after": false } }),
         );
+        round_trip(BlockRole::Displayed, json!("displayed"));
         round_trip(BlockRole::BlockDecorator(Placement::Leads), json!({ "block-decorator": "leads" }));
         round_trip(Placement::Trails, json!("trails"));
         round_trip(Placement::Free, json!("free"));
@@ -4023,35 +4129,35 @@ mod tests {
 
     #[test]
     fn an_argument_list_reads_codes_and_maps() {
-        let args = arg_defs_from_value(&json!("[{"), &mut no_handles).expect("two codes");
+        let args = arg_defs_from_value(&json!("[{")).expect("two codes");
         assert_eq!(args.len(), 2);
-        let args = arg_defs_from_value(&json!(["{", { "code": "[", "name": "options" }]), &mut no_handles).expect("a list");
+        let args = arg_defs_from_value(&json!(["{", { "code": "[", "name": "options" }])).expect("a list");
         assert_eq!(args[1].name.as_deref(), Some("options"));
-        assert!(arg_defs_from_value(&Value::Null, &mut no_handles).expect("none").is_empty());
-        let error = arg_defs_from_value(&json!("q"), &mut no_handles).expect_err("not a code");
+        assert!(arg_defs_from_value(&Value::Null).expect("none").is_empty());
+        let error = arg_defs_from_value(&json!("q")).expect_err("not a code");
         assert_eq!(error.kind(), "core");
     }
 
     #[test]
     fn a_syntax_reads_each_of_its_four_shapes() {
-        assert!(matches!(syntax_def_from_value(&json!("synthesized"), &mut no_handles), Ok(SyntaxDef::Synthesized)));
+        assert!(matches!(syntax_def_from_value(&json!("synthesized")), Ok(SyntaxDef::Synthesized)));
         assert!(matches!(
-            syntax_def_from_value(&json!({ "macro": { "args": "{" } }), &mut no_handles),
+            syntax_def_from_value(&json!({ "macro": { "args": "{" } })),
             Ok(SyntaxDef::Macro { args }) if args.len() == 1
         ));
         let environment = syntax_def_from_value(&json!({
             "environment": { "args": [], "body": { "layout": "blocks", "mode": "math" } }
-        }), &mut no_handles);
+        }));
         assert!(matches!(
             environment,
             Ok(SyntaxDef::Environment { body, .. }) if body.layout == BodyLayout::Blocks && body.mode == Some(Mode::Math)
         ));
         assert!(matches!(
-            syntax_def_from_value(&json!({ "specials": { "trigger": "~" } }), &mut no_handles),
+            syntax_def_from_value(&json!({ "specials": { "trigger": "~" } })),
             Ok(SyntaxDef::Specials { trigger, .. }) if trigger == "~"
         ));
-        assert!(syntax_def_from_value(&json!({ "macro": {}, "specials": {} }), &mut no_handles).is_err());
-        assert!(syntax_def_from_value(&json!({ "inclusion": {} }), &mut no_handles).is_err());
+        assert!(syntax_def_from_value(&json!({ "macro": {}, "specials": {} })).is_err());
+        assert!(syntax_def_from_value(&json!({ "inclusion": {} })).is_err());
     }
 
     #[test]
@@ -4060,7 +4166,7 @@ mod tests {
             "kind": "macro", "name": "shout", "args": "{", "content": "#1!", "modes": "text",
             "defaults": { "1": "x" }, "block_role": "block", "expand": "always", "overrides": true,
             "docs": "Shouts.",
-        }), &mut no_handles)
+        }))
         .expect("a definition");
         assert_eq!(definition.name.as_str(), "shout");
         assert_eq!(definition.kind, DefinitionKind::Macro);
@@ -4072,12 +4178,12 @@ mod tests {
         assert_eq!(definition.expand, ExpandPolicy::Always);
         assert!(definition.overrides);
         assert_eq!(definition.docs, "Shouts.");
-        let short = definition_from_value(&json!({ "kind": "environment", "name": "box" }), &mut no_handles).expect("a short one");
+        let short = definition_from_value(&json!({ "kind": "environment", "name": "box" })).expect("a short one");
         assert_eq!(short.content, None);
         assert_eq!(short.modes, DefinitionModes::Both);
-        let error = definition_from_value(&json!({ "kind": "macro", "name": "x", "body": 1 }), &mut no_handles).expect_err("unknown");
+        let error = definition_from_value(&json!({ "kind": "macro", "name": "x", "body": 1 })).expect_err("unknown");
         assert!(error.to_string().contains("not `body`"), "{error}");
-        assert!(definition_from_value(&json!({ "name": "x" }), &mut no_handles).is_err());
+        assert!(definition_from_value(&json!({ "name": "x" })).is_err());
     }
 
     #[test]
@@ -4317,7 +4423,7 @@ mod tests {
         assert_eq!(error_of(arg::<bool>(&mut table, json!({ "a": 1 }))), error_of(wrong.flag(0)));
         // &[u8]
         assert_eq!(arg::<Vec<u8>>(&mut table, json!("é")), Ok("é".as_bytes().to_vec()));
-        assert_eq!(error_of(arg::<Vec<u8>>(&mut table, json!({ "a": 1 }))), error_of(wrong.text(0)));
+        assert!(matches!(arg::<Vec<u8>>(&mut table, json!({ "a": 1 })), Err(ExtError::Value { .. })));
         // data
         assert_eq!(arg::<Value>(&mut table, json!({ "a": [1] })), Ok(json!({ "a": [1] })));
         assert_eq!(json!({ "a": [1] }).into_reply(&mut table), Ok(json!({ "a": [1] })));
@@ -4404,7 +4510,7 @@ mod tests {
         // A user definition's declaration: read, and written as `definition_to_value` writes it.
         let definition: Definition = arg(&mut table, json!({ "kind": "macro", "name": "x" })).expect("a definition");
         assert_eq!((&definition).into_reply(&mut table), Ok(definition_to_value(&definition)));
-        assert_eq!(error_of(arg::<Definition>(&mut table, json!(1))), error_of(definition_from_value(&json!(1), &mut no_handles)));
+        assert_eq!(error_of(arg::<Definition>(&mut table, json!(1))), error_of(definition_from_value(&json!(1))));
         // A diagnostic.
         let diagnostic = json!({ "id": "x.d", "severity": "error", "message": "m" });
         assert_eq!(arg::<Diagnostic>(&mut table, diagnostic).expect("a diagnostic").severity, Severity::Error);
@@ -4546,7 +4652,7 @@ mod tests {
     }
 }
 
-// The `numbering` library and the LaTeX family (WP-2b).
+// The `numbering` library and the LaTeX family.
 
 string_form!(LatexArgShape, "a LaTeX argument shape", {
     LatexArgShape::Star => "star",
@@ -4959,6 +5065,134 @@ impl<'c> IntoReply<'c> for ValueBindings {
     }
 }
 
+/// The durable table of the running call, which resolves `token`.
+///
+/// # Errors
+///
+/// The call holds no durable table ([`ExtError::Argument`]): only a call
+/// given the builder, a stage's context, the expander, the lowerer or a
+/// late-initialization hook's language holds one.
+pub(crate) fn durable_table_for(table: &CallTable<'_>, token: DurableToken) -> Result<Arc<DurableTable>, ExtError> {
+    table.durable().cloned().ok_or_else(|| {
+        argument(format!(
+            "the `{}` object {} can be used only in a call given the builder, a stage's context, the expander, the lowerer or a late-initialization hook's language",
+            token.kind.name(),
+            token.index
+        ))
+    })
+}
+
+/// A placeholder's target: `{"argument": index}`, `"body"` or `{"extra":
+/// name}`.
+impl JsonForm for PlaceholderTarget {
+    fn to_value(&self) -> Value {
+        match self {
+            PlaceholderTarget::Argument(index) => json!({ "argument": index }),
+            PlaceholderTarget::Body => Value::String("body".to_string()),
+            PlaceholderTarget::Extra(name) => json!({ "extra": name }),
+        }
+    }
+
+    fn from_value(value: &Value) -> Result<Self, ExtError> {
+        let target = match value {
+            Value::String(text) if text == "body" => Some(PlaceholderTarget::Body),
+            Value::Object(map) if map.len() == 1 => match map.iter().next() {
+                Some((key, index)) if key == "argument" => usize::from_value(index).ok().map(PlaceholderTarget::Argument),
+                Some((key, Value::String(name))) if key == "extra" => Some(PlaceholderTarget::Extra(name.clone())),
+                _ => None,
+            },
+            _ => None,
+        };
+        target.ok_or_else(|| ExtError::Value {
+            detail: format!(
+                "a placeholder's target must be `\"body\"`, `{{\"argument\": index}}` or `{{\"extra\": name}}`, not `{value}`"
+            ),
+        })
+    }
+}
+
+/// `{"written", "target", "substitution"}`, the target in its own form, the
+/// substitution a text or `null`.
+impl JsonForm for PlaceholderRef {
+    fn to_value(&self) -> Value {
+        json!({ "written": self.written, "target": self.target.to_value(), "substitution": self.substitution })
+    }
+
+    fn from_value(value: &Value) -> Result<Self, ExtError> {
+        const WHAT: &str = "a placeholder";
+        let map = fields(WHAT, value, &["written", "target", "substitution"])?;
+        Ok(PlaceholderRef {
+            written: required_text(WHAT, &map, "written")?,
+            target: required_form(WHAT, &map, "target")?,
+            substitution: required_form(WHAT, &map, "substitution")?,
+        })
+    }
+}
+
+answered_as_its_form!(PlaceholderRef);
+
+/// The values of extra placeholders in their data form
+/// ([`ExtraValues`]), a list of `{"name", "substitution", "value"}` given to
+/// the builder in order, the substitution a text or `null`, the value
+/// `{"template": <handle or durable token>}` (a template the call lent, a
+/// definition's template or default value, found in `table`; a durable
+/// template, resolved against the call's durable table), `{"tree": <tree>}`
+/// (a tree the call lent, copied out of `table`) or `"no-value"`.
+///
+/// # Errors
+///
+/// A value not of that shape ([`ExtError::Value`]); a durable token the
+/// call's durable table does not hold ([`ExtError::StaleDurable`]), or one
+/// given in a call that holds no durable table ([`ExtError::Argument`]); a
+/// stale handle, or a handle of another kind than a compiled template for a
+/// template or a tree for a tree.
+pub fn extra_values_from_value(table: &mut CallTable<'_>, value: &Value) -> Result<ExtraValues, ExtError> {
+    const WHAT: &str = "the value of an extra placeholder";
+    let Value::Array(items) = value else { return Err(not_a("a list of the values of extra placeholders", value)) };
+    let mut values = ExtraValues::new();
+    for item in items {
+        let map = fields(WHAT, item, &["name", "substitution", "value"])?;
+        let name = required_text(WHAT, &map, "name")?;
+        let substitution: Option<String> = required_form(WHAT, &map, "substitution")?;
+        let substitution = substitution.as_deref();
+        values = match field(&map, "value") {
+            Value::String(text) if text == "no-value" => values.no_value(&name, substitution),
+            Value::Object(form) if form.len() == 1 && form.contains_key("template") => {
+                let template = &form["template"];
+                if is_durable(template) {
+                    let token = durable_from_value(template)?;
+                    let template = durable_table_for(table, token)?.compiled_template(token)?;
+                    values.template(&name, substitution, &template)
+                } else {
+                    match table.entry(handle_from_value(template)?)? {
+                        Entry::CompiledTemplate(template) => values.template(&name, substitution, &**template),
+                        other => return Err(mismatch(HandleKind::CompiledTemplate, other.kind())),
+                    }
+                }
+            }
+            Value::Object(form) if form.len() == 1 && form.contains_key("tree") => {
+                let tree = tree_from_table(table, handle_from_value(&form["tree"])?)?;
+                values.tree(&name, substitution, &*tree)
+            }
+            other => {
+                return Err(ExtError::Value {
+                    detail: format!(
+                        "the field `value` of {WHAT} must be `{{\"template\": template}}`, `{{\"tree\": tree}}` or `\"no-value\"`, not `{other}`"
+                    ),
+                })
+            }
+        };
+    }
+    Ok(values)
+}
+
+/// [`extra_values_from_value`].
+impl<'c> FromArg<'c> for ExtraValues {
+    fn from_arg(table: &mut CallTable<'c>, args: &Args<'_>, i: usize) -> Result<Self, ExtError> {
+        extra_values_from_value(table, args.get(i))
+    }
+}
+
 /// [`format_options_from_value`].
 impl<'c> FromArg<'c> for FormatOptions {
     fn from_arg(_: &mut CallTable<'c>, args: &Args<'_>, i: usize) -> Result<Self, ExtError> {
@@ -4984,11 +5218,11 @@ impl<'c> IntoReply<'c> for CounterRecord {
     }
 }
 
-/// A number segment `{"content": node, "link": point | null}`, the content
-/// lent as a node, the point as [`point_id_to_value`] writes it.
-impl<'c> IntoReply<'c> for NumberSegment<'c> {
+/// A number segment `{"content": tree, "link": point | null}`, the content
+/// lent as a tree, the point as [`point_id_to_value`] writes it.
+impl<'c> IntoReply<'c> for NumberSegment {
     fn into_reply(self, table: &mut CallTable<'c>) -> Result<Value, ExtError> {
-        let content = handle_to_value(table.lend(Entry::Node(self.content)));
+        let content = handle_to_value(table.lend(Entry::Tree(self.content)));
         Ok(json!({ "content": content, "link": self.link.as_ref().map(point_id_to_value) }))
     }
 }

@@ -35,6 +35,14 @@
 //! - **References to equations**: `\eqref{eq:…}`, which shows an equation line's
 //!   number without a word before it ([`eqref`]).
 //!
+//! Displayed mathematics, a group `\[…\]` or `$$…$$` and a display-math
+//! environment alike, is a [displayed item](BlockRole::Displayed): it stands
+//! inside the paragraph it is written in, set on lines of its own, and the
+//! text that follows it with no blank line between continues that paragraph.
+//! The environments declare that role here; the group's element answers it
+//! from the group's form
+//! ([`StructuralElementSpecs::math`](crate::lang::structural::StructuralElementSpecs::math)).
+//!
 //! Every other command of mathematics (`\alpha`, `\frac`, a `cases`
 //! environment) is the processing feature's to declare or accept.
 //!
@@ -227,7 +235,9 @@
 //!   feature writes a formula's frame and an environment's lines as LaTeX
 //!   with, and the newline rule that every LaTeX writer of the lines applies.
 
-// The provider-less parent capability: [§flm-dd-dr:std-math-rendered-parent].
+// `flm.math.rendered` has no provider in the standard library, which renders no
+// mathematics: it gives the extensions that do one name to refine and hosts one
+// name to demand, and an extension cannot declare a name under `flm.` itself.
 
 pub mod ensuremath;
 pub mod eqref;
@@ -538,16 +548,16 @@ impl Referenceable for MathEnvironment {
     }
 }
 
-/// The element value of one display-math environment, `name`: a block whose
-/// [`MathEnvironment`] value records the name and declares the reference
-/// points of its lines, numbered where `numbered` and `numbered_equations` are
-/// both `true`.
+/// The element value of one display-math environment, `name`: a [displayed
+/// item](BlockRole::Displayed) whose [`MathEnvironment`] value records the
+/// name and declares the reference points of its lines, numbered where
+/// `numbered` and `numbered_equations` are both `true`.
 fn environment_element(name: &str, numbered: bool, numbered_equations: bool) -> Arc<ElementSpec> {
     let value = Arc::new(MathEnvironment { name: Name::from(name), numbered, numbered_equations });
     Arc::new(
         ElementSpec::new(ENVIRONMENT)
             .docs(format!("The `{name}` display-math environment."))
-            .with::<dyn BlockRoleAspect>(Arc::new(FixedBlockRole(BlockRole::Block)))
+            .with::<dyn BlockRoleAspect>(Arc::new(FixedBlockRole(BlockRole::Displayed)))
             .with::<dyn Referenceable>(Arc::clone(&value) as Arc<dyn Referenceable>)
             .with_value(value),
     )
@@ -694,8 +704,9 @@ impl FlmFeature for Math {
         b.peer_slot::<CounterDecl>(COUNTERS_SLOT, Arc::new(counter_decl()))?;
         b.peer_slot::<CounterStyleDecl>(STYLES_SLOT, Arc::new(counter_style()))?;
         // The feature that processes mathematics provides the capability and
-        // adds its check to `flm.validated`; this feature only declares it.
-        // See decision rationale at [§flm-dd-dr:math-processor-demands-content].
+        // adds its check to `flm.validated`; this feature only declares it. The
+        // processing feature is the one that knows what it accepts, and a
+        // registry without one still runs every standard workflow.
         b.capability(CapabilityDef::new(CONTENT).docs(
             "The mathematics of the document has been checked. No stage of the `math` feature \
              provides it: a feature that processes mathematics provides it with a check of its \
@@ -733,9 +744,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn an_environment_value_is_a_block_carrying_its_name() {
+    fn an_environment_value_is_a_displayed_item_carrying_its_name() {
         let element = environment_element("align*", false, true);
         assert_eq!(element.name, ENVIRONMENT);
+        assert!(element.has_aspect::<dyn BlockRoleAspect>());
         let value = element.value_as::<MathEnvironment>().expect("valued");
         assert_eq!(value.name, "align*");
         assert!(!value.numbered);

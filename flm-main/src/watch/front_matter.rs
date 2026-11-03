@@ -96,7 +96,10 @@ pub fn edit_features(text: &str, features: &Map<String, Value>) -> Result<String
         None => ("---\n", "---\n"),
     };
     let written = [opening, &edited, closing, parts.content].concat();
-    // The file read back before it is given. See decision rationale at [§flm-dd-dr:host-watch-settings].
+    // The file read back before it is given: the YAML editor writes some shapes wrongly, and
+    // this check is what makes writing the author's file safe. The whole text is checked,
+    // since a check of the front matter alone would miss a closing fence glued to its last
+    // line.
     let intended = Value::Object(intended);
     let reads_as_intended = split(&written).is_ok_and(|new| {
         new.content == parts.content

@@ -4,6 +4,12 @@
 # the builds with features turned off, WebAssembly, LaTeX, the browser, the npm workspace)
 # are in the workflow `CI (full)` (ci-full.yml), which is run by hand.
 #
+# The tests, clippy with the API documentation, and the minimum supported Rust versions
+# run in three jobs, each on its own runner and its own disk. The test programs of the
+# workspace take more disk than the runner has free: the tests run in pieces, each
+# piece's programs deleted after it runs (`scripts/check.sh --on-tight-disk-space`), and
+# the job shows the free disk at its end.
+#
 # `cargo fmt --check` is deliberately absent: the code is formatted by hand.
 
 name: CI
@@ -29,23 +35,36 @@ defaults:
     shell: bash
 
 jobs:
-  checks:
-    name: tests, clippy, docs
+  tests:
+    name: tests
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
       # The build cache is saved by the runs on a push to a main branch, and read by all.
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.event_name == 'push' }}
       - name: Tests
-        run: scripts/check.sh --locked test
-      - name: Clippy
+        run: scripts/check.sh --locked --on-tight-disk-space test
+      - name: Free disk after the tests
         if: ${{ !cancelled() }}
+        run: df -h .
+
+  lints:
+    name: clippy, docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name == 'push' }}
+      - name: Clippy
         run: scripts/check.sh --locked clippy
       - name: API documentation
         if: ${{ !cancelled() }}

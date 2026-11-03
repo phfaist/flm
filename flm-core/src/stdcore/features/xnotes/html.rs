@@ -73,9 +73,9 @@
 //! …every case. <span class="flm-pres-span flm-xnotes-xnote-inplace" id="fn-1" role="doc-footnote" data-flm-kind="xnotes footnote"><sup class="flm-pres-span flm-xnotes-xnote-mark" id="fnref--1yuhk" data-flm-style="superscript">1</sup>Except the empty one, which we exclude by convention.</span> The next…
 //! ```
 //!
-//! Where its content holds paragraphs, it is a block between the two parts of
-//! the paragraph it interrupts, with its mark at the head of its first
-//! paragraph:
+//! Where its content holds paragraphs, it is a block, as a list is: the
+//! paragraph it is written in ends before it, the text after it is a new
+//! paragraph, and its mark is at the head of its first paragraph:
 //!
 //! ```html
 //! <p class="flm-pres-par">Two paragraphs.</p>
@@ -248,8 +248,9 @@ fn backlink(
         None => None,
     };
     let Some(mark) = mark else { return Ok(Vec::new()) };
-    // The word a reference writes in running text: no variant.
-    // See decision rationale at [§flm-dd-dr:std-xnote-backlink].
+    // The word a reference writes in running text, with no variant and never
+    // re-cased: the kind's words are the one source of its wording, and a
+    // change of case misfires on a word such as an acronym or a proper name.
     let name = accessible_name(lw, kind, &kind.words.base.one, record.point)?;
     let label = if name.is_empty() {
         String::from(BACKLINK_LABEL_PREFIX)
@@ -323,8 +324,9 @@ fn declare_backend(b: &mut FeatureBuilder<'_>) -> Result<(), BuildError> {
 /// in a [registration round](crate::core::registry::builder#the-two-registration-rounds)
 /// that does not accept it (from a finalizer, for instance).
 pub(super) fn register(b: &mut FeatureBuilder<'_>, with_element: bool) -> Result<(), BuildError> {
-    // Declared once, by this feature, never per kind.
-    // See decision rationale at [§flm-dd-dr:std-xnote-stylesheet].
+    // Declared once, by this feature, never per kind: a kind another feature
+    // contributes places no list where this feature is absent, and a single
+    // declaration keeps one entry in the table of definitions.
     b.style_def(stylesheet())?;
     if with_element {
         declare_backend(b)?;

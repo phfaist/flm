@@ -68,6 +68,8 @@ pub mod stage;
 pub mod table;
 pub mod tables;
 pub mod templates;
+#[cfg(feature = "native")]
+pub(crate) mod typed;
 pub mod values;
 
 /// The table of every constant of the extension API, as `(module, name,
@@ -86,7 +88,10 @@ pub use generated::constants;
 /// [`ExtFeature`](feature::ExtFeature) for each feature the settings do not
 /// switch off, each with its settings declaration (built here, from the
 /// report's settings) and its final configuration
-/// ([`PackageSettings::config`]`::<`[`DataValue`]`>`, `{}` when absent), each
+/// ([`PackageSettings::config`]`::<`[`DataValue`]`>`: the configuration
+/// written, or what the feature's configuration reader answered for it;
+/// `{}` when absent, which it is when the feature declares no configuration
+/// or the host built the settings without the feature's), each
 /// feeding `digest` into the registry digest, and, when the
 /// package ships templates and the settings do not switch it off, the
 /// [`TemplatesFeature`](templates::TemplatesFeature), titled `description`
@@ -114,7 +119,7 @@ pub fn package_factory(
     description: &str,
     services: Arc<DeclaredServices>,
 ) -> Result<PackageFactory, Vec<LoadError>> {
-    let decls = match (check_report(extension, report), declarations(extension, report)) {
+    let decls = match (check_report(extension, report), declarations(extension, report, &runtime)) {
         (Ok(()), Ok(decls)) => decls,
         (checked, declared) => {
             let mut errors = checked.err().unwrap_or_default();
@@ -170,8 +175,8 @@ pub fn package_factory(
     Ok(factory)
 }
 
-/// The settings declaration of each feature of `report`, by the feature's
-/// name ([`settings::settings_decl`]).
+/// The settings declaration of each feature of `report`, run by `runtime`, by
+/// the feature's name ([`settings::settings_decl`]).
 ///
 /// # Errors
 ///
@@ -179,11 +184,12 @@ pub fn package_factory(
 fn declarations(
     extension: &ExtensionIdentity,
     report: &PackageReport,
+    runtime: &Arc<dyn ExtRuntime>,
 ) -> Result<Vec<(String, Option<SettingsDecl>)>, Vec<LoadError>> {
     let mut decls = Vec::new();
     let mut errors = Vec::new();
     for feature in &report.features {
-        match settings::settings_decl(extension, &report.name, feature) {
+        match settings::settings_decl(extension, &report.name, feature, runtime) {
             Ok(decl) => decls.push((feature.name.clone(), decl)),
             Err(found) => errors.extend(found),
         }

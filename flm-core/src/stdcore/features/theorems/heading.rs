@@ -480,8 +480,7 @@ pub(super) fn heading_instance(
         TitleShown::Relation => Some(&headings.relation),
     };
     // No title binds nothing: the name is declared absent, so that the
-    // template's `\IfValueT{#{title}}` takes its false branch. See decision
-    // rationale at [§flm-dd-dr:std-theorem-heading].
+    // template's `\IfValueT{#{title}}` takes its false branch.
     let bindings = match spec {
         Some(spec) => {
             let region = NodeRegion::argument_named(node, TITLE_ARG)
@@ -603,8 +602,7 @@ impl Lower for RelationRule {
         let at = node.span().clone();
         let mut check = title_check(&at);
         // The region is lowered with the proof as the node being lowered, so
-        // the site read is the proof's own. See decision rationale at
-        // [§flm-dd-dr:std-theorem-heading].
+        // the site read is the proof's own.
         let mut shape = |cx: &mut LowerCx<'_>,
                          lw: &mut dyn Lowerer,
                          proof: &NodeRef<'_, Flm>,

@@ -786,7 +786,7 @@ fn an_unknown_package_named_by_an_argument_is_the_existing_build_error() {
             package: "nope".into(),
         }]
     );
-    assert!(mint_errors_of(&lang)[0].to_string().contains("argument #1 of `s.note`"));
+    assert!(mint_errors_of(&lang)[0].to_string().contains("argument 1 of `s.note`"));
     // The language is still built: `\note` parses, its argument without the package.
     assert_eq!(parsed(&lang, "\\note[x]{y}").0, ["s.note"]);
 }
@@ -896,7 +896,7 @@ fn the_build_errors_of_a_tack_on_field_argument_name_the_field() {
         }]
     );
     assert!(
-        errors[0].to_string().contains("argument #1 of the field `caption` of `s.fig`"),
+        errors[0].to_string().contains("argument 1 of the field `caption` of `s.fig`"),
         "{}",
         errors[0]
     );

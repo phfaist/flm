@@ -91,6 +91,13 @@
 //!   as a [`DataValue`]: they are not checked against the types the schema
 //!   states, which is the feature's own task. The configuration read when none
 //!   of its keys is written is the empty map.
+//! - **A reader.** A feature that reads its configuration when the settings are
+//!   read declares it with [`SettingsDecl::config_data_read`], giving the
+//!   function that reads it: the configuration written goes in, and the value
+//!   kept as the [`DataValue`] comes out, or a [`ReadError`] naming the value at
+//!   fault, which is reported as the conversion errors of
+//!   [`SettingsDecl::config_from`] are, at that value's path. This is the twin of
+//!   reading a Rust type `D` and converting it with `C::try_from`.
 //! - **The schema.** [`SettingsDecl::json_schema`] takes the keys' schemas from
 //!   the schema given, with the binding and the marks added as for a Rust type;
 //!   the schema's own `$defs` join those of the result.
@@ -234,7 +241,7 @@ pub struct KeyDecl {
 }
 
 /// The function of a [`Part`] that reads the part's keys, given as a map.
-type ReadFn = Arc<dyn Fn(Value) -> Result<ReadValue, PartError> + Send + Sync>;
+type ReadFn = Arc<dyn Fn(Value) -> Result<ReadValue, ReadError> + Send + Sync>;
 
 /// The function of a [`Part`] that declares it as an option type.
 type DeclareFn = Arc<dyn Fn(&mut FeatureBuilder<'_>, Bind, String) -> Result<(), BuildError> + Send + Sync>;
@@ -263,11 +270,26 @@ enum ReadValue {
     Option(Box<dyn FnOnce(&mut OptionValues)>),
 }
 
-/// A failure to read one [`Part`]: the path of the offending key below the
-/// feature's name, and a message.
-struct PartError {
-    path: String,
-    detail: String,
+/// A failure to read a feature's settings, or one part of them: the value at
+/// fault, by its path below the feature's name, and the condition it violates.
+///
+/// The reader of a configuration declared from data answers one
+/// ([`SettingsDecl::config_data_read`]), and so does each part of a
+/// declaration whose keys cannot be read; [`SettingsDecl::read`] reports it
+/// as a [`SettingsError`] of the kind [`SettingsErrorKind::InvalidValue`],
+/// whose path is the feature's name followed by `path`. As data, it is the
+/// map `{ path, detail }`, `path` being optional.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReadError {
+    /// The path of the value at fault below the feature's name, its segments
+    /// separated by `.` (`macros.abs.args`); empty when the fault concerns
+    /// the settings as a whole.
+    #[serde(default)]
+    pub path: String,
+    /// The condition the value violates, as a message for a person (``must be
+    /// a text, not `3` ``).
+    pub detail: String,
 }
 
 /// A feature's declaration of its settings: the Rust types they are read into,
@@ -290,6 +312,7 @@ struct PartError {
 /// make these methods panic: a declaration that contradicts itself is a mistake
 /// in the feature's code. The parts declared from data
 /// ([`config_data`](SettingsDecl::config_data),
+/// [`config_data_read`](SettingsDecl::config_data_read),
 /// [`options_data`](SettingsDecl::options_data),
 /// [`merge_entries_data`](SettingsDecl::merge_entries_data)) return the same
 /// conditions as errors instead. See the [module documentation](self).
@@ -379,7 +402,7 @@ impl SettingsDecl {
         C: Options + TryFrom<D>,
         <C as TryFrom<D>>::Error: fmt::Display,
     {
-        fn read<D, C>(data: Value) -> Result<ReadValue, PartError>
+        fn read<D, C>(data: Value) -> Result<ReadValue, ReadError>
         where
             D: SettingsData,
             C: Options + TryFrom<D>,
@@ -387,7 +410,7 @@ impl SettingsDecl {
         {
             let value = deserialize::<D>(data)?;
             let config = C::try_from(value)
-                .map_err(|error| PartError { path: String::new(), detail: error.to_string() })?;
+                .map_err(|error| ReadError { path: String::new(), detail: error.to_string() })?;
             Ok(ReadValue::Config(Arc::new(config)))
         }
         fn declare<C: Options>(
@@ -418,7 +441,9 @@ impl SettingsDecl {
     /// written as a [`DataValue`], the empty map when none of the keys is
     /// written, and checks nothing of them but their keys (see the [module
     /// documentation](self#settings-declared-from-data)); a package reads it with
-    /// [`PackageSettings::config`]`::<DataValue>`.
+    /// [`PackageSettings::config`]`::<DataValue>`. A feature that reads its
+    /// configuration when the settings are read declares it with
+    /// [`config_data_read`](SettingsDecl::config_data_read).
     ///
     /// The schema's own `$defs` join those of the declaration's schema
     /// ([`json_schema`](SettingsDecl::json_schema)): a `$defs` name shared with
@@ -431,6 +456,42 @@ impl SettingsDecl {
     /// key declared already, or when the declaration has a configuration
     /// already.
     pub fn config_data(self, schema: Value, docs: impl Into<String>) -> Result<SettingsDecl, SettingsError> {
+        self.data_config(schema, docs.into(), Arc::new(|data: Value| Ok(ReadValue::Config(Arc::new(DataValue(data))))))
+    }
+
+    /// Adds the feature's configuration declared from data, read by `read`,
+    /// and returns the declaration: as [`config_data`](SettingsDecl::config_data),
+    /// except that [`read`](SettingsDecl::read) gives the configuration
+    /// written (the empty map when none of its keys is written) to `read`, and
+    /// keeps the value `read` answers as the [`DataValue`] that
+    /// [`PackageSettings::config`]`::<DataValue>` gives.
+    ///
+    /// `read` is the twin of [`config_from`](SettingsDecl::config_from)'s
+    /// reading as `D` and conversion with `C::try_from`: it answers the value
+    /// the feature receives, or the value at fault as a [`ReadError`], which
+    /// is reported as `config_from`'s conversion errors are, a
+    /// [`SettingsError`] of the kind [`SettingsErrorKind::InvalidValue`] whose
+    /// path is the feature's name followed by the error's path. A reader that
+    /// only checks the configuration answers it unchanged.
+    ///
+    /// # Errors
+    ///
+    /// As [`config_data`](SettingsDecl::config_data).
+    pub fn config_data_read(
+        self,
+        schema: Value,
+        docs: impl Into<String>,
+        read: Arc<dyn Fn(Value) -> Result<Value, ReadError> + Send + Sync>,
+    ) -> Result<SettingsDecl, SettingsError> {
+        let read: ReadFn = Arc::new(move |data: Value| Ok(ReadValue::Config(Arc::new(DataValue(read(data)?)))));
+        self.data_config(schema, docs.into(), read)
+    }
+
+    /// The configuration declared from data with the schema `schema`, the
+    /// description `docs` and the reading `read`: what
+    /// [`config_data`](SettingsDecl::config_data) and
+    /// [`config_data_read`](SettingsDecl::config_data_read) add.
+    fn data_config(self, schema: Value, docs: String, read: ReadFn) -> Result<SettingsDecl, SettingsError> {
         let feature = self.feature.clone();
         let keys = schema_keys(&schema).ok_or_else(|| {
             self.invalid(
@@ -447,7 +508,7 @@ impl SettingsDecl {
             option: OptionKey::Data(name.clone()),
             docs: crate::kept_docs(docs),
             keys,
-            read: Arc::new(|data: Value| Ok(ReadValue::Config(Arc::new(DataValue(data))))),
+            read,
             declare: declare_named(name),
             schema: data_schema(schema),
         })
@@ -542,7 +603,7 @@ impl SettingsDecl {
             self.feature,
             crate::model::options::short_type_name(std::any::type_name::<O>())
         );
-        fn read<O: SettingsData + Options>(data: Value) -> Result<ReadValue, PartError> {
+        fn read<O: SettingsData + Options>(data: Value) -> Result<ReadValue, ReadError> {
             let value = deserialize::<O>(data)?;
             Ok(ReadValue::Option(Box::new(move |values: &mut OptionValues| values.set::<O>(value))))
         }
@@ -1113,11 +1174,11 @@ fn data_schema(schema: Value) -> SchemaFn {
 }
 
 /// Reads `T` from `data`; the error carries the path of the offending key.
-fn deserialize<T: DeserializeOwned>(data: Value) -> Result<T, PartError> {
+fn deserialize<T: DeserializeOwned>(data: Value) -> Result<T, ReadError> {
     serde_path_to_error::deserialize::<_, T>(data).map_err(|error| {
         let path = error.path().to_string();
         let path = if path == "." { String::new() } else { path };
-        PartError { path, detail: error.into_inner().to_string() }
+        ReadError { path, detail: error.into_inner().to_string() }
     })
 }
 
@@ -1129,7 +1190,7 @@ fn deserialize<T: DeserializeOwned>(data: Value) -> Result<T, PartError> {
 /// When `T` is not read from a map of named fields.
 fn field_names<T: DeserializeOwned>() -> Vec<String> {
     // The key list comes from the derivation that reads the keys, so the two
-    // cannot disagree. See decision rationale at [§flm-dd-dr:feat-settings-read]
+    // cannot disagree.
     let mut probe = FieldProbe { fields: None };
     let _ = T::deserialize(&mut probe);
     probe
@@ -1250,10 +1311,11 @@ pub enum SettingsErrorKind {
     /// The feature declares no settings key of that name.
     UnknownKey,
     /// The value does not have the shape its key requires, or the feature's
-    /// conversion of its configuration refuses it.
+    /// conversion or reader of its configuration refuses it
+    /// ([`SettingsDecl::config_from`], [`SettingsDecl::config_data_read`]).
     InvalidValue,
     /// A declaration of settings from data contradicts itself or is malformed
-    /// ([`SettingsDecl::config_data`], [`SettingsDecl::options_data`],
+    /// ([`SettingsDecl::config_data`], [`SettingsDecl::config_data_read`], [`SettingsDecl::options_data`],
     /// [`SettingsDecl::merge_entries_data`]): no data was read.
     InvalidDeclaration,
 }
@@ -1334,14 +1396,21 @@ impl PackageSettings {
     }
 
     /// The settings of the feature named `feature`, or `None` when none were
-    /// added.
+    /// added. A reading through the cascade
+    /// ([`Cascade::read`](cascade::Cascade::read)) adds the settings of every
+    /// feature in use that declares some and is not switched off, whether or
+    /// not anything is written under it.
     pub fn feature(&self, feature: &str) -> Option<&FeatureSettings> {
         self.features.get(feature)
     }
 
     /// The configuration of type `C` of the feature named `feature`, or `None`
     /// when no settings were added for that feature or they hold no
-    /// configuration of that type.
+    /// configuration of that type. After a reading through the cascade
+    /// ([`Cascade::read`](cascade::Cascade::read)), it is `Some` for every
+    /// feature in use, not switched off, that declares a configuration of type
+    /// `C`: the configuration read from the settings written under the
+    /// feature, or from the empty map when nothing is written under it.
     pub fn config<C: Any>(&self, feature: &str) -> Option<&C> {
         self.feature(feature).and_then(FeatureSettings::config::<C>)
     }

@@ -90,8 +90,9 @@ pub fn shown_size(
         (None, None, Some(size)) => (Some(size.width), Some(size.height)),
         (width, height, None) => (width, height),
     };
-    // One computation for every backend, the factor keyed by output.
-    // See decision rationale at [§flm-dd-dr:std-graphics-magnification].
+    // One computation for every backend, the factor keyed by output: the
+    // magnification is applied once, where the size is decided, and not
+    // repeated in each backend, where the copies could drift apart.
     let magnify = |length: Option<Length>| length.and_then(|length| length.times(factor.value()).ok());
     (magnify(width), magnify(height))
 }

@@ -159,14 +159,16 @@
 //!   whose nodes are shared many times; it has no limit on its number of
 //!   steps.
 
-// Maintainer notes on the points above: the arena's reader side stays private
-// per the design rationale at [§flm-dd-dr:layout-arena-private]; the measure is
-// public but its choice is not, [§flm-dd-dr:layout-width-public]; the debug-only
-// contract checks, [§flm-dd-dr:layout-debug-contracts]; the empty-table rule,
-// [§flm-dd-dr:layout-empty-table]. The limitations listed above are preserved
-// deliberately and each is pinned by a test — [§flm-dd-dr:layout-pin-quirks],
-// [§flm-dd-dr:layout-marks], [§flm-dd-dr:layout-fit-scan-indent],
-// [§flm-dd-dr:layout-no-scan-budget].
+// Maintainer notes on the points above. The trait behind the width measure
+// stays crate-internal so that the choice of measure remains free to change.
+// The limitations listed above are kept as they are, each pinned by a test, so
+// that a deliberate change to the layout can be told apart from an accidental
+// one. Correcting the indentation limitation is not local: the fitting scan
+// would have to track the indentation accumulated up to a group's first
+// visible character.
+// The scan needs no step limit as long as emitters build layout documents as
+// trees rather than as heavily shared graphs, since its walk is then
+// proportional to the size of the document.
 
 pub mod doc;
 pub mod printer;

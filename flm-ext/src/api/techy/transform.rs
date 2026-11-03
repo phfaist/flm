@@ -224,13 +224,12 @@ pub trait Restager: RestagerCore {
     /// at the node of the call unless it has a place of its own, as
     /// [`Lowerer::diagnose`](crate::api::core::lowering::Lowerer::diagnose)
     /// does. What differs: the diagnostic is data, and the method answers a
-    /// `Result`, since it checks the diagnostic's identifier.
+    /// `Result`, since the data may hold a value that cannot cross.
     ///
     /// # Errors
     ///
-    /// The diagnostic's identifier does not begin with the extension's stem
-    /// and a dot ([`ExtError::NameOutsideExtension`]), or its data cannot
-    /// cross ([`ExtError::Value`]); nothing is reported then.
+    /// The diagnostic's data cannot cross ([`ExtError::Value`]); nothing is
+    /// reported then.
     fn diagnose(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError>;
 }
 

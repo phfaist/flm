@@ -1,4 +1,4 @@
-//! The cross tests of the guest's own types (refresh section 6.3): each
+//! The cross tests of the guest's own types: each
 //! guest type's conversion, written once in `src/guest/hand/`, agrees with
 //! the host's converter of the same shape. Where the host writes the shape,
 //! its converter writes a value into a call's table, the guest's type reads
@@ -11,10 +11,12 @@
 //! entry (their accepting halves, which need the crate's insides, are unit
 //! tests under `src/guest/`). The types that hold handler objects are
 //! tested as the record-and-lend methods build them: here what needs no
-//! host (a data aspect, a helper's declaration, a backend of library
-//! stages, the refusals), and under `src/guest/registry.rs` what a lending
-//! answers, with the client's test hook in place of the host. Last, the
-//! module page's sections.
+//! host (a data aspect, a helper's declaration, the refusals), and under
+//! `src/guest/registry.rs` what a lending answers, with the client's test
+//! hook in place of the host. The typed conversions of the same types (the
+//! cargo feature `native`), which only the crate's insides reach, are checked
+//! against these forms by unit tests under `src/guest/hand/` where no test of
+//! an extension reaches them. Last, the module page's sections.
 
 #![cfg(feature = "guest")]
 
@@ -30,7 +32,7 @@ use flm_core::stdcore::{self, StdcoreConfig};
 use flm_core::techy::core::node::NodeTree;
 use flm_ext::adapter::durable::{DurableKind, DurableToken};
 use flm_ext::adapter::handles::{CallTable, Entry, Handle, HandleKind};
-use flm_ext::adapter::node::NodeFacade;
+use flm_ext::adapter::node::{NodeFacade, TreeFacade};
 use flm_ext::adapter::values::{self as host, handle_from_value, handle_to_value, JsonForm};
 use flm_ext::api;
 use flm_ext::guest;
@@ -60,6 +62,21 @@ fn lend_root(table: &mut CallTable<'static>, tree: &Arc<NodeTree<Flm>>) -> Value
 /// The guest's node for the handle `value`.
 fn guest_node(value: &Value) -> guest::techy::node::Node {
     guest::techy::node::Node::from_value(value).expect("the guest reads a node's handle")
+}
+
+/// `tree`, as the host's tree.
+fn shared(tree: &Arc<NodeTree<Flm>>) -> Box<dyn api::techy::node::Tree> {
+    Box::new(TreeFacade::new(Arc::clone(tree)))
+}
+
+/// `tree` lent into `table`, as its handle's JSON.
+fn lend_tree(table: &mut CallTable<'static>, tree: &Arc<NodeTree<Flm>>) -> Value {
+    handle_to_value(table.lend(Entry::Tree(shared(tree))))
+}
+
+/// The guest's tree for the handle `value`.
+fn guest_tree(value: &Value) -> guest::techy::node::Tree {
+    guest::techy::node::Tree::from_value(value).expect("the guest reads a tree's handle")
 }
 
 /// The handle of `value` with its kind changed to `kind`, as the host writes
@@ -232,12 +249,12 @@ fn a_number_segment_in_the_hosts_shape_is_read_by_the_guest() {
     // shape is built here from the host's writers of a handle and a point.
     let mut table = CallTable::new(1);
     let parsed = tree("abc");
-    let node = lend_root(&mut table, &parsed);
+    let content = lend_tree(&mut table, &parsed);
     let point = flm_core::model::aspects::PointId { addr: NodeAddr { tree: TreeId::tree(0), node: parsed.root().id() }, index: 0 };
-    let written = json!({ "content": node, "link": host::point_id_to_value(&point) });
+    let written = json!({ "content": content, "link": host::point_id_to_value(&point) });
     let read: guest::stdcore::features::numbering::NumberSegment = read_back(&written);
     assert_eq!(read.link.map(|link| link.index), Some(0));
-    read_back::<guest::stdcore::features::numbering::NumberSegment>(&json!({ "content": node, "link": null }));
+    read_back::<guest::stdcore::features::numbering::NumberSegment>(&json!({ "content": content, "link": null }));
 }
 
 #[test]
@@ -280,7 +297,7 @@ fn an_equation_line_and_a_line_frame_cross_both_ways() {
     let shows = || {
         vec![
             math::LineShows::Nothing,
-            math::LineShows::Number { segments: vec![root(&parsed)], text: "1".to_string() },
+            math::LineShows::Number { segments: vec![shared(&parsed)], text: "1".to_string() },
             math::LineShows::Tag { starred: false, content: vec![root(&parsed)] },
         ]
     };
@@ -341,13 +358,15 @@ fn a_reference_point_written_by_the_guest_is_read_by_the_host() {
 fn a_content_reference_written_by_the_guest_is_read_by_the_host() {
     use guest::model::aspects::ContentRef;
     let mut table = CallTable::new(1);
-    let node = guest_node(&lend_root(&mut table, &tree("abc")));
+    let parsed = tree("abc");
+    let node = guest_node(&lend_root(&mut table, &parsed));
+    let synthesized = guest_tree(&lend_tree(&mut table, &parsed));
     for content in [
         ContentRef::Argument(1),
         ContentRef::ArgumentNamed("title".to_string()),
         ContentRef::Body,
         ContentRef::Node(node),
-        ContentRef::Synthesized(node),
+        ContentRef::Synthesized(synthesized),
     ] {
         round_trip(&content);
         let read = flm_ext::adapter::aspects::content_ref_from_value(&mut table, &content.to_value()).expect("the host reads it");
@@ -400,62 +419,60 @@ fn a_host_handle_is_the_reader_of_files_or_a_named_service() {
 #[test]
 fn an_argument_s_role_crosses_both_ways() {
     use guest::lang::mint::ArgDef;
-    let mut table = CallTable::new(1);
     let written = host::arg_def_to_value(&host_arg("{", "key").role("wc.key"));
     assert_eq!(written["role"], json!("wc.key"));
     let read: ArgDef = read_back(&written);
     assert_eq!(read.to_value()["role"], json!("wc.key"));
-    let guest_arg = ArgDef::named("target", "{").role("flm.refs.target");
+    let guest_arg = ArgDef::named_from_code("target", "{").expect("a code").role("flm.refs.target");
     round_trip(&guest_arg);
-    let args = host::arg_defs_from_value(&json!([guest_arg.to_value(), read.to_value(), ArgDef::new("[").to_value()]), &mut |value: &Value| {
-        host::held_from_table(&mut table, value)
-    })
-    .expect("the host reads the guest's arguments");
+    let args = host::arg_defs_from_value(&json!([guest_arg.to_value(), read.to_value(), ArgDef::from_code("[").expect("a code").to_value()]))
+        .expect("the host reads the guest's arguments");
     let roles: Vec<Option<&str>> = args.iter().map(|arg| arg.role.as_ref().map(|name| name.as_str())).collect();
     assert_eq!(roles, [Some("flm.refs.target"), Some("wc.key"), None]);
 }
 
 #[test]
-fn an_argument_crosses_both_ways_as_data_or_as_a_helpers_handle() {
-    use api::lang::mint::ArgDef as HostArg;
-    use guest::lang::mint::ArgDef;
-    let mut table = CallTable::new(1);
+fn an_argument_crosses_both_ways_as_data_a_helper_s_included() {
+    use api::lang::mint::{ArgDef as HostArg, ArgStdKind as HostKind, TackOnField as HostField};
+    use api::stdcore::features::refs;
+    use guest::lang::mint::{ArgDef, ArgStdKind, TackOnField};
     let written = host::arg_def_to_value(&host_arg("{", "x").blocks());
     let read: ArgDef = read_back(&written);
     assert_eq!(read.code(), Some("{"));
     let guest_arg = ArgDef::optional("o").docs("an option");
-    let args = host::arg_defs_from_value(&json!([guest_arg.to_value(), read.to_value()]), &mut |value: &Value| host::held_from_table(&mut table, value))
-        .expect("the host reads the guest's arguments");
+    let args = host::arg_defs_from_value(&json!([guest_arg.to_value(), read.to_value()])).expect("the host reads the guest's arguments");
     assert_eq!(args.iter().map(|arg| arg.name.as_deref()).collect::<Vec<_>>(), [Some("o"), Some("x")]);
-    // A helper's argument, lent by the host: the guest writes its handle back.
-    let lent = handle_to_value(table.lend(Entry::ArgDef(HostArg::optional("label"))));
-    let read: ArgDef = read_back(&lent);
-    assert_eq!(read.code(), None);
-    let args = host::arg_defs_from_value(&json!([read.to_value()]), &mut |value: &Value| host::held_from_table(&mut table, value))
-        .expect("the host resolves the helper's argument");
-    assert_eq!(args[0].name.as_deref(), Some("label"));
-    // A setter called on it keeps its field beside the handle, which the
-    // guest reads back and the host's reader refuses.
-    let changed = read.mode(api::lang::mint::Mode::Math).scoped("x.pkg").docs("a label");
-    let mut expected = lent.clone();
-    expected["mode"] = json!("math");
-    expected["scoped"] = json!(["x.pkg"]);
-    expected["docs"] = json!("a label");
-    assert_eq!(changed.to_value(), expected);
-    round_trip(&changed);
-    let error = host::arg_defs_from_value(&json!([changed.to_value()]), &mut |value: &Value| host::held_from_table(&mut table, value))
-        .expect_err("a helper's argument written with changes is refused");
-    assert_eq!(
-        detail(&error),
-        "the argument `label` that a helper made must be used as the helper made it, without the fields `mode`, `scoped`, \
-         `docs` set on it"
-    );
+    // A tack-on argument crosses as its structured syntax: the host's
+    // declaration reads on the guest as the one the guest makes, and the
+    // guest's reads on the host as the host's.
+    let host_field = HostField::new("note", vec![HostArg::named("target", HostKind::CharsGroup).docs("the target")])
+        .repeatable()
+        .docs("a note");
+    let host_declared = HostArg::named("fields", HostKind::TackOn { fields: vec![host_field] }).docs("the fields");
+    let field = TackOnField::new("note", vec![ArgDef::named("target", ArgStdKind::CharsGroup).docs("the target")])
+        .repeatable()
+        .docs("a note");
+    let declared = ArgDef::named("fields", ArgStdKind::TackOn { fields: vec![field] }).docs("the fields");
+    assert_eq!(read_back::<ArgDef>(&host::arg_def_to_value(&host_declared)), declared);
+    let args = host::arg_defs_from_value(&json!([declared.to_value()])).expect("the host reads the guest's tack-on argument");
+    assert_eq!(args, [host_declared]);
+    // A helper's argument, a tack-on argument, crosses the same way.
+    let helper = refs::label_fields_arg();
+    let read: ArgDef = read_back(&host::arg_def_to_value(&helper));
+    let written = read.to_value();
+    let names: Vec<&str> = written["fields"].as_array().into_iter().flatten().filter_map(|field| field["name"].as_str()).collect();
+    assert_eq!((written["syntax"].as_str(), names), (Some("tack-on"), vec![refs::LABEL_FIELD]));
+    let args = host::arg_defs_from_value(&json!([written])).expect("the host reads the helper's argument back");
+    assert_eq!(args, [helper]);
+    // A setter called on it changes the argument the host reads.
+    let changed = host::arg_defs_from_value(&json!([read.mode(api::lang::mint::Mode::Math).scoped("x.pkg").to_value()]))
+        .expect("the host reads the changed argument");
+    assert_eq!((changed[0].mode, changed[0].scoped.len()), (Some(api::lang::mint::Mode::Math), 1));
 }
 
 #[test]
 fn a_definition_crosses_both_ways() {
     use api::lang::rewrites::userdefs::{Definition as HostDefinition, DefinitionKind};
-    let mut table = CallTable::new(1);
     let definition = HostDefinition::new(DefinitionKind::Macro, "greet", vec![host_arg("{", "who")])
         .content("Hello, #1!")
         .default("who", "world")
@@ -463,12 +480,12 @@ fn a_definition_crosses_both_ways() {
     let written = host::definition_to_value(&definition);
     let read: guest::lang::rewrites::userdefs::Definition = read_back(&written);
     assert_eq!((read.name.as_str(), read.content.as_deref(), read.args.len()), ("greet", Some("Hello, #1!"), 1));
-    let back = host::definition_from_value(&read.to_value(), &mut |value: &Value| host::held_from_table(&mut table, value))
+    let back = host::definition_from_value(&read.to_value())
         .expect("the host reads the guest's definition");
     assert_eq!(host::definition_to_value(&back), written);
     let built = guest::lang::rewrites::userdefs::Definition::new(DefinitionKind::Environment, "box", vec![]).docs("a box").overriding();
     round_trip(&built);
-    let back = host::definition_from_value(&built.to_value(), &mut |value: &Value| host::held_from_table(&mut table, value)).expect("it reads");
+    let back = host::definition_from_value(&built.to_value()).expect("it reads");
     assert_eq!((back.docs.as_str(), back.overrides), ("a box", true));
 }
 
@@ -476,7 +493,6 @@ fn a_definition_crosses_both_ways() {
 fn a_definition_s_constructors_write_what_the_api_s_make() {
     use api::lang::rewrites::userdefs::Definition as HostDefinition;
     use guest::lang::rewrites::userdefs::Definition;
-    let mut table = CallTable::new(1);
     let host_args = || vec![host_arg("{", "who")];
     let guest_args = || vec![read_back::<guest::lang::mint::ArgDef>(&host::arg_def_to_value(&host_arg("{", "who")))];
     let cases = [
@@ -489,7 +505,7 @@ fn a_definition_s_constructors_write_what_the_api_s_make() {
     for (constructor, guest_definition, host_definition) in cases {
         let expected = host::definition_to_value(&host_definition);
         assert_eq!(guest_definition.to_value(), expected, "`Definition::{constructor}` writes what the api's makes");
-        let read = host::definition_from_value(&guest_definition.to_value(), &mut |value: &Value| host::held_from_table(&mut table, value))
+        let read = host::definition_from_value(&guest_definition.to_value())
             .unwrap_or_else(|error| panic!("the host reads the definition of `Definition::{constructor}`: {error}"));
         assert_eq!(host::definition_to_value(&read), expected, "the host reads back what `Definition::{constructor}` wrote");
     }
@@ -498,7 +514,6 @@ fn a_definition_s_constructors_write_what_the_api_s_make() {
 #[test]
 fn a_syntax_written_by_the_guest_is_read_by_the_host() {
     use guest::lang::mint::{ArgDef, SyntaxDef};
-    let mut table = CallTable::new(1);
     let syntaxes = [
         SyntaxDef::Macro { args: vec![ArgDef::mandatory("a")] },
         SyntaxDef::Environment { args: vec![ArgDef::optional("o")], body: api::lang::mint::BodyDef::new() },
@@ -508,7 +523,7 @@ fn a_syntax_written_by_the_guest_is_read_by_the_host() {
     for syntax in syntaxes {
         let written = syntax.to_value();
         assert_eq!(SyntaxDef::from_value(&written).expect("the guest reads its own form").to_value(), written);
-        let read = host::syntax_def_from_value(&written, &mut |value: &Value| host::held_from_table(&mut table, value)).expect("the host reads it");
+        let read = host::syntax_def_from_value(&written).expect("the host reads it");
         let same = matches!(
             (&syntax, &read),
             (SyntaxDef::Macro { .. }, api::lang::mint::SyntaxDef::Macro { .. })
@@ -523,13 +538,12 @@ fn a_syntax_written_by_the_guest_is_read_by_the_host() {
 #[test]
 fn a_body_with_a_parser_of_its_own_written_by_the_guest_is_refused_by_the_host() {
     use guest::lang::mint::SyntaxDef;
-    let mut table = CallTable::new(1);
     let body = api::lang::mint::BodyDef::new().parser(flm_core::lang::mint::FlmUnknownEnvironmentBehavior::new());
     let written = SyntaxDef::Environment { args: vec![], body }.to_value();
-    let refused = host::syntax_def_from_value(&written, &mut |value: &Value| host::held_from_table(&mut table, value));
+    let refused = host::syntax_def_from_value(&written);
     assert!(matches!(refused, Err(ExtError::Value { .. })), "a parser the shape cannot name is refused");
     let verbatim = SyntaxDef::Environment { args: vec![], body: api::lang::mint::BodyDef::new().verbatim() };
-    let read = host::syntax_def_from_value(&verbatim.to_value(), &mut |value: &Value| host::held_from_table(&mut table, value))
+    let read = host::syntax_def_from_value(&verbatim.to_value())
         .expect("the verbatim parser crosses");
     assert!(matches!(read, api::lang::mint::SyntaxDef::Environment { body, .. } if body.parser.is_some()));
 }
@@ -547,6 +561,26 @@ fn a_compiled_template_and_a_template_language_cross_in_the_form_they_were_read(
     assert_eq!(detail(&error), "a durable token of the kind `compiled_template` is expected here, not one of the kind `template_language`");
     let error = TemplateLanguage::from_value(&compiled).expect_err("a compiled template is no language");
     assert_eq!(detail(&error), "a durable token of the kind `template_language` is expected here, not one of the kind `compiled_template`");
+}
+
+#[test]
+fn extra_values_written_by_the_guest_are_read_by_the_host() {
+    use guest::lang::rewrites::userdefs::{CompiledTemplate, ExtraValues};
+    let mut table = CallTable::new(1);
+    let value = guest_tree(&lend_tree(&mut table, &tree("abc")));
+    let token = host::durable_to_value(DurableToken { kind: DurableKind::CompiledTemplate, table: 3, index: 1 });
+    let template: CompiledTemplate = read_back(&token);
+    let values = ExtraValues::new().tree("value", None, &value).no_value("side", Some(""));
+    round_trip(&values);
+    round_trip(&values.clone().template("side", Some(r"\lvert"), template));
+    // The host reads a tree and no value, and lays them over bindings.
+    let read = host::extra_values_from_value(&mut table, &values.to_value()).expect("the host reads the guest's values");
+    read.over(&api::lang::rewrites::userdefs::ValueBindings::new());
+    // A compiled template's form is read, and its token looked up in the
+    // call's durable table, which this call does not hold.
+    let error = host::extra_values_from_value(&mut table, &values.template("side", None, template).to_value())
+        .expect_err("a call without a durable table refuses a durable token");
+    assert!(matches!(error, ExtError::Argument { .. }), "the form is read: {error:?}");
 }
 
 #[test]
@@ -614,33 +648,6 @@ fn a_helpers_declaration_is_read_back_as_itself() {
 }
 
 #[test]
-fn a_backend_of_library_stages_crosses_and_a_changed_stage_is_refused() {
-    use flm_ext::guest::abi::ToArg;
-    use guest::core::registry::{BackendDef, BackendStage, LibraryStage};
-    let mut table = CallTable::new(1);
-    let mut stage = |backend: &str| {
-        let lent = handle_to_value(table.lend(Entry::LibraryStage(api::stdcore::backends::lowering::LoweringStage::new(backend))));
-        LibraryStage::from_value(&lent).expect("a library stage")
-    };
-    let (html, text) = (stage("html"), stage("text"));
-    let def = BackendDef::new("x", vec!["x.box".to_string()], BackendStage::Library(html), BackendStage::Library(html), BackendStage::Library(html))
-        .expect("library stages need no register")
-        .docs("A backend.");
-    assert_eq!(format!("{def:?}"), "BackendDef { name: \"x\", native: [\"x.box\"], .. }");
-    let read = host::backend_def_from_table(&mut table, &def.arg().expect("unchanged")).expect("the host reads the backend");
-    assert_eq!((read.name.as_str(), read.docs.as_str()), ("x", "A backend."));
-    let mut changed = def;
-    changed.final_stage = BackendStage::Library(text);
-    assert_eq!(
-        changed.arg(),
-        Err(ExtError::Argument {
-            method: String::new(),
-            detail: "the stage `final_stage` of the backend `x` must be the stage given to `BackendDef::new`".to_string()
-        })
-    );
-}
-
-#[test]
 fn the_module_page_carries_the_sections_and_the_mapping_rules() {
     let page = include_str!("../src/guest/mod.rs");
     let headings = [
@@ -678,9 +685,9 @@ fn the_module_page_carries_the_sections_and_the_mapping_rules() {
         last = at;
     }
     // The first paragraph states the move from a crate written against `flm_ext::api`,
-    // and names the places where it is not mechanical (ruling S8).
+    // and names the places where it is not mechanical.
     let first = page.split("\n//!\n").next().unwrap_or_default();
-    for named in ["`flm_ext::api::a::b` becomes `flm_ext::guest::a::b`", "ElementDef::docs", "ElementDef::modes", "ArgDef"] {
+    for named in ["`flm_ext::api::a::b` becomes `flm_ext::guest::a::b`", "ElementDef::docs", "ElementDef::modes"] {
         assert!(first.contains(named), "the first paragraph lacks {named:?}");
     }
 }

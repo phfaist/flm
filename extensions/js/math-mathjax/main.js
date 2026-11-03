@@ -95,7 +95,7 @@ const check = {
   run(cx, out) {
     const tree = cx.my_tree();
     if (tree === null) return;
-    for (const node of tree.descendants()) {
+    for (const node of tree.root().descendants()) {
       if (node.element_name() !== ENVIRONMENT) continue;
       equation_lines(node).forEach((line, index) => {
         if (line.content.some(is_content)) return;

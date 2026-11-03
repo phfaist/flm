@@ -1,5 +1,5 @@
-//! A compose template written as a module (E6, plan sections 2.5, 3.1 and
-//! 3.3), through the Rust test double: the module describes itself from the
+//! A compose template written as a module, through the Rust test double: the
+//! module describes itself from the
 //! feature's configuration, the adapter contributes its template and its own
 //! engine, the composer asks the module for the files it ships (a computed
 //! one, one of the extension's folder, one of the document's folder) and
@@ -251,7 +251,7 @@ fn a_template_module_describes_itself_ships_its_files_and_renders_with_their_pat
     );
 
     // The logo and the banner were read as bytes, in the two scopes of the
-    // `files` service (ruling S12). `describe` received the configuration; `files` the data without the
+    // `files` service. `describe` received the configuration; `files` the data without the
     // paths, `render` with them, as a binding receives them.
     let seen = seen.lock().expect("seen");
     assert_eq!(seen.described, [json!({ "heading": "Notes" })]);

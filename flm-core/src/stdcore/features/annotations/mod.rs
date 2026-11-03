@@ -38,10 +38,11 @@
 //!
 //! An annotation never becomes a block that holds paragraphs. A blank line
 //! inside it is a paragraph break of the text around it, and the annotation
-//! continues in the next paragraph; a list or a displayed formula inside it
-//! is a block of the text around it, still part of the annotation (a cut part
-//! around that block, see below). The annotator's initials are shown at the
-//! start of the annotation only.
+//! continues in the next paragraph; a list inside it is a block of the text
+//! around it, still part of the annotation (a cut part around that block, see
+//! below), and a displayed formula inside it stays in the inline content the
+//! annotation spans. The annotator's initials are shown at the start of the
+//! annotation only.
 //!
 //! # What the feature provides to the pipeline
 //!

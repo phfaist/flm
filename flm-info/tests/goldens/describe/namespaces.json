@@ -97,7 +97,7 @@
       },
       {
         "name": "lowering",
-        "summary": "the presentation vocabulary, the field element and the structural elements' default lowering rules"
+        "summary": "the presentation vocabulary and the structural elements' default lowering rules"
       },
       {
         "name": "meta",
@@ -208,6 +208,11 @@
         "summary": "a placeholder of a template (`#1`, `#{name}`), replaced by content when the template is expanded"
       },
       {
+        "name": "flm.field",
+        "owner": "flm",
+        "summary": "a field: a macro that a construct absorbs as data, such as the `\\label` written after a heading; only the construct that declared the field reads it"
+      },
+      {
         "name": "flm.unknown.macro",
         "owner": "flm",
         "summary": "a macro the parse could not attribute to any feature, reported as an error"
@@ -268,11 +273,6 @@
         "summary": "`section`: A heading of level 1."
       },
       {
-        "name": "flm.field",
-        "owner": "headings",
-        "summary": "The field `\\label`, which the construct it is written after reads as data."
-      },
-      {
         "name": "flm.heading.number",
         "owner": "headings",
         "summary": "The number of a numbered heading, where the kind's heading title template writes `#{number}`. No document can write it."
@@ -328,11 +328,6 @@
         "summary": "The definition of a term (the `defterm` environment), the target of the term links to that term."
       },
       {
-        "name": "flm.field",
-        "owner": "defterm",
-        "summary": "The field `\\label`, which the construct it is written after reads as data."
-      },
-      {
         "name": "flm.term",
         "owner": "defterm",
         "summary": "A link to the definition of a term, showing the text written for it."
@@ -346,11 +341,6 @@
         "name": "flm.theorems.theorem",
         "owner": "theorems",
         "summary": "`conjecture`: a theorem-like environment of the theorem class `theoremlike`."
-      },
-      {
-        "name": "flm.field",
-        "owner": "theorems",
-        "summary": "The field `\\label`, which the construct it is written after reads as data."
       },
       {
         "name": "flm.theorems.name",
@@ -383,11 +373,6 @@
         "summary": "A citation chunk, `\\cite[note]{keys}`, attached to the content before it."
       },
       {
-        "name": "flm.field",
-        "owner": "citations",
-        "summary": "The field `\\cite`, which the construct it is written after reads as data."
-      },
-      {
         "name": "flm.citations.refcite",
         "owner": "citations",
         "summary": "A citation chunk written as a noun, `\\R\\cite{keys}`, after a word, `ref.~` or `refs.~` by default."
@@ -406,11 +391,6 @@
         "name": "flm.input",
         "owner": "input",
         "summary": "`\\input{file}`: the content of another file, brought in where the command is written."
-      },
-      {
-        "name": "flm.field",
-        "owner": "lowering",
-        "summary": "A field: a macro that a construct absorbs as data rather than as content, such as the `\\label` written after a heading; only the construct that declared the field reads it."
       },
       {
         "name": "flm.meta.title",
@@ -466,11 +446,6 @@
         "name": "flm.lists.item",
         "owner": "lists",
         "summary": "`\\item`: begins an item of the list in whose body it is written."
-      },
-      {
-        "name": "flm.field",
-        "owner": "lists",
-        "summary": "The field `\\label`, which the construct it is written after reads as data."
       },
       {
         "name": "flm.quote.section",

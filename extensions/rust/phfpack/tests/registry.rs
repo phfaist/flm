@@ -1,5 +1,5 @@
-//! The package in a registry (acceptance test 6), the crate's manifest
-//! (test 5), and the macros in running text (test 10).
+//! The package in a registry, the crate's manifest, and the macros in running
+//! text.
 
 mod common;
 
@@ -11,14 +11,13 @@ use flm_core::lang::mint::{ElementDef, SyntaxDef};
 use flm_core::model::element::ElementSpec;
 use flm_core::techy::latexlike::Mode;
 use flm_core::stdcore::{self, StdcoreConfig};
-use flm_phfpack::settings::PhfqitConfig;
 
-use common::{html_of, latex_of, registry, text_of};
+use common::{factory, html_of, latex_of, package, registry, text_of, FEATURE, PACKAGE};
 
 #[test]
 fn a_registry_holding_the_standard_package_and_phfpack_builds_without_a_diagnostic() {
     let registry = registry();
-    assert!(registry.has_feature(flm_phfpack::FEATURE));
+    assert!(registry.has_feature(FEATURE));
     let diagnostics: Vec<String> =
         registry.build_diagnostics().iter().map(|d| d.message().to_string()).collect();
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -31,7 +30,7 @@ fn a_registry_holding_phfqit_without_userdefs_does_not_build() {
     let standard = stdcore::factory().expect("the factory").build(&settings).expect("the package");
     let mut builder = RegistryBuilder::new();
     builder.use_package(standard);
-    builder.use_package(flm_phfpack::package(PhfqitConfig::default()));
+    builder.use_package(package());
     let error = builder.build(&RegistryInputs::new()).expect_err("phfqit needs userdefs");
     assert!(error.to_string().contains("flm.userdefs.always-expanded"), "{error}");
 }
@@ -51,12 +50,12 @@ fn a_document_that_uses_no_macro_of_the_package_renders_as_without_it() {
 
 #[test]
 fn the_factory_names_the_package_its_feature_and_the_package_it_uses() {
-    let factory = flm_phfpack::factory().expect("the factory");
-    assert_eq!(factory.name().as_str(), flm_phfpack::PACKAGE);
+    let factory = factory();
+    assert_eq!(factory.name().as_str(), PACKAGE);
     assert_eq!(factory.used().iter().map(|n| n.as_str()).collect::<Vec<_>>(), [stdcore::PACKAGE]);
     assert_eq!(factory.features().len(), 1);
-    assert_eq!(factory.features()[0].name, flm_phfpack::FEATURE);
-    assert!(factory.settings(flm_phfpack::FEATURE).is_some());
+    assert_eq!(factory.features()[0].name, FEATURE);
+    assert!(factory.settings(FEATURE).is_some());
 }
 
 // --- running text --------------------------------------------------------------------------
@@ -89,24 +88,25 @@ fn in_running_text_a_macro_whose_replacement_is_not_valid_there_is_an_error_at_t
 
 // --- the manifest --------------------------------------------------------------------------
 
-/// The names of the dependencies a manifest declares, in every table of
-/// dependencies.
-fn dependencies(manifest: &str) -> Vec<String> {
-    let mut names = Vec::new();
+/// The dependencies the manifest's table `[dependencies]` declares: each
+/// one's name and the text after the `=`.
+fn dependencies(manifest: &str) -> Vec<(String, String)> {
+    let mut found = Vec::new();
     let mut in_dependencies = false;
     for line in manifest.lines() {
         let line = line.trim();
         if line.starts_with('[') {
-            in_dependencies = line.ends_with("dependencies]");
+            in_dependencies = line == "[dependencies]";
             continue;
         }
-        if in_dependencies && !line.is_empty() && !line.starts_with('#') {
-            if let Some((name, _)) = line.split_once('=') {
-                names.push(name.trim().to_string());
-            }
+        if !in_dependencies || line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some((name, value)) = line.split_once('=') {
+            found.push((name.trim().to_string(), value.trim().to_string()));
         }
     }
-    names
+    found
 }
 
 /// The members of the workspace, by the folder names its manifest lists.
@@ -116,16 +116,21 @@ fn workspace_members(manifest: &str) -> Vec<String> {
 }
 
 #[test]
-fn the_manifest_names_no_crate_of_the_workspace_but_the_library_and_not_the_toolkit() {
+fn the_manifest_names_no_crate_of_the_workspace_but_the_guest_client_and_not_the_toolkit() {
+    // The extension is written against the guest client alone: `flm-ext`
+    // with its feature `guest` and no other. The tests' own dependencies
+    // (`[dev-dependencies]`) are not the extension's.
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let manifest = std::fs::read_to_string(root.join("Cargo.toml")).expect("the manifest");
-    let workspace = std::fs::read_to_string(root.join("../Cargo.toml")).expect("the workspace");
+    let workspace = std::fs::read_to_string(root.join("../../../Cargo.toml")).expect("the workspace");
     let members = workspace_members(&workspace);
-    assert!(members.iter().any(|m| m == "flm-core"), "{members:?}");
-    let names = dependencies(&manifest);
-    assert!(names.iter().any(|n| n == "flm-core"), "{names:?}");
-    for name in &names {
-        let other_member = members.iter().any(|m| m == name) && name != "flm-core";
+    assert!(members.iter().any(|m| m == "flm-ext"), "{members:?}");
+    let found = dependencies(&manifest);
+    let guest = found.iter().find(|(name, _)| name == "flm-ext").map(|(_, value)| value.as_str());
+    let guest = guest.unwrap_or_else(|| panic!("the crate depends on `flm-ext`: {found:?}"));
+    assert!(guest.contains("default-features = false") && guest.contains(r#"features = ["guest"]"#), "{guest}");
+    for (name, _) in &found {
+        let other_member = members.iter().any(|m| m == name) && name != "flm-ext";
         assert!(!other_member, "the crate depends on the workspace's `{name}`");
         assert!(!name.starts_with("techy"), "the crate names the toolkit `{name}`");
     }
@@ -133,10 +138,10 @@ fn the_manifest_names_no_crate_of_the_workspace_but_the_library_and_not_the_tool
 
 #[test]
 fn the_package_entry_holds_the_one_feature() {
-    let entry = flm_phfpack::package(PhfqitConfig::default());
-    assert_eq!(entry.name.as_str(), flm_phfpack::PACKAGE);
+    let entry = package();
+    assert_eq!(entry.name.as_str(), PACKAGE);
     let names: Vec<String> = entry.features.iter().map(|f| f.info().name.to_string()).collect();
-    assert_eq!(names, [flm_phfpack::FEATURE]);
+    assert_eq!(names, [FEATURE]);
 }
 
 /// A stand-in for the feature `math-mathjax` of the extension that processes
@@ -168,13 +173,13 @@ fn with_mathjax(package: flm_core::core::registry::PackageEntry) -> Result<Arc<f
 
 #[test]
 fn the_package_places_phfqit_after_math_mathjax() {
-    let entry = flm_phfpack::package(PhfqitConfig::default());
+    let entry = package();
     assert_eq!(entry.feature_order.len(), 1);
     let names: Vec<&str> = entry.feature_order[0].names().iter().map(|name| name.as_str()).collect();
     assert_eq!(names, ["math-mathjax", "phfqit"]);
-    assert_eq!(entry.feature_order[0].origin(), "package phfpack");
-    // The factory builds the same entry.
-    let built = flm_phfpack::factory().expect("the factory").build(&PackageSettings::new()).expect("the package");
+    assert_eq!(entry.feature_order[0].origin(), format!("package {PACKAGE}"));
+    // The factory builds the same chain without any settings.
+    let built = factory().build(&PackageSettings::new()).expect("the package");
     assert_eq!(built.feature_order.len(), 1);
     // With `math-mathjax` loaded, `\Im` of both is allowed: `phfqit`'s applies.
     assert!(with_mathjax(entry.clone()).is_ok());

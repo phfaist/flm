@@ -37,8 +37,7 @@
 // `restage_invocation` copies the node's extension unchanged, so a node carrying
 // data of its own is assembled here from the same public parts — the argument
 // and slot bundles read back through their accessors, laid out over the new
-// child list as `restage_invocation` lays them out. See the design rationale
-// at [§flm-dd-dr:lang-blocks-cut].
+// child list as `restage_invocation` lays them out.
 
 use std::sync::Arc;
 

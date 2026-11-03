@@ -5,7 +5,8 @@
 //! WebAssembly guests (a rule's body, `points` and the three sectioning
 //! methods; a rewrite stage; a citation provider; a template module's
 //! description, files and render; a late-initialization hook and a finalizer,
-//! replayed by the rehearsal on another thread). Case 1 (`tests/native_case1.rs`)
+//! replayed by the rehearsal on another thread), and a feature's configuration
+//! reader, which runs when the settings are read. Case 1 (`tests/native_case1.rs`)
 //! and the stub (`tests/native.rs`) cover the other rows: the stages, the
 //! expansion hooks, the lowering rules, `define`, `packages`, `register` and
 //! `rehearse`.
@@ -36,7 +37,7 @@ use std::sync::Arc;
 use flm_core::core::artifact::ArtifactSet;
 use flm_core::core::data::table::TableHandle;
 use flm_core::core::plan::{workflow_request, Overrides, Plan, PlanRequest};
-use flm_core::core::registry::{FlmRegistry, PackageEntry};
+use flm_core::core::registry::{FlmRegistry, PackageEntry, PackageFactory};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::core::settings::PackageSettings;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
@@ -53,13 +54,18 @@ use common::{compose_registry, ext_items, registry_with, text_of, toc_entries};
 
 // --- helpers -----------------------------------------------------------------------------------
 
-/// The package `rows#PACKAGE`, from a load of its own, no setting written.
-fn package(name: &str) -> PackageEntry {
+/// The factory of the package `rows#PACKAGE`, from a load of its own.
+fn factory(name: &str) -> PackageFactory {
     let engine = NativeEngine::new([NativeExtension { stem: "rows", manifest: "", compiled: &rows::FLM_EXTENSION }])
         .with_console(Arc::new(|_, _| {}));
     let source = MemorySource::new().with("rows", "rows", json!({ "extension": { "engine": "native" } }), MemoryFiles::new());
     let loader = Arc::new(ExtensionLoader::new(vec![Arc::new(source)]).with_engine(Arc::new(engine)));
-    common::factory_of(&loader, &format!("rows#{name}")).build(&PackageSettings::new()).expect("the package builds")
+    common::factory_of(&loader, &format!("rows#{name}"))
+}
+
+/// The package `rows#PACKAGE`, from a load of its own, no setting written.
+fn package(name: &str) -> PackageEntry {
+    factory(name).build(&PackageSettings::new()).expect("the package builds")
 }
 
 /// The registry of the standard package and the package `rows#PACKAGE`.
@@ -166,6 +172,24 @@ fn rows_11_and_12_a_late_initialization_hook_and_a_finalizer_and_their_rehearsal
     })
     .expect("the worker thread starts");
     assert_eq!(items, [json!({ "filled": true })]);
+}
+
+#[test]
+fn a_configuration_reader_answers_what_register_receives_or_the_value_at_fault() {
+    let factory = factory("read");
+    let decl = factory.settings("read").expect("the feature declares settings");
+    let read = |data: serde_json::Value| decl.read(data.as_object().expect("a map"));
+    // The configuration `register` receives is the reader's answer.
+    let mut settings = PackageSettings::new();
+    settings.insert(read(json!({ "level": 2 })).expect("the settings read"));
+    let registry = registry_with([factory.build(&settings).expect("the package builds")]);
+    let ran = run(&registry, &PlanRequest::new().demand(rows::SEEN), "One tree.");
+    assert!(common::diagnostics(&ran).is_empty(), "{:?}", common::diagnostics(&ran));
+    assert_eq!(ext_items(&ran, rows::SEEN), [json!({ "level": 2, "checked": true })]);
+    // The value at fault, by its path below the feature's name, and the condition it violates.
+    let errors = read(json!({ "level": "high" })).expect_err("a value at fault");
+    let found: Vec<(&str, &str)> = errors.iter().map(|error| (error.path.as_str(), error.detail.as_str())).collect();
+    assert_eq!(found, [("read.level", "the value of `read.level` is invalid: must be a number, not `\"high\"`")]);
 }
 
 // --- the values holding handler objects, against the host ----------------------------------------

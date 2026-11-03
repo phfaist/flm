@@ -56,7 +56,7 @@ use flm_core::stdcore::features::numbering as core_numbering;
 
 use crate::adapter::tables::PointsCore;
 use crate::api::model::aspects::PointId;
-use crate::api::techy::node::Node;
+use crate::api::techy::node::Tree;
 use crate::runtime::ExtError;
 use crate::sealed::Sealed;
 
@@ -132,13 +132,14 @@ pub struct CounterRecord {
 
 /// Mirrors [`NumberSegment`](flm_core::stdcore::features::numbering::NumberSegment):
 /// one stretch of a number, its content and the reference point it links
-/// to. What differs: the content is the extension API's node, the root of
-/// the segment's tree (a list node over the content's nodes), which a rule
-/// places with [`Lowerer::splice`](crate::api::core::lowering::Lowerer::splice);
-/// the fields are public.
-pub struct NumberSegment<'t> {
-    /// The root of the segment's content.
-    pub content: Box<dyn Node<'t> + 't>,
+/// to. What differs: the content is the façade of the segment's tree (a
+/// synthesized value whose root is a list node over the content's nodes),
+/// which a rule places with
+/// [`Lowerer::splice`](crate::api::core::lowering::Lowerer::splice); the
+/// fields are public.
+pub struct NumberSegment {
+    /// The segment's content.
+    pub content: Box<dyn Tree>,
     /// The reference point the segment links to, or `None`.
     pub link: Option<PointId>,
 }
@@ -164,13 +165,13 @@ pub trait Counters: Sealed + PointsCore {
     /// segments, or `None` for a point the table holds no number for.
     /// `options` says which variant of the prefix words to use, and whether
     /// the word and the delimiters are written. What differs: the segments
-    /// are [`NumberSegment`]s, whose content each owns its tree, and the
+    /// are [`NumberSegment`]s, whose content each shares its tree, and the
     /// result's order is `Result<Option<…>>`.
     ///
     /// # Errors
     ///
     /// `flm-core`'s `FormatError` ([`ExtError::Core`] of kind `format`).
-    fn format<'s>(&self, point: PointId, options: &FormatOptions) -> Result<Option<Vec<NumberSegment<'s>>>, ExtError>;
+    fn format(&self, point: PointId, options: &FormatOptions) -> Result<Option<Vec<NumberSegment>>, ExtError>;
 }
 
 fn _object_safe(_: &dyn Counters) {}

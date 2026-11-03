@@ -222,7 +222,7 @@ pub enum Site {
 /// [`BuildError::UndeclaredArgumentRole`] refers to.
 ///
 /// Its [`Display`](fmt::Display) form writes the argument as a message does,
-/// for example `` argument #1 of `\k` `` or
+/// for example `` argument 1 of `\k` `` or
 /// `` the argument `name` of the field `\tag` of `\k` ``.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArgumentPlace {
@@ -292,7 +292,7 @@ impl fmt::Display for ArgumentPlace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.argument {
             Some(name) => write!(f, "the argument `{name}`")?,
-            None => write!(f, "argument #{}", self.index + 1)?,
+            None => write!(f, "argument {}", self.index + 1)?,
         }
         if let Some(field) = &self.field {
             write!(f, " of the field `\\{field}`")?;
@@ -1100,8 +1100,8 @@ enum Round {
 }
 
 // Recording everything and checking it afterwards is what makes registration
-// order irrelevant: see the design rationale at
-// [§flm-dd-dr:feat-emergent-deps].
+// order irrelevant: a feature may name what a later feature declares, and it
+// declares no dependencies, since its declarations already say what it needs.
 /// The feature builder: the value through which a feature declares what it
 /// contributes to a registry. Each method records one declaration in the
 /// build's [`Roster`] and attributes it to the feature this builder was created
@@ -1461,7 +1461,9 @@ impl<'a> FeatureBuilder<'a> {
     /// assert_eq!(role.owner, "glossary");
     /// # Ok::<(), flm_core::core::registry::RegistryBuildError>(())
     /// ```
-    // See decision rationale at [§flm-dd-dr:arg-role].
+    // A role is a name one feature declares in the registry, not free text, so that
+    // the name has an owner and a documentation text, and a misspelled role is
+    // reported.
     pub fn argument_role(&mut self, name: impl Into<Name>, docs: impl Into<String>) -> Result<(), BuildError> {
         self.roster.argument_roles.push((self.feature.clone(), ArgumentRoleDef::new(name, docs)));
         Ok(())
@@ -1781,7 +1783,8 @@ impl<'a> FeatureBuilder<'a> {
         Ok(())
     }
 
-    // See the design rationale at [§flm-dd-dr:feat-pres-minted].
+    // The registry creates the value and hands it back, so that the nodes a backend
+    // stages carry exactly the value the registry interned and attributed to the feature.
     /// Registers a **presentation element**: an element that exists only in the
     /// trees a backend writes, with no syntax and no callable name of its own,
     /// whose nodes carry a payload of type `P`. Returns the element value.

@@ -43,6 +43,9 @@ pub const PARBREAK: &str = names::PARBREAK;
 /// Mirrors [`PLACEHOLDER`](names::PLACEHOLDER): `flm.placeholder`, the element of a template's placeholder.
 pub const PLACEHOLDER: &str = names::PLACEHOLDER;
 
+/// Mirrors [`FIELD`](names::FIELD): `flm.field`, the element of a field node, a macro that a construct reads as data.
+pub const FIELD: &str = names::FIELD;
+
 /// Mirrors [`UNKNOWN_MACRO`](names::UNKNOWN_MACRO): `flm.unknown.macro`, the element of a macro no feature defines.
 pub const UNKNOWN_MACRO: &str = names::UNKNOWN_MACRO;
 
@@ -50,4 +53,4 @@ pub const UNKNOWN_MACRO: &str = names::UNKNOWN_MACRO;
 pub const UNKNOWN_ENVIRONMENT: &str = names::UNKNOWN_ENVIRONMENT;
 
 /// Mirrors [`NAMES`](names::NAMES): every structural element name, in the fixed order of the set.
-pub const NAMES: [&str; 12] = names::NAMES;
+pub const NAMES: [&str; 13] = names::NAMES;

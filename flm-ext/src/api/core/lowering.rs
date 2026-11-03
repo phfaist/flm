@@ -28,7 +28,7 @@ use crate::api::core::data::table::TableValue;
 use crate::api::lang::BuiltLang;
 use crate::api::lang::text::NotCharacters;
 use crate::api::techy::error::Diagnostic;
-use crate::api::techy::node::Node;
+use crate::api::techy::node::{Node, Tree};
 use crate::runtime::ExtError;
 use crate::sealed::{LowerCxCore, LowererCore, Sealed, Token};
 
@@ -505,15 +505,15 @@ pub trait Lowerer: Sealed + LowererCore {
     fn text(&mut self, cx: &mut dyn LowerCx, text: &str) -> Result<Staged, ExtError>;
 
     /// Mirrors [`Lowerer::splice`](flm_core::core::lowering::Lowerer::splice).
-    /// What differs: the synthesized value is the root node of its tree (a
-    /// tree a table answered); the adapter splices a copy of that tree.
+    /// What differs: the synthesized value is its façade (a number segment's
+    /// content, a tree [`instantiate`](crate::api::lang::rewrites::userdefs::instantiate)
+    /// answered), and `flm-core` splices the tree it shares.
     ///
     /// # Errors
     ///
-    /// `value` is not the root of its tree, or `cx` was not lent to this call
-    /// ([`ExtError::Argument`]); `flm-core` refuses ([`ExtError::Core`] of
-    /// kind `lower`).
-    fn splice(&mut self, cx: &mut dyn LowerCx, value: &dyn Node<'_>) -> Result<Vec<Staged>, ExtError>;
+    /// `cx` was not lent to this call ([`ExtError::Argument`]); `flm-core`
+    /// refuses ([`ExtError::Core`] of kind `lower`).
+    fn splice(&mut self, cx: &mut dyn LowerCx, value: &dyn Tree) -> Result<Vec<Staged>, ExtError>;
 
     /// Mirrors [`Lowerer::lower_region`](flm_core::core::lowering::Lowerer::lower_region).
     /// What differs: no shape function; the region's content is lowered as
@@ -535,13 +535,12 @@ pub trait Lowerer: Sealed + LowererCore {
     /// Mirrors [`Lowerer::diagnose`](flm_core::core::lowering::Lowerer::diagnose):
     /// reports `diagnostic`, at the node being lowered unless it has a place
     /// of its own. What differs: the diagnostic is data, and the method
-    /// answers a `Result`, since it checks the diagnostic's identifier.
+    /// answers a `Result`, since the data may hold a value that cannot cross.
     ///
     /// # Errors
     ///
-    /// The diagnostic's identifier does not begin with the extension's stem
-    /// and a dot ([`ExtError::NameOutsideExtension`]), or its data cannot
-    /// cross ([`ExtError::Value`]); nothing is reported then.
+    /// The diagnostic's data cannot cross ([`ExtError::Value`]); nothing is
+    /// reported then.
     fn diagnose(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError>;
 }
 

@@ -1,4 +1,4 @@
-//! The JSON boundary (plan A, WP-5): every handle kind driven by name through
+//! The JSON boundary: every handle kind driven by name through
 //! `dispatch::call` with JSON arguments, the stale handles, the wrong kinds and
 //! unknown methods, the values that do not cross, and case 1 run through JSON
 //! alone with the `JsonDouble`.
@@ -143,7 +143,7 @@ fn kind_of(value: &Value) -> Option<HandleKind> {
 #[test]
 fn case_one_runs_through_json_alone() {
     let registry = registry_with([case_one().package()]);
-    // The hook, against WP-4's golden.
+    // The hook, against `tests/expand.rs`'s golden.
     let (text, diagnostics) = text_of(&registry, "Say \\shout{hey there} and \\shout{you}.");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_text_golden(golden("shout.txt"), &text);
@@ -151,7 +151,7 @@ fn case_one_runs_through_json_alone() {
     let (text, diagnostics) = text_of(&registry, "Say \\shout{\\emph{hey}}.");
     assert_eq!(diagnostics, ["wordcount.shout.not-characters: the argument of \\shout must be plain characters"]);
     assert!(text.contains("\\shout{\\emph{hey}}"), "{text}");
-    // The three fixed definitions, in plan B's document.
+    // The three fixed definitions, in case 1's document.
     let document = "\\flmname{} counts words. \\sayhi{World}\n\n\\shout{listen} to this \\todo{check the numbers}.\n\n\\section{Two}\nSecond paragraph, \\shout{quietly}.";
     let (text, diagnostics) = text_of(&registry, document);
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -159,14 +159,14 @@ fn case_one_runs_through_json_alone() {
         assert!(text.contains(expected), "{expected:?} in {text:?}");
     }
     assert!(!text.contains("\\todo") && !text.contains("check the numbers") && !text.contains("\\shout"), "{text}");
-    // The word count, against WP-3's table.
+    // The word count.
     let run = run_demanding(&registry, &[WORDS], &["One two \\emph{three}", "Four five"]);
     assert!(common::diagnostics(&run).is_empty(), "{:?}", common::diagnostics(&run));
     let mut found = items(&run, WORDS);
     found.sort_by_key(|item| item["tree"].as_str().map(str::to_string));
     assert_eq!(found, [json!({ "tree": "tree#0", "words": 3 }), json!({ "tree": "tree#1", "words": 2 })]);
-    // The markers, against WP-3's table, under the default plan and with the
-    // per-plan definitions expanded explicitly.
+    // The markers, under the default plan and with the per-plan definitions
+    // expanded explicitly.
     let texts = ["A \\todo{check this} B.\n\nC \\todo{and that}.", "D \\todo{last}."];
     let expected = [
         json!({ "tree": "tree#0", "text": "check this" }),
@@ -232,7 +232,7 @@ fn a_feature_builder_answers_its_methods_by_name() {
             },
         )?;
         seen.note("stage", js.call(b, "stage", json!([stage]))?);
-        // A3: bytes cross as a string.
+        // Bytes cross as a string.
         seen.note("digest_input", js.call(b, "digest_input", json!(["the code, v1"]))?);
         // Refusals.
         seen.note("no method", outcome(js.call(b, "push", json!([1]))));
@@ -320,15 +320,18 @@ fn stage_scenario(log: &Log) -> Run {
                 let id = tree.as_str().unwrap_or("").to_string();
                 let note = |label: &str, value: Value| log.note(format!("{id} {label}"), value);
                 note("scope", js.call(cx, "scope", json!([]))?);
-                let root = js.call(cx, "my_tree", json!([]))?;
-                note("my_tree", json!(kind_of(&root).map(HandleKind::name)));
+                let mine = js.call(cx, "my_tree", json!([]))?;
+                note("my_tree", json!(kind_of(&mine).map(HandleKind::name)));
+                let root = js.call(&mine, "root", json!([]))?;
                 note("my_tree span", js.call(&root, "span_content", json!([]))?);
                 let by_id = js.call(cx, "tree", json!([id]))?;
+                let by_id = js.call(&by_id, "root", json!([]))?;
                 note("tree span", js.call(&by_id, "span_content", json!([]))?);
                 let frozen = js.call(cx, "frozen_tree", json!([id]))?;
+                let frozen = js.call(&frozen, "root", json!([]))?;
                 note("frozen_tree span", js.call(&frozen, "span_content", json!([]))?);
                 note("tree unknown", js.call(cx, "tree", json!(["tree#99"]))?);
-                // A4: a tuple crosses as a list.
+                // A tuple crosses as a list.
                 let trees = js.call(cx, "trees", json!([]))?;
                 note("trees ids", json!(trees.as_array().map(|pairs| pairs.iter().map(|pair| pair[0].clone()).collect::<Vec<_>>())));
                 note("trees kinds", json!(trees.as_array().map(|pairs| pairs.iter().map(|pair| kind_of(&pair[1]).map(HandleKind::name)).collect::<Vec<_>>())));
@@ -354,7 +357,6 @@ fn stage_scenario(log: &Log) -> Run {
                 let at = emph.as_array().and_then(|nodes| nodes.first()).cloned().unwrap_or(Value::Null);
                 let diagnostic = json!({ "id": "wc.seen", "severity": "note", "message": "seen", "data": { "n": 1 }, "at": at });
                 note("diags", js.call(out, "diags", json!([diagnostic]))?);
-                note("diags outside", outcome(js.call(out, "diags", json!([{ "id": "other.x", "severity": "note", "message": "m" }]))));
                 note("no method", outcome(js.call(cx, "push", json!([]))));
                 Ok(())
             },
@@ -376,6 +378,7 @@ fn stage_scenario(log: &Log) -> Run {
                 let pairs = js.call(&trees["trees"], "trees", json!([]))?;
                 log.note("trees ids", json!(pairs.as_array().map(|pairs| pairs.iter().map(|pair| pair[0].clone()).collect::<Vec<_>>())));
                 let one = js.call(&trees["trees"], "tree", json!(["tree#1"]))?;
+                let one = js.call(&one, "root", json!([]))?;
                 log.note("tree", js.call(&one, "span_content", json!([]))?);
                 log.note("tree unknown", js.call(&trees["trees"], "tree", json!(["tree#9"]))?);
                 let labels = js.call(cx, "get", json!(["flm.labels"]))?;
@@ -397,13 +400,13 @@ fn a_stage_context_answers_its_methods_by_name() {
     let run = stage_scenario(&log);
     assert_eq!(common::identifiers(&run), ["wc.seen", "wc.seen"], "{:?}", common::diagnostics(&run));
     assert_eq!(log.get("tree#0 scope"), json!("per-tree"));
-    assert_eq!(log.get("tree#0 my_tree"), json!("node"));
+    assert_eq!(log.get("tree#0 my_tree"), json!("tree"));
     assert_eq!(log.get("tree#0 my_tree span"), json!("One \\emph{two}."));
     assert_eq!(log.get("tree#0 tree span"), log.get("tree#0 my_tree span"));
     assert_eq!(log.get("tree#1 frozen_tree span"), json!("Three."));
     assert_eq!(log.get("tree#0 tree unknown"), Value::Null);
     assert_eq!(log.get("tree#0 trees ids"), json!(["tree#0", "tree#1"]));
-    assert_eq!(log.get("tree#0 trees kinds"), json!(["node", "node"]));
+    assert_eq!(log.get("tree#0 trees kinds"), json!(["tree", "tree"]));
     // The walk covers every tree, each entry an address and a node.
     assert_eq!(
         log.get("tree#1 walk"),
@@ -435,8 +438,6 @@ fn a_stage_output_and_a_table_piece_answer_their_methods_by_name() {
     // descendant (`One ` and `Three.`), not at the whole tree.
     let spans: Vec<std::ops::Range<usize>> = run.diagnostics().iter().map(|d| d.span().range()).collect();
     assert_eq!(spans, [0..4, 0..6], "{:?}", common::diagnostics(&run));
-    let outside = log.get("tree#0 diags outside");
-    assert_eq!(outside["err"]["kind"], json!("name_outside_extension"), "{outside}");
 }
 
 #[test]
@@ -504,7 +505,7 @@ fn a_node_answers_its_methods_by_name() {
     let descendants = ask(&root, "descendants", json!([]));
     let chars: Vec<Value> = descendants.as_array().into_iter().flatten().map(|node| ask(node, "chars", json!([]))).collect();
     assert_eq!(chars, [Value::Null, Value::Null, json!("ab"), json!(" cd")]);
-    // A4: a pair crosses as a list.
+    // A pair crosses as a list.
     let group = ask(&emph, "child", json!([0]));
     assert_eq!(ask(&group, "group_delimiters", json!([])), json!(["{", "}"]));
     assert_eq!(ask(&group, "is_group", json!([])), json!(true));
@@ -712,7 +713,7 @@ fn nested(log: &Log) -> Arc<FlmRegistry> {
             log.note("outer depth", js.call(xp, "depth", json!([]))?);
             log.note("recursion_limit", js.call(xp, "recursion_limit", json!([]))?);
             // The definition the element was registered with, through the
-            // context (plan A, A37).
+            // context.
             let registered = js.call(cx, "definition", json!([]))?;
             log.note("registered", json!(kind_of(&registered).map(HandleKind::name)));
             if kind_of(&registered).is_some() {
@@ -764,8 +765,7 @@ fn an_expander_a_context_and_the_definition_s_objects_answer_their_methods_by_na
     assert_eq!(log.get("staged").as_array().map(|kinds| kinds.iter().all(|kind| kind == "staged")), Some(true));
     assert_eq!(log.get("diagnose"), Value::Null);
     assert_eq!(log.get("no method")["err"]["detail"], json!("an object of the kind `compiled_template` has no method `instantiate`"));
-    // Every other kind without methods answers the same way (the WP-5
-    // review's m3).
+    // Every other kind without methods answers the same way.
     for (kind, method) in
         [("stage", "run"), ("expand", "expand"), ("element_def", "owner"), ("staged", "chars"), ("placeholder_bindings", "bind")]
     {
@@ -861,7 +861,7 @@ fn an_unknown_method_is_an_argument_error() {
     assert_eq!(error.kind(), "argument");
 }
 
-// --- E5's WP-1a: the data payload, the lowered trees, a node's payload and slots -------------------
+// --- the data payload, the lowered trees, a node's payload and slots -------------------------------
 
 #[test]
 fn a_data_payload_element_and_the_lowered_trees_answer_by_name() {
@@ -923,7 +923,8 @@ fn a_data_payload_element_and_the_lowered_trees_answer_by_name() {
                 seen.note("rounds", js.call(&lowered, "rounds", json!([id]))?);
                 seen.note("requires", js.call(&lowered, "requires", json!([id]))?);
                 seen.note("absent", js.call(&lowered, "tree", json!(["tree#9"]))?);
-                let root = js.call(&lowered, "tree", json!([id]))?;
+                let tree = js.call(&lowered, "tree", json!([id]))?;
+                let root = js.call(&tree, "root", json!([]))?;
                 seen.note("root", js.call(&root, "element_name", json!([]))?);
                 seen.note("root payload", js.call(&root, "payload", json!([]))?);
                 let descendants = js.call(&root, "descendants", json!([]))?;

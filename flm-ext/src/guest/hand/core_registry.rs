@@ -1,21 +1,39 @@
 //! The guest's own types of `flm:core/registry` that hold handler objects
 //! ([`BackendDef`], [`BackendStage`], [`Contributed`]), the handler traits
 //! [`LateInit`] and [`Finalizer`], and the record-and-lend methods of the
-//! builder (`FeatureBuilder::feature`, `stage`, `rewrite_stage`,
+//! builder (`FeatureBuilder::feature`, `stage`, `rewrite_stage`, `backend`,
 //! `contribute_to`, `contribute_first_to`, `peer_slot`, `attach`,
-//! `late_init`, `finalizer`) and of a backend (`BackendDef::new`), the twins
-//! of the prelude's fragment `core-registry.js`: each records its handler
-//! object in the running `register`'s record, then lends it and sends the
-//! call unless the builder is a rehearsal's, which sends nothing.
+//! `late_init`, `finalizer`), the twins of the prelude's fragment
+//! `core-registry.js`: each records its handler objects in the running
+//! `register`'s record, then lends them and sends the call unless the
+//! builder is a rehearsal's, which sends nothing. Compiled into a program
+//! (the cargo feature `native`), the lending and the call are one typed step
+//! on the running call's frame: the natives' body builds each handler
+//! object, which the API method takes as it is.
 
 use std::fmt;
 use std::sync::Arc;
 
-use serde_json::{json, Value};
+#[cfg(not(feature = "native"))]
+use serde_json::json;
+use serde_json::Value;
 
-use super::arg;
-use crate::adapter::values::JsonForm;
-use crate::guest::abi::{self, ToArg};
+#[cfg(feature = "native")]
+use crate::adapter::dispatch::entry;
+#[cfg(feature = "native")]
+use crate::adapter::typed::{FromApi, IntoApi};
+#[cfg(not(feature = "native"))]
+use crate::adapter::values::{handle_to_value, JsonForm};
+#[cfg(feature = "native")]
+use crate::api;
+use crate::api::core::stage::{Needs, StageDecl};
+#[cfg(feature = "native")]
+use crate::binding::frames::FrameView;
+#[cfg(feature = "native")]
+use crate::binding::natives::{self, Act};
+use crate::guest::abi;
+#[cfg(not(feature = "native"))]
+use crate::guest::abi::ToArg;
 use crate::guest::core::registry::{FeatureBuilder, LibraryStage};
 use crate::guest::core::stage::{RewriteStage, Stage};
 use crate::guest::model::element::Aspect;
@@ -58,29 +76,54 @@ pub enum BackendStage {
 }
 
 impl BackendStage {
-    /// Whether `self` is `other`: a library stage by its handle, an own stage
-    /// by its object.
-    fn is(&self, other: &BackendStage) -> bool {
-        match (self, other) {
-            (BackendStage::Library(stage), BackendStage::Library(other)) => stage == other,
-            (BackendStage::Own(stage), BackendStage::Own(other)) => Arc::ptr_eq(stage, other),
-            _ => false,
-        }
-    }
-
-    /// The stage's crossing form, an own stage recorded under its name and,
-    /// unless the running `register` is a rehearsal, lent (`null` in a
-    /// rehearsal, whose builder sends nothing).
-    fn lent(&self) -> Result<Value, ExtError> {
+    /// Records an own stage under its name, as [`FeatureBuilder::stage`]
+    /// records it; answers what lending the stage takes.
+    fn recorded(&self) -> Result<StageLending, ExtError> {
         match self {
-            BackendStage::Library(stage) => Ok(stage.to_value()),
+            BackendStage::Library(stage) => Ok(StageLending::Library(*stage)),
             BackendStage::Own(stage) => {
                 let decl = stage.decl();
                 let needs = stage.needs();
                 registry::record_stage(&decl.name, Arc::clone(stage))?;
-                if registry::rehearsing() { Ok(Value::Null) } else { registry::lend_stage(&decl, &needs) }
+                Ok(StageLending::Own(Box::new((decl, needs))))
             }
         }
+    }
+}
+
+/// What lending a stage of a backend takes once it is recorded: a stage of
+/// the library, or the declaration and needs of an own stage, read from the
+/// extension's object when it is recorded.
+enum StageLending {
+    /// A stage of the library.
+    Library(LibraryStage),
+    /// An own stage, of this declaration and these needs.
+    Own(Box<(StageDecl, Needs)>),
+}
+
+impl StageLending {
+    /// What [`FeatureBuilder::backend`] sends for the stage in a WebAssembly
+    /// module: a library stage's handle, an own stage lent (`lend_stage`)
+    /// and its handle.
+    #[cfg(not(feature = "native"))]
+    fn sent(&self) -> Result<Value, ExtError> {
+        match self {
+            StageLending::Library(stage) => Ok(stage.to_value()),
+            StageLending::Own(own) => registry::lend_stage(&own.0, &own.1).map(handle_to_value),
+        }
+    }
+
+    /// The api's stage: a library stage, the entry of its handle; an own
+    /// stage, built on the frame `view` by the natives' body (`lend_stage`).
+    #[cfg(feature = "native")]
+    fn stage(self, view: &mut FrameView<'_, '_>) -> Result<api::core::registry::BackendStage, ExtError> {
+        Ok(match self {
+            StageLending::Library(stage) => api::core::registry::BackendStage::Library(stage.into_api(view.table)?),
+            StageLending::Own(own) => {
+                let (decl, needs) = *own;
+                api::core::registry::BackendStage::Own(natives::lend_stage(view, decl, needs))
+            }
+        })
     }
 }
 
@@ -95,10 +138,8 @@ impl fmt::Debug for BackendStage {
 }
 
 /// Mirrors [`BackendDef`](crate::api::core::registry::BackendDef): a backend
-/// an extension declares. It keeps, beside each stage, the stage given to
-/// [`BackendDef::new`] and the handle its lending answered (a library
-/// stage's own handle; an own stage's lent one), which is what crosses; a
-/// stage field changed since is refused when the backend is sent.
+/// an extension declares, plain data: its stages are recorded and lent
+/// when it is registered ([`FeatureBuilder::backend`]).
 #[derive(Clone)]
 pub struct BackendDef {
     /// The backend's name.
@@ -113,37 +154,20 @@ pub struct BackendDef {
     pub final_stage: BackendStage,
     /// The backend's documentation.
     pub docs: String,
-    /// The stages given to [`BackendDef::new`], `lowering`, `emit` and
-    /// `final_stage` in that order, each beside its crossing form: its
-    /// handle.
-    pub(crate) stages: [(BackendStage, Value); 3],
 }
 
 impl BackendDef {
     /// Mirrors [`BackendDef::new`](crate::api::core::registry::BackendDef::new):
     /// the backend `name`, writing the elements `native` directly, with its
-    /// three stages and no documentation. Each own stage is recorded under
-    /// its name and lent, as [`FeatureBuilder::stage`] does, so the backend
-    /// is made while a feature's `register` runs (in a rehearsal it is
-    /// recorded and not lent).
-    ///
-    /// # Errors
-    ///
-    /// An own stage given while no `register` runs ([`ExtError::Handler`]),
-    /// or the host's refusal of its lending.
+    /// three stages and no documentation.
     pub fn new(
         name: impl Into<String>,
         native: Vec<String>,
         lowering: BackendStage,
         emit: BackendStage,
         final_stage: BackendStage,
-    ) -> Result<BackendDef, ExtError> {
-        let stages = [
-            (lowering.clone(), lowering.lent()?),
-            (emit.clone(), emit.lent()?),
-            (final_stage.clone(), final_stage.lent()?),
-        ];
-        Ok(BackendDef { name: name.into(), native, lowering, emit, final_stage, docs: String::new(), stages })
+    ) -> BackendDef {
+        BackendDef { name: name.into(), native, lowering, emit, final_stage, docs: String::new() }
     }
 
     /// Mirrors [`BackendDef::docs`](crate::api::core::registry::BackendDef::docs).
@@ -160,33 +184,6 @@ impl fmt::Debug for BackendDef {
     }
 }
 
-/// `{"name", "native", "lowering", "emit", "final_stage", "docs"}`, each
-/// stage its handle; read by the host's `backend_def_from_table`. A backend
-/// crosses from the guest only. A stage field that is no longer the stage
-/// given to [`BackendDef::new`] is refused, naming the field.
-impl ToArg for BackendDef {
-    fn arg(&self) -> Result<Value, ExtError> {
-        let fields = [("lowering", &self.lowering), ("emit", &self.emit), ("final_stage", &self.final_stage)];
-        for ((field, stage), (given, _)) in fields.into_iter().zip(&self.stages) {
-            if !stage.is(given) {
-                return Err(ExtError::Argument {
-                    method: String::new(),
-                    detail: format!("the stage `{field}` of the backend `{}` must be the stage given to `BackendDef::new`", self.name),
-                });
-            }
-        }
-        let [(_, lowering), (_, emit), (_, final_stage)] = &self.stages;
-        Ok(json!({
-            "name": self.name,
-            "native": self.native,
-            "lowering": lowering,
-            "emit": emit,
-            "final_stage": final_stage,
-            "docs": self.docs,
-        }))
-    }
-}
-
 /// Mirrors [`Contributed`](crate::api::core::registry::Contributed): what a
 /// feature contributes to a service slot. The methods that take it record
 /// and lend a handler object.
@@ -200,9 +197,49 @@ pub enum Contributed {
     TemplateModule(Arc<dyn TemplateModule>),
 }
 
+/// The builder's methods that contribute to a service slot.
+#[derive(Clone, Copy)]
+enum Contributing {
+    /// `contribute_to`.
+    To,
+    /// `contribute_first_to`.
+    FirstTo,
+    /// `peer_slot`.
+    PeerSlot,
+}
+
+impl Contributing {
+    /// The method's name.
+    fn method(self) -> &'static str {
+        match self {
+            Contributing::To => "contribute_to",
+            Contributing::FirstTo => "contribute_first_to",
+            Contributing::PeerSlot => "peer_slot",
+        }
+    }
+
+    /// Calls the method on the api's builder `b`.
+    #[cfg(feature = "native")]
+    fn call(
+        self,
+        b: &mut dyn api::core::registry::FeatureBuilder,
+        slot: &str,
+        value: api::core::registry::Contributed,
+    ) -> Result<(), ExtError> {
+        match self {
+            Contributing::To => b.contribute_to(slot, value),
+            Contributing::FirstTo => b.contribute_first_to(slot, value),
+            Contributing::PeerSlot => b.peer_slot(slot, value),
+        }
+    }
+}
+
 /// The record-and-lend methods of the builder (`GUEST_HAND`), the twins of
 /// `core-registry.js`: each records its object, then sends unless the
-/// builder is a rehearsal's (its handle `None`).
+/// builder is a rehearsal's (its handle `None`). Compiled into a program,
+/// each lends and calls in one step on the running call's frame
+/// (`abi::in_frame`), refused outside a handler call in the words of the
+/// first native it sends as JSON.
 impl FeatureBuilder {
     /// Mirrors [`FeatureBuilder::feature`](crate::api::core::registry::FeatureBuilder::feature):
     /// the name of the feature whose `register` runs (in a rehearsal, without
@@ -212,9 +249,18 @@ impl FeatureBuilder {
     ///
     /// The host's refusal; in a rehearsal, none.
     pub fn feature(&self) -> Result<String, ExtError> {
-        match self.handle {
-            None => registry::registering_feature(),
-            Some(handle) => JsonForm::from_value(&abi::call(handle, "feature", vec![])?),
+        let Some(handle) = self.handle else { return registry::registering_feature() };
+        #[cfg(not(feature = "native"))]
+        {
+            JsonForm::from_value(&abi::call(handle, "feature", vec![])?)
+        }
+        #[cfg(feature = "native")]
+        {
+            abi::typed("feature", |table| {
+                let this = entry!(table, handle, Builder, FeatureBuilder);
+                let answer = this.feature();
+                FromApi::from_api(answer, table)
+            })
         }
     }
 
@@ -230,9 +276,20 @@ impl FeatureBuilder {
         let needs = stage.needs();
         registry::record_stage(&decl.name, stage)?;
         let Some(handle) = self.handle else { return Ok(()) };
-        let lent = registry::lend_stage(&decl, &needs)?;
-        abi::call(handle, "stage", vec![lent])?;
-        Ok(())
+        #[cfg(not(feature = "native"))]
+        {
+            let lent = registry::lend_stage(&decl, &needs)?;
+            abi::call(handle, "stage", vec![handle_to_value(lent)])?;
+            Ok(())
+        }
+        #[cfg(feature = "native")]
+        {
+            abi::in_frame(Act::Stage, "stage", |view| {
+                let stage = natives::lend_stage(view, decl, needs);
+                let this = entry!(view.table, handle, Builder, FeatureBuilder);
+                this.stage(stage)
+            })
+        }
     }
 
     /// Mirrors [`FeatureBuilder::rewrite_stage`](crate::api::core::registry::FeatureBuilder::rewrite_stage):
@@ -247,18 +304,85 @@ impl FeatureBuilder {
         let needs = stage.needs();
         registry::record_rewrite(&decl.name, stage)?;
         let Some(handle) = self.handle else { return Ok(()) };
-        let lent = registry::lend_rewrite(&decl, &needs)?;
-        abi::call(handle, "rewrite_stage", vec![lent])?;
-        Ok(())
+        #[cfg(not(feature = "native"))]
+        {
+            let lent = registry::lend_rewrite(&decl, &needs)?;
+            abi::call(handle, "rewrite_stage", vec![handle_to_value(lent)])?;
+            Ok(())
+        }
+        #[cfg(feature = "native")]
+        {
+            abi::in_frame(Act::Rewrite, "rewrite_stage", |view| {
+                let stage = natives::lend_rewrite(view, decl, needs);
+                let this = entry!(view.table, handle, Builder, FeatureBuilder);
+                this.rewrite_stage(stage)
+            })
+        }
     }
 
-    /// Sends `method` with the slot `slot` and the contribution `value`, a
-    /// handler object in it recorded and, unless in a rehearsal, lent.
-    fn contribute(&mut self, method: &str, slot: &str, value: &Contributed) -> Result<(), ExtError> {
-        let sent = registry::contributed(value, self.handle.is_none())?;
+    /// Mirrors [`FeatureBuilder::backend`](crate::api::core::registry::FeatureBuilder::backend):
+    /// registers the backend `def`, its three stages as this feature's own.
+    /// The stages are those the fields of `def` hold: each own stage among
+    /// them is recorded under its name, as [`stage`](FeatureBuilder::stage)
+    /// records it, and lent. In a WebAssembly module the backend crosses as
+    /// `{"name", "native", "lowering", "emit", "final_stage", "docs"}`, each
+    /// stage its handle, read by the host's `backend_def_from_table`.
+    ///
+    /// # Errors
+    ///
+    /// The host's refusal.
+    pub fn backend(&mut self, def: BackendDef) -> Result<(), ExtError> {
+        let lowering = def.lowering.recorded()?;
+        let emit = def.emit.recorded()?;
+        let final_stage = def.final_stage.recorded()?;
         let Some(handle) = self.handle else { return Ok(()) };
-        abi::call(handle, method, vec![arg(slot, method)?, sent])?;
-        Ok(())
+        #[cfg(not(feature = "native"))]
+        {
+            let sent = json!({
+                "name": def.name,
+                "native": def.native,
+                "lowering": lowering.sent()?,
+                "emit": emit.sent()?,
+                "final_stage": final_stage.sent()?,
+                "docs": def.docs,
+            });
+            abi::call(handle, "backend", vec![sent])?;
+            Ok(())
+        }
+        #[cfg(feature = "native")]
+        {
+            let own = [&lowering, &emit, &final_stage].iter().any(|stage| matches!(stage, StageLending::Own(..)));
+            let act = if own { Act::Stage } else { Act::Call("backend") };
+            let BackendDef { name, native, docs, .. } = def;
+            abi::in_frame(act, "backend", |view| {
+                let (lowering, emit, final_stage) = (lowering.stage(view)?, emit.stage(view)?, final_stage.stage(view)?);
+                let def = api::core::registry::BackendDef::new(name, native, lowering, emit, final_stage).docs(docs);
+                let this = entry!(view.table, handle, Builder, FeatureBuilder);
+                this.backend(def)
+            })
+        }
+    }
+
+    /// Sends the method `contributing` with the slot `slot` and the
+    /// contribution `value`, a handler object in it recorded and, unless in a
+    /// rehearsal, lent.
+    fn contribute(&mut self, contributing: Contributing, slot: &str, value: &Contributed) -> Result<(), ExtError> {
+        let lending = registry::record_contributed(value)?;
+        let Some(handle) = self.handle else { return Ok(()) };
+        let method = contributing.method();
+        #[cfg(not(feature = "native"))]
+        {
+            abi::call(handle, method, vec![ToArg::arg(slot), lending.sent()?])?;
+            Ok(())
+        }
+        #[cfg(feature = "native")]
+        {
+            abi::in_frame(lending.act(method), method, |view| {
+                let value = lending.contributed(view);
+                let this = entry!(view.table, handle, Builder, FeatureBuilder);
+                contributing.call(&mut **this, slot, value)
+            })
+        }
     }
 
     /// Mirrors [`FeatureBuilder::contribute_to`](crate::api::core::registry::FeatureBuilder::contribute_to):
@@ -271,7 +395,7 @@ impl FeatureBuilder {
     /// A second handler object of the kind under one name in one `register`
     /// ([`ExtError::Handler`]), or the host's refusal.
     pub fn contribute_to(&mut self, slot: &str, value: Contributed) -> Result<(), ExtError> {
-        self.contribute("contribute_to", slot, &value)
+        self.contribute(Contributing::To, slot, &value)
     }
 
     /// Mirrors [`FeatureBuilder::contribute_first_to`](crate::api::core::registry::FeatureBuilder::contribute_first_to):
@@ -283,7 +407,7 @@ impl FeatureBuilder {
     ///
     /// As [`contribute_to`](FeatureBuilder::contribute_to).
     pub fn contribute_first_to(&mut self, slot: &str, value: Contributed) -> Result<(), ExtError> {
-        self.contribute("contribute_first_to", slot, &value)
+        self.contribute(Contributing::FirstTo, slot, &value)
     }
 
     /// Mirrors [`FeatureBuilder::peer_slot`](crate::api::core::registry::FeatureBuilder::peer_slot):
@@ -295,7 +419,7 @@ impl FeatureBuilder {
     ///
     /// As [`contribute_to`](FeatureBuilder::contribute_to).
     pub fn peer_slot(&mut self, slot: &str, value: Contributed) -> Result<(), ExtError> {
-        self.contribute("peer_slot", slot, &value)
+        self.contribute(Contributing::PeerSlot, slot, &value)
     }
 
     /// Mirrors [`FeatureBuilder::attach`](crate::api::core::registry::FeatureBuilder::attach):
@@ -307,9 +431,21 @@ impl FeatureBuilder {
     /// The host's refusal.
     pub fn attach(&mut self, element: &str, aspect: Aspect) -> Result<(), ExtError> {
         let Some(handle) = self.handle else { return registry::record_aspect(element, &aspect) };
-        let given = registry::lend_aspect(element, &aspect)?;
-        abi::call(handle, "attach", vec![arg(element, "attach")?, given])?;
-        Ok(())
+        let lending = registry::record_lent_aspect(element, &aspect)?;
+        #[cfg(not(feature = "native"))]
+        {
+            let given = lending.form(element)?;
+            abi::call(handle, "attach", vec![ToArg::arg(element), given.to_value()])?;
+            Ok(())
+        }
+        #[cfg(feature = "native")]
+        {
+            abi::in_frame(lending.act(element, "attach"), "attach", |view| {
+                let aspect = lending.aspect(view, element);
+                let this = entry!(view.table, handle, Builder, FeatureBuilder);
+                this.attach(element, aspect)
+            })
+        }
     }
 
     /// Mirrors [`FeatureBuilder::late_init`](crate::api::core::registry::FeatureBuilder::late_init):
@@ -322,9 +458,20 @@ impl FeatureBuilder {
     pub fn late_init(&mut self, hook: Arc<dyn LateInit>) -> Result<(), ExtError> {
         let index = registry::record_late_init(hook)?;
         let Some(handle) = self.handle else { return Ok(()) };
-        let lent = registry::lend_late_init(index)?;
-        abi::call(handle, "late_init", vec![lent])?;
-        Ok(())
+        #[cfg(not(feature = "native"))]
+        {
+            let lent = registry::lend_late_init(index)?;
+            abi::call(handle, "late_init", vec![handle_to_value(lent)])?;
+            Ok(())
+        }
+        #[cfg(feature = "native")]
+        {
+            abi::in_frame(Act::LateInit, "late_init", |view| {
+                let hook = natives::lend_late_init(view, index);
+                let this = entry!(view.table, handle, Builder, FeatureBuilder);
+                this.late_init(hook)
+            })
+        }
     }
 
     /// Mirrors [`FeatureBuilder::finalizer`](crate::api::core::registry::FeatureBuilder::finalizer):
@@ -338,8 +485,19 @@ impl FeatureBuilder {
     pub fn finalizer(&mut self, hook: Arc<dyn Finalizer>) -> Result<(), ExtError> {
         let index = registry::record_finalizer(hook)?;
         let Some(handle) = self.handle else { return Ok(()) };
-        let lent = registry::lend_finalizer(index)?;
-        abi::call(handle, "finalizer", vec![lent])?;
-        Ok(())
+        #[cfg(not(feature = "native"))]
+        {
+            let lent = registry::lend_finalizer(index)?;
+            abi::call(handle, "finalizer", vec![handle_to_value(lent)])?;
+            Ok(())
+        }
+        #[cfg(feature = "native")]
+        {
+            abi::in_frame(Act::Finalizer, "finalizer", |view| {
+                let hook = natives::lend_finalizer(view, index);
+                let this = entry!(view.table, handle, Builder, FeatureBuilder);
+                this.finalizer(hook)
+            })
+        }
     }
 }

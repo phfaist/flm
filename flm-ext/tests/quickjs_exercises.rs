@@ -1,4 +1,4 @@
-//! The first case of step E4 through JavaScript: the fixture `exercises` of
+//! A numbered construct through JavaScript: the fixture `exercises` of
 //! `tests/js/exercises/`, a numbered, referenceable environment with a
 //! counter of its own, a heading line, a command legal inside it alone and
 //! the recomposed LaTeX written as the `theorems` feature writes its kinds,

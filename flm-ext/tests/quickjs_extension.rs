@@ -1,8 +1,9 @@
-//! The engine `js` loading extensions through a loader (plan B, section 2):
+//! The engine `js` loading extensions through a loader:
 //! the default export and its package objects, the main module's path, the
 //! module rules at load and on other threads, the files read at load only,
 //! the refusal of every dynamic `import()`, the queued jobs, the rehearsal
-//! with each configuration, the digest, one load's engine instances, and
+//! with each configuration, a feature's configuration reader, the digest,
+//! one load's engine instances, and
 //! case 3 (`tests/js/twopack/`), an extension of two packages.
 
 #![cfg(feature = "quickjs")]
@@ -644,6 +645,41 @@ fn a_registration_with_another_configuration_is_rehearsed_again() {
     // On another thread, each stage is rehearsed with its own configuration.
     let seen_there = on_other_thread(|| (seen(&one), seen(&two), seen(&one)));
     assert_eq!(seen_there, (vec![json!(1)], vec![json!(2)], vec![json!(1)]));
+}
+
+#[test]
+fn a_configuration_reader_answers_what_register_receives_or_the_value_at_fault() {
+    let main = r#"
+        import { StageDecl, Effect, Scope } from "flm:core/stage";
+        export default function (ext) {
+          ext.package("_", { features: { see: {
+            settings: { config: { schema: { type: "object", properties: { n: { type: "integer" } } } } },
+            read(settings) {
+              if (settings.n !== undefined && typeof settings.n !== "number")
+                return { error: { path: "n", detail: `must be a number, not \`${JSON.stringify(settings.n)}\`` } };
+              return { value: { n: (settings.n ?? 1) * 10 } };
+            },
+            register(b, settings) {
+              b.table("wc.seen", "the configuration the stage saw");
+              b.stage({
+                decl: () => new StageDecl("wc.see", Effect.Compute, Scope.Document).writes("wc.seen"),
+                run(cx, out) { out.table("wc.seen").push(settings.n); },
+              });
+            },
+          } } });
+        }
+    "#;
+    let factory = factory_of(&loader(&[("main.js", main)]), "wc");
+    let decl = factory.settings("see").expect("the feature declares settings");
+    let read = |data: Value| decl.read(data.as_object().expect("a map"));
+    // The configuration `register` receives is the reader's answer.
+    let mut settings = PackageSettings::new();
+    settings.insert(read(json!({ "n": 2 })).expect("the settings read"));
+    assert_eq!(seen(&registry_with([factory.build(&settings).expect("the package builds")])), [json!(20)]);
+    // The value at fault, by its path below the feature's name, and the condition it violates.
+    let errors = read(json!({ "n": "two" })).expect_err("a value at fault");
+    let found: Vec<(&str, &str)> = errors.iter().map(|error| (error.path.as_str(), error.detail.as_str())).collect();
+    assert_eq!(found, [("see.n", "the value of `see.n` is invalid: must be a number, not `\"two\"`")]);
 }
 
 #[test]

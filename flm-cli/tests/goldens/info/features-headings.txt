@@ -34,28 +34,6 @@ Element type: flm.heading <flm info namespaces/element/flm.heading>
 • subparagraph: A heading of level 5. Written as
   \subparagraph <flm info features/headings/macros/subparagraph>.
 
-Element type: flm.field <flm info namespaces/element/flm.field>
-
-• The field \label, which the construct it is written after reads as data.
-  Written as the field \label after
-  \section <flm info features/headings/macros/section>.
-
-• The field \label, which the construct it is written after reads as data.
-  Written as the field \label after
-  \subsection <flm info features/headings/macros/subsection>.
-
-• The field \label, which the construct it is written after reads as data.
-  Written as the field \label after
-  \subsubsection <flm info features/headings/macros/subsubsection>.
-
-• The field \label, which the construct it is written after reads as data.
-  Written as the field \label after
-  \paragraph <flm info features/headings/macros/paragraph>.
-
-• The field \label, which the construct it is written after reads as data.
-  Written as the field \label after
-  \subparagraph <flm info features/headings/macros/subparagraph>.
-
 Element type:
 flm.heading.number <flm info namespaces/element/flm.heading.number>
 

@@ -2,7 +2,6 @@ A heading holds blocks¹
 =======================
 
 A formula holds blocks:
-
   \begin{equation}
   x \text{where a note stands2}
   \tag*{(1)}\end{equation}

@@ -8,7 +8,7 @@ edition.workspace = true
 # declares the highest floor among them. rquickjs 0.14 needs 1.87; the floor is
 # checked with the 1.88 toolchain, the lowest installed above it, and the host
 # crates flm-main and flm-cli are at 1.88 already. Raising it beyond 1.88 needs
-# a new toolchain in the battery (dev-docs/ext/e1/battery.sh).
+# a new toolchain in the check script's `msrv` part (scripts/check.sh).
 rust-version = "1.88"
 authors.workspace = true
 license.workspace = true
@@ -24,7 +24,7 @@ quickjs = ["dep:rquickjs"]
 wasm = ["dep:wasmi", "dep:wasmi_core"]
 # The guest client, which an extension written in Rust is compiled against, as a WebAssembly module or
 # into a program: the module `flm_ext::guest`.
-guest = []
+guest = ["dep:schemars"]
 # The engine `native`, which runs extensions written against the guest client and compiled into the
 # program, in the same process: the module `flm_ext::native`. On every target, `wasm32` included, it
 # makes the guest client answer requests in the same process and the macro `extension!` write no
@@ -33,20 +33,24 @@ native = ["guest"]
 
 # The library alone among the workspace's crates, and not the parser toolkit,
 # which the crate reaches through the library's re-export `flm_core::techy`
-# (`tests/registry.rs` holds the rule, as flm-phfpack's does).
+# (`tests/registry.rs` holds the rule).
 [dependencies]
 # Without the library's default cargo features (its stages run in parallel; it
 # keeps the documentation texts of declarations): those choices belong to the
 # program that carries the extensions.
 flm-core = { path = "../flm-core", default-features = false }
 # The data types that cross the boundary derive serde; values cross as
-# serde_json::Value (no floating-point numbers are accepted, section 4.5).
+# serde_json::Value (no floating-point numbers are accepted).
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The `flm_version` check of a manifest.
 semver = "1"
-# The content of an artifact that is not UTF-8 text, written `{ base64 }` in its data form
-# (the standard alphabet with padding); already in the lockfile through flm-core.
+# The JSON schema of the guest client's argument (`guest::lang::mint::ArgDef`), from which the settings
+# types of an extension derive theirs: the library's schema of an argument, with the version and the
+# features of the library's own dependency, already in the lockfile through it.
+schemars = { version = "1", default-features = false, features = ["derive", "std", "preserve_order"], optional = true }
+# Bytes that are not UTF-8 text, an artifact's content or a bytes argument, written `{ base64 }`
+# in their data form (the standard alphabet with padding); already in the lockfile through flm-core.
 base64 = "0.22"
 # The JavaScript engine of the `quickjs` binding, with its module loader. Keep
 # `ENGINE_VERSION` in src/quickjs/mod.rs in step with this line.
@@ -76,3 +80,9 @@ wat = { version = "1", default-features = false }
 # The tests read the documentation texts that cross the boundary, so they build
 # the library with them (its feature `docs`).
 flm-core = { path = "../flm-core", default-features = false, features = ["docs"] }
+# The HTML parser a browser's parsing is checked with, and the tree it builds
+# into (`tests/math_mathjax.rs` parses a page and fails on a parse error); both
+# are in the lockfile already, through flm-core's tests, whose versions they
+# follow.
+html5ever = "0.39"
+markup5ever_rcdom = "0.39"

@@ -6,14 +6,17 @@ mod common;
 
 use std::sync::Arc;
 
-use flm_core::model::aspects::{BlockRole, Placement};
+use flm_core::model::aspects::{BlockRole, IsWhitespace, Placement, Whitespace};
 use flm_core::model::doc::FragmentLayout;
-use flm_core::model::element::ElementSpec;
+use flm_core::model::element::{ElementSpec, element_of};
 use flm_core::model::names::ElementName;
 use flm_core::lang::ext::{
     FlmStateExt, TemplateCommandRule, TemplateInteriorRules, TextSourceMap, TextSourcePiece,
 };
-use flm_core::lang::mint::{BodyDef, FallbackDef, FallbackKind, FlmSynthesizedSpec};
+use flm_core::lang::mint::{
+    ArgDef, ArgLayout, BodyDef, ElementDef, FallbackDef, FallbackKind, FlmSynthesizedSpec,
+    SyntaxDef,
+};
 use flm_core::lang::rewrites::blocks::{
     BlockStructure, BlockStructurer, ContractViolated, ContractViolation, ContractViolationKind,
     StructureCx, StructureError, Structuring, check_block_contract, check_parse_contract,
@@ -21,9 +24,10 @@ use flm_core::lang::rewrites::blocks::{
 use flm_core::lang::{
     Flm, FlmCallableType, FlmGroupType, FlmNodeExt, FlmSource, LangInputs, RestrictedInterior,
 };
+use flm_core::stdcore::StdcoreConfig;
 use techy::core::node::{
-    BuildId, CallableData, ChildRegion, GroupData, NodeBuildError, NodeKind, NodeRef,
-    ParsedArgument, ParsedArguments, ParsedSlots,
+    BuildId, CallableData, ChildRegion, GroupData, NodeBuildError, NodeId, NodeKind, NodeRef,
+    NodeTree, ParsedArgument, ParsedArguments, ParsedSlots,
 };
 use techy::core::token::GroupRule;
 use techy::core::Lang;
@@ -63,6 +67,63 @@ fn a_structured_tree_satisfies_both_parts() {
 }
 
 #[test]
+fn the_pass_leaves_no_whitespace_beside_a_displayed_item() {
+    // The inputs of the pass's own tests of displayed items: in a paragraph
+    // and in content laid out inline, beside spaces, whitespace nodes,
+    // comments and decorators.
+    let registry = common::stdcore::registry(StdcoreConfig::new());
+    let toy = toy_lang();
+    let arg = ArgDef::mandatory("text").layout(ArgLayout::InlineOrBlocks);
+    let either = toy_lang_with(vec![ElementDef::new(
+        "t",
+        ["either"],
+        SyntaxDef::Macro { args: vec![arg] },
+        common::element("t.either"),
+    )]);
+    let standard = [
+        "before \\[x\\] after",
+        "before~\\[x\\]~after",
+        "before ~ \\[x\\]\\ after",
+        "before\n\\[x\\]\nafter",
+        "before ~%%c\n \\[x\\] %%d\n~ after",
+        "before \\begin{equation}x\\end{equation}~after",
+        "a \\[x\\] ~ \\[y\\] b",
+    ];
+    let mut cases: Vec<_> = standard
+        .into_iter()
+        .map(|text| (registry.lang(), text, FragmentLayout::Blocks))
+        .collect();
+    for text in [
+        "before \\[x\\]\nafter\n\nnext",
+        "before \\begin{displaymath}x\\end{displaymath}\nafter\n\nnext",
+        "before\n\n\\[x\\]\n\nafter",
+        "before\n\n \\begin{displaymath}x\\end{displaymath} \n\nafter",
+        "\\emph{a \\begin{displaymath}x\\end{displaymath} b}",
+        "\\runin{T} \\[x\\] text",
+        "lead in \\runin{T}\n\\[x\\]\ntext",
+        "text \\[x\\] \\qed\nmore",
+    ] {
+        cases.push((&toy, text, FragmentLayout::Blocks));
+    }
+    cases.extend([
+        (&toy, "a \\emph{b \\[x\\] c} d", FragmentLayout::Inline),
+        (&toy, "a \\[x\\]'q' b", FragmentLayout::Inline),
+        (&toy, "a \\begin{displaymath}x\\end{displaymath} b", FragmentLayout::InlineOrBlocks),
+        (&either, "\\either{a \\begin{displaymath}x\\end{displaymath} b}", FragmentLayout::Inline),
+    ]);
+    for (lang, text, layout) in cases {
+        let laid = run(lang, text, layout);
+        assert_eq!(kinds(&check_parse_contract(&laid.tree)), Vec::<&str>::new(), "{text:?}");
+        assert_eq!(
+            kinds(&check_block_contract(&laid.tree)),
+            Vec::<&str>::new(),
+            "{text:?}: {}",
+            laid.dump()
+        );
+    }
+}
+
+#[test]
 fn region_noise_is_exempt_from_the_text_rules() {
     // An argument's pre-space and a verbatim environment's gobbled newline are
     // region noise techy copies verbatim by contract; they are not content text.
@@ -88,8 +149,9 @@ fn region_noise_is_exempt_from_the_text_rules() {
 
 #[test]
 fn a_paragraph_break_inside_a_math_group_is_no_violation() {
-    // A math group is an opaque region, so the marker is kept as it stands.
-    // See design rationale at [§flm-dd-dr:lang-regions].
+    // A math group is an opaque region, so the marker is kept as it stands:
+    // mathematics goes to a formula engine or is printed literally, and any
+    // normalization would corrupt it.
     let lang = toy_lang();
     let laid = run(&lang, "\\(a\n\nb\\)", FragmentLayout::Blocks);
     assert_eq!(
@@ -224,8 +286,9 @@ fn a_parsed_tree_fails_the_block_part_on_its_markers_and_raw_text() {
 
 // --- hand-built trees ---------------------------------------------------------------------
 
-/// A callable of a synthesized element (a decorator), staged by hand.
-fn decorator(site: &mut Site, element: Arc<ElementSpec>) -> BuildId {
+/// A callable of a synthesized element (a decorator, a displayed item, a
+/// whitespace node), staged by hand.
+fn synthesized(site: &mut Site, element: Arc<ElementSpec>) -> BuildId {
     let spec = Arc::new(FlmSynthesizedSpec::new(element));
     site.stage(NodeKind::callable(spec.callable_data()), 0..0, Vec::new())
 }
@@ -483,7 +546,7 @@ fn a_leading_decorator_after_content_is_a_violation() {
     let lang = toy_lang();
     let mut site = Site::new(&lang, "a");
     let text = site.text(0..1);
-    let lead = decorator(
+    let lead = synthesized(
         &mut site,
         element_with_role("t.lead", BlockRole::BlockDecorator(Placement::Leads)),
     );
@@ -497,7 +560,7 @@ fn a_leading_decorator_after_content_is_a_violation() {
 fn a_trailing_decorator_before_content_is_a_violation() {
     let lang = toy_lang();
     let mut site = Site::new(&lang, "a");
-    let trail = decorator(
+    let trail = synthesized(
         &mut site,
         element_with_role("t.trail", BlockRole::BlockDecorator(Placement::Trails)),
     );
@@ -534,6 +597,93 @@ fn an_untrimmed_paragraph_edge_is_a_violation() {
         kinds(&check_block_contract(&tree)),
         ["ParagraphEdgeNotTrimmed"]
     );
+}
+
+/// What holds the nodes that [`beside_displayed`] stages.
+enum Holder {
+    Paragraph,
+    /// A `{…}` group, inline content.
+    Group,
+    /// The root itself, holding no paragraph: content laid out inline.
+    Root,
+}
+
+/// Stages `pieces` by hand in `holder`, in order: `D` is a displayed item,
+/// `~` a whitespace node, `%` a comment, anything else text; returns each
+/// violation of the block-structure part as its kind and the piece it
+/// concerns (text in quotes, a node by its element's name).
+fn beside_displayed(holder: Holder, pieces: &[&str]) -> Vec<(&'static str, String)> {
+    let lang = toy_lang();
+    let shown = element_with_role("t.shown", BlockRole::Displayed);
+    let tie = Arc::new(
+        ElementSpec::new(ElementName::from("t.tie"))
+            .with::<dyn Whitespace>(Arc::new(IsWhitespace)),
+    );
+    let source: String = pieces
+        .iter()
+        .filter(|piece| !matches!(**piece, "D" | "~" | "%"))
+        .copied()
+        .collect();
+    let mut site = Site::new(&lang, &source);
+    let mut at = 0;
+    let mut children = Vec::new();
+    for piece in pieces {
+        let child = match *piece {
+            "D" => synthesized(&mut site, Arc::clone(&shown)),
+            "~" => synthesized(&mut site, Arc::clone(&tie)),
+            "%" => site.stage(NodeKind::comment("%", "c", ""), at..at, Vec::new()),
+            text => {
+                at += text.len();
+                site.text(at - text.len()..at)
+            }
+        };
+        children.push(child);
+    }
+    let end = source.len();
+    let top = match holder {
+        Holder::Paragraph => vec![site.paragraph(0..end, children)],
+        Holder::Group => {
+            let kind = NodeKind::group(GroupData::new(FlmGroupType::Content, "{", "}"));
+            vec![site.stage(kind, 0..end, children)]
+        }
+        Holder::Root => children,
+    };
+    let root = site.stage(NodeKind::list(), 0..end, top);
+    let tree = site.finish(root);
+    let piece = |tree: &NodeTree<Flm>, id: Option<NodeId>| {
+        let node = tree.get(id.expect("a node")).expect("a node of the tree");
+        node.chars()
+            .map_or_else(|| element_of(&node).name.to_string(), |text| format!("{text:?}"))
+    };
+    check_block_contract(&tree)
+        .iter()
+        .map(|violation| (violation.kind.as_str(), piece(&tree, violation.node)))
+        .collect()
+}
+
+#[test]
+fn whitespace_beside_a_displayed_item_in_a_paragraph_is_a_violation() {
+    let beside = |pieces: &[&str]| beside_displayed(Holder::Paragraph, pieces);
+    let violation = |piece: &str| ("WhitespaceBesideDisplayed", piece.to_string());
+    assert_eq!(beside(&["a ", "D", "b"]), [violation("\"a \"")]);
+    assert_eq!(beside(&["a", "D", " b"]), [violation("\" b\"")]);
+    assert_eq!(beside(&["a", "~", "D", "b"]), [violation("t.tie")]);
+    assert_eq!(beside(&["a", "D", "%", "~", "b"]), [violation("t.tie")]);
+    // Comments are looked past, and stay.
+    assert_eq!(
+        beside(&["a ", "%", "D", "%", " b"]),
+        [violation("\"a \""), violation("\" b\"")]
+    );
+    assert_eq!(beside(&["a", "%", "D", "%", "b"]), Vec::new());
+    assert_eq!(beside(&["D", "b"]), Vec::new());
+}
+
+#[test]
+fn whitespace_beside_a_displayed_item_in_inline_content_is_a_violation() {
+    let violation = |piece: &str| ("WhitespaceBesideDisplayed", piece.to_string());
+    assert_eq!(beside_displayed(Holder::Group, &["a", "D", " b"]), [violation("\" b\"")]);
+    assert_eq!(beside_displayed(Holder::Root, &["a ", "D", "b"]), [violation("\"a \"")]);
+    assert_eq!(beside_displayed(Holder::Root, &["a", "D", "b"]), Vec::new());
 }
 
 #[test]

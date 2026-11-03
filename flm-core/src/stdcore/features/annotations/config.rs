@@ -99,7 +99,6 @@ impl Annotator {
         }
         // Refused rather than read as none: blank initials show nothing,
         // and a host meaning "no initials" writes `None`.
-        // See decision rationale at [§flm-dd-dr:std-annotations-config].
         if self.initials.as_deref().is_some_and(|initials| initials.trim().is_empty()) {
             return Err(format!(
                 "the initials of the annotator `\\{command}` may not be empty or only \

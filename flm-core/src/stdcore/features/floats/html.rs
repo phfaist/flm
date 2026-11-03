@@ -71,7 +71,8 @@ use crate::model::names::Name;
 /// style definition [`stylesheet`] returns.
 pub const STYLE: &str = "flm.floats.style";
 
-// See decision rationale at [§flm-dd-dr:std-floats-stylesheet].
+// A float is centered by default, as LaTeX's `\centering` sets the recomposed
+// float, so that the two outputs agree.
 /// Returns the feature's stylesheet, the style definition `flm.floats.style`,
 /// whose content is the text of the file `css/floats.css`: a float set apart from
 /// the text around it and centered, in one cascade layer, every value a

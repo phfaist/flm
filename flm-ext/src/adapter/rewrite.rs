@@ -78,7 +78,6 @@ use flm_core::techy::transform::{
 use serde_json::Value;
 
 use crate::adapter::diag::ExtCondition;
-use crate::adapter::names::Owner;
 use crate::adapter::node::NodeFacade;
 use crate::adapter::stage::read_ref;
 use crate::adapter::values::diagnostic_to_core;
@@ -103,17 +102,13 @@ pub struct ExtRewriteStage {
     decl: RewriteDecl,
     /// Its needs, read at registration.
     needs: Needs,
-    /// The extension and the package that registered the stage: the
-    /// identifiers of the diagnostics the handler reports must begin with the
-    /// extension's stem.
-    owner: Owner,
 }
 
 impl ExtRewriteStage {
     /// The stage over `stage`, whose declaration `decl` and needs `needs` were
-    /// read at registration, registered by `owner`.
-    pub(crate) fn new(stage: Arc<dyn RewriteStage>, decl: RewriteDecl, needs: Needs, owner: Owner) -> ExtRewriteStage {
-        ExtRewriteStage { stage, decl, needs, owner }
+    /// read at registration.
+    pub(crate) fn new(stage: Arc<dyn RewriteStage>, decl: RewriteDecl, needs: Needs) -> ExtRewriteStage {
+        ExtRewriteStage { stage, decl, needs }
     }
 
     /// The driver's run over `tree`, on the calling thread: the new tree or
@@ -128,7 +123,6 @@ impl ExtRewriteStage {
         let mut visitor = ExtVisitor {
             stage: Arc::clone(&self.stage),
             name: &self.decl.name,
-            owner: &self.owner,
             cx,
             diagnostics: Vec::new(),
         };
@@ -352,8 +346,6 @@ pub struct ExtVisitor<'x> {
     stage: Arc<dyn RewriteStage>,
     /// The stage's name, for the message of the handler's failure.
     name: &'x str,
-    /// The extension and the package that registered the stage.
-    owner: &'x Owner,
     /// The context of the rewrite.
     cx: &'x CoreRewriteCx<'x>,
     /// The diagnostics of the run, handed to `flm-core` when the driver is
@@ -631,7 +623,6 @@ impl Restager for RestagerFacade<'_, '_, '_, '_> {
     }
 
     fn diagnose(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError> {
-        self.visitor.owner.check("diagnostic", &diagnostic.id)?;
         let diagnostic = diagnostic_to_core(diagnostic, self.site.span().clone())?;
         self.visitor.diagnostics.push(diagnostic);
         Ok(())
@@ -715,8 +706,7 @@ mod tests {
                 Ok(Restage::Descend)
             }
         }
-        let owner = Owner::new("sd", "_", "dashes");
-        ExtRewriteStage::new(Arc::new(Nothing), RewriteDecl::new("sd.dash", "sd.dashed"), Needs::new(), owner)
+        ExtRewriteStage::new(Arc::new(Nothing), RewriteDecl::new("sd.dash", "sd.dashed"), Needs::new())
     }
 
     #[test]

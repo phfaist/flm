@@ -120,10 +120,7 @@ type FrameSummary = (Option<String>, &'static str, String);
 fn mirror_frame(frame: &LineFrame<'_>) -> FrameSummary {
     let (kind, text) = match &frame.shows {
         LineShows::Nothing => ("nothing", String::new()),
-        LineShows::Number { text, segments } => {
-            assert!(segments.iter().all(|segment| segment.parent().is_none()), "each segment is the root of its value");
-            ("number", text.clone())
-        }
+        LineShows::Number { text, .. } => ("number", text.clone()),
         LineShows::Tag { starred, content } => {
             (if *starred { "tag*" } else { "tag" }, content.iter().map(|node| node.span_content()).collect())
         }
@@ -485,7 +482,7 @@ fn the_dispatcher_stages_a_numbered_frame_s_number() {
     assert!(shown[2].starts_with("</span>"), "{page}");
 }
 
-// --- E4 (S49): the span of a line record ---------------------------------------------------------
+// --- the span of a line record -------------------------------------------------------------------
 
 #[test]
 fn a_line_record_carries_its_span() {

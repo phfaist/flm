@@ -473,7 +473,7 @@ impl Lower for FloatLatexRule {
             .ok_or_else(|| LowerError::structure("a float without its value"))?
             .float_type;
         // The policy's answer, never the counter table's: LaTeX numbers the
-        // float. See decision rationale at [§flm-dd-dr:std-floats-latex-first].
+        // float.
         let case = FloatCase::of(fields.numbered, fields.caption.is_some());
         lw.require(&Name::from(PIECE));
         let declaration = self.reference_type(float_type, cx, lw)?;

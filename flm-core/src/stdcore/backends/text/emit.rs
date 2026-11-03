@@ -15,7 +15,15 @@
 //! # What each element prints
 //!
 //! In a **run of blocks** (a tree's top level, a block's body, a list item),
-//! blocks are separated by one blank line:
+//! blocks are separated by one blank line. The blocks of a run are `par`,
+//! `block`, `block-heading`, `list`, `cells`, `lines`, `subtree`, a block
+//! `image`, a block `verbatim` and an `unknown` environment, and the
+//! containers holding one of them. Everything else in the run, a displayed
+//! formula, `unsupported` and `dropped` included, is inline content: each
+//! maximal stretch of it is filled as one paragraph, as inside a `par`, so a
+//! displayed formula takes lines of its own with no blank line beside it, and
+//! a blank line separates blocks only. The table below says how each element
+//! prints wherever it stands in a run of blocks:
 //!
 //! | lowered element | printed as |
 //! |---|---|
@@ -26,13 +34,12 @@
 //! | `cells` | one table of the layout engine: each cell's blocks in its column, in the cell's own alignment, a spanned cell's content at the first position of its span; the leading rows of column headers above a rule (see below) |
 //! | `lines` / `line` | one printed line per `line`, indented by its `indent_left` converted to columns ([`TextRenderOptions::columns`]) |
 //! | `verbatim` (block) | the content byte for byte, indented like its surroundings |
-//! | `math-passthrough` (display) | the source as a block indented by two columns (see below) |
 //! | `unsupported` | `[unsupported: <element>]` |
 //! | `dropped` | `[dropped: <detail>]` |
 //! | `unknown` (environment) | its begin and end lines around its body blocks (see below) |
 //! | `image` (block) | `[image: <alt or src>]` |
 //! | `subtree` | the placed tree's lowered blocks, printed at this node |
-//! | `flm.container`, `flm.group`, `flm.opaque-wrapper` | their children: as a run of blocks when a block-shaped node is among their descendants, otherwise as inline content filled with the text around them |
+//! | `flm.container`, `flm.group`, `flm.opaque-wrapper` | their children: as a run of blocks when a block of a run is among their descendants, otherwise as inline content filled with the text around them |
 //! | `flm.comment`, `flm.parbreak` | nothing; the blocks on either side of them are separate |
 //!
 //! The rows that need more room:
@@ -55,9 +62,6 @@
 //!   column; when every label of the list is empty, the items start at the
 //!   margin. An entry with an empty item prints its label alone. Entries are
 //!   one blank line apart.
-//! - A display `math-passthrough` prints the source inside `\[…\]` (or
-//!   `\begin{env}…\end{env}` for an environment), as a block indented by two
-//!   columns.
 //! - A `cells` table is laid out as one table of the layout engine
 //!   ([`DocBuf::table`]): one column per column of the grid, the column widths
 //!   computed from their cells' content, columns two spaces apart, each cell's
@@ -80,12 +84,13 @@
 //! | `runin-heading` | its content; the payload is dropped |
 //! | `link` | its content, then ` <address>` for a link to an address outside the document, as the render options say (below) |
 //! | `math-passthrough` (inline) | one atom, `\(source\)`, each run of whitespace replaced by one space |
+//! | `math-passthrough` (display) | on lines of its own, the source inside `\[…\]` (or `\begin{env}…\end{env}` for an environment), indented by two columns |
 //! | `verbatim` (inline) | one atom; content holding a newline or a tab is printed as a block instead |
 //! | `deco-mark` | the decoration, printed at its decoration mark (see below) |
 //! | `unknown` (macro) | its source spelling, `\name`, as one atom |
 //! | `image` (inline), `unsupported`, `dropped` | as in a run of blocks, as one atom |
 //! | a `flm.parbreak` | a space |
-//! | any block-shaped node inside a paragraph | on lines of its own |
+//! | any block of a run, inside inline content | on lines of its own |
 //!
 //! ## Decorations
 //!
@@ -180,7 +185,7 @@
 //!   document. Presentation is dropped that way; content never is.
 //! - **A lowered tree need not be structured into blocks.** Consecutive inline
 //!   nodes in a run of blocks are filled together as one paragraph, split at
-//!   block-shaped nodes and at paragraph breaks, so a tree that went through no
+//!   the blocks of the run and at paragraph breaks, so a tree that went through no
 //!   block-structure pass still prints.
 //! - **The walk is bounded** by [`DEPTH_LIMIT`]. A tree that nests deeper,
 //!   counting the trees it places, prints nothing and is reported as
@@ -443,10 +448,11 @@ pub struct PiecePlacement {
 /// calling thread was not a worker thread, and the operating system refused to
 /// create one. Reported at error severity, with no position in the document.
 /// Recovery: the run has no text output.
-// The refusal is the operating system's and cannot be provoked without
+// The emitter creates the worker thread itself rather than requiring the
+// caller to run it on one, so that a deeply nested document never crashes the
+// process. The refusal is the operating system's and cannot be provoked without
 // injecting a failure, so no test covers this arm; the spawning half of the
-// contract is what the emitter tests exercise. See the design rationale at
-// [§flm-dd-dr:lang-worker-stack].
+// contract is what the emitter tests exercise.
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.text.worker-thread-unavailable",
@@ -649,7 +655,8 @@ fn emit_on_worker_thread(
 /// One token of an inline run: an atom (possibly itself filled prose), a
 /// breakable space (a *gap*), a non-breaking space joining the atoms on either
 /// side of it (a *tie*, which, like a gap, prints nothing at the start of a
-/// run), or a block-shaped node that takes lines of its own.
+/// run), or a node that takes lines of its own
+/// ([`takes_lines_of_its_own`]).
 enum Tok {
     Gap,
     Tie,
@@ -712,7 +719,7 @@ struct Emitter<'t> {
     /// The trees printed so far, at the top level or spliced.
     printed: BTreeSet<TreeId>,
     /// Per tree being printed (innermost last): the indices of its
-    /// non-presentation containers holding a block-shaped node.
+    /// non-presentation containers holding a block of a run.
     block_containers: Vec<BTreeSet<usize>>,
     /// The open levels of the walk.
     depth: usize,
@@ -744,13 +751,17 @@ fn is_element(node: &NodeRef<'_, Flm>, name: &str) -> bool {
     element_of(node).name == name
 }
 
-/// Whether a node takes lines of its own in an inline run.
+/// Whether a node is a block of a run of blocks, separated from its
+/// neighbors in the run by a blank line: a paragraph, a block, a block
+/// heading, a list, cells, lines, a placed subtree, a block image, a block
+/// verbatim, an unattributed environment.
 ///
-/// An image is block-shaped where its payload says it is a block (the content
-/// of a float, where two images are two blocks) and an atom of the text where
-/// it is inline; verbatim content and mathematics likewise follow their
-/// payload.
-fn is_block_shaped(node: &NodeRef<'_, Flm>) -> bool {
+/// An image is a block where its payload says it is one (the content of a
+/// float, where two images are two blocks) and an atom of the text where it
+/// is inline; verbatim content likewise follows its payload. A displayed
+/// formula is not a block of a run: it stands in the inline content around it
+/// ([`takes_lines_of_its_own`]).
+fn is_run_block(node: &NodeRef<'_, Flm>) -> bool {
     let name = element_of(node).name.as_str();
     match name {
         pres::PAR
@@ -764,14 +775,22 @@ fn is_block_shaped(node: &NodeRef<'_, Flm>) -> bool {
             .is_some_and(|payload| payload.display == ImageDisplay::Block),
         pres::VERBATIM => payload_of::<VerbatimPayload>(node)
             .is_some_and(|payload| payload.display == VerbatimDisplay::Block),
-        pres::MATH_PASSTHROUGH => payload_of::<MathPassthroughPayload>(node)
-            .is_some_and(|payload| payload.display == MathDisplay::Display),
         // An unattributed environment prints its begin and end lines around its
         // body; an unattributed macro is one inline atom.
         pres::UNKNOWN => payload_of::<UnknownPayload>(node)
             .is_some_and(|payload| payload.kind == UnknownKind::Environment),
         _ => false,
     }
+}
+
+/// Whether a node takes lines of its own inside an inline run, with no blank
+/// line beside it: a block of a run ([`is_run_block`]), or a displayed
+/// formula.
+fn takes_lines_of_its_own(node: &NodeRef<'_, Flm>) -> bool {
+    is_run_block(node)
+        || (is_element(node, pres::MATH_PASSTHROUGH)
+            && payload_of::<MathPassthroughPayload>(node)
+                .is_some_and(|payload| payload.display == MathDisplay::Display))
 }
 
 /// The layout engine's alignment for a cell's alignment.
@@ -811,7 +830,7 @@ fn is_inert(node: &NodeRef<'_, Flm>) -> bool {
 }
 
 /// The containers of a tree that are not presentation nodes (lists, groups)
-/// and hold a block-shaped node somewhere below them; they are laid out as
+/// and hold a block of a run ([`is_run_block`]) somewhere below them; they are laid out as
 /// runs of blocks. Computed in one pass in reverse storage order (a child's
 /// index is always greater than its parent's), so the walk looks the
 /// container up in a set instead of walking its subtree again.
@@ -825,7 +844,7 @@ fn block_containers(tree: &NodeTree<Flm>) -> BTreeSet<usize> {
         let holds = node
             .children()
             .iter()
-            .any(|child| is_block_shaped(&child) || set.contains(&child.id().index()));
+            .any(|child| is_run_block(&child) || set.contains(&child.id().index()));
         if holds {
             set.insert(node.id().index());
         }
@@ -1027,8 +1046,9 @@ impl<'t> Emitter<'t> {
 
     // --- block context ---------------------------------------------------------------------
 
-    /// A run of nodes in block context: block-shaped nodes as blocks, maximal
-    /// runs of inline nodes filled together, one blank line between blocks.
+    /// A run of nodes in block context: the blocks of the run
+    /// ([`is_run_block`]) as blocks, maximal runs of the other nodes filled
+    /// together, one blank line between blocks.
     fn block_run(&mut self, nodes: &[NodeRef<'_, Flm>]) -> Option<DocId> {
         self.block_run_of(None, nodes)
     }
@@ -1055,7 +1075,7 @@ impl<'t> Emitter<'t> {
                 flush(self, &mut inline, &mut parts);
                 continue;
             }
-            if is_block_shaped(node) || self.is_block_container(node) {
+            if is_run_block(node) || self.is_block_container(node) {
                 flush(self, &mut inline, &mut parts);
                 if let Some(doc) = self.block(node) {
                     parts.push(doc);
@@ -1082,13 +1102,13 @@ impl<'t> Emitter<'t> {
     }
 
     /// Whether a container that is not a presentation node, in a run of
-    /// blocks, holds a block-shaped node; it is then laid out as a run of
+    /// blocks, holds a block of a run; it is then laid out as a run of
     /// blocks (the set [`block_containers`] computed on entering the tree).
     fn is_block_container(&self, node: &NodeRef<'_, Flm>) -> bool {
         self.block_containers.last().is_some_and(|set| set.contains(&node.id().index()))
     }
 
-    /// One block-shaped node (or a container of blocks), marked; nothing past
+    /// One block of a run (or a container of blocks), marked; nothing past
     /// the depth limit.
     fn block(&mut self, node: &NodeRef<'_, Flm>) -> Option<DocId> {
         if !self.descend() {
@@ -1103,7 +1123,7 @@ impl<'t> Emitter<'t> {
         doc
     }
 
-    /// One block-shaped node at the level already opened: the element's own
+    /// One block of a run at the level already opened: the element's own
     /// layout, marked; a node that is not a presentation node contributes its
     /// children as a run of blocks.
     fn block_at(&mut self, node: &NodeRef<'_, Flm>) -> Option<DocId> {
@@ -1129,7 +1149,6 @@ impl<'t> Emitter<'t> {
             pres::CELLS => self.cells(node)?,
             pres::LINES => self.lines(node)?,
             pres::VERBATIM => self.verbatim_block(node)?,
-            pres::MATH_PASSTHROUGH => self.math_block(node)?,
             pres::SUBTREE => self.subtree(node)?,
             pres::UNKNOWN => self.unknown_environment(node)?,
             _ => {
@@ -1414,14 +1433,6 @@ impl<'t> Emitter<'t> {
         (display, text)
     }
 
-    /// A display `flm.pres.math-passthrough`: the math source with its delimiters,
-    /// as a block indented by two columns.
-    fn math_block(&mut self, node: &NodeRef<'_, Flm>) -> Option<DocId> {
-        let (_, text) = self.math_text(node);
-        let raw = self.buf.raw(&text, RawPolicy::Indented);
-        Some(self.buf.nest(2, raw))
-    }
-
     /// An unattributed environment: `\begin{name}` on a line of its own, the
     /// lowered body as a run of blocks, then `\end{name}` on a line of its own.
     /// What the author wrote is document content and is printed as such; the
@@ -1484,7 +1495,7 @@ impl<'t> Emitter<'t> {
     /// independently of each other (leading, trailing and repeated gaps
     /// collapse), a tie a non-breaking space (leading and trailing ties are
     /// dropped, and a tie next to a gap replaces it, so that what it joins
-    /// stays together), and block-shaped nodes take lines of their own.
+    /// stays together), and a [`Tok::Block`] takes lines of its own.
     /// `None` when nothing is printed.
     fn fill(&mut self, toks: Vec<Tok>) -> Option<DocId> {
         let mut parts: Vec<DocId> = Vec::new();
@@ -1689,9 +1700,9 @@ impl<'t> Emitter<'t> {
                     node.body().map(|b| b.iter().collect()).unwrap_or_default();
                 // A superscript or subscript span writes the text of its
                 // content through the forms of its style, nested content
-                // included; a nested span of the other style writes its own
-                // its own way.
-                // See decision rationale at [§flm-dd-dr:rend-text-superscript].
+                // included, so that a note's mark, a link inside a superscript
+                // span, is raised too; a nested span of the other style writes
+                // its own text its own way.
                 let outer = self.script;
                 if name.as_str() == pres::SPAN {
                     let style = payload_of::<SpanPayload>(node).and_then(|payload| payload.style);
@@ -1771,8 +1782,8 @@ impl<'t> Emitter<'t> {
                 self.buf.text(&text)
             }
             // An unattributed macro, inline: its source spelling. The
-            // environment kind is block-shaped and falls to the arm below.
-            pres::UNKNOWN if !is_block_shaped(node) => {
+            // environment kind is a block of a run and falls to the arm below.
+            pres::UNKNOWN if !is_run_block(node) => {
                 let text = payload_of::<UnknownPayload>(node)
                     .map_or_else(String::new, |payload| one_line(&payload.spelling));
                 if text.is_empty() {
@@ -1790,7 +1801,7 @@ impl<'t> Emitter<'t> {
                 // layout.
                 return self.deco_tokens(node);
             }
-            _ if is_block_shaped(node) => {
+            _ if takes_lines_of_its_own(node) => {
                 return match self.block(node) {
                     Some(doc) => vec![Tok::Block(doc)],
                     None => Vec::new(),

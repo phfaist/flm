@@ -139,36 +139,103 @@ says how the construct is written; the **lowering rule**
 [`FeatureBuilder::feature`](crate::core::registry::FeatureBuilder::feature), which
 returns the name the feature was registered under.
 
-**A crate outside the library.** The workspace crate `flm-phfpack` (package `phfpack`,
-feature `phfqit`) is an extension written as a third party writes one. Its manifest
-lists `flm-core` without its default cargo feature, `serde`, `schemars` and
-`serde_json`, and it reaches the parser toolkit techy only through the re-export
-`flm_core::techy`. Its macros are rows of a table turned into
-[`Definition`](crate::lang::rewrites::userdefs::Definition)s: arguments read by
-[`arg_def_from_code`](crate::lang::mint::arg_def_from_code) (a row's codes) and by
-[`ArgData`](crate::lang::mint::ArgData) (a declared macro's arguments, each a structured
-syntax or a code), computed placeholders
-declared with
-[`Definition::extra_placeholder`](crate::lang::rewrites::userdefs::Definition::extra_placeholder),
-a declared macro's `content` read by
-[`DefinitionContent::definitions`](crate::stdcore::features::userdefs::DefinitionContent::definitions).
-It has one argument parser of its own, `SizeToken` (a size written as one token after a
-backtick), implementing techy's `ArgumentParser` and
-[`FlmArgumentParser`](crate::lang::mint::FlmArgumentParser); each element is built by
-[`UserDefinition::element_def_with`](crate::lang::rewrites::userdefs::UserDefinition::element_def_with)
-with the feature's own `Expand` aspect, under the type name that
-[`element_name_under`](crate::stdcore::features::userdefs::element_name_under) gives;
-each rule is built by
-[`expand_in_tree_rule_for`](crate::stdcore::features::userdefs::expand_in_tree_rule_for)
-and requires [`ALWAYS_EXPANDED`](crate::stdcore::features::userdefs::ALWAYS_EXPANDED), so
-a registry holding the package must hold the `userdefs` feature. Its templates are
-compiled in a [`LateInit`](crate::core::registry::LateInit) hook, its settings are
-declared through [`FlmFeature::settings`](crate::core::registry::FlmFeature::settings)
-(the keys that hold named things merged entry by entry), and its configuration is fed to
-the registry digest. The `flm` program carries it behind its cargo feature `phfpack`
-(on by default). The public guide describes it under [An extension crate, end to
-end](crate::guide::extending#an-extension-crate-end-to-end); the crate root of
-`flm-phfpack` lists the flm-core items it uses.
+**A Rust extension, end to end.** The extension `phfpack` (crate `extensions/rust/phfpack/`;
+the default package `_`, so `use: [phfpack]`; the feature `phfqit`) is written against
+`flm_ext::guest` alone: `flm-ext` with `default-features = false, features = ["guest"]`,
+plus `serde`, `serde_json` and `schemars` for its settings. The paths below are under
+`flm_ext::guest`, whose modules mirror flm-core's under the same paths.
+
+- *Package*: `extension!(define)`; `define` calls `ext.package("_",
+  Package::new().uses(["stdcore"]).flm(json!({ "feature_order": ["math-mathjax < phfqit"]
+  })).feature(feature::FEATURE, Feature::new().title(…).docs(…).settings(feature::settings()).read(settings::read).register(feature::register)))`,
+  `feature::FEATURE` being `"phfqit"`.
+- *Macros as data*: rows of tables (name, arguments, argument number offset, template,
+  modes, defaults) and the macros declared under the setting `macro_definitions`, each
+  turned into a guest `Definition`
+  ([`Definition`](crate::lang::rewrites::userdefs::Definition)): a row's codes read by
+  `ArgDef::from_code(code)?` or `ArgDef::named_from_code(name, code)?`, a size slot
+  declared by its kind (`ArgDef::new(ArgStdKind::Star)`); a declared argument (a code, or a map with `code` or a
+  structured `syntax`, as a user definition's `args`) held in the settings types as the
+  guest's `lang::mint::ArgDef`, which serde reads as
+  [`ArgData`](crate::lang::mint::ArgData) and schemars describes with `ArgData`'s schema;
+  the list of `delimited_args` held as the guest's `lang::mint::ArgListData`, read as
+  [`ArgListData`](crate::lang::mint::ArgListData) and described with its schema
+  (`arg_defs()` reads the codes of one text);
+  a declared `args` entry may also be a
+  size slot's name (`SizeArgBacktick`/`SizeArgStar`/`SizeArgOptArg`), and
+  `delimited_args` puts the three slots first (offset +3, as a row built by `delimited`);
+  four extra placeholders (`DelimLeft`, `DelimMiddle`, `DelimRight`, `config`, written
+  `#[…]{name}`) by `Definition::extra_placeholder(name, true)`; a `content` of
+  `{text, math}` gives one definition per mode.
+- *Size slots*, declared by their standard kinds (the codes in parentheses):
+  `Embellishments { markers: vec!['`'] }` (``e{`}``; a size after a backtick: the
+  [`Embellishments`](crate::lang::mint::ArgStdKind::Embellishments) argument whose marker
+  matches the raw backtick even where the backtick is a specials trigger; the size is the
+  text of the children of its wrapper group), `Star` (`*`), `Optional` (`[`). The backtick
+  form (specials `` ` ``, formulas only) declares the
+  [`Marker`](crate::lang::mint::ArgStdKind::Marker) arguments `\Bigg`, `\Big`, `\bigg`,
+  `\big` (`t{\Bigg}`, …; longest first: a marker matches the raw characters), `Star`,
+  then `AnyDelimited`; a size that matches no marker
+  (`` `\huge(x) ``) leaves the group missing, a parser error. The hook reads a slot with
+  `node.argument_content_nodes(i)?` (`Some` when written) and `span_content()?`; a bad
+  size is `phfpack.phfqit.bad-size`.
+- *Register* `(b, settings)`: per macro, `m.definition.expand(ExpandPolicy::Always)`,
+  `element_name_under(PREFIX, &definition)?` (`PREFIX` = `"phfpack.phfqit"`),
+  `b.lowering_rule(expand_in_tree_rule_for(&element, &definition)?)?` (requires
+  [`ALWAYS_EXPANDED`](crate::stdcore::features::userdefs::ALWAYS_EXPANDED): the
+  `userdefs` feature is necessary), `let value = UserDefinition::new(definition)?;
+  b.element(value.element_def_with(&owner, &element, hook)?)?` with `owner =
+  b.feature()?` and `hook: Arc<dyn Expand>` (`MacroHook`: the size slots and the named
+  values); the order is fixed (table rows, minus those a declared macro replaces, then the
+  declared macros by name). No late-init hook: the extension interface compiles the
+  registered definitions' templates once the language is built.
+- *The hook at each use*: `cx.definition()?` (a `UserDefinition` handle of `register` is
+  stale in a later call); `.variant_for_use(node)`, whose `Err(ExtError::Core { kind,
+  detail, data })` of kind `flm.userdefs.bad-definition` is reported with
+  `xp.recover(cx, node, Diagnostic::error(kind, detail).with_data(data))`; the keys from
+  `placeholders()` of `variant.template()?` and of each template of
+  `variant.defaults()?` (`PlaceholderTarget::Extra(name)`, `reference.substitution`); each
+  text (the delimiter at the use's size, or the named value; an unknown one is
+  `phfpack.phfqit.unknown-value` through `xp.recover`) compiled in the use's mode by
+  `compile_template_with(&spec, &lang, &language)`, `lang` being `xp.lang()?` and
+  `language` `TemplateLanguage::new(&lang)?` (durable, deduplicated by its specification;
+  an `ExtError::Core` of kind `compile_template` means the text does not compile in that
+  mode: left out, so the placeholder is
+  `flm.userdefs.bad-placeholder` at the use); from `ExtraValues::new()`,
+  `values.template(name, substitution.as_deref(), compiled)`
+  ([`ExtraValues`](crate::lang::rewrites::userdefs::ExtraValues));
+  `values.over(&DefinitionBindings::new(node, &variant)?)?`; `xp.instantiate(cx, node,
+  &template, &bindings)`.
+- *Settings as data*: `Feature::settings` of the value `{config: {schema, docs},
+  merge_entries: {KEY: default entries}, markup: [paths]}`, the schema by
+  `schemars::schema_for!` over the crate's own types, registered as
+  [`SettingsDecl::config_data_read`](crate::core::settings::SettingsDecl::config_data_read),
+  [`merge_entries_data`](crate::core::settings::SettingsDecl::merge_entries_data) and
+  [`markup`](crate::core::settings::SettingsDecl::markup); `Feature::read(settings::read)`,
+  the configuration reader, reads the configuration value key by key (each declaration
+  with serde), and answers it unchanged or a `ReadError` (the path of the value at fault
+  below the feature's name, `macro_definitions.abs.args`, and the condition it violates),
+  which the program reports where the document wrote the value, with no place when the
+  document's settings do not name the feature; the program calls the reader whenever it
+  reads a document's settings, for every feature of a package the document uses that
+  declares a reader and is not switched off in the document's settings, with the
+  configuration written under the feature (`{}` when nothing is written under the
+  feature, or none of the configuration's own keys), before the registry is built;
+  `register` receives the reader's answer and reads it the same way. A feature in
+  JavaScript gives `read(settings)`, answering `{ value }` or
+  `{ error: { path, detail } }`.
+- *Digest*: `b.digest_input(&digest)`, `digest` being `data.digest_bytes()`, the
+  settings as binary data (counts as little-endian 64-bit numbers, map keys sorted);
+  bytes pass as they are.
+- *Two forms*: compiled in (a row of `NATIVE_EXTENSIONS` in `flm-extensions`, the
+  program's cargo feature `bundled-extensions`; the tests load it with `ExtensionLoader`,
+  `NativeEngine` and a `MemorySource` answering `phfpack` with `engine: native`), and the
+  module that `extensions/rust/build-wasm.sh phfpack` writes to
+  `target/wasm-extensions/phfpack/`.
+
+The public guide describes it under [A Rust extension, end to
+end](crate::guide::extending#a-rust-extension-end-to-end); the crate root
+`extensions/rust/phfpack/src/lib.rs` lists the guest items each step uses.
 
 ## Where the items are
 
@@ -194,11 +261,11 @@ end](crate::guide::extending#an-extension-crate-end-to-end); the crate root of
 | host services for a feature in JavaScript: the package object's `host` list, `cx.host(name)` on a stage's, a citation provider's and a template module's context, the service `files` (`read_text(scope, path)`, the scopes `extension` and `document`), the `flm` program's service `programs` (`find`, `run`), the refusal at load of an undeclared or unoffered service, the trust rule; for a host, `ExtensionLoader::with_host_service` and the trait `flm_ext::host::HostService` | [Host services](crate::guide::extending#host-services); [Host services for extensions](crate::guide::embedding#host-services-for-extensions); the module pages of `flm_ext::host`, `flm_main::host_files` and `flm_main::host_programs`; the module page of `flm_ext::quickjs` ("Host services") |
 | a citation provider written in JavaScript: the object (`name`, `answer_all` or `answer`) contributed to `PROVIDERS_SLOT` (`flm.citations.providers`), the request and answer shapes, `cx.build_entry`, `cx.parse_entry`, what a failure gives; service slots of a script's own (`service_slot`, `contribute_to`, `peer_slot`, `cx.service`, `cx.services`) | [A citation provider from a script](crate::guide::extending#a-citation-provider-from-a-script); [Services and service slots](crate::guide::extending#services-and-service-slots) ("In JavaScript"); the module page of `flm_ext::quickjs` ("A citation provider"); the extension `flm-ext/tests/js/bibfile/` as the worked example |
 | a compose template written as a JavaScript module: the object (`name`, `describe(settings)`, `files(data, cx)`, `render(data, cx)`) contributed to `TEMPLATES_SLOT` (`flm.compose.templates`), the shapes of the description, of the shipped files and of `data`; the composer's hook `TemplateEngine::artifacts` through which an engine chooses a template's files when it is applied | [A compose template written as a module](crate::guide::extending#a-compose-template-written-as-a-module); [`TemplateEngine::artifacts`](crate::stdcore::features::compose::TemplateEngine::artifacts); the module page of `flm_ext::quickjs` ("A compose template written as a module"); the extension `flm-ext/tests/js/tinytpl/` as the worked example |
-| a feature in JavaScript with numbered and referenceable constructs: handler aspects `Aspect.Referenceable({ points })` and `Aspect.Sectioning({ level, in_toc?, toc_title? })` (in `ElementSpec.with` or `b.attach`; a failing handler is silent: no point, level 0, not listed), `flm:model/aspects` (`RefPoint`, `NumberSource`, `AnchorPolicy`, `ContentRef`, `AcceptedRefTypes`), `flm:stdcore/features/refs` (label helpers, `lw.get(ANCHORS)` → `{ anchors }`), `flm:stdcore/features/numbering` (`lw.get(COUNTERS)` → `{ counters }`: `record`, `format`), the standard data-valued slots through `contribute_to`/`contribute_first_to`/`peer_slot` (counters, styles, parent sets, `latex.preamble.SLOT`, `latex.packages.SLOT`: the data read as the slot's type, its own name under the extension's stem), `flm:stdcore/backends/latex` (payload classes, `lw.pres_slots`, `lw.require(piece_id)`), `scoped_package`, `collection_member` (case: `wordcount.counted` in `flm.validated`), `late_init`/`finalizer` objects, templates: `compile_template_with(new TemplateSpec({…}), lang, new TemplateLanguage(lang))`, `instantiate(node, template, new ValueBindings().with(name, root))`, durable objects (`{"@durable": …}`, valid for the registry's life, stale under another, deduplicated by specification) | [What a feature in JavaScript adds to the output](crate::guide::extending#what-a-feature-in-javascript-adds-to-the-output); the JavaScript twin in [Number a construct of your own](crate::guide::extending#number-a-construct-of-your-own); the module page of `flm_ext::quickjs` (mapping rules 4 and 7, the forms of `lw.get`, the rehearsal, Failures); the test extensions `flm-ext/tests/js/exercises/` and `flm-ext/tests/js/myhead/` |
+| a feature in JavaScript with numbered and referenceable constructs: handler aspects `Aspect.Referenceable({ points })` and `Aspect.Sectioning({ level, in_toc?, toc_title? })` (in `ElementSpec.with` or `b.attach`; a failing handler is silent: no point, level 0, not listed), `flm:model/aspects` (`RefPoint`, `NumberSource`, `AnchorPolicy`, `ContentRef`, `AcceptedRefTypes`), `flm:stdcore/features/refs` (label helpers, `lw.get(ANCHORS)` → `{ anchors }`), `flm:stdcore/features/numbering` (`lw.get(COUNTERS)` → `{ counters }`: `record`, `format`), the standard data-valued slots through `contribute_to`/`contribute_first_to`/`peer_slot` (counters, styles, parent sets, `latex.preamble.SLOT`, `latex.packages.SLOT`: the data read as the slot's type, its own name under the extension's stem), `flm:stdcore/backends/latex` (payload classes, `lw.pres_slots`, `lw.require(piece_id)`), `scoped_package`, `collection_member` (case: `wordcount.counted` in `flm.validated`), `late_init`/`finalizer` objects, templates: `compile_template_with(new TemplateSpec({…}), lang, new TemplateLanguage(lang))`, `instantiate(node, template, new ValueBindings().with(name, tree))`, durable objects (`{"@durable": …}`, valid for the registry's life, stale under another, deduplicated by specification) | [What a feature in JavaScript adds to the output](crate::guide::extending#what-a-feature-in-javascript-adds-to-the-output); the JavaScript twin in [Number a construct of your own](crate::guide::extending#number-a-construct-of-your-own); the module page of `flm_ext::quickjs` (mapping rules 4 and 7, the forms of `lw.get`, the rehearsal, Failures); the test extensions `flm-ext/tests/js/exercises/` and `flm-ext/tests/js/myhead/` |
 | a feature that processes mathematics: what to declare (a fallback or `[Mode::Math]` elements), the check providing `flm.math.content` and added to `flm.validated`, the rules of `flm.math` and `flm.math.environment` built with the `math` library | [A feature that processes mathematics](crate::guide::extending#a-feature-that-processes-mathematics); [`crate::math_passthrough`] (Rust); `extensions/js/math-mathjax/` (JavaScript) |
 | a feature in JavaScript that adds an output format or rewrites trees: `BackendDef`, `OutputDef`, `LoweringStage`, `lowered_table_name`, `StandardTable` with `table_named`, `Artifact`/`ArtifactId`, the lowered trees read by a stage (`.lowered`), `node.payload()` and the slots by index, `flm:lang/structural`, `presentation_element` with a data payload, `rewrite_stage` with `RewriteDecl`, `Restage` and the restager `rs` | [What a feature in JavaScript adds to the output](crate::guide::extending#what-a-feature-in-javascript-adds-to-the-output); [Adding an output format](crate::guide::extending#adding-an-output-format); the module page of `flm_ext::quickjs` ("A backend of your own", "A rewrite stage"); the test extensions `flm-ext/tests/js/typst/` and `flm-ext/tests/js/smartdash/` |
 | a Rust extension compiled to WebAssembly: the manifest (`engine: wasm`, `extension.wasm.module`, `extension.wasm.limits` with `memory_mib` and `fuel`), the guest client `flm_ext::guest` (cargo feature `guest`: the API's modules under `flm_ext::guest::…`, façades as structs forwarding to the host and answering `Result<_, ExtError>`, the handler traits taken as `Arc<dyn Trait>`, plain data re-exported), the macro `flm_ext::guest::extension!(f)` and the builders `Extension`, `Package`, `Feature`, the crate (`cdylib`, `flm-ext` with `default-features = false, features = ["guest"]`, `panic = "abort"`), the build (`cargo build --target wasm32-unknown-unknown --release`), the move from a crate written against `flm_ext::api`, what a module reaches (the host's imports and its declared host services), the limits (fuel per handler call, memory per instance) | [An extension in WebAssembly](crate::guide::extending#an-extension-in-webassembly); [A Rust extension compiled to WebAssembly](crate::guide::extending#a-rust-extension-compiled-to-webassembly); the module pages of `flm_ext::guest` (the mapping rules, the rehearsal, the places where the move is not mechanical) and `flm_ext::wasm` (the interface between the host and the module, the limits, the failures); the test crate `flm-ext/tests/wasm/wordcount/` as the worked example |
-| a Rust extension compiled into a program: the same crate as its WebAssembly form (`flm-ext` with the feature `guest` alone; the default library type for the program, `cargo rustc --crate-type cdylib` for the module), the static `FLM_EXTENSION` the macro writes on every target, the engine `native` (cargo feature `native`: `NativeEngine::new([NativeExtension { stem, manifest, compiled: &crate::FLM_EXTENSION }])` added with `ExtensionLoader::with_engine`; the program's source answers the stem with `engine: native`; a stem the engine does not hold is refused, listing those it holds), what differs (no sandbox, no limits and no bound on a value's depth, calls in the same process as JSON values, a panic fails the handler and replaces the thread's instance, a panic in an object's `Drop` reported by the panic hook alone, a call from a thread the extension started answers `ExtError::Unsupported`, the digest from the crate's name and version, not its code), and how the form is chosen (by `flm-ext`'s feature `native`, not by the target: a program built for any target, `wasm32` included, carries extensions compiled in; an extension's `.wasm` module is built in a cargo run where no crate turns on `native`, such as `cargo rustc -p NAME`, or it lacks its exports and the engine `wasm` refuses it, saying which export it lacks) | [A Rust extension compiled into a program](crate::guide::extending#a-rust-extension-compiled-into-a-program); the module pages of `flm_ext::native` (a compiled example, the instances, dropping an instance, the limits and failures) and `flm_ext::guest`; the tests `flm-ext/tests/native_case1.rs` and `flm-ext/tests/native_handlers.rs` as the worked examples |
+| a Rust extension compiled into a program: the same crate as its WebAssembly form (`flm-ext` with the feature `guest` alone; the default library type for the program, `cargo rustc --crate-type cdylib` for the module), the static `FLM_EXTENSION` the macro writes on every target, the engine `native` (cargo feature `native`: `NativeEngine::new([NativeExtension { stem, manifest, compiled: &crate::FLM_EXTENSION }])` added with `ExtensionLoader::with_engine`; the program's source answers the stem with `engine: native`; a stem the engine does not hold is refused, listing those it holds), what differs (no sandbox, no limits and no bound on a value's depth, every JSON value passed as it is, in a call's arguments and answer and in a template module's data (the engines `js` and `wasm` refuse a number that is not whole or a reserved map key in them; on every engine the API itself refuses one where it keeps the value as data: a table item, a data payload, a diagnostic's data, a service slot's data), every call a direct, typed call in the same process with no JSON value written or read (the requests, the lending of handler objects and FLM's calls of the handlers alike; only a feature's settings, given to `register` and to a template module's `describe`, and the package declarations stay JSON values), a panic fails the handler and replaces the thread's instance, a panic in an object's `Drop` reported by the panic hook alone, a call from a thread the extension started answers `ExtError::Unsupported`, the digest from the crate's name and version, not its code), and how the form is chosen (by `flm-ext`'s feature `native`, not by the target: a program built for any target, `wasm32` included, carries extensions compiled in; an extension's `.wasm` module is built in a cargo run where no crate turns on `native`, such as `cargo rustc -p NAME`, or it lacks its exports and the engine `wasm` refuses it, saying which export it lacks) | [A Rust extension compiled into a program](crate::guide::extending#a-rust-extension-compiled-into-a-program); the module pages of `flm_ext::native` (a compiled example, the instances, dropping an instance, the limits and failures) and `flm_ext::guest`; the tests `flm-ext/tests/native_case1.rs` and `flm-ext/tests/native_handlers.rs` as the worked examples; the shipped extension `phfpack`, in both forms ([A Rust extension, end to end](crate::guide::extending#a-rust-extension-end-to-end)) |
 | where the `flm` program looks for extensions | [Where extensions are looked for](crate::guide::command_line#where-extensions-are-looked-for) |
 | settings declared from data, the settings cascade | [`SettingsDecl::config_data`](crate::core::settings::SettingsDecl::config_data), [`SettingsDecl::options_data`](crate::core::settings::SettingsDecl::options_data), [`crate::core::settings::cascade`] |
 | end-to-end tests of wiring | `flm-core/tests/wiring_*.rs`, `flm-core/tests/stdcore_*.rs`, `flm-core/tests/pipeline_*.rs` |
@@ -484,7 +551,7 @@ shorthands settings may write in its place; table in
 | [`Mandatory`](crate::lang::mint::ArgStdKind::Mandatory) | `mandatory` | a `{…}` group; a single token also counts, as in TeX | `{`, `m` |
 | [`Optional`](crate::lang::mint::ArgStdKind::Optional) | `optional` | an optional `[…]` group | `[`, `o` |
 | [`Star`](crate::lang::mint::ArgStdKind::Star) | `star` | an optional `*` | `*`, `s`, `t*` |
-| [`Marker`](crate::lang::mint::ArgStdKind::Marker) | `marker`; `marker`: one character | an optional marker of one other character (`\name!`) | `t<c>` |
+| [`Marker`](crate::lang::mint::ArgStdKind::Marker) | `marker`; `marker`: one or more characters | an optional marker other than a lone `*`, its characters matched as written (`\name!`, `\name\big`) | `t<c>`, `t{<chars>}` |
 | [`DelimitedGroup`](crate::lang::mint::ArgStdKind::DelimitedGroup) | `delimited-group`; `delimiters`: `[<c1>, <c2>]` | a group between a prescribed pair (`\name(arg)`); no single token | `r<c1><c2>` |
 | [`OptionalDelimitedGroup`](crate::lang::mint::ArgStdKind::OptionalDelimitedGroup) | `optional-delimited-group`; `delimiters` | the same, optional | `d<c1><c2>` |
 | [`AnyDelimitedGroup`](crate::lang::mint::ArgStdKind::AnyDelimitedGroup) | `any-delimited-group` | a group in `{}`, `[]`, `()` or `<>`, whichever the use site opens; the node records which | `AnyDelimited` |
@@ -494,7 +561,7 @@ shorthands settings may write in its place; table in
 | [`KeyVals`](crate::lang::mint::ArgStdKind::KeyVals) | `key-vals` | an optional `[key=value,…]` group, parsed as `Optional`; the element reads the pairs itself | none |
 | [`CharsGroup`](crate::lang::mint::ArgStdKind::CharsGroup) | `chars-group` | a `{…}` group read as plain characters (`\label{sec:intro}`); comments and nested groups are recognized, and a template's placeholder stays one | none |
 | [`Verbatim`](crate::lang::mint::ArgStdKind::Verbatim) | `verbatim`; `delimiters`, absent for the closer matched to the opener | raw text between delimiters (`\verbcode|…|`); nothing is recognized but a template's placeholder | `v`, `v<c1><c2>` |
-| [`TackOn`](crate::lang::mint::ArgStdKind::TackOn) | `tack-on`; `fields`: `[{name, args, repeatable, docs}]`; written, never read | the fields ([`TackOnField`](crate::lang::mint::TackOnField)) absorbed after the construct's other arguments, as `\section{…}` absorbs `\label{…}` | none |
+| [`TackOn`](crate::lang::mint::ArgStdKind::TackOn) | `tack-on`; `fields`: `[{name, args, repeatable, docs}]`, distinct names, `args` an argument list (none by default), `repeatable` `false` and `docs` empty by default | the fields ([`TackOnField`](crate::lang::mint::TackOnField)) absorbed at the argument's position in a call, after the arguments declared before it, as `\section{…}` absorbs `\label{…}` | none |
 | [`Terminated`](crate::lang::mint::ArgStdKind::Terminated) `{ terminator, repeat_char, opener, head, raw }` | `terminated`; `terminator`; `repeat_char` (absent: none), `opener` and `head` (empty by default), `raw` (`false` by default) | everything up to a terminator, matched before any other markup: prefix = run of `repeat_char` (any length) + `opener`; terminator = `head` + the same run + `terminator`; content parsed (`raw: false`) or raw text in a verbatim-class group (`raw: true`); nothing trimmed; techy's `TerminatedArgumentParser`; `MissingArgumentTerminator`, `ExpectedArgumentOpener` | `u<term>` (content), `U<term>` (raw), `f<c><term>` (content after a run of `<c>`), `F<c><term>` (raw); the code span is a specials `` ` `` with one argument ``` F`` ```; no code sets `opener` or `head` |
 
 An argument's syntax in data is read by one reader only:
@@ -506,19 +573,27 @@ the kind's parameters) and `code`, beside `name, layout, opaque_wrapper, docs, m
 scoped, role`; an [`ArgDataError`](crate::lang::mint::ArgDataError) otherwise) and
 [`ArgListData`](crate::lang::mint::ArgListData) (a list in its three shapes: `"[{"`,
 `["[", "r()"]`, or entries, each a code or a map; an
-[`ArgListError`](crate::lang::mint::ArgListError) names the entry). A tack-on kind is
-refused when read: a feature declares it in Rust. A feature's settings field of
+[`ArgListError`](crate::lang::mint::ArgListError) names the entry). A feature's settings field of
 arguments is `Vec<ArgDef>` with `#[serde(deserialize_with = "deserialize_arg_list")]` and
 `#[schemars(with = "ArgListData")]`
 ([`deserialize_arg_list`](crate::lang::mint::deserialize_arg_list)); never read a code or
 a structured syntax by hand. Written back (`ArgDataFields::from(&arg)`, which flm-ext uses
-for every argument it gives an extension), a declaration read from a code gives its
-`code` ([`ArgDef::code`](crate::lang::mint::ArgDef::code)); any other declaration whose
-parser is a standard kind other than tack-on gives its `syntax`; a tack-on argument or a
-feature's own parser gives neither and does not read back. JavaScript and Rust guests:
-`new ArgDef(syntax)` / `ArgDef::new(syntax)` and `ArgDef.named(name, syntax)` take a code
-or a structured syntax (JavaScript: a map typed `ArgStdKind` in `flm.d.ts`; Rust guest:
-an `ArgStdKind`, through `flm_ext::guest::lang::mint::ArgSyntax`).
+for every argument it gives a JavaScript extension or a WebAssembly module), a declaration
+read from a code gives its `code` ([`ArgDef::code`](crate::lang::mint::ArgDef::code)); any
+other declaration whose parser is a standard kind gives its `syntax`; a feature's own
+parser gives neither and does not read back. A Rust extension compiled into the program
+receives no data form: its guest `ArgDef` is made from flm-core's argument by the same
+rule ([`ArgDef::arg_code`](crate::lang::mint::ArgDef::arg_code), else the parser's
+standard kind, else an error). JavaScript guests: `new ArgDef(syntax)` and
+`ArgDef.named(name, syntax)` take a code or a structured syntax (a map typed `ArgStdKind`
+in `flm.d.ts`); `arg_def_from_code(code)` asks FLM. Rust guests: `ArgDef::new(kind)` and
+`ArgDef::named(name, kind)` take the guest's own `ArgStdKind`, whose `TackOn { fields }`
+holds `TackOnField`s of guest `ArgDef`s; `ArgDef::from_code(code)` and
+`ArgDef::named_from_code(name, code)` read a code locally with flm-core's reader (in
+`define` too; a text that is no code is `ExtError::Core` of kind `arg-code`, flm-core's
+message); the guest has no `arg_def_from_code`. An argument crosses as data both ways:
+`label_fields_arg()` (and, in JavaScript, `arg_def_from_code`) answers one written with its
+code or its structured syntax.
 
 **An argument's role** ([`ArgDef::role`](crate::lang::mint::ArgDef::role())): a
 registered dotted name for what the argument holds (a label, a file path), shown by
@@ -549,10 +624,11 @@ feature `docs` (default) keeps them; off, every builder stores `""`
 **An argument's layout** ([`ArgLayout`](crate::lang::mint::ArgLayout)) says how the
 block-structure pass lays out its content: `Inline` (the default; a blank line inside is
 reported and read as a space), `Blocks` (`.blocks()`: paragraphs and blocks inside), or
-`InlineOrBlocks` (blocks when the content holds a blank line or a block-level node,
-inline otherwise). An argument declared with an opaque wrapper
-([`ArgDef::with_opaque_wrapper`](crate::lang::mint::ArgDef::with_opaque_wrapper): its
-text is kept as typed, for a key or a label) takes no layout other than inline
+`InlineOrBlocks` (blocks when the content holds a blank line or a block-level node, inline
+otherwise; a `Displayed` node, such as a display environment, is not block-level). An
+argument declared with an opaque wrapper
+([`ArgDef::with_opaque_wrapper`](crate::lang::mint::ArgDef::with_opaque_wrapper): its text
+is kept as typed, for a key or a label) takes no layout other than inline
 ([`MintError::LayoutOnOpaqueWrappedArgument`](crate::lang::mint::MintError::LayoutOnOpaqueWrappedArgument)),
 and `Blocks` is refused in mathematics mode
 ([`MintError::BlocksOnMathArgument`](crate::lang::mint::MintError::BlocksOnMathArgument)).
@@ -567,8 +643,8 @@ of whether an argument holds blocks.
 
 **Environment bodies.** A [`BodyDef`](crate::lang::mint::BodyDef) gives the body's
 [`BodyLayout`](crate::lang::mint::BodyLayout) (`Inline`, `Blocks`, or `FromRole`, the
-default: the element's own block role decides), an optional body parser
-([`BodyDef::parser`](crate::lang::mint::BodyDef::parser), a
+default: blocks for the block role `Block`, inline for every other role), an optional body
+parser ([`BodyDef::parser`](crate::lang::mint::BodyDef::parser), a
 [`FlmBodyParser`](crate::lang::mint::FlmBodyParser);
 [`BodyDef::verbatim`](crate::lang::mint::BodyDef::verbatim) installs FLM's raw-text
 reader), the parsing mode, whether its content is kept as typed under an opaque wrapper
@@ -776,12 +852,16 @@ and returns its error the same way.
 
 **Fields.** A field is a macro that a construct absorbs as data rather than as content
 (`\label` after a heading; `\\`, `\label`, `\tag` and `\nonumber` in a display-math
-body); a construct takes its fields through its tack-on argument, a trailing argument
-that absorbs the field macros written after the construct's other arguments
-([fields](crate::guide::concepts_overview#fields-data-a-construct-reads)). Every field
-node, a tack-on field or a field a scoped package declares, carries the one element type
-[`FIELD`](crate::lang::mint::FIELD) (`flm.field`), whose value holds the field's name
-([`field_name`](crate::lang::mint::field_name)). A field is a macro that a construct
+body); a construct takes its fields through its tack-on argument, the argument that
+absorbs the field macros written at its position in a call, after the arguments declared
+before it ([fields](crate::guide::concepts_overview#fields-data-a-construct-reads)). Every field
+node, a tack-on field or a field a scoped package declares, is a macro node carrying the
+element type [`FIELD`](crate::lang::structural::FIELD) (`flm.field`), and its macro name
+is the field's name ([`field_name`](crate::lang::mint::field_name)). A tack-on field
+([`TackOnField`](crate::lang::mint::TackOnField)) is data only (name, arguments,
+`repeatable`, docs; settings declare one with the structured syntax `tack-on`) and its
+node carries the language's own field element, a structural element; a scoped package's
+field builds its element with [`field_element`](crate::lang::mint::field_element). A field is a macro that a construct
 absorbs as data rather than as content: the construct that declared the field reads it by
 its name, and nothing across the document is keyed on a field's name. A field node that
 reaches a backend is the Error `flm.lowering.field-not-read`
@@ -812,8 +892,9 @@ Two rules hold for every aspect:
    element's data or the aspect's implementation.
 
 The aspects in [`crate::model::aspects`]:
-[`BlockRoleAspect`](crate::model::aspects::BlockRoleAspect) (block, inline, or a
-decorator attached to its block; [`FixedBlockRole`](crate::model::aspects::FixedBlockRole)
+[`BlockRoleAspect`](crate::model::aspects::BlockRoleAspect) (block, inline, a displayed
+item set on lines of its own inside its paragraph, or a decorator attached to its block;
+[`FixedBlockRole`](crate::model::aspects::FixedBlockRole)
 for a constant role, [`BlockRole::DEFAULT`](crate::model::aspects::BlockRole::DEFAULT)
 for inline content), [`Referenceable`](crate::model::aspects::Referenceable),
 [`Referencing`](crate::model::aspects::Referencing),
@@ -870,7 +951,13 @@ name, hook)`, its type name given by
 [`variant_for_use`](crate::lang::rewrites::userdefs::UserDefinition::variant_for_use)`(&site)`
 (its `Err` is the condition to report at the use site) and instantiate them with bindings
 that give the extra names' content and pass every other reference to
-[`DefinitionBindings::new(site, variant)`](crate::lang::rewrites::userdefs::DefinitionBindings).
+[`DefinitionBindings::new(site, variant)`](crate::lang::rewrites::userdefs::DefinitionBindings):
+[`ExtraValues`](crate::lang::rewrites::userdefs::ExtraValues) keyed by name and
+substitution text (`placeholders()` and `substitution_text(node)` of `variant.template()`
+and of each template of
+[`variant.defaults()`](crate::lang::rewrites::userdefs::ModeVariant::defaults) list the
+keys; `.template`, `.tree`, `.no_value`; a pair not held is `Unresolvable`) and
+`values.over(&base)`, or an implementation of `PlaceholderBindings`.
 A computed value is a finished tree
 ([`PlaceholderValue::Tree`](crate::lang::rewrites::userdefs::PlaceholderValue::Tree)),
 which a feature may compile once with
@@ -1704,11 +1791,11 @@ writes natively, a lowering stage, an emit stage and a final stage
 2. Tables: `b.table_named(lowered_table_name(B), StandardTable.LoweredTrees, docs)`; a table
    of your own for the emitted text (`b.table`); `b.table_named(DOC, StandardTable.ArtifactSet, docs)`.
 3. Emit stage, a stage object: `Effect.Compute`, `Scope.Document`, `needs().reads(lowered)`;
-   `cx.get(lowered).lowered` answers `trees()`, `tree(id)` (a root or `null`),
-   `requires(id)`, `rounds(id)`; walk `cx.trees()` in document order and read each node's
-   `element_name()`, `payload()` (data or `null`), `body()`, `children()`, `is_chars()`,
-   `chars()`, `span_content()`, `slot_count()`, `slot_name(i)`, `slot_content_nodes(i)`;
-   push one text. Escape everything the format reserves.
+   `cx.get(lowered).lowered` answers `trees()`, `tree(id)` (a tree or `null`; its
+   `root()` is its root node), `requires(id)`, `rounds(id)`; walk `cx.trees()` in document
+   order and read each node's `element_name()`, `payload()` (data or `null`), `body()`,
+   `children()`, `is_chars()`, `chars()`, `span_content()`, `slot_count()`, `slot_name(i)`,
+   `slot_content_nodes(i)`; push one text. Escape everything the format reserves.
 4. Final stage, a stage object reading that text and pushing
    `Artifact.bytes(new ArtifactId(owner, name), media_type, content).as_entry()` (or
    `Artifact.folder(id, [[path, content], …])`) into the artifact set; a content is a text,
@@ -2593,24 +2680,25 @@ A block-transparent element is one whose content is laid out as if it were writt
 directly in the content around it ([block-transparent
 elements](crate::guide::concepts_overview#block-transparent-elements)): a blank line in
 its argument is a paragraph break of the text around it, and the mark continues into the
-next paragraph; a block in it (a list, a displayed formula) is a block of the text around
-it; the element never becomes a block of its own. Block structuring
-([`structure`](crate::lang::rewrites::blocks::structure)) does this in its first walk,
-the *cut step*: it calls the element's
+next paragraph; a block in it (a list) is a block of the text around it, and a displayed
+item in it (a displayed formula) stays in the inline content it spans; the element never
+becomes a block of its own. Block structuring
+([`structure`](crate::lang::rewrites::blocks::structure)) does this in its first walk, the
+*cut step*: it calls the element's
 [`BlockTransparent`](crate::lang::rewrites::blocks::BlockTransparent) aspect with the
 whole parsed node, and puts the staged nodes it returns in the node's place among its
-siblings, without a wrapper. The layout step then lays out each **cut part** (a node
-that holds one stretch of the content: inline content between two paragraph breaks, or
-one block) by its block role, like any node. Where the content around is inline (a
-heading's title), the layout reports a break (`flm.blocks.parbreak-in-inline`, written as
-a space) or a block cut part (`flm.blocks.block-in-inline`) as for any inline content.
+siblings, without a wrapper. The layout step then lays out each **cut part** (a node that
+holds one stretch of the content: inline content between two paragraph breaks, or one
+block) by its block role, like any node. Where the content around is inline (a heading's
+title), the layout reports a break (`flm.blocks.parbreak-in-inline`, written as a space)
+or a block cut part (`flm.blocks.block-in-inline`) as for any inline content.
 
 The element does the work; the cut step provides, through the
 [`BlockCutter`](crate::lang::rewrites::blocks::BlockCutter) it hands the aspect:
 
 | operation | what it does |
 |---|---|
-| [`restage_and_classify`](crate::lang::rewrites::blocks::BlockCutter::restage_and_classify)`(cx, run)` → `Vec<`[`CutItem`](crate::lang::rewrites::blocks::CutItem)`>` | stages a run (an argument's content) in order: a paragraph-break marker as `Marker`; a node whose block role (read on the *input* node) is `Block` as `Block`; a comment, text that is only whitespace, or a node whose element carries [`Whitespace`](crate::model::aspects::Whitespace) (`~`) as `Blank`; anything else `Inline`. A block-transparent node inside is cut on the way and its items returned with their variants (the cut is recursive). A run in mathematics mode is copied unchanged, as `Inline` and `Blank` items only |
+| [`restage_and_classify`](crate::lang::rewrites::blocks::BlockCutter::restage_and_classify)`(cx, run)` → `Vec<`[`CutItem`](crate::lang::rewrites::blocks::CutItem)`>` | stages a run (an argument's content) in order: a paragraph-break marker as `Marker`; a node whose block role (read on the *input* node) is `Block` as `Block` (a `Displayed` node is `Inline`); a comment, text that is only whitespace, or a node whose element carries [`Whitespace`](crate::model::aspects::Whitespace) (`~`) as `Blank`; anything else `Inline`. A block-transparent node inside is cut on the way and its items returned with their variants (the cut is recursive). A run in mathematics mode is copied unchanged, as `Inline` and `Blank` items only |
 | [`rebuild`](crate::lang::rewrites::blocks::BlockCutter::rebuild)`(cx, &node, vec![(`[`CutPart`](crate::lang::rewrites::blocks::CutPart)`, content)…], Some(payload))` → `BuildId` | a copy of the node (same span, parsing state, element, way of writing) in which each listed part (`Argument(i)`, `ArgumentNamed(name)`, `Body`) holds the given staged nodes inside its own delimiters; the other parts are staged through the cut step; the payload is set as [`FlmNodeExt::payload`](crate::lang::FlmNodeExt::payload) (`None` keeps the node's own). A part listed twice, a missing part or an unwritten argument is [`StructureError::Cut`](crate::lang::rewrites::blocks::StructureError) |
 | [`carry`](crate::lang::rewrites::blocks::BlockCutter::carry)`(cx, &node)` | an unchanged copy of a node and its subtree, nothing cut |
 | [`synthesize_callable`](crate::lang::rewrites::blocks::BlockCutter::synthesize_callable)`(&node, &element)` | a childless node of a synthesized element at the node, to stage with `carry` |
@@ -2814,7 +2902,7 @@ need.
 | [`citations`](crate::stdcore::features::citations) | two elements whose last argument is a tack-on argument holding further calls of the same shape; a document-scope stage over the element index writing a table keyed by citation key; a citation counter style compiled by a late-initialization hook without the `numbering` feature; one staging function two rules share; a service slot of providers asked by a compute stage; a check stage in `flm.validated`; a piece built by one list function |
 | [`input`](crate::stdcore::features::input) | a command declared as an inclusion ([`SyntaxDef::Inclusion`](crate::lang::mint::SyntaxDef::Inclusion)), read by the language's own parser, which asks the host's [`InputResolver`](crate::lang::InputResolver) and parses a content input where the command is written, or records a heading input that the assembly places as a tree of its own; a rewrite stage ordered before the other rewrites by `before` edges alone, scheduled in every standard plan because its capability is a member of `flm.validated`; a rule lowering a placing node to `flm.pres.subtree`, which identifies the tree the run places there ([`Lowerer::placement`](crate::core::lowering::Lowerer::placement)), and a command whose file was not brought in to the dropped mark |
 | [`userdefs`](crate::stdcore::features::userdefs) | author-written user definitions, a late-initialization hook compiling them and recording what the build decided about each ([`RegistryBuildFacts`](crate::lang::rewrites::userdefs::RegistryBuildFacts): recomposable or why not, the effective signature, whether the name is shared by a definition for the other parsing mode, the per-mode definitions), three rules created per definition (`expand-in-tree`, `emit-call`, `instantiate-at-lowering`; [`kept`](crate::stdcore::features::userdefs::kept)) |
-| [`LoweringFeature`](crate::stdcore::backends::lowering::LoweringFeature) | registering the presentation vocabulary, the field element and the structural elements' default rules; two service slots and the native-set implications |
+| [`LoweringFeature`](crate::stdcore::backends::lowering::LoweringFeature) | registering the presentation vocabulary and the structural elements' default rules; two service slots and the native-set implications |
 | [`meta`](crate::stdcore::features::meta) | an option type bound on the document ([`DocMeta`](crate::stdcore::features::meta::DocMeta)) whose texts are parsed by one `Document` stage writing three piece tables, a capability added to `flm.validated`, three piece declarations contributed as peer contributions, and rules on the recomposed LaTeX under peer declarations |
 | [`PiecesFeature`](crate::stdcore::backends::pieces::PiecesFeature) | a service slot other features contribute to as peer contributions ([`PieceDecl`](crate::core::piece::PieceDecl)) and a render option read by a stage the feature does not register: each backend that places pieces creates a [`PiecesStage`](crate::stdcore::backends::pieces::PiecesStage) itself |
 | [`TextBackend`](crate::stdcore::backends::text::TextBackend) | a whole backend in one `register`: native set, stages, tables, render options, an output and a workflow, the shared pieces stage created for it, and its output regions |

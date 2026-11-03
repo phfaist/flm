@@ -42,13 +42,14 @@
 //!
 //! A theorem with no anchor (a proof, which accepts no label, or any theorem
 //! in a registry without the references feature) has no `id`. Where the body
-//! opens with another block, such as a list or a displayed formula, the
-//! heading is placed in a paragraph of its own before it; an empty body is
-//! one paragraph holding the heading and the mark. The feature adds no tag
-//! and no CSS class of its own: a stylesheet selects a theorem by the role's
-//! CSS class, the two spans' CSS classes and the kind tokens, which carry a
-//! host's own theorem kinds and theorem classes as they carry the shipped
-//! ones.
+//! opens with another block, such as a list, the heading is placed in a
+//! paragraph of its own before it; a displayed formula stands inside its
+//! paragraph, so a body that opens with one has the heading in that
+//! paragraph, before the formula. An empty body is one paragraph holding the
+//! heading and the mark. The feature adds no tag and no CSS class of its own:
+//! a stylesheet selects a theorem by the role's CSS class, the two spans' CSS
+//! classes and the kind tokens, which carry a host's own theorem kinds and
+//! theorem classes as they carry the shipped ones.
 //!
 //! # The stylesheet
 //!

@@ -309,8 +309,7 @@ impl Expander for ExpandPass<'_> {
     // cumulative stack use of the nested drivers is not bounded by one budget. The
     // worker stack is generous and template trees are shallow, so this is safe as
     // things stand; a restager that continues under the caller's remaining budget
-    // would remove the caveat. See the design rationale at
-    // [§flm-dd-dr:lang-nested-restage-budget].
+    // would remove the caveat.
     fn instantiate(
         &mut self,
         cx: &mut ExpandCx<'_>,

@@ -249,9 +249,9 @@ impl Lower for LinkLatexRule {
                 return Ok(Lowering::Emit(unlinked(cx, lw, &node, command, &words)?));
             }
         };
-        // The address alone: the display of a `\url` or an `\email` is the
-        // hook's to derive, in LaTeX. See decision rationale at
-        // [§flm-dd-dr:rend-link-display-presentation]
+        // The address alone: the display of a `\url` or an `\email` is
+        // presentation of the address, which the hook derives in LaTeX, and an
+        // author who redefines the hook decides what it shows.
         let mut slots = vec![escaped(cx, lw, &address)?];
         if command.has_text() {
             slots.push(lower_arg_named_or_nothing(cx, lw, &node, TEXT_ARG)?);

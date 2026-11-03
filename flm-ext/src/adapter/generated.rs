@@ -44,6 +44,7 @@ use crate::api::stdcore::features::math::LineFrame;
 use crate::api::stdcore::features::refs::LabelUse;
 use crate::api::techy::error::Diagnostic;
 use crate::api::techy::node::Node;
+use crate::api::techy::node::Tree;
 use crate::api::techy::transform::RestagedArgument;
 use crate::api::techy::transform::RestagedSlot;
 use crate::runtime::ExtError;
@@ -88,6 +89,7 @@ pub fn constants() -> Vec<(&'static str, &'static str, Value)> {
         ("lang/structural", "PARAGRAPH", json!(crate::api::lang::structural::PARAGRAPH)),
         ("lang/structural", "PARBREAK", json!(crate::api::lang::structural::PARBREAK)),
         ("lang/structural", "PLACEHOLDER", json!(crate::api::lang::structural::PLACEHOLDER)),
+        ("lang/structural", "FIELD", json!(crate::api::lang::structural::FIELD)),
         ("lang/structural", "UNKNOWN_MACRO", json!(crate::api::lang::structural::UNKNOWN_MACRO)),
         ("lang/structural", "UNKNOWN_ENVIRONMENT", json!(crate::api::lang::structural::UNKNOWN_ENVIRONMENT)),
         ("lang/structural", "NAMES", json!(crate::api::lang::structural::NAMES)),
@@ -217,6 +219,7 @@ pub(crate) fn dispatch_kind<'c>(table: &mut CallTable<'c>, handle: Handle, metho
         HandleKind::Expander => expander(table, handle, method, args),
         HandleKind::UserDefinition => user_definition(table, handle, method, args),
         HandleKind::ModeVariant => mode_variant(table, handle, method, args),
+        HandleKind::CompiledTemplate => compiled_template(table, handle, method, args),
         HandleKind::LoweringRule => lowering_rule(table, handle, method, args),
         HandleKind::Lowerer => lowerer(table, handle, method, args),
         HandleKind::ElementDef => element_def(table, handle, method, args),
@@ -233,8 +236,8 @@ pub(crate) fn dispatch_kind<'c>(table: &mut CallTable<'c>, handle: Handle, metho
         HandleKind::Counters => extra::counters(table, handle, method, args),
         HandleKind::Anchors => extra::anchors(table, handle, method, args),
         HandleKind::ValueBindings => value_bindings(table, handle, method, args),
-        HandleKind::CompiledTemplate
-        | HandleKind::PlaceholderBindings
+        HandleKind::Tree => tree(table, handle, method, args),
+        HandleKind::PlaceholderBindings
         | HandleKind::Staged
         | HandleKind::Stage
         | HandleKind::Expand
@@ -248,7 +251,6 @@ pub(crate) fn dispatch_kind<'c>(table: &mut CallTable<'c>, handle: Handle, metho
         | HandleKind::Module
         | HandleKind::Referenceable
         | HandleKind::Sectioning
-        | HandleKind::ArgDef
         | HandleKind::BuiltLang
         | HandleKind::LateInit
         | HandleKind::Finalizer
@@ -1032,7 +1034,26 @@ fn mode_variant<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, arg
             let answer = this.template();
             answer.into_reply(table)
         }
+        "defaults" => {
+            args.arity(0)?;
+            let this = &**entry!(table, handle, ModeVariant, ModeVariant);
+            let answer = this.defaults();
+            answer.into_reply(table)
+        }
         _ => Err(no_method(HandleKind::ModeVariant, method)),
+    }
+}
+
+/// The methods of the kind `compiled_template` (`CompiledTemplate`).
+fn compiled_template<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    match method {
+        "placeholders" => {
+            args.arity(0)?;
+            let this = &**entry!(table, handle, CompiledTemplate, CompiledTemplate);
+            let answer = this.placeholders();
+            answer.into_reply(table)
+        }
+        _ => Err(no_method(HandleKind::CompiledTemplate, method)),
     }
 }
 
@@ -1208,7 +1229,7 @@ fn lowerer<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &A
         }
         "splice" => {
             args.arity(2)?;
-            let a1 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 1)?;
+            let a1 = <Box<dyn Tree> as FromArg>::from_arg(table, args, 1)?;
             let answer = match table.entries_mut(method, [handle, args.handle(0)?])? {
                 [Entry::Lowerer(this), Entry::LowerCx(a0)] => this.splice(&mut **a0, &*a1),
                 [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
@@ -1527,12 +1548,25 @@ fn value_bindings<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, a
         "with" => {
             args.arity(2)?;
             let a0 = <String as FromArg>::from_arg(table, args, 0)?;
-            let a1 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 1)?;
+            let a1 = <Box<dyn Tree> as FromArg>::from_arg(table, args, 1)?;
             let this = entry!(table, handle, ValueBindings, ValueBindings).clone();
-            let answer = this.with(&a0, &*a1)?;
+            let answer = this.with(&a0, &*a1);
             answer.into_reply(table)
         }
         _ => Err(no_method(HandleKind::ValueBindings, method)),
+    }
+}
+
+/// The methods of the kind `tree` (`Tree`).
+fn tree<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    match method {
+        "root" => {
+            args.arity(0)?;
+            let this = &**entry!(table, handle, Tree, Tree);
+            let answer = this.root();
+            answer.into_reply(table)
+        }
+        _ => Err(no_method(HandleKind::Tree, method)),
     }
 }
 
@@ -1575,6 +1609,12 @@ pub(crate) fn module<'c>(table: &mut CallTable<'c>, path: &str, method: &str, ar
                 [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
                 [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
             }?;
+            answer.into_reply(table)
+        }
+        ("lang/mint", "arg_def_from_code") => {
+            args.arity(1)?;
+            let a0 = <String as FromArg>::from_arg(table, args, 0)?;
+            let answer = crate::api::lang::mint::arg_def_from_code(&a0)?;
             answer.into_reply(table)
         }
         ("lang/rewrites/blocks", "argument_holds_blocks") => {

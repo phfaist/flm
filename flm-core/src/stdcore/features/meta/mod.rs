@@ -357,7 +357,9 @@ impl FlmFeature for Meta {
             "The document's metadata has been parsed, and every problem the parse found has \
              been reported. A member of `flm.validated`.",
         ))?;
-        // See decision rationale at [§flm-dd-dr:std-meta-stage].
+        // One stage parses the three texts, read from one value at one time; it
+        // joins `flm.validated` so that checking a document reports a problem in
+        // its title as rendering it does.
         b.stage(Arc::new(BuildMeta))?;
         b.collection_member(VALIDATED, READ)?;
         // The pieces feature owns the slot, and may be absent: the metadata is

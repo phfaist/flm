@@ -2,7 +2,7 @@
 
 [workspace]
 resolver = "3"
-members = ["flm-core", "flm-main", "flm-cli", "flm-info", "flm-phfpack", "flm-ext", "extensions", "extensions/rust/flmdoc", "extensions/rust/profile-pdf-latex", "extensions/rust/syntax-highlight"]
+members = ["flm-core", "flm-main", "flm-cli", "flm-info", "flm-ext", "extensions", "extensions/rust/flmdoc", "extensions/rust/phfpack", "extensions/rust/profile-pdf-latex", "extensions/rust/syntax-highlight"]
 # The extensions written in Rust (`extensions/rust/NAME`) are listed one by one, not with a
 # glob: the folder also holds the script that builds their WebAssembly form.
 # prototypes/* are standalone packages (each carries its own [workspace] table),

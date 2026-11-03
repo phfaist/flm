@@ -844,7 +844,6 @@ pub fn path_of(
     namer: &dyn ArtifactNamer,
     scope: &NamingScope,
 ) -> RelPath {
-    // See decision rationale at [§flm-dd-dr:ext-artifact-set-read].
     if let Some(path) = &artifact.fixed_path {
         return path.clone();
     }

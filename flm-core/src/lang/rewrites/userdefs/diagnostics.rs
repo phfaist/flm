@@ -207,8 +207,9 @@ pub enum DefinitionProblem {
         /// The parse failure, as text.
         detail: String,
     },
-    /// The template refers to a *tack-on argument*: the trailing argument that
-    /// absorbs the field macros written after a call, such as the `\label{…}` of
+    /// The template refers to a *tack-on argument*: the argument that absorbs
+    /// the field macros written at its position in a call, after the arguments
+    /// declared before it, such as the `\label{…}` of
     /// `\thm{Euclid}\label{thm:euclid}` (see
     /// [fields](crate::guide::concepts_overview#fields-data-a-construct-reads)).
     ///

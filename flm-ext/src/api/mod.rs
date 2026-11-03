@@ -15,7 +15,7 @@
 //! | `flm-core` construct | Here | Across a JSON binding |
 //! |---|---|---|
 //! | plain data with a serde form or public fields (`BlockRole`, `Effect`) | the `flm-core` type, re-exported under the mirrored path | its serde form, or the shape the adapter states for a type without one |
-//! | a value a Rust caller can hold but a script cannot read (`ArgDef`, `LoweringRule`, `Definition`) | the `flm-core` type, re-exported | built from its data shape at the call that takes it; a value a helper produced crosses as a handle |
+//! | a value a Rust caller can hold but a script cannot read (`ArgDef`, `LoweringRule`, `Definition`) | the `flm-core` type, re-exported | built from its data shape at the call that takes it; an `ArgDef` or a `Definition` a function answers is written in that shape, a `LoweringRule` as a handle |
 //! | a reference to an object with methods (`&mut FeatureBuilder`, `&StageCx`, a node) | an object-safe trait with the same method names, implemented by the adapter over the real object | a handle, its methods dispatched by name |
 //! | a method generic over a type (`b.table::<T>`, `cx.get::<K>`) | the same method, the type named by the registered name | the same |
 //! | a free function (`chars_text`, `element_name_under`) | the same function in the mirrored module, over the façades | the same, dispatched on the module's handle |

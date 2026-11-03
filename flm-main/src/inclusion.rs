@@ -68,7 +68,9 @@ impl Inclusion {
 impl InputResolver for Inclusion {
     fn resolve(&self, reference: &str, including: Option<&str>, parsing: &FlmParsing) -> Result<IncludedFile, InputError> {
         let folder = including.and_then(|name| Path::new(name).parent()).unwrap_or(Path::new(""));
-        // See decision rationale at [§flm-dd-dr:host-input-names].
+        // A file is named by its path resolved from the folder of the file that includes it,
+        // `.` and `..` folded away: every name opens from where the command ran, and two
+        // spellings of one path are one name when the chain of inclusions is checked.
         let path = fold(&BuildFiles::resolve(folder, Path::new(reference)));
         let name = path.display().to_string();
         let text = self.files.read_text(Path::new(""), &path).map_err(|error| InputError::new(error.to_string()))?;

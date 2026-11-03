@@ -11,10 +11,12 @@ license.workspace = true
 workspace = true
 
 # Dependency policy:
-# - techy: a version requirement on crates.io; 0.1.2 is flm's techy floor,
-#   the first release with the terminated argument parser
-#   (`TerminatedArgumentParser`, behind the standard argument kind
-#   `ArgStdKind::Terminated`), and Cargo.lock records the version a build uses. Its
+# - techy: a version requirement on crates.io; 0.1.4 is flm's techy floor,
+#   the first release whose embellishment and marker parsers match their markers
+#   against the raw characters of the source (a marker spelled with a specials
+#   trigger, a group delimiter or a command escape still matches, behind the
+#   standard argument kinds `ArgStdKind::Embellishments` and `ArgStdKind::Marker`),
+#   and Cargo.lock records the version a build uses. Its
 #   `serde` feature is on: `flm dump` renders techy's `SerialValue` through
 #   serde_json. flm-core re-exports the crate as `flm_core::techy`, so an
 #   embedder reaches the very version flm-core builds against instead of
@@ -78,7 +80,7 @@ workspace = true
 #   there: html5ever 0.39 declares a minimum supported Rust version of 1.71,
 #   and markup5ever_rcdom declares none at all.
 [dependencies]
-techy = { version = "0.1.2", features = ["serde"] }
+techy = { version = "0.1.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 # JSON rendering of projections, goldens and wire segments: the `dump` module's
 # JSON helpers and the golden-file helper are public API (there is no
@@ -130,5 +132,4 @@ parallel = ["dep:rayon"]
 # description of each feature's settings JSON Schema (made of those texts; the
 # descriptions of the individual settings stay, being part of the schema), and
 # the message of `RunError::MissingExternal`, which quotes the table's text.
-# See decision rationale at [§flm-dd-dr:docs-feature].
 docs = []

@@ -459,7 +459,6 @@ fn without_the_numbering_feature_the_check_reports_the_same() {
 // not the definition's content, so the check sees nothing inside the
 // definition: what a kept definition holds is LaTeX's to check. The workflows
 // that expand the definition report what it holds.
-// See decision rationale at [§flm-dd-dr:std-theorem-proof-check]
 #[test]
 fn the_reports_under_each_workflow_for_content_inside_a_definition_the_recomposed_latex_keeps() {
     let definitions = vec![

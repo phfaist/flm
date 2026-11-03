@@ -26,7 +26,7 @@ use common::{registry_with, try_registry_with};
 
 // --- helpers -----------------------------------------------------------------------------------
 
-/// The probe of plan B 8.2.
+/// The thread and strict-mode probe.
 const COUNTER: &str = include_str!("js/counter.js");
 
 /// A host with `settings`.
@@ -278,7 +278,7 @@ fn a_feature_object_s_key_that_json_cannot_hold_is_refused() {
             problems(&main),
             [format!(
                 "{prefix}`{key}` of the feature `a` of the package `_` of the extension `wc` must be a text, a number, \
-                 a boolean, a list or a map; the one function of a feature object is `register`"
+                 a boolean, a list or a map; the functions of a feature object are `register` and `read`"
             )],
             "{key}"
         );
@@ -289,7 +289,7 @@ fn a_feature_object_s_key_that_json_cannot_hold_is_refused() {
 fn a_value_json_cannot_hold_is_refused_at_any_depth_naming_its_key_path() {
     let prefix = "the default export of the main module `main.js` of the extension `wc` must return without an error: ";
     let owner = "of the feature `a` of the package `_` of the extension `wc`";
-    let shapes = "must be a text, a number, a boolean, a list or a map; the one function of a feature object is `register`";
+    let shapes = "must be a text, a number, a boolean, a list or a map; the functions of a feature object are `register` and `read`";
     for (object, refused) in [
         ("settings: { options: { x: () => {} } }", format!("`settings.options.x` {owner} {shapes}")),
         ("settings: { options: { x: { default: Symbol(\"t\") } } }", format!("`settings.options.x.default` {owner} {shapes}")),
@@ -304,7 +304,7 @@ fn a_value_json_cannot_hold_is_refused_at_any_depth_naming_its_key_path() {
         );
         assert_eq!(problems(&main), [format!("{prefix}{refused}")], "{object}");
     }
-    // Plan A, A56: a feature object that contains itself, refused at the key
+    // A feature object that contains itself, refused at the key
     // path where the cycle closes; a value met twice without a cycle passes.
     for (object, refused) in [
         ("settings: s", "`settings.self`"),
@@ -315,7 +315,7 @@ fn a_value_json_cannot_hold_is_refused_at_any_depth_naming_its_key_path() {
         );
         assert_eq!(problems(&main), [format!("{prefix}{refused} {owner} must not contain itself")], "{object}");
     }
-    // Plan A, A62: the feature object itself is among the objects walked, so a
+    // The feature object itself is among the objects walked, so a
     // feature object that contains itself is refused as a cycle, not at its
     // `register` function.
     for (statement, refused) in [("f.self = f;", "`self`"), ("f.settings = { back: f };", "`settings.back`")] {
@@ -384,7 +384,7 @@ fn a_per_tree_stage_writes_its_table_from_javascript() {
             decl() { return new StageDecl("wc.count", Effect.Compute, Scope.PerTree).writes("wc.chars"); },
             run(cx, out) {
                 let count = 0;
-                for (const node of cx.my_tree().descendants()) {
+                for (const node of cx.my_tree().root().descendants()) {
                     const chars = node.chars();
                     if (chars !== null) count += chars.length;
                 }
@@ -412,7 +412,8 @@ fn a_document_stage_reads_the_structured_trees_table() {
             needs() { return new Needs().reads("flm.blocks.structured"); },
             run(cx, out) {
                 const table = cx.get("flm.blocks.structured");
-                for (const [id, root] of table.trees.trees()) {
+                for (const [id, tree] of table.trees.trees()) {
+                    const root = tree.root();
                     out.table("wc.trees").push({ id, children: root.children().length, count: root.child_count() });
                 }
             },
@@ -468,8 +469,8 @@ fn strict_mode_gives_every_handler_call_a_fresh_engine() {
 
 // --- failures ------------------------------------------------------------------------------------
 
-/// Plan A, A55: the refusal crosses the binding as a thrown `FlmError` and comes
-/// back with its kind, so the build error carries the name rule's identifier.
+/// The refusal crosses the binding as a thrown `FlmError` and comes back with
+/// its kind, so the build error carries the name rule's identifier.
 #[test]
 fn a_name_outside_the_extension_s_stem_fails_the_build_from_javascript() {
     let main = wc_main("", r#"b.table("words", "Outside the prefix.");"#);
@@ -483,7 +484,7 @@ fn a_name_outside_the_extension_s_stem_fails_the_build_from_javascript() {
     assert!(!error.contains("flm.ext.handler-failed"), "{error}");
 }
 
-/// Plan A, A55: a script that catches the refusal and throws it again still
+/// A script that catches the refusal and throws it again still
 /// fails with the name rule's identifier; any other `FlmError` stays a
 /// handler's failure.
 #[test]
@@ -670,7 +671,7 @@ fn a_hook_that_fails_recovers_the_use_site_with_handler_failed() {
     assert!(diagnostics[0].starts_with("flm.ext.handler-failed: the expansion hook of `wc.badge` failed: "), "{diagnostics:?}");
 }
 
-// --- WP-4a: handler aspects, late-init hooks and finalizers from JavaScript ---------------------
+// --- handler aspects, late-init hooks and finalizers from JavaScript ----------------------------
 
 /// The imports of the box element's script.
 const BOX_IMPORTS: &str = r#"
@@ -880,7 +881,7 @@ export function probe() {
     );
 }
 
-// --- WP-4b: the durable token's class ------------------------------------------------------------
+// --- the durable token's class -------------------------------------------------------------------
 
 #[test]
 fn a_durable_token_revives_as_its_registered_class_and_writes_itself_back() {

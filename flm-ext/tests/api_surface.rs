@@ -1,5 +1,5 @@
-//! The generator of the extension API's dispatcher, prelude and declarations
-//! (step E2b, `dev-docs/ext/e2b/plan.md`): it reads the sources under
+//! The generator of the extension API's dispatcher, prelude and declarations:
+//! it reads the sources under
 //! `src/api/` with `syn` ([`inventory`]), checks them against the mapping
 //! table ([`mapping`]), and writes its outputs as golden files
 //! (`UPDATE_GOLDEN=1 cargo test -p flm-ext --test api_surface` rewrites
@@ -105,9 +105,8 @@ fn the_generated_files_are_current() {
         }
         check(&path, &text);
     }
-    // The values of the constants come from the compiled table (the plan's
-    // section 3.4); a constant the compiled crate lacks needs a build and a
-    // second run.
+    // The values of the constants come from the compiled table; a constant
+    // the compiled crate lacks needs a build and a second run.
     let constants = constant_values(&inventory, &flm_ext::adapter::constants(), rewritten).unwrap_or_else(|message| panic!("{message}"));
     let later = later_outputs(&inventory, &constants);
     for (path, text) in &later {
@@ -178,10 +177,10 @@ fn the_fragments_are_spliced_once() {
 fn the_surface_has_the_pinned_counts() {
     let inventory = read_inventory();
     let count = |class: ItemClass| inventory.of_class(class).count();
-    assert_eq!(count(ItemClass::SealedTrait), 30, "the sealed façade traits");
+    assert_eq!(count(ItemClass::SealedTrait), 31, "the sealed façade traits");
     assert_eq!(count(ItemClass::ExtensionTrait), 10, "the extension-side traits");
     assert_eq!(count(ItemClass::OpaqueType), 9, "the opaque value types");
-    assert_eq!(count(ItemClass::Constant), 113, "the constants");
+    assert_eq!(count(ItemClass::Constant), 114, "the constants");
     let dispatched: Vec<&str> = inventory.modules.iter().filter(|module| has_module_arms(module)).map(|module| module.path.as_str()).collect();
     assert_eq!(
         dispatched,
@@ -211,7 +210,7 @@ fn the_surface_has_the_pinned_counts() {
     );
     // The guest client's surface: its structs, the methods of its impl
     // blocks and its module functions (including workflow lowering preferences).
-    assert_eq!(guest_out::counts(&guest_out::emit(&inventory)), (34, 156, 35), "the structs, methods and functions of `src/guest/generated.rs`");
+    assert_eq!(guest_out::counts(&guest_out::emit(&inventory)), (35, 157, 34), "the structs, methods and functions of `src/guest/generated.rs`");
 }
 
 /// Whether `module` is reached through a module handle: it has a free
@@ -246,8 +245,7 @@ fn static_member_js(rust: &str, name: &str) -> Option<&'static str> {
 }
 
 /// A value the stub writes out a second time agrees with its source:
-/// `BlockRole.DEFAULT` holds the value of `InlineSpacing.CONTENT` (the plan's
-/// ruling S13).
+/// `BlockRole.DEFAULT` holds the value of `InlineSpacing.CONTENT`.
 fn check_written_out_values(failures: &mut Vec<String>) {
     let (Some(default), Some(content)) = (static_member_js("BlockRole", "DEFAULT"), static_member_js("InlineSpacing", "CONTENT")) else {
         failures.push(format!("`{MAPPING_FILE}` must hold the members `BlockRole.DEFAULT` and `InlineSpacing.CONTENT`"));
@@ -418,8 +416,9 @@ fn snake_case(name: &str) -> String {
 /// `EXTRA_METHODS`, `HAND_ARMS`, `HAND_WRITTEN` and `STATIC_OBJECTS` names an
 /// item that exists; every entry of `GUEST_OWN` is a type row, every entry
 /// of `GUEST_HAND` a row of `HAND_WRITTEN`, every entry of `GUEST_ADDED` a
-/// module that holds no item of its name, and every entry of
-/// `EXTRA_METHODS` has its Rust signature.
+/// module that holds no item of its name, every entry of `GUEST_OMITTED` a
+/// free function of its module, and every entry of `EXTRA_METHODS` has its
+/// Rust signature.
 fn check_lists(inventory: &Inventory, failures: &mut Vec<String>) {
     let method_of = |owner: &str, method: &str| -> bool {
         inventory.items().any(|(module, item)| {
@@ -505,6 +504,11 @@ fn check_lists(inventory: &Inventory, failures: &mut Vec<String>) {
             failures.push(format!("the entry `{path}::{name}` of `GUEST_ADDED` must name a module that holds no item `{name}`"));
         }
     }
+    for (path, name) in mapping::GUEST_OMITTED {
+        if !inventory.module(path).is_some_and(|module| module.items.iter().any(|item| item.name == *name && item.class == ItemClass::Function)) {
+            failures.push(format!("the entry `{path}::{name}` of `GUEST_OMITTED` must name a free function of its module"));
+        }
+    }
     for entry in mapping::HAND_WRITTEN {
         let found = inventory.module(entry.module).is_some_and(|module| match entry.item.split_once('.') {
             Some((class, method)) => {
@@ -568,7 +572,7 @@ fn check_unit_enums(inventory: &Inventory, failures: &mut Vec<String>) {
     }
 }
 
-// --- the values of the constants (the plan's section 3.4) -----------------------------------
+// --- the values of the constants ------------------------------------------------------------
 
 /// The value of every constant of the inventory, read from the compiled
 /// table of constants (`(module, name, value)`, the generated
@@ -576,9 +580,8 @@ fn check_unit_enums(inventory: &Inventory, failures: &mut Vec<String>) {
 ///
 /// # Errors
 ///
-/// The message of the plan's section 8 for the first constant the table
-/// lacks; `rewritten` says whether the generated Rust file was just
-/// rewritten.
+/// A message naming the first constant the table lacks; `rewritten` says
+/// whether the generated Rust file was just rewritten.
 fn constant_values(inventory: &Inventory, compiled: &[(&str, &str, Value)], rewritten: bool) -> Result<Vec<(String, String, Value)>, String> {
     let mut values = Vec::new();
     for (module, item) in inventory.of_class(ItemClass::Constant) {
@@ -605,7 +608,7 @@ fn the_constants_are_read_from_the_compiled_table() {
         inventory.of_class(ItemClass::Constant).map(|(module, item)| (module.path.clone(), item.name.clone())).collect();
     let table: Vec<(&str, &str, Value)> = names.iter().map(|(module, name)| (module.as_str(), name.as_str(), json!(name))).collect();
     let values = constant_values(&inventory, &table, false).expect("every constant");
-    assert_eq!(values.len(), 113);
+    assert_eq!(values.len(), 114);
     assert_eq!(values[0].2, json!(values[0].1));
     let missing = table.iter().filter(|(_, name, _)| *name != "TAG").cloned().collect::<Vec<_>>();
     assert_eq!(

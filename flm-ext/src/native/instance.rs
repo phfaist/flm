@@ -1,9 +1,9 @@
 //! The engine's side of a loaded native extension: what every instance of it
 //! shares ([`NativeLoaded`], the [`Binding`]), the thread's instances of it,
 //! one instance ([`NativeInstance`]), entered for one handler call (the
-//! [`Instance`]), and the in-process transport of its requests. The handler
-//! objects, `run_handler` and the natives' bodies are the shared ones
-//! ([`crate::binding`]).
+//! [`Instance`]). The handler objects, `run_handler` and the natives' bodies
+//! are the shared ones ([`crate::binding`]); the guest client reaches them
+//! by direct calls (its typed route), with no transport of its own here.
 //!
 //! # One handler call
 //!
@@ -11,11 +11,17 @@
 //! it first if needed) and runs the shared code on it; `run_handler` pushes
 //! the frame and calls the entry points through [`Instance::call_entry`]:
 //! the instance's guest state installed as the thread's current state, the
-//! guest's entry routing called with the arguments as values, under
-//! `catch_unwind`. Each request the guest sends meanwhile reaches
-//! [`answer_request`] through the state's host, and from there the shared
-//! natives, in the same process. At the outermost level, an instance a panic
-//! poisoned is dropped.
+//! guest's entry routing called with the entry's arguments as the shared code
+//! gives them (names, the configuration, positions, handles, and the requests
+//! and data borrowed from the call), under `catch_unwind`; the guest's reply
+//! is answered as it is ([`Reply::Typed`]), and the handler row converts it.
+//! No JSON value is built for an entry's arguments but the configuration, or
+//! read from its reply but the reports of `packages`. Each request and each
+//! lending the guest makes meanwhile
+//! runs on the call's frame, which the state's loaded extension finds
+//! (`guest::abi::in_frame`), and its `console` output goes to the state's
+//! console sink. At the outermost level, an instance a panic poisoned is
+//! dropped.
 //!
 //! # Dropping an instance
 //!
@@ -33,13 +39,13 @@
 //! the lending of a handler object) is refused, since no handler call of this
 //! extension runs on the thread at that moment (the frames' invariant 2,
 //! [`crate::binding::frames`]). At the thread's end (this module's
-//! thread-local being destroyed) the objects drop under a fresh state with no
-//! host instead: the shared host side's thread-locals may already be gone,
-//! and a request answers [`ExtError::Unsupported`](crate::ExtError::Unsupported)
-//! without reaching them. A panic in such a `Drop` is caught, so that it
-//! fails no other extension's call and does not abort the program at the
-//! thread's end; the panic hook has seen it (Rust's default hook prints it
-//! to standard error).
+//! thread-local being destroyed) the objects drop under a fresh state of no
+//! loaded extension instead: the shared host side's thread-locals may
+//! already be gone, and a request answers [`ExtError::Unsupported`] without
+//! reaching them. A panic in such a `Drop` is caught, so that it fails no
+//! other extension's call and does not abort the program at the thread's
+//! end; the panic hook has seen it (Rust's default hook prints it to
+//! standard error).
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -47,14 +53,13 @@ use std::panic::{self, AssertUnwindSafe};
 use std::rc::Rc;
 use std::sync::{Arc, Weak};
 
-use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::json;
 
-use crate::binding::natives::{self, Native};
-use crate::binding::{inner_data, Binding, EntryArg, Instance, Registered};
+use crate::binding::{inner_data, Binding, EntryArg, Instance, Registered, Reply};
 use crate::engine::ExtensionIdentity;
-use crate::guest::state::{self, InProcess, State};
-use crate::guest::{entry, CompiledExtension};
+use crate::guest::entry::{self, EntryReply};
+use crate::guest::state::{self, Loaded, State};
+use crate::guest::CompiledExtension;
 use crate::host::ConsoleSink;
 use crate::runtime::ExtError;
 
@@ -85,8 +90,8 @@ impl NativeLoaded {
 /// state, the features whose `register` it ran, how many entries into it are
 /// running, and whether a panic poisoned it.
 pub(crate) struct NativeInstance {
-    /// The guest runtime's state, installed while an entry runs; its host
-    /// answers the extension's requests.
+    /// The guest runtime's state, installed while an entry runs; its loaded
+    /// extension finds the frames the extension's requests run on.
     state: Rc<State>,
     /// The features whose `register` this instance has run (for real or
     /// rehearsed).
@@ -100,18 +105,18 @@ pub(crate) struct NativeInstance {
 
 impl NativeInstance {
     /// Creates an instance of `extension` on this thread: a fresh guest state
-    /// whose requests [`answer_request`] answers for the extension, then its
-    /// entry `define(stem)` called (outside any handler call).
+    /// of the loaded extension (its identity, its load's number and its
+    /// console sink), then its entry `define(stem)` called (outside any
+    /// handler call).
     ///
     /// # Errors
     ///
     /// [`ExtError::Handler`]: `define` panics or answers an error.
     pub(crate) fn create(extension: &NativeLoaded) -> Result<NativeInstance, ExtError> {
-        let (identity, load) = (extension.extension.clone(), extension.id);
-        let console = Arc::clone(&extension.console);
-        let host: InProcess = Rc::new(move |request| answer_request(&identity, load, &console, request));
+        let loaded =
+            Loaded { extension: extension.extension.clone(), load: extension.id, console: Arc::clone(&extension.console) };
         let created = NativeInstance {
-            state: Rc::new(State::answered_by(host)),
+            state: Rc::new(State::for_load(loaded)),
             registered: Registered::default(),
             depth: Cell::new(0),
             poisoned: Cell::new(false),
@@ -121,14 +126,20 @@ impl NativeInstance {
     }
 
     /// Calls the load entry `entry` (`define`, `packages`) with `args`, as
-    /// [`Instance::call_entry`] calls a handler's entry; the guest's own
-    /// error is answered as the entry's failure, "the entry `packages` of the
-    /// extension `S` must answer without an error: DETAIL".
+    /// [`Instance::call_entry`] calls a handler's entry, and answers the
+    /// guest's reply; the guest's own error is answered as the entry's
+    /// failure, "the entry `packages` of the extension `S` must answer without
+    /// an error: DETAIL".
     ///
     /// # Errors
     ///
     /// The entry panics, or the guest's own error worded as above.
-    pub(crate) fn call_load_entry(&self, extension: &NativeLoaded, entry: &str, args: &[EntryArg]) -> Result<Value, ExtError> {
+    pub(crate) fn call_load_entry(
+        &self,
+        extension: &NativeLoaded,
+        entry: &str,
+        args: &[EntryArg<'_>],
+    ) -> Result<EntryReply, ExtError> {
         let what = extension.load_entry(entry);
         self.answer(extension, entry, args, &what)?.map_err(|error| ExtError::Handler {
             detail: format!("{what} must answer without an error: {error}"),
@@ -137,29 +148,23 @@ impl NativeInstance {
     }
 
     /// The answer of the entry `entry` with `args`, for the call `what`: the
-    /// guest's own answer (its value, or its own error), or the call's
-    /// failure (the outer error: a panic). The instance's state is the
+    /// guest's own answer (its reply, or its own error), or the call's
+    /// failure (the outer error: a panic). The arguments reach the guest's
+    /// routing as they are ([`entry::call`]). The instance's state is the
     /// thread's current state while the entry runs, and the state current
     /// before is restored afterwards.
     fn answer(
         &self,
         extension: &NativeLoaded,
         entry: &str,
-        args: &[EntryArg],
+        args: &[EntryArg<'_>],
         what: &str,
-    ) -> Result<Result<Value, ExtError>, ExtError> {
-        let values: Vec<Value> = args
-            .iter()
-            .map(|arg| match arg {
-                EntryArg::Text(text) => Value::String(text.clone()),
-                EntryArg::Json(value) => value.clone(),
-            })
-            .collect();
+    ) -> Result<Result<EntryReply, ExtError>, ExtError> {
         let define = extension.compiled.define();
-        // The instance's own guest state, current for the entry and restored after it. See
-        // decision rationale at [§flm-dd-dr:ext-native-engine]
+        // The instance's own guest state, current for the entry and restored after it: the
+        // extensions compiled into the program share the guest client's thread-local state.
         let _installed = state::install(Rc::clone(&self.state));
-        panic::catch_unwind(AssertUnwindSafe(|| entry::call(entry, &values, define))).map_err(|payload| {
+        panic::catch_unwind(AssertUnwindSafe(|| entry::call(entry, args, define))).map_err(|payload| {
             self.poisoned.set(true);
             let message = panic_message(payload.as_ref());
             ExtError::Handler { detail: format!("{what} must run without a panic: {message}"), data: json!({ "panic": message }) }
@@ -177,23 +182,6 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
         .unwrap_or_else(|| "a panic without a message".to_string())
 }
 
-/// The envelope answering the request `request` of a guest of the extension
-/// `extension`, the loaded extension of number `load`: the request read as one
-/// of the natives' shapes, then run by [`natives::answer`] on the running
-/// call's frame, `console` receiving its `console` output. A request that
-/// cannot be read answers an `err` envelope.
-fn answer_request(extension: &ExtensionIdentity, load: u64, console: &ConsoleSink, request: &Value) -> Value {
-    // The guest client's request answered by the dispatcher every binding shares, as a
-    // value. See decision rationale at [§flm-dd-dr:ext-native-engine]
-    match Native::deserialize(request) {
-        Ok(native) => natives::answer(extension, load, console, native),
-        Err(error) => natives::envelope(Err(ExtError::Argument {
-            method: String::new(),
-            detail: format!("a request of the extension `{}` must be one of the requests the host answers: {error}", extension.stem),
-        })),
-    }
-}
-
 /// An instance in a thread's map, with the loaded extension it is an instance
 /// of, held weakly: once every holder of the extension is gone, the next
 /// entry into any native instance on the thread drops it.
@@ -206,8 +194,8 @@ struct Kept {
 
 impl Drop for NativeInstance {
     /// Drops what the extension's code recorded in the instance's state, its
-    /// own state current, or at the thread's end a fresh state with no host
-    /// (the module documentation, "Dropping an instance").
+    /// own state current, or at the thread's end a fresh state of no loaded
+    /// extension (the module documentation, "Dropping an instance").
     fn drop(&mut self) {
         let ending = INSTANCES.try_with(|_| ()).is_err();
         let current = if ending { Rc::new(State::default()) } else { Rc::clone(&self.state) };
@@ -271,8 +259,8 @@ impl Instance for Entered<'_> {
         &self.instance.registered
     }
 
-    fn call_entry(&mut self, entry: &str, args: &[EntryArg], what: &str) -> Result<Value, ExtError> {
-        self.instance.answer(self.extension, entry, args, what)?
+    fn call_entry(&mut self, entry: &str, args: &[EntryArg<'_>], what: &str) -> Result<Reply, ExtError> {
+        self.instance.answer(self.extension, entry, args, what)?.map(Reply::Typed)
     }
 }
 
@@ -290,8 +278,8 @@ impl Binding for NativeLoaded {
     /// thread has none. Then runs `run` on it.
     fn enter(
         self: Arc<Self>,
-        run: &mut dyn FnMut(&mut dyn Instance) -> Result<Value, ExtError>,
-    ) -> Result<Value, ExtError> {
+        run: &mut dyn FnMut(&mut dyn Instance) -> Result<Reply, ExtError>,
+    ) -> Result<Reply, ExtError> {
         let swept = INSTANCES.with(|instances| {
             let mut instances = instances.borrow_mut();
             let mut swept = Vec::new();

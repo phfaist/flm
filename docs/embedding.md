@@ -783,9 +783,11 @@ gives the source's rank and, for a package, the package's name; the cascade give
 each key the value of the highest-ranked source, lets a package win over the
 packages it uses
 ([`PackageCatalog::reach`](crate::core::registry::PackageCatalog::reach)), reports
-two peer packages that disagree, and reads the result through each feature's
-declaration. `false` for a feature that no package in use has is accepted: the
-result lists a warning for each `false` written, at its origin
+two peer packages that disagree, and reads the result through the declaration of
+every feature in use that declares settings, a feature nothing is written for from
+the empty map (a problem found there has no origin). `false` for a feature that no
+package in use has is accepted: the result lists a warning for each `false` written,
+at its origin
 ([`ReadSettings::warnings`](crate::core::settings::cascade::ReadSettings::warnings)),
 which your program reports, since the name may be misspelled. Settings written for such
 a feature are an error. When the settings have errors, the error lists the warnings
@@ -2352,10 +2354,11 @@ each of its modules; this section states what the host library adds to
   resolver is `flm-ext`'s loader over those folders. Under the cargo feature
   `bundled-extensions` (on by default), the loader has a second source, last:
   `bundled::BundledSource`, the extensions shipped with FLM (`lecturenotes`,
-  `math-mathjax`, `profile-pdf-latex`) compiled into the program from the crate `flm-extensions`,
-  so that a copy on the search path wins over the bundled one. The same feature gives the
-  loader the engine `native` (`flm_ext::native::NativeEngine`), which runs the shipped
-  extensions written in Rust (`profile-pdf-latex`) in the same process. A host that builds
+  `math-mathjax`, `flmdoc`, `phfpack`, `profile-pdf-latex`, `syntax-highlight`) compiled
+  into the program from the crate `flm-extensions`, so that a copy on the search path wins
+  over the bundled one. The same feature gives the loader the engine `native`
+  (`flm_ext::native::NativeEngine`), which runs the shipped extensions written in Rust
+  (`flmdoc`, `phfpack`, `profile-pdf-latex`, `syntax-highlight`) in the same process. A host that builds
   `flm-main` without the feature carries none of them; a host that gives `flm-ext`'s
   loader its own sources adds `BundledSource` to them, or does not. Under the cargo
   features `js` and `wasm` (off by default in `flm-main`, on in the `flm` program), the

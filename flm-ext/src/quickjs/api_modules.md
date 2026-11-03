@@ -9,13 +9,14 @@
 | `flm:core/registry` | [`api::core::registry`](crate::api::core::registry) | `CallableKind`, `DefContent`, `ScriptDef`, `StyleDef`, `OutputDef`, `BackendDef`, `LibraryStage`, `StandardTable`, `FeatureBuilder` |
 | `flm:core/run` | [`api::core::run`](crate::api::core::run) | `StageCx`, `RewriteCx` |
 | `flm:core/services` | [`api::core::services`](crate::api::core::services) | `Arity` |
+| `flm:core/settings` | [`api::core::settings`](crate::api::core::settings) |  |
 | `flm:core/stage` | [`api::core::stage`](crate::api::core::stage) | `Severity`, `Effect`, `Scope`, `StageDecl`, `Needs`, `RewriteDecl`, `TreesTable` |
 | `flm:host` | [`api::host`](crate::api::host) | `HostService`, `FilesScope`, `Files` |
 | `flm:lang` | [`api::lang`](crate::api::lang) | `mint`, `structural`, `text`, `BuiltLang`, `FlmDiagnostics` |
 | `flm:lang/mint` | [`api::lang::mint`](crate::api::lang::mint) | `CallableKind`, `ArgDef`, `ArgLayout`, `BodyDef`, `BodyLayout`, `FallbackKind`, `Mode`, `ElementDef`, `SyntaxDef`, `FallbackDef`, `arg_def_from_code`, `ScopedPackageDef` |
 | `flm:lang/rewrites/blocks` | [`api::lang::rewrites::blocks`](crate::api::lang::rewrites::blocks) | `argument_holds_blocks` |
-| `flm:lang/rewrites/userdefs` | [`api::lang::rewrites::userdefs`](crate::api::lang::rewrites::userdefs) | `Definition`, `DefinitionKind`, `DefinitionModes`, `ExpandPolicy`, `Expansion`, `Staged`, `Expander`, `ExpandCx`, `UserDefinition`, `ModeVariant`, `CompiledTemplate`, `PlaceholderBindings`, `DefinitionBindings`, `TemplateSpec`, `TemplateLanguage`, `compile_template_with`, `ValueBindings`, `instantiate` |
-| `flm:lang/structural` | [`api::lang::structural`](crate::api::lang::structural) | `TEXT`, `COMMENT`, `CONTAINER`, `GROUP`, `MATH`, `VERBATIM`, `OPAQUE_WRAPPER`, `PARAGRAPH`, `PARBREAK`, `PLACEHOLDER`, `UNKNOWN_MACRO`, `UNKNOWN_ENVIRONMENT`, `NAMES` |
+| `flm:lang/rewrites/userdefs` | [`api::lang::rewrites::userdefs`](crate::api::lang::rewrites::userdefs) | `Definition`, `DefinitionKind`, `DefinitionModes`, `ExpandPolicy`, `Expansion`, `Staged`, `Expander`, `ExpandCx`, `UserDefinition`, `ModeVariant`, `CompiledTemplate`, `PlaceholderBindings`, `DefinitionBindings`, `TemplateSpec`, `TemplateLanguage`, `compile_template_with`, `ValueBindings`, `ExtraValues`, `instantiate` |
+| `flm:lang/structural` | [`api::lang::structural`](crate::api::lang::structural) | `TEXT`, `COMMENT`, `CONTAINER`, `GROUP`, `MATH`, `VERBATIM`, `OPAQUE_WRAPPER`, `PARAGRAPH`, `PARBREAK`, `PLACEHOLDER`, `FIELD`, `UNKNOWN_MACRO`, `UNKNOWN_ENVIRONMENT`, `NAMES` |
 | `flm:lang/text` | [`api::lang::text`](crate::api::lang::text) | `chars_text`, `read_chars` |
 | `flm:model/aspects` | [`api::model::aspects`](crate::api::model::aspects) | `AcceptedRefTypes`, `BlockRole`, `InlineSpacing`, `Placement`, `RefPoint`, `NumberSource`, `AnchorPolicy`, `ContentRef` |
 | `flm:model/element` | [`api::model::element`](crate::api::model::element) | `ElementSpec`, `Aspect` |
@@ -33,5 +34,5 @@
 | `flm:stdcore/features/userdefs` | [`api::stdcore::features::userdefs`](crate::api::stdcore::features::userdefs) | `LoweringRule`, `element_name_under`, `expand_in_tree_rule_for`, `write_math_run` |
 | `flm:techy/error` | [`api::techy::error`](crate::api::techy::error) | `Severity` |
 | `flm:techy/extract` | [`api::techy::extract`](crate::api::techy::extract) | `parse_keyval_drop_annotations`, `KeyVals`, `KeyValEntry` |
-| `flm:techy/node` | [`api::techy::node`](crate::api::techy::node) | `Node`, `NodeKindName` |
+| `flm:techy/node` | [`api::techy::node`](crate::api::techy::node) | `Node`, `Tree`, `NodeKindName` |
 | `flm:techy/transform` | [`api::techy::transform`](crate::api::techy::transform) | `Staged`, `Restage`, `Restager`, `RestagedArgument`, `RestagedSlot` |

@@ -10,15 +10,9 @@
 //! nothing else changes. The places where the move is not mechanical:
 //! [`ElementDef::docs`](lang::mint::ElementDef::docs) and
 //! [`ElementDef::modes`](lang::mint::ElementDef::modes) answer a `Result`
-//! (on a declaration a helper made they ask the host), and the setters of
-//! [`ArgDef`](lang::mint::ArgDef) called on an argument a helper made
-//! (`label_fields_arg`) keep the change beside it, which the host refuses
-//! when the argument is sent; a stage field of
-//! [`BackendDef`](core::registry::BackendDef) changed after
-//! `BackendDef::new` is refused when the backend is sent; the
-//! record-and-lend constructors
-//! [`LoweringRule::new`](core::lowering::LoweringRule::new),
-//! [`BackendDef::new`](core::registry::BackendDef::new) and
+//! (on a declaration a helper made they ask the host), and the record-and-lend
+//! constructors
+//! [`LoweringRule::new`](core::lowering::LoweringRule::new) and
 //! [`UserDefinition::element_def_with`](lang::rewrites::userdefs::UserDefinition::element_def_with)
 //! answer a `Result` too.
 //!
@@ -43,13 +37,27 @@
 //!   `native` (the module `flm_ext::native`), reaching it through the static
 //!   the macro writes ([`CompiledExtension`]). The program may be built for
 //!   any target, `wasm32` included (a program that runs the library in a web
-//!   browser, for instance). Each request is then answered in the same
-//!   process by the host side every binding shares, passed as a JSON value,
-//!   with no text.
+//!   browser, for instance). Every crossing is then a direct, typed call in
+//!   the same process, with no JSON value built or read (the typed route,
+//!   [`abi`]): a request of a façade's method or a module's function calls
+//!   the extension API on the handle table of the running handler call, the
+//!   guest's values converted into the API's and the answer back; the
+//!   lending of a handler object builds its host object with the body of the
+//!   lending native every binding shares and hands it to the API method that
+//!   takes it; a line of console output goes to the console sink of the
+//!   instance; and the engine calls the entries directly, their arguments
+//!   and replies the guest's values. Only the data that is JSON by nature
+//!   stays JSON: a feature's settings, which its `register` and its
+//!   template modules' `describe` receive as a `serde_json::Value`, and the
+//!   declarations of the extension's packages, which every engine reads as
+//!   data.
 //!
-//! `flm-ext` picks the form, and with it how requests reach the host, from its
-//! own cargo feature `native`, not from the target alone; the extension's
-//! crate turns on the feature `guest` alone. Within one build, cargo compiles
+//! The two forms run the same source and reach the same code of the host
+//! (the handle tables, the objects that call the extension's handlers, the
+//! bodies of the lending natives); they differ only in how each crossing is
+//! carried. The guest client alone chooses the form, from `flm-ext`'s own
+//! cargo feature `native`, not from the target alone; the extension's crate
+//! turns on the feature `guest` alone. Within one build, cargo compiles
 //! `flm-ext` once, with one set of features, for every crate of the build. So
 //! an extension's WebAssembly module is built in a cargo run where no crate
 //! turns on `native`: the extension's package selected alone (`cargo rustc -p
@@ -61,9 +69,12 @@
 //! Where the module's import is not compiled (in a program built for another
 //! target, or with the feature `native`), a request is answered while a native
 //! instance's state is current on the thread: during one of its entries, and
-//! while the engine `native` drops the objects it recorded. Every other
-//! request answers [`ExtError::Unsupported`](crate::ExtError::Unsupported): in
-//! the client's own tests, on a thread the extension started, and while a
+//! while the engine `native` drops the objects it recorded. A request sent
+//! while no handler call of the extension is the innermost one (from
+//! `define`, from the `Drop` of a recorded object) is refused in the words
+//! the host uses for the same request sent as JSON text from a module. Every
+//! other request answers [`ExtError::Unsupported`](crate::ExtError::Unsupported):
+//! in the client's own tests, on a thread the extension started, and while a
 //! thread ends.
 //!
 //! # An extension in Rust
@@ -129,10 +140,11 @@
 //! [`Extension::package`] declares a package, as the JavaScript prelude's
 //! `ext.package(name, object)` does: [`Package`] holds its `uses`, its `flm`
 //! block, its `templates`, its `host` services and its features in order;
-//! [`Feature`] a feature's `title`, `docs`, `version`, `settings` and its
-//! `register`, a function or a closure taking the builder and the feature's
-//! settings. A feature without a `register` is refused when the module
-//! loads.
+//! [`Feature`] a feature's `title`, `docs`, `version`, `settings`, its
+//! optional configuration reader ([`Feature::read`], the JavaScript
+//! feature object's `read`) and its `register`, a function or a closure
+//! taking the builder and the feature's settings. A feature without a
+//! `register` is refused when the module loads.
 //!
 //! # The mapping rules
 //!
@@ -143,21 +155,35 @@
 //!    and every item keeps its name.
 //! 2. **A struct or enum of plain data** (`StageDecl`, `Needs`, `BodyDef`,
 //!    `RewriteDecl`, `OutputDef`, `ArtifactId`, …) is the api's own type,
-//!    re-exported; it crosses in its JSON form, the host's. A type whose
-//!    JSON form can hold a reference to a host object or a handler object
-//!    is the guest's own, with the api's name, constructors and methods:
-//!    `ArgDef`, `SyntaxDef`, `ElementDef`, `ElementSpec`, `Aspect`,
-//!    `FallbackDef`, `ScopedPackageDef`, `Definition`, `BackendDef`,
+//!    re-exported; compiled into a program it crosses as itself, and in a
+//!    WebAssembly module in its JSON form, the host's. A type that can hold
+//!    a reference to a host object or a handler object is the guest's own,
+//!    with the api's name, constructors and methods:
+//!    `ElementDef`, `ElementSpec`, `Aspect`,
+//!    `FallbackDef`, `ScopedPackageDef`, `BackendDef`,
 //!    `BackendStage`, `Contributed`, `Diagnostic`, `Expansion`, `Lowering`,
-//!    `Restage`, `PresTree`, `RefPoint`, `ContentRef`, `CitationAnswer`, ….
+//!    `Restage`, `PresTree`, `RefPoint`, `ContentRef`, `CitationAnswer`,
+//!    `ExtraValues`, ….
 //!    A declaration a helper made (`ud.element_def(owner, name)`) is an
 //!    `ElementDef` holding the host's object: its accessors `owner()`,
-//!    `names()`, `syntax()` and `element()` answer `None`. `ArgDef::new` and
-//!    `ArgDef::named` take an [`ArgSyntax`](lang::mint::ArgSyntax), an
-//!    argument code (`"r()"`) or a standard kind
+//!    `names()`, `syntax()` and `element()` answer `None`. An argument,
+//!    [`ArgDef`](lang::mint::ArgDef), is the guest's own too, data like
+//!    every argument the host gives it (`label_fields_arg` answers one):
+//!    `ArgDef::new` and `ArgDef::named` take a standard kind
 //!    (`ArgStdKind::CharsGroup`), where the api's take a parser: a standard
 //!    kind is passed as in the api, and a parser of a feature's own does not
-//!    cross.
+//!    cross. `ArgDef::from_code` and `ArgDef::named_from_code` read an
+//!    argument code (`"r()"`) where the argument is made, with `flm-core`'s
+//!    reader and no request to the host, so that `define` reads one too;
+//!    they stand for the api's `arg_def_from_code`, which the guest does not
+//!    forward. The guest adds [`ArgListData`](lang::mint::ArgListData),
+//!    the mirror of `flm-core`'s argument list written as data, which no
+//!    item of the api names, for an extension's settings that declare
+//!    arguments. The types that hold arguments are the
+//!    guest's own with `ArgDef`: [`ArgStdKind`](lang::mint::ArgStdKind), whose
+//!    tack-on argument's fields ([`TackOnField`](lang::mint::TackOnField))
+//!    hold arguments, [`SyntaxDef`](lang::mint::SyntaxDef) and
+//!    [`Definition`](lang::rewrites::userdefs::Definition).
 //! 3. **An enum of unit variants** is the api's, re-exported.
 //! 4. **A reference to an object with methods** (`&dyn FeatureBuilder`,
 //!    `&dyn StageCx`, `&mut dyn StageOut`, `&dyn Node<'_>`, `Box<dyn
@@ -170,7 +196,8 @@
 //!    **A durable object** (a `TemplateLanguage`, a compiled template that
 //!    `compile_template_with` answers) is valid in every later call of the
 //!    feature that made it, on every instance, for as long as its registry is
-//!    in use, as in the JavaScript binding.
+//!    in use, as in the JavaScript binding; a compiled template's
+//!    `placeholders` is asked of the host on its durable token.
 //! 5. **A method generic over a type** takes the registered name:
 //!    `cx.get("flm.blocks.structured")`, answering a `TableValue`.
 //! 6. **A free function** is a function of its module, forwarding:
@@ -185,25 +212,33 @@
 //!    `LoweringRule::new(name, element, decl, Arc::new(body), mark)?`. The
 //!    method that takes the object records it in the running `register`'s
 //!    record and lends it to the host, which calls it back through the
-//!    module's entries. A `Sectioning` is lent with its three methods: the
+//!    extension's entries. A `Sectioning` is lent with its three methods: the
 //!    host calls `in_toc` and `toc_title` every time, and an object that
 //!    keeps their defaults answers them from the guest; likewise
 //!    `TemplateModule::files` and `CitationProvider::answer_all` always run
 //!    in the guest, their defaults there.
 //! 8. **`Result<T, E>`** is `Result<T, ExtError>`: an error the host
-//!    answers is the [`ExtError`](crate::ExtError) its data describe, as a
-//!    compiled-in extension would get it; a handler's own error crosses back
-//!    as it was returned.
+//!    answers is the [`ExtError`](crate::ExtError) the api answers (in a
+//!    WebAssembly module, read back from the data the host writes); a
+//!    handler's own error crosses back as it was returned.
 //! 9. **`Option<T>`** is `Option<T>`; a `Vec<T>` and a tuple as in the api;
 //!    a borrowed result is answered owned (`&str` is `String`, `&[T]` is
 //!    `Vec<T>`).
 //! 10. **Values are JSON.** A value of the api's `serde_json::Value` is the
-//!     same; a number must be an integer where the api takes one; bytes
-//!     given as a text (`b.digest_input(bytes)`) must be UTF-8.
+//!     same. Compiled into a program, it is passed as it is; in a
+//!     WebAssembly module, a number that is not an integer and a reserved
+//!     map key (one beginning with `$`, for instance) are refused in a
+//!     call's arguments, in its answer and in a template module's data. In
+//!     both forms the api itself refuses them where it keeps the value as
+//!     data: an item of an extension's table, a presentation node's data
+//!     payload, a diagnostic's data, the data contributed to a service slot.
+//!     Bytes (`b.digest_input(bytes)`) cross as bytes of any kind: as they
+//!     are compiled into a program, and in a WebAssembly module in two of
+//!     the forms of an artifact's content, a text when they are UTF-8,
+//!     `{"base64": text}` otherwise.
 //! 11. **A diagnostic** a handler reports is the guest's `Diagnostic`, made
-//!     with its constructors (`Diagnostic::note`, `Diagnostic::error`); its
-//!     `id` must begin with the extension's stem and a dot (or with `X` and a
-//!     dot, for an extension whose stem is `profile-X`).
+//!     with its constructors (`Diagnostic::note`, `Diagnostic::error`), under
+//!     any identifier, a library condition's included.
 //! 12. **A `const` name** is the api's constant, re-exported.
 //!
 //! # The API modules
@@ -213,7 +248,10 @@
 //! `stdcore`, `techy`, and their submodules); the hand-written types and
 //! traits are re-exported from their module. The guest's own types (rule 2)
 //! are written by hand, each checked against the host's reading and writing
-//! of the same JSON form by a test that converts in both directions.
+//! of the same JSON form by a test that converts in both directions; beside
+//! its JSON form, each has the conversions of the typed route (the cargo
+//! feature `native`), of the same shape: the same fields, the same handles
+//! and durable tokens resolved.
 //!
 //! # The limits
 //!
@@ -357,8 +395,7 @@ impl CompiledExtension {
 #[macro_export]
 macro_rules! __flm_guest_extension {
     // One output on every target: the static for a program that compiles the crate in,
-    // the exports for a WebAssembly module of its own. See decision rationale at
-    // [§flm-dd-dr:ext-native-engine]
+    // the exports for a WebAssembly module of its own.
     ($define:expr) => {
         /// What a program that compiles this crate in needs to run the
         /// extension: the function that declares its packages, and the
@@ -381,7 +418,8 @@ macro_rules! __flm_guest_extension {
 #[macro_export]
 macro_rules! __flm_guest_exports {
     // The feature `native`, not the target alone, is the sign of a program that carries the
-    // engine. See decision rationale at [§flm-dd-dr:ext-native-engine]
+    // engine: a program built for `wasm32` may carry several extensions compiled in, whose
+    // exports would clash.
     ($define:expr) => {
         /// The export `flm_alloc` of the guest's ABI: a buffer of `len`
         /// bytes for the host to write.

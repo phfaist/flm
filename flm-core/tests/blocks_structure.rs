@@ -8,8 +8,10 @@ use std::sync::Arc;
 
 use flm_core::model::doc::FragmentLayout;
 use flm_core::model::element::element_of;
+use flm_core::lang::mint::{ArgDef, ArgLayout, ElementDef, SyntaxDef};
 use flm_core::lang::rewrites::blocks::{BlockInInline, BlocksConfig, ParbreakInInline, structure};
-use flm_core::lang::{Flm, FlmDiagnostics, FlmGroupType};
+use flm_core::lang::{BuiltLang, Flm, FlmDiagnostics, FlmGroupType};
+use flm_core::stdcore::StdcoreConfig;
 use techy::core::node::{NodeBuildError, NodeKind, NodeRef, NodeTreeBuilder};
 use techy::core::{Lang, ParsingState, ParsingStateDelta};
 use techy::error::DiagnosticInfo;
@@ -18,7 +20,8 @@ use techy::source::SourceSpan;
 use techy::transform::{Restage, RestageContext, RestageError, TreeRestager};
 
 use common::blocks::{
-    assert_map_tiles, chars_nodes, is_owned, is_paragraph, paragraphs, run, text_of, toy_lang,
+    Laid, assert_map_tiles, chars_nodes, is_owned, is_paragraph, paragraphs, run, text_of,
+    toy_lang, toy_lang_with,
 };
 use common::source;
 
@@ -320,6 +323,200 @@ fn an_edge_only_edit_needs_no_source_map() {
     assert_eq!(word.span_content(), "word");
 }
 
+// --- displayed items -----------------------------------------------------------------
+
+/// `text` parsed by the standard language (a parse with errors is a test
+/// failure), then structured as a fragment laid out as blocks.
+fn standard(text: &str) -> Laid {
+    let registry = common::stdcore::registry(StdcoreConfig::new());
+    run(registry.lang(), text, FragmentLayout::Blocks)
+}
+
+/// The shape of a run of nodes: a text node is its text in quotes, a comment
+/// is `%`, a paragraph is `P[…]` around the shape of its children, and any
+/// other node is its element's name.
+fn shape<'t>(nodes: impl IntoIterator<Item = NodeRef<'t, Flm>>) -> Vec<String> {
+    nodes
+        .into_iter()
+        .map(|node| {
+            if let Some(text) = node.chars() {
+                format!("{text:?}")
+            } else if node.is_comment() {
+                String::from("%")
+            } else if is_paragraph(&node) {
+                format!("P[{}]", shape(node.children().iter()).join(" "))
+            } else {
+                element_of(&node).name.to_string()
+            }
+        })
+        .collect()
+}
+
+/// The toy language plus `\either{…}`, a command whose argument is laid out
+/// inline or as blocks as its content decides.
+fn either_lang() -> BuiltLang {
+    let arg = ArgDef::mandatory("text").layout(ArgLayout::InlineOrBlocks);
+    toy_lang_with(vec![ElementDef::new(
+        "t",
+        ["either"],
+        SyntaxDef::Macro { args: vec![arg] },
+        common::element("t.either"),
+    )])
+}
+
+#[test]
+fn the_space_and_the_tilde_beside_a_displayed_item_are_removed_and_a_comment_stays() {
+    for text in [
+        "before \\[x\\] after",
+        "before~\\[x\\]~after",
+        "before ~ \\[x\\]\\ after",
+        "before\n\\[x\\]\nafter",
+    ] {
+        let laid = standard(text);
+        assert_eq!(laid.identifiers(), Vec::<&str>::new(), "{text:?}");
+        assert_eq!(shape(laid.children()), ["P[\"before\" flm.math \"after\"]"], "{text:?}: {}", laid.dump());
+    }
+    let laid = standard("before ~%%c\n \\[x\\] %%d\n~ after");
+    assert_eq!(
+        shape(laid.children()),
+        ["P[\"before\" % flm.math % \"after\"]"],
+        "{}",
+        laid.dump()
+    );
+    let laid = standard("before \\begin{equation}x\\end{equation}~after");
+    assert_eq!(
+        shape(laid.children()),
+        ["P[\"before\" flm.math.environment \"after\"]"],
+        "{}",
+        laid.dump()
+    );
+}
+
+#[test]
+fn the_whitespace_between_two_displayed_items_is_removed() {
+    let laid = standard("a \\[x\\] ~ \\[y\\] b");
+    assert_eq!(shape(laid.children()), ["P[\"a\" flm.math flm.math \"b\"]"], "{}", laid.dump());
+}
+
+#[test]
+fn the_space_beside_a_displayed_item_is_removed_in_an_inline_region() {
+    let lang = toy_lang();
+    let laid = run(&lang, "a \\emph{b \\[x\\] c} d", FragmentLayout::Inline);
+    assert_eq!(laid.identifiers(), Vec::<&str>::new());
+    let emph = laid.children()[1];
+    let content: Vec<NodeRef<'_, Flm>> =
+        emph.argument_content_nodes(0).expect("an argument").iter().collect();
+    assert_eq!(shape(content), ["\"b\"", "flm.math", "\"c\""], "{}", laid.dump());
+}
+
+#[test]
+fn a_straight_quote_right_after_a_displayed_item_opens() {
+    let lang = toy_lang();
+    let laid = run(&lang, "a \\[x\\]'q' b", FragmentLayout::Inline);
+    assert_eq!(laid.children()[2].chars(), Some("\u{2018}q\u{2019} b"), "{}", laid.dump());
+    let laid = run(&lang, "a \\begin{displaymath}x\\end{displaymath}\"q\"", FragmentLayout::Inline);
+    assert_eq!(laid.children()[2].chars(), Some("\u{201c}q\u{201d}"), "{}", laid.dump());
+}
+
+#[test]
+fn text_a_displayed_item_and_text_form_one_paragraph() {
+    let lang = toy_lang();
+    for (text, item) in [
+        ("before \\[x\\]\nafter\n\nnext", "flm.math"),
+        ("before \\begin{displaymath}x\\end{displaymath}\nafter\n\nnext", "t.displaymath"),
+    ] {
+        let laid = run(&lang, text, FragmentLayout::Blocks);
+        assert_eq!(
+            shape(laid.children()),
+            [format!("P[\"before\" {item} \"after\"]"), String::from("P[\"next\"]")],
+            "{text:?}: {}",
+            laid.dump()
+        );
+    }
+}
+
+#[test]
+fn a_displayed_item_alone_between_two_blank_lines_is_one_paragraph_holding_it() {
+    let lang = toy_lang();
+    for (text, item) in [
+        ("before\n\n\\[x\\]\n\nafter", "flm.math"),
+        ("before\n\n \\begin{displaymath}x\\end{displaymath} \n\nafter", "t.displaymath"),
+    ] {
+        let laid = run(&lang, text, FragmentLayout::Blocks);
+        assert_eq!(
+            shape(laid.children()),
+            [String::from("P[\"before\"]"), format!("P[{item}]"), String::from("P[\"after\"]")],
+            "{text:?}: {}",
+            laid.dump()
+        );
+    }
+}
+
+#[test]
+fn an_inline_or_blocks_argument_holding_a_displayed_environment_and_no_blank_line_is_inline() {
+    let lang = either_lang();
+    let laid = run(
+        &lang,
+        "\\either{a \\begin{displaymath}x\\end{displaymath} b}",
+        FragmentLayout::Inline,
+    );
+    assert_eq!(laid.identifiers(), Vec::<&str>::new());
+    let either = laid.children()[0];
+    let content: Vec<NodeRef<'_, Flm>> =
+        either.argument_content_nodes(0).expect("an argument").iter().collect();
+    assert_eq!(shape(content), ["\"a\"", "t.displaymath", "\"b\""], "{}", laid.dump());
+}
+
+#[test]
+fn a_fragment_under_inline_or_blocks_holding_a_displayed_environment_and_no_blank_line_is_inline() {
+    let lang = toy_lang();
+    let laid = run(
+        &lang,
+        "a \\begin{displaymath}x\\end{displaymath} b",
+        FragmentLayout::InlineOrBlocks,
+    );
+    assert_eq!(laid.identifiers(), Vec::<&str>::new());
+    assert_eq!(shape(laid.children()), ["\"a\"", "t.displaymath", "\"b\""], "{}", laid.dump());
+}
+
+#[test]
+fn a_displayed_environment_in_an_inline_argument_is_not_reported() {
+    let lang = toy_lang();
+    let laid = run(
+        &lang,
+        "\\emph{a \\begin{displaymath}x\\end{displaymath} b}",
+        FragmentLayout::Blocks,
+    );
+    assert_eq!(laid.identifiers(), Vec::<&str>::new());
+    assert_eq!(shape(laid.children()), ["P[t.emph]"], "{}", laid.dump());
+}
+
+#[test]
+fn a_leading_decorator_then_a_displayed_item_open_one_paragraph() {
+    let lang = toy_lang();
+    let laid = run(&lang, "\\runin{T} \\[x\\] text", FragmentLayout::Blocks);
+    assert_eq!(shape(laid.children()), ["P[t.runin flm.math \"text\"]"], "{}", laid.dump());
+    let laid = run(&lang, "lead in \\runin{T}\n\\[x\\]\ntext", FragmentLayout::Blocks);
+    assert_eq!(
+        shape(laid.children()),
+        ["P[\"lead in\"]", "P[t.runin flm.math \"text\"]"],
+        "{}",
+        laid.dump()
+    );
+}
+
+#[test]
+fn a_displayed_item_then_a_trailing_decorator_end_the_paragraph() {
+    let lang = toy_lang();
+    let laid = run(&lang, "text \\[x\\] \\qed\nmore", FragmentLayout::Blocks);
+    assert_eq!(
+        shape(laid.children()),
+        ["P[\"text\" flm.math t.qed]", "P[\"more\"]"],
+        "{}",
+        laid.dump()
+    );
+}
+
 // --- violations --------------------------------------------------------------------
 
 #[test]
@@ -441,8 +638,9 @@ fn a_block_environment_with_an_inline_body_declaration_keeps_its_body_inline() {
 
 #[test]
 fn a_block_environment_with_the_default_body_declaration_builds_paragraphs_in_its_body() {
-    // The default body policy, through `BodyLayout::FromRole`.
-    // See design rationale at [§flm-dd-dr:lang-body-fromrole].
+    // The default body policy, through `BodyLayout::FromRole`: a block-role
+    // environment given the natural body declaration gets paragraphs in its
+    // body, not an inline body with no diagnostic.
     let lang = toy_lang();
     let laid = run(
         &lang,

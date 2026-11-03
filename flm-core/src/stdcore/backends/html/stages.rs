@@ -735,8 +735,8 @@ impl Stage for HtmlFinalStage {
         entry.refs.extend(regions.refs.iter().cloned());
         match out.table(DOCUMENT) {
             // A collision among the artifacts beside the page is recorded
-            // among the set's violations.
-            // See decision rationale at [§flm-dd-dr:rend-html-artifacts].
+            // among the set's violations, by the combining rule every artifact
+            // set has; failing the stage would lose the page over a side file.
             Ok(set) => match set.insert_entry_with(entry, beside.as_slice()) {
                 Ok(reports) => reports.into_iter().for_each(|report| out.diags.push(report)),
                 Err(violation) => stage_failed(out, FINAL_STAGE, violation),

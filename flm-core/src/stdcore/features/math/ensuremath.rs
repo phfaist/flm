@@ -60,8 +60,11 @@
 //! it lowers the argument's content through the rules, the inline formula in
 //! text mode, `X` in math mode.
 
-// Why `\ensuremath` is the math feature's, and why its text form is a math
-// group: see decision rationale at [§flm-dd-dr:feat-phfqit-output-needs].
+// The command is this feature's, the owner of math mode, so that no formula
+// renderer needs to know it: in text it is a math group whose delimiters are the
+// command's braces, which every feature processing mathematics meets as an
+// inline formula, and inside a formula a writer of the formula's TeX writes the
+// argument in its place.
 
 use std::sync::Arc;
 

@@ -155,8 +155,8 @@ fn counter(kind: &XnoteKind) -> CounterDecl {
 /// The reference style of the numbered xnote kind `kind`: its words, its
 /// number format, no delimiters, several numbers joined compactly.
 fn reference_style(kind: &XnoteKind) -> CounterStyleDecl {
-    // Several numbers join compactly, as in every standard feature's styles.
-    // See decision rationale at [§flm-dd-dr:std-xnote-reference-join].
+    // Several numbers join compactly, as in every standard feature's styles,
+    // so that a reference to several points reads the same whatever they are.
     let mut style = CounterStyleDecl::new(style_name(kind.name.as_str()));
     style.number_format = kind.number_format.clone();
     style.prefix_words = kind.words.clone();

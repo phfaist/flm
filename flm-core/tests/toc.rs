@@ -221,7 +221,7 @@ fn a_heading_input_s_heading_comes_where_the_input_is_placed() {
     let run = common::pipeline::run(&doc, &plan, &RunOptions::sequential());
     assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", diagnostic_lines(&run));
     let out = common::lowering::text(&run);
-    let toc = &out[..out.find("1. One").map_or(out.len(), |at| at)];
+    let toc = &out[..out.find("1. One").unwrap_or(out.len())];
     let at = |needle: &str| toc.find(needle).unwrap_or_else(|| panic!("{needle} in {out}"));
     assert!(at("One") < at("Two") && at("Two") < at("Inside") && at("Inside") < at("Three"), "{out}");
 }

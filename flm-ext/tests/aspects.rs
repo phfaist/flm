@@ -24,7 +24,7 @@ use flm_core::techy::core::node::NodeTree;
 use flm_ext::adapter::aspects::{ref_point_from_value, ref_point_to_core, ref_points_from_value};
 use flm_ext::adapter::dispatch;
 use flm_ext::adapter::handles::{CallTable, Entry};
-use flm_ext::adapter::node::NodeFacade;
+use flm_ext::adapter::node::{NodeFacade, TreeFacade};
 use flm_ext::adapter::values::{handle_from_value, handle_to_value};
 use flm_ext::api::core::lowering::{DefaultMark, Lower, LowerCx, Lowerer, Lowering, LoweringDecl, LoweringRule};
 use flm_ext::api::lang::mint::{ArgDef, ElementDef, SyntaxDef};
@@ -83,12 +83,10 @@ fn boxes(aspects: Vec<Aspect>) -> Double {
 enum Answer {
     /// A point labeled from the `\label` fields, showing the first argument.
     Good,
-    /// The same, showing the root of a tree the handler holds.
+    /// The same, showing a tree the handler holds.
     Synthesized(Arc<NodeTree<Flm>>),
     /// A point whose content is a node of another tree.
     OtherTree(Arc<NodeTree<Flm>>),
-    /// A point whose synthesized content is not the root of a tree.
-    NotRoot,
     /// The handler's failure.
     Fails,
 }
@@ -102,9 +100,8 @@ impl Referenceable for Points {
         let (labels, malformed) = refs::point_labels(&uses);
         let content = match &self.0 {
             Answer::Good => ContentRef::Argument(0),
-            Answer::Synthesized(tree) => ContentRef::Synthesized(Box::new(NodeFacade::shared(Arc::clone(tree), tree.root().id()))),
+            Answer::Synthesized(tree) => ContentRef::Synthesized(Box::new(TreeFacade::new(Arc::clone(tree)))),
             Answer::OtherTree(tree) => ContentRef::Node(Box::new(NodeFacade::shared(Arc::clone(tree), tree.root().id()))),
-            Answer::NotRoot => ContentRef::Synthesized(node.child(0).unwrap_or_else(|| node.parent().expect("a parent"))),
             Answer::Fails => return Err(ExtError::Handler { detail: "no points today".to_string(), data: Value::Null }),
         };
         Ok(vec![RefPoint {
@@ -142,7 +139,7 @@ fn a_referenceable_answered_in_rust_gives_ref_its_target() {
 }
 
 #[test]
-fn a_synthesized_root_is_the_content_a_reference_shows() {
+fn a_synthesized_tree_is_the_content_a_reference_shows() {
     let plain = registry_with([]);
     let tree = parsed(&plain, "Beta");
     let registry = registry_with([boxes(vec![Aspect::Referenceable(Arc::new(Points(Answer::Synthesized(tree))))]).package()]);
@@ -155,7 +152,7 @@ fn a_synthesized_root_is_the_content_a_reference_shows() {
 fn a_failing_or_malformed_answer_gives_the_occurrence_no_point() {
     let plain = registry_with([]);
     let other = parsed(&plain, "Gamma");
-    for answer in [Answer::OtherTree(other), Answer::NotRoot, Answer::Fails] {
+    for answer in [Answer::OtherTree(other), Answer::Fails] {
         let registry = registry_with([boxes(vec![Aspect::Referenceable(Arc::new(Points(answer)))]).package()]);
         let (_, diagnostics) = text_of(&registry, REFERENCED);
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
@@ -284,7 +281,7 @@ impl Lower for WithLabels {
     }
 }
 
-/// A rule's body that places its labels twice, in two groups (S12): the
+/// A rule's body that places its labels twice, in two groups: the
 /// second group is refused by the lowerer's placement check.
 struct LabelsTwice(Arc<std::sync::Mutex<Vec<String>>>);
 
@@ -449,11 +446,8 @@ fn a_reference_point_from_data_reads_back_with_every_variant() {
     let root = tree.root();
     let node = root.child(0).expect("the occurrence");
     let mut table = CallTable::new(9001);
-    let site = handle_to_value(table.lend(Entry::Node(Box::new(NodeFacade::lent(node)))));
     let inner = handle_to_value(table.lend(Entry::Node(Box::new(NodeFacade::lent(root)))));
-    let shared = handle_to_value(
-        table.lend(Entry::Node(Box::new(NodeFacade::shared(Arc::clone(&synthesized), synthesized.root().id())))),
-    );
+    let shared = handle_to_value(table.lend(Entry::Tree(Box::new(TreeFacade::new(Arc::clone(&synthesized))))));
     let anchors = [
         (json!("from_first_label"), CoreAnchor::FromFirstLabel),
         (json!({ "explicit": "here" }), CoreAnchor::Explicit("here".to_string())),
@@ -520,8 +514,8 @@ fn a_reference_point_from_data_reads_back_with_every_variant() {
     assert_eq!(error.as_deref(), Some("the field `computed` of a reference point must be a number from 0 up, not `-1`"));
     let missing = ref_point_from_value(&mut table, &json!({ "kind": "exbox" })).err().map(|error| error.to_string());
     assert_eq!(missing.as_deref(), Some("a reference point must have the field `anchor`"));
-    // A node of another tree, a synthesized node that is not a root, a span
-    // past the source: each the handler's failure.
+    // A node of another tree, a span past the source: each the handler's
+    // failure.
     let other = handle_to_value(table.lend(Entry::Node(Box::new(NodeFacade::shared(Arc::clone(&synthesized), synthesized.root().id())))));
     let point = ref_point_from_value(&mut table, &json!({ "kind": "exbox", "anchor": "from_first_label", "content": { "node": other } }))
         .expect("a point");
@@ -530,13 +524,6 @@ fn a_reference_point_from_data_reads_back_with_every_variant() {
         error.as_deref(),
         Some("`Referenceable::points`: the content of a reference point must be a node of the tree the point's node is in")
     );
-    let point = ref_point_from_value(&mut table, &json!({ "kind": "exbox", "anchor": "from_first_label", "content": { "synthesized": site } }))
-        .expect("a point");
-    let error = ref_point_to_core(point, &node).err().map(|error| error.to_string());
-    assert_eq!(
-        error.as_deref(),
-        Some("`Referenceable::points`: the synthesized content of a reference point must be the root node of a tree")
-    );
     let far = json!({ "kind": "exbox", "anchor": "from_first_label", "malformed": [{ "text": "x", "span": { "start": 0, "end": 999 }, "position": 0 }] });
     let point = ref_point_from_value(&mut table, &far).expect("a point");
     assert!(ref_point_to_core(point, &node).is_err());
@@ -544,7 +531,7 @@ fn a_reference_point_from_data_reads_back_with_every_variant() {
 
 #[test]
 fn stage_label_and_stage_label_group_through_the_dispatcher() {
-    // S13: the arms `stage_label` and `stage_label_group`, driven through the
+    // The arms `stage_label` and `stage_label_group`, driven through the
     // JSON double, write what the Rust rule above writes.
     let package = JsonDouble::new("ex").feature("boxes", |js, b| {
         let refs_module = module("stdcore/features/refs");

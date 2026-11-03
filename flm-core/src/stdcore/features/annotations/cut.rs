@@ -6,9 +6,10 @@
 //! if it were written directly in the text around it
 //! ([block-transparent elements](crate::guide::concepts_overview#block-transparent-elements)).
 //! A blank line inside it is a paragraph break of the surrounding text, and
-//! the annotation continues into the next paragraph; a list or a displayed
-//! formula inside it is a block of the surrounding text, still part of the
-//! annotation. Before any
+//! the annotation continues into the next paragraph; a list inside it is a
+//! block of the surrounding text, still part of the annotation, and a
+//! displayed formula inside it stays in the inline content the annotation
+//! spans. Before any
 //! paragraph is built, the block-structure pass calls the element's
 //! [`BlockTransparent`] aspect, and the element replaces itself by **cut
 //! parts**: one node of its own element around each stretch of inline

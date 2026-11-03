@@ -98,10 +98,13 @@
 //!   with a length as the backend spells one — never a CSS property;
 //! - a `role` attribute holds one of the document roles the backend writes
 //!   (`doc-endnotes`, `doc-bibliography`, …), read from the vocabulary's
-//!   list of them rather than copied here.
+//!   list of them rather than copied here, or the role of a paragraph;
+//! - a paragraph is a `<p>` carrying no role, or a `<div>` carrying
+//!   `role="paragraph"`, and that role stands on a paragraph alone.
 //!
 //! The subtree of a **construct node** — the element `flm.pres.html.tag`, one
-//! HTML tag a lowering rule staged itself — is exempt from the last two:
+//! HTML tag a lowering rule staged itself — is exempt from all but the first
+//! two:
 //! a rule that stages a tag owns everything about it, so its tag name, its
 //! classes and its attributes are outside the contract by design. Which
 //! goldens hold one, and which tag roots it, is recorded in this file
@@ -149,11 +152,16 @@
 //! directory holds none, the scanner says so and passes, and its own fixtures
 //! are what exercise it.
 
-// Why this suite is shaped as it is — a parser held as a development
-// dependency rather than an external validator run beside the build, the
-// reference tree the parser builds into, the per-golden allowances, and a scan
-// of the stylesheet chunks that uses no CSS parser — is recorded.
-// See decision rationale at [§flm-dd-dr:rend-html-validity-check].
+// The suite parses with a parser held as a development dependency rather than
+// an external validator run as a program of its own: a parser is an ordinary
+// crate, compiled for the test targets alone, so the check runs wherever the
+// tests run and is never skipped. It builds into the reference tree of the
+// parser's own project rather than a tree written here, because a tree sink is
+// the part of a parser's interface where a mistake goes unnoticed. The
+// allowances are per golden because the bytes of a golden do not say which tags
+// a lowering rule wrote as its own or which role a hand-built tree invented,
+// and they exempt nothing else. The stylesheet chunks are scanned with no CSS
+// parser, since the rules checked are this contract's, not rules of CSS.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -165,7 +173,9 @@ use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{Attribute, QualName, local_name, ns, tokenizer::TokenizerOpts};
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 
-use flm_core::stdcore::backends::html::class_of_role;
+use flm_core::stdcore::backends::html::conventions::{PARAGRAPH_FLOW_TAG, PARAGRAPH_ROLE};
+use flm_core::stdcore::backends::html::{class_of_element, class_of_role};
+use flm_core::stdcore::backends::pres;
 
 // ============================================================================
 // the goldens: discovery
@@ -588,8 +598,8 @@ mod contract {
 
     use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
     use flm_core::stdcore::backends::html::conventions::{
-        BLOCK_TAGS, CONVENTIONS, DEFAULT_BLOCK_TAG, STYLE_ATTRIBUTE, TagRule, Written,
-        doc_role_value,
+        BLOCK_TAGS, CONVENTIONS, DEFAULT_BLOCK_TAG, PARAGRAPH_FLOW_TAG, PARAGRAPH_ROLE,
+        STYLE_ATTRIBUTE, TagRule, Written, doc_role_value,
     };
     use flm_core::stdcore::backends::html::{
         AUXILIARY_CLASSES, class_of_element, class_of_role, data_attribute,
@@ -610,10 +620,15 @@ mod contract {
         builder.build(&RegistryInputs::new()).expect("the standard package builds")
     }
 
-    /// The value of every document role the backend writes in a `role`
-    /// attribute, `doc-` followed by the role's stable name.
-    pub fn document_roles() -> BTreeSet<String> {
-        pres::DocRole::ALL.into_iter().map(doc_role_value).collect()
+    /// The value of every role the backend writes in a `role` attribute:
+    /// each document role, `doc-` followed by the role's stable name, and the
+    /// role of a paragraph written as a `<div>`.
+    pub fn roles() -> BTreeSet<String> {
+        pres::DocRole::ALL
+            .into_iter()
+            .map(doc_role_value)
+            .chain([String::from(PARAGRAPH_ROLE)])
+            .collect()
     }
 
     /// The class of every element of the presentation vocabulary.
@@ -721,6 +736,9 @@ mod contract {
             match convention.tag {
                 TagRule::Fixed(tag) => {
                     tags.insert(tag);
+                }
+                TagRule::ParagraphContent => {
+                    tags.extend(["p", PARAGRAPH_FLOW_TAG]);
                 }
                 TagRule::HeadingLevel => {
                     tags.extend(["h1", "h2", "h3", "h4", "h5", "h6"]);
@@ -1012,10 +1030,10 @@ fn names_outside_the_contract(found: &[Element]) -> Vec<String> {
 }
 
 /// The `role` attributes of a parsed golden holding anything but one of the
-/// document roles the backend writes. A construct node's subtree is exempt,
-/// as for every other name.
+/// roles the backend writes. A construct node's subtree is exempt, as for
+/// every other name.
 fn roles_outside_the_contract(found: &[Element]) -> Vec<String> {
-    let roles = contract::document_roles();
+    let roles = contract::roles();
     found
         .iter()
         .filter(|element| !element.in_construct)
@@ -1026,6 +1044,39 @@ fn roles_outside_the_contract(found: &[Element]) -> Vec<String> {
             })
         })
         .collect()
+}
+
+/// The paragraphs of a parsed golden written in neither of the two shapes the
+/// contract gives a paragraph, and the elements carrying a paragraph's role
+/// that are not a paragraph: a `flm.pres.par` is a `<p>` carrying no role, or
+/// a `<div>` carrying `role="paragraph"`, and that role stands on nothing else.
+/// A construct node's subtree is exempt, as for every other name.
+fn paragraphs_outside_the_contract(found: &[Element]) -> Vec<String> {
+    let class = class_of_element(pres::PAR);
+    let mut problems = Vec::new();
+    for element in found.iter().filter(|element| !element.in_construct) {
+        let is_paragraph = element.classes().first() == Some(&class.as_str());
+        let role = element.attribute("role");
+        let carries_the_role = role == Some(PARAGRAPH_ROLE);
+        let shaped = match element.tag.as_str() {
+            "p" => role.is_none(),
+            tag => tag == PARAGRAPH_FLOW_TAG && carries_the_role,
+        };
+        if is_paragraph && !shaped {
+            problems.push(format!(
+                "`<{}>` is a paragraph carrying the role `{}`; a paragraph is a `<p>` with no \
+                 role or a `<{PARAGRAPH_FLOW_TAG}>` with the role `{PARAGRAPH_ROLE}`",
+                element.tag,
+                role.unwrap_or("")
+            ));
+        } else if !is_paragraph && carries_the_role {
+            problems.push(format!(
+                "`<{}>` carries the role `{PARAGRAPH_ROLE}` and is not a paragraph",
+                element.tag
+            ));
+        }
+    }
+    problems
 }
 
 /// The `style` attributes of a parsed golden holding anything but the custom
@@ -1121,6 +1172,7 @@ fn structural_problems(dom: &RcDom, allowed: &Allowance) -> Vec<String> {
     problems.extend(names_outside_the_contract(&found));
     problems.extend(styles_outside_the_contract(&found));
     problems.extend(roles_outside_the_contract(&found));
+    problems.extend(paragraphs_outside_the_contract(&found));
     problems
 }
 

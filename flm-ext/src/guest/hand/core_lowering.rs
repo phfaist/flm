@@ -8,10 +8,22 @@ use std::sync::Arc;
 
 use serde_json::{json, Value};
 
-use super::{arg, emit_from_value, emit_to_value, get, not_shape, object};
+use super::{emit_from_value, emit_to_value, get, not_shape, object};
+#[cfg(feature = "native")]
+use crate::adapter::handles::CallTable;
+#[cfg(feature = "native")]
+use crate::adapter::typed::{FromApi, IntoApi};
+#[cfg(not(feature = "native"))]
+use crate::adapter::values::handle_to_value;
 use crate::adapter::values::JsonForm;
+#[cfg(feature = "native")]
+use crate::api;
 use crate::api::core::lowering::{DefaultMark, LoweringDecl};
+#[cfg(feature = "native")]
+use crate::binding::natives::{self, Act};
 use crate::guest::abi;
+#[cfg(not(feature = "native"))]
+use crate::guest::abi::ToArg;
 use crate::guest::core::lowering::{LowerCx, Lowerer, LoweringRule};
 use crate::guest::registry;
 use crate::guest::lang::rewrites::userdefs::Staged;
@@ -52,9 +64,20 @@ impl LoweringRule {
         let name = name.into();
         let element = element.into();
         registry::record_lower(&name, body)?;
-        let lent = registry::lend_lower(&name)?;
-        let args = vec![arg(name.as_str(), METHOD)?, arg(element.as_str(), METHOD)?, arg(&decl, METHOD)?, lent, arg(&mark, METHOD)?];
-        JsonForm::from_value(&abi::call_module("core/lowering", METHOD, args)?)
+        #[cfg(not(feature = "native"))]
+        {
+            let lent = registry::lend_lower(&name)?;
+            let args = vec![ToArg::arg(name.as_str()), ToArg::arg(element.as_str()), ToArg::arg(&decl), handle_to_value(lent), ToArg::arg(&mark)];
+            JsonForm::from_value(&abi::call_module("core/lowering", METHOD, args)?)
+        }
+        #[cfg(feature = "native")]
+        {
+            abi::in_frame(Act::Lower(&name), METHOD, |view| {
+                let body = natives::lend_lower(view, name.clone());
+                let rule = api::core::lowering::LoweringRule::new(name.clone(), element, decl, body, mark);
+                FromApi::from_api(rule, view.table)
+            })
+        }
     }
 }
 
@@ -80,6 +103,20 @@ impl JsonForm for Lowering {
 
     fn from_value(value: &Value) -> Result<Self, ExtError> {
         Ok(emit_from_value("a lowering", "default", value)?.map_or(Lowering::Default, Lowering::Emit))
+    }
+}
+
+/// The api's `Lowering`, each staged node the entry of its handle; the
+/// host's `lowering_from_value`.
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for Lowering {
+    type Api = api::core::lowering::Lowering;
+
+    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        Ok(match self {
+            Lowering::Default => api::core::lowering::Lowering::Default,
+            Lowering::Emit(staged) => api::core::lowering::Lowering::Emit(staged.into_api(table)?),
+        })
     }
 }
 
@@ -136,6 +173,25 @@ impl JsonForm for PresTree {
     }
 }
 
+/// The api's `PresTree`, each staged node the entry of its handle, a `null`
+/// payload the empty map; the host's `pres_tree_from_value`.
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for &PresTree {
+    type Api = api::core::lowering::PresTree;
+
+    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        Ok(match self {
+            PresTree::Node { element, payload, children } => api::core::lowering::PresTree::Node {
+                element: element.clone(),
+                payload: if payload.is_null() { json!({}) } else { payload.clone() },
+                children: children.iter().map(|child| child.into_api(table)).collect::<Result<_, _>>()?,
+            },
+            PresTree::Build(staged) => api::core::lowering::PresTree::Build(staged.into_api(table)?),
+            PresTree::Text(text) => api::core::lowering::PresTree::Text(text.clone()),
+        })
+    }
+}
+
 /// Mirrors `flm-core`'s `NodeAddr`: the address of a node, its tree's
 /// identifier and the node's index in it. The guest's own: the api's holds
 /// `flm-core`'s node identifier, which only a tree makes.
@@ -157,5 +213,14 @@ impl JsonForm for NodeAddr {
         const WHAT: &str = "a node's address";
         let map = object(WHAT, value)?;
         Ok(NodeAddr { tree: get(WHAT, map, "tree")?, node: get(WHAT, map, "node")? })
+    }
+}
+
+/// The api's address, its tree's identifier written and its node's index;
+/// the host's `node_addr_to_value`.
+#[cfg(feature = "native")]
+impl<'c> FromApi<'c, flm_core::model::addr::NodeAddr> for NodeAddr {
+    fn from_api(api: flm_core::model::addr::NodeAddr, _: &mut CallTable<'c>) -> Result<Self, ExtError> {
+        Ok(NodeAddr { tree: api.tree.to_string(), node: api.node.index() })
     }
 }

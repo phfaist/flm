@@ -599,7 +599,9 @@ pub mod blocks {
     ///   role's: blocks); `blockinline`: a block environment with an explicitly
     ///   inline body; `blocksbody`: an inline environment with a blocks body;
     /// - `equation`: a math-mode body; `textinmath`: a text-mode body (to nest
-    ///   inside math), declared in math mode.
+    ///   inside math), declared in math mode;
+    /// - `displaymath`: a displayed item with a math-mode body, the shape of a
+    ///   display-math environment.
     ///
     /// Every declaration is available in text mode, the default; `emph` also in
     /// math mode, `textinmath` and `textarg` in math mode only.
@@ -664,6 +666,11 @@ pub mod blocks {
             env_of("equation", BodyDef::new().mode(Mode::Math), inline("t.equation")),
             env_of("textinmath", BodyDef::new().mode(Mode::Text), inline("t.textinmath"))
                 .modes([Mode::Math]),
+            env_of(
+                "displaymath",
+                BodyDef::new().mode(Mode::Math),
+                element_with_role("t.displaymath", BlockRole::Displayed),
+            ),
             // A text command: one mandatory argument read in text mode, the
             // shape of `\text{…}` inside mathematics.
             ElementDef::new(

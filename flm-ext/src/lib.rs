@@ -108,16 +108,39 @@
 //!
 //! `native` (cargo feature `native`, which turns on `guest`) is the engine
 //! `native`: it runs the extensions compiled into the program, each a crate
-//! written against the guest client, whose requests it answers in the same
-//! process, as JSON values, with no sandbox and no limit. A program lists the
-//! extensions it carries for the engine and adds it to a loader with
-//! `ExtensionLoader::with_engine`. The feature, not the target, makes the
-//! guest client answer requests in the same process, so a program built for
-//! `wasm32` carries extensions compiled in too; an extension's own
-//! WebAssembly module is therefore built in a cargo run where no crate turns
-//! on `native` (the module documentation of `flm_ext::native` states why).
-//! The handlers of the three bindings run through one shared host side, so a
-//! handler of any of them answers FLM the same way.
+//! written against the guest client, in the same process, with no sandbox and
+//! no limit. A program lists the extensions it carries for the engine and
+//! adds it to a loader with `ExtensionLoader::with_engine`. The feature also
+//! chooses the guest client's route to FLM. With it, every request of an
+//! extension is a direct, typed call of [`api`] on the handle table of the
+//! running handler call, the lending of a handler object builds the host's
+//! object directly, and the engine calls the extension's entries directly,
+//! their arguments and replies the guest's Rust values: no JSON value is
+//! built or read but the data that is JSON by nature (a feature's settings,
+//! which its `register` and its template modules' `describe` receive, and
+//! the declarations of the extension's packages). Without it, a
+//! WebAssembly module's requests and entries cross as JSON text, as above.
+//! The feature, not the target, decides, so a program built for `wasm32`
+//! carries extensions compiled in too; an extension's own WebAssembly module
+//! is therefore built in a cargo run where no crate turns on `native` (the
+//! module documentation of `flm_ext::native` states why). The handlers of
+//! the three bindings run through one shared host side: the handle tables,
+//! the objects that call an extension's handlers, and the bodies of the
+//! lending natives. The bindings differ in the values they accept. The
+//! engines `js` and `wasm`, which carry an extension's values as JSON text,
+//! refuse a value nested more than 127 levels deep where they read the text,
+//! and refuse, in a request's arguments, in its answer and in a template
+//! module's data, a number that is not an integer between `i64::MIN` and
+//! `i64::MAX` and a reserved map key (one beginning with `$`, or the key that
+//! marks a handle; [`check_data`](adapter::values::check_data) states the
+//! rules, and [`check_arguments`](adapter::values::check_arguments) those of
+//! a request's arguments, where a map written as a handle is a handle); the engine
+//! `native` reads no text and passes each value as it is. On every engine,
+//! the extension API itself refuses such a number or map key where it keeps
+//! a value as data: an item of an extension's table, a presentation node's
+//! data payload, a diagnostic's data, the data contributed to a service slot
+//! (the module documentation of `flm_ext::native`, section "Limits and
+//! failures").
 //!
 //! # Trust
 //!

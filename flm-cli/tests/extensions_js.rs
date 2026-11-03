@@ -1,5 +1,5 @@
 //! Extensions written in JavaScript, found and run by the binary (cargo feature `js`): the
-//! three cases of the extension layer's acceptance and the first case of step E4
+//! three cases of the extension layer and a numbered construct
 //! (`exercises`, a numbered, referenceable environment) through `flm render` and `flm schema`,
 //! and a backend written in JavaScript, `typst`, rendered through its output.
 //!
@@ -170,7 +170,7 @@ fn case_one_s_settings_are_refused_where_they_are_written() {
     );
 }
 
-// --- E4's first case: the extension `exercises` ---------------------------------------------------
+// --- a numbered construct: the extension `exercises` ----------------------------------------------
 
 /// `exercises` installed beside the document, rendered to text, HTML and the recomposed
 /// LaTeX: the numbers, the heading lines, the hint inside an exercise, the references.

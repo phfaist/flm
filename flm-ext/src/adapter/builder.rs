@@ -6,7 +6,7 @@
 //! feature declares, converts the declaration, and calls the `flm-core`
 //! builder's method of the same name. An [`ElementDef`] a helper made
 //! (`UserDefinition::element_def` or `element_def_with`) becomes its `flm-core`
-//! declaration here (plan A, A10), with the hook wrapped as an
+//! declaration here, with the hook wrapped as an
 //! [`ExtExpand`] for the package the façade
 //! knows; its definition joins the list the late-init hook compiles unless an
 //! expansion hook expands it and it declares no template. A lowering rule the
@@ -127,8 +127,8 @@ impl<'a, 'b> BuilderFacade<'a, 'b> {
     }
 
     /// Converts the element declaration `def` and keeps the user definition
-    /// behind it as [`element`](FeatureBuilder::element) does (A54 as A63
-    /// reads it: compiled unless a hook expands it without a template).
+    /// behind it as [`element`](FeatureBuilder::element) does (compiled
+    /// unless a hook expands it without a template).
     fn element_to_core(&mut self, def: ElementDef) -> Result<flm_core::lang::mint::ElementDef, ExtError> {
         let hooked = matches!(def.form, ElementDefForm::Helper { hook: Some(_), .. });
         let (core, definition) = element_def_to_core(def, self.owner)?;
@@ -251,7 +251,7 @@ impl FeatureBuilder for BuilderFacade<'_, '_> {
         let needs = stage.needs();
         self.owner.check("stage", &decl.name)?;
         self.owner.check("table", &decl.publishes)?;
-        let core = ExtRewriteStage::new(stage, decl, needs, self.owner.clone());
+        let core = ExtRewriteStage::new(stage, decl, needs);
         self.b.rewrite_stage(Arc::new(core)).map_err(core_error)
     }
 
@@ -448,7 +448,7 @@ pub(crate) struct ExtLateInit {
 impl CoreLateInit for ExtLateInit {
     fn late_init(&self, lang: &CoreBuiltLang, diags: &mut CoreFlmDiagnostics) -> Result<(), LateInitError> {
         let lang = BuiltLangFacade { lang, durable: Arc::clone(&self.owner.durable) };
-        let mut diags = FlmDiagnosticsFacade { diags, owner: &self.owner };
+        let mut diags = FlmDiagnosticsFacade { diags };
         self.hook.late_init(&lang, &mut diags).map_err(|error| LateInitError::new(handler_failed(&error)))
     }
 }
@@ -512,19 +512,16 @@ impl BuiltLangCore for BuiltLangFacade<'_> {
 impl BuiltLang for BuiltLangFacade<'_> {}
 
 /// The extension API's [`FlmDiagnostics`] over the build's diagnostics, lent
-/// to a late-initialization hook: each diagnostic's identifier checked
-/// against the extension's stem, a diagnostic that names no node placed
+/// to a late-initialization hook: a diagnostic that names no node is placed
 /// nowhere ([`nowhere`]).
 pub(crate) struct FlmDiagnosticsFacade<'a> {
     diags: &'a mut CoreFlmDiagnostics,
-    owner: &'a Owner,
 }
 
 impl Sealed for FlmDiagnosticsFacade<'_> {}
 
 impl FlmDiagnostics for FlmDiagnosticsFacade<'_> {
     fn push(&mut self, diagnostic: Diagnostic) -> Result<(), ExtError> {
-        self.owner.check("diagnostic", &diagnostic.id)?;
         self.diags.push(diagnostic_to_core(diagnostic, nowhere())?);
         Ok(())
     }
@@ -596,8 +593,8 @@ impl PendingStage {
 /// table the stage writes is written with the type its declaration gives (an
 /// extension's own, the text of a definition's part ([`DefinitionText`]), or
 /// the files of an output ([`ArtifactSet`])) whatever the order of the
-/// table's declaration and the stage's in `register` (S25's precedent for a
-/// rule's reads). The declaration and the needs were read in the first round.
+/// table's declaration and the stage's in `register`, as for a lowering
+/// rule's reads. The declaration and the needs were read in the first round.
 struct StageFinalizer {
     pending: PendingStage,
 }

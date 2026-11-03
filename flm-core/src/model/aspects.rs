@@ -31,8 +31,9 @@
 //!
 //! # The aspects defined here
 //!
-//! - [`BlockRoleAspect`] — whether an occurrence is a block, inline content or a
-//!   block decorator ([`BlockRole`]); read with [`block_role_of`].
+//! - [`BlockRoleAspect`] — whether an occurrence is a block, inline content, a
+//!   displayed item or a block decorator ([`BlockRole`]); read with
+//!   [`block_role_of`].
 //! - [`Referenceable`] — the [reference points](RefPoint) an occurrence
 //!   carries: the places in the document that a reference can point at, each
 //!   declaring which [label types](AcceptedRefTypes) may be written for it.
@@ -151,15 +152,17 @@ pub enum Placement {
 }
 
 /// The role of an occurrence in the block and paragraph structure: a block,
-/// inline content, or a block decorator.
+/// inline content, a displayed item, or a block decorator.
 ///
 /// The block-structure rewrite pass ([`crate::lang::rewrites::blocks`]) reads
 /// it to cut content into blocks: the pass begins a new block at each `Block`
-/// node and at each paragraph break, keeps `Inline` nodes inside the
-/// surrounding block, and attaches a `BlockDecorator` to the block it occurs
-/// in. When the pass trims the whitespace at the edges of a block, it looks
-/// past a decorator, so a decorator at an edge does not keep the whitespace
-/// beside it.
+/// node and at each paragraph break, keeps `Inline` and `Displayed` nodes
+/// inside the surrounding block, and attaches a `BlockDecorator` to the block
+/// it occurs in. The pass removes the whitespace on both sides of a
+/// `Displayed` node, as it does beside an `Inline` node whose
+/// [`InlineSpacing`] absorbs the whitespace on both sides. When the pass trims
+/// the whitespace at the edges of a block, it looks past a decorator, so a
+/// decorator at an edge does not keep the whitespace beside it.
 ///
 /// An element that declares no [`BlockRoleAspect`] has [`BlockRole::DEFAULT`];
 /// read an occurrence's role with [`block_role_of`].
@@ -172,6 +175,12 @@ pub enum BlockRole {
     /// Inline content inside a block, with the whitespace beside it treated as
     /// the [`InlineSpacing`] says.
     Inline(InlineSpacing),
+    /// A displayed item: a node that stands in inline content (a paragraph,
+    /// or any content region laid out inline) and is set on lines of its own,
+    /// with the whitespace beside it removed, such as a display equation. A
+    /// displayed item continues the paragraph it stands in, and may hold
+    /// anything: its own lowering rule lays its content out.
+    Displayed,
     /// Attached to the block it occurs in, at the [`Placement`] given.
     BlockDecorator(Placement),
 }
@@ -186,12 +195,16 @@ impl BlockRole {
 ///
 /// The method receives the node, so an element that is a block in some places
 /// and inline content in others decides from the node: from its own content,
-/// or from where it is placed. A section command of a quotation (such as
-/// `\lines` or `\attributed`) is a block directly in the quotation's body and
-/// inline content elsewhere; an image is a block as a direct child of a
-/// float's body and inline content elsewhere.
+/// from where it is placed, or from how it is written. A section command of a
+/// quotation (such as `\lines` or `\attributed`) is a block directly in the
+/// quotation's body and inline content elsewhere; an image is a block as a
+/// direct child of a float's body and inline content elsewhere; a mathematics
+/// group is a displayed item when written `\[…\]` or `$$…$$` and inline
+/// content when written `\(…\)` or `$…$`
+/// ([`StructuralElementSpecs::math`](crate::lang::structural::StructuralElementSpecs::math)).
 /// [`BlockRole`] therefore has no "either" variant: an element whose role
-/// depends on its content or its position computes the role in this method.
+/// depends on its content, its position or how it is written computes the
+/// role in this method.
 ///
 /// Most elements have one fixed role and declare [`FixedBlockRole`]. Read the
 /// role of a node with [`block_role_of`], which supplies
@@ -250,6 +263,9 @@ pub fn block_role_of(node: &NodeRef<'_, Flm>) -> BlockRole {
 /// - beside an inline element that absorbs the whitespace on that side
 ///   ([`InlineSpacing`]), the node is removed with the rest of the whitespace
 ///   between the element and the nearest content;
+/// - on both sides of a displayed item ([`BlockRole::Displayed`]), the node
+///   is removed with the rest of the whitespace between the item and the
+///   nearest content;
 /// - at the start and at the end of a paragraph, the node is removed with the
 ///   rest of the whitespace there;
 /// - the node is not paragraph content: a stretch holding only whitespace,
@@ -405,7 +421,6 @@ impl PartialEq for ContentRef {
             (ContentRef::Body, ContentRef::Body) => true,
             (ContentRef::Node(a), ContentRef::Node(b)) => a == b,
             // The same tree, never two trees holding the same text.
-            // See decision rationale at [§flm-dd-dr:dm-content-synthesized].
             (ContentRef::Synthesized(a), ContentRef::Synthesized(b)) => Arc::ptr_eq(a, b),
             _ => false,
         }

@@ -357,7 +357,9 @@ pub fn stage_mark_text(
     point: PointId,
 ) -> Result<Vec<BuildId>, LowerError> {
     if !kind.numbered {
-        // See decision rationale at [§flm-dd-dr:std-xnote-fixed-mark].
+        // The fixed mark is compiled once, when the registry is built; a
+        // lowering rule cannot reach the registry, so the compiled content
+        // travels in the table of xnotes.
         let Some(xnotes) = lw.get(XNOTES)? else { return Ok(Vec::new()) };
         let trees = xnotes.fixed_mark(kind.name.as_str()).to_vec();
         let mut staged = Vec::new();
@@ -374,8 +376,8 @@ pub fn stage_mark_text(
             LowerError::structure(format!("the counter table carries no mark style `{name}`"))
         })?;
         // The own number alone: no parent, so no part of a counter the kind
-        // is numbered within.
-        // See decision rationale at [§flm-dd-dr:std-xnote-mark-own-number].
+        // is numbered within: the mark only has to find the note on the page,
+        // and the reference is what shows the full number.
         let options = FormatOptions::new().without_word().without_delimiters();
         numbering::format(&record.value, style, None, &options)
             .map_err(|error| LowerError::structure(error.to_string()))?
@@ -469,7 +471,6 @@ pub(super) fn identifiers(
 /// the word alone where there is no number.
 // The number a reference shows, not the mark's: the name identifies the
 // xnote as a reference does, whatever style the mark is written in.
-// See decision rationale at [§flm-dd-dr:std-xnote-link-label].
 fn link_label(lw: &dyn Lowerer, kind: &XnoteKind, point: PointId) -> Result<String, LowerError> {
     let words = kind.words.variants.get(CAPITAL_VARIANT).unwrap_or(&kind.words.base);
     accessible_name(lw, kind, &words.one, point)
@@ -631,7 +632,9 @@ fn in_place(
 /// Lowers `content`, a run of paragraphs and blocks, as inline content: each
 /// paragraph's inline run, a space between two of them; every other node as
 /// the rules lower it.
-// See decision rationale at [§flm-dd-dr:std-xnote-flattened].
+// The block-structure pass has already reported the block it kept where no
+// block can stand, and that report is the whole report; a block that is not a
+// paragraph has no inline form and is lowered as it stands, not dropped.
 fn lower_joined(
     cx: &mut LowerCx<'_>,
     lw: &mut dyn Lowerer,

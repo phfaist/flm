@@ -98,9 +98,7 @@ impl Stage for ContractCheck {
     fn needs(&self, cx: &PlanCx<'_>) -> Needs {
         // Each decision is asked for separately, as in the structure stage, so
         // that a registry declaring one without the other never makes the check
-        // require a capability nobody declared. See design rationale at
-        // [§flm-dd-dr:std-blocks-check-gate] and
-        // [§flm-dd-dr:std-render-validates].
+        // require a capability nobody declared.
         let registry = cx.registry();
         let mut needs = Needs::new().requires(BLOCKS).reads_opt(STRUCTURED);
         if registry.cap_id(EXPANDED.name()).is_some() {

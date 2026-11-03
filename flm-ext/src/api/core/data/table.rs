@@ -41,10 +41,10 @@ pub enum TableValue<'t> {
     Ext(Box<dyn ExtTableRead + 't>),
     /// A table of a rewrite's output trees
     /// ([`TreesTable`](flm_core::core::stage::TreesTable)).
-    Trees(Box<dyn TreesTable<'t> + 't>),
+    Trees(Box<dyn TreesTable + 't>),
     /// A table of a backend's lowered trees, `flm.lowered.<backend>`
     /// ([`LoweredTrees`](flm_core::stdcore::backends::lowering::LoweredTrees)).
-    Lowered(Box<dyn LoweredTrees<'t> + 't>),
+    Lowered(Box<dyn LoweredTrees + 't>),
     /// Any other table, as its projection
     /// ([`Table::project`](flm_core::core::data::table::Table::project)) in its
     /// JSON form. A table of an output's files

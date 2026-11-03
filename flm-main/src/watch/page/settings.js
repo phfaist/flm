@@ -7,9 +7,10 @@
   // off: `false` in the front matter). Unfolded, a section holds a form made from the
   // feature's schema by `@json-editor/json-editor`, with the values the front matter
   // writes: a key it does not write shows no value; the author adds a key to set it, or
-  // removes it so that it is not written. *Save* sends the whole map of features to the
-  // server, which writes the document's file anew; the build that follows is the one any
-  // save of the file causes. See decision rationale at [§flm-dd-dr:host-watch-settings].
+  // removes it so that it is not written. A value of the front matter outranks every
+  // package's, so a form that wrote a value the author did not set would silently change
+  // the document. *Save* sends the whole map of features to the server, which writes the
+  // document's file anew; the build that follows is the one any save of the file causes.
 
   var JSONEditor = module.exports.JSONEditor;
 

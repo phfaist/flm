@@ -9,6 +9,7 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use crate::api::core::registry::FeatureBuilder;
+use crate::api::core::settings::ReadError;
 use crate::block;
 use crate::engine::{Engine, ExtensionIdentity, LoadError, Loaded, PackageReport, DATA};
 use crate::entry::DEFAULT_PACKAGE;
@@ -88,6 +89,13 @@ impl ExtRuntime for DataRuntime {
     fn register(&self, package: &str, feature: &str, _: &Value, _: &mut dyn FeatureBuilder) -> Result<(), ExtError> {
         Err(ExtError::Argument {
             method: "register".to_string(),
+            detail: format!("the package `{package}` of a data extension has no feature `{feature}`"),
+        })
+    }
+
+    fn read_settings(&self, package: &str, feature: &str, _: &Value) -> Result<Result<Value, ReadError>, ExtError> {
+        Err(ExtError::Argument {
+            method: "read_settings".to_string(),
             detail: format!("the package `{package}` of a data extension has no feature `{feature}`"),
         })
     }

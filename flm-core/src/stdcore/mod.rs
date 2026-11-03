@@ -513,8 +513,9 @@ pub fn package(config: StdcoreConfig) -> PackageEntry {
         .feature(index::feature())
         .feature(refpoints::feature())
         // The owner of the two counter slots stands before every feature that
-        // fills them, although the order decides nothing here.
-        // See decision rationale at [§flm-dd-dr:std-numbering-place].
+        // fills them, so that the list is easy to follow, although the order
+        // decides nothing here: the contributions to a slot are gathered over
+        // the whole first round, wherever the slot is declared.
         .feature(Arc::new(Numbering::new(config.numbering.clone())))
         .feature(Arc::new(Math::new(config.math)))
         .feature(Arc::new(refs::Refs::new(config.refs.clone())))
@@ -537,8 +538,8 @@ pub fn package(config: StdcoreConfig) -> PackageEntry {
         .feature(meta::feature())
         .feature(toc::feature())
         // The owner of the pieces slot and option stands before the backends
-        // that read them, although the order decides nothing here.
-        // See decision rationale at [§flm-dd-dr:std-numbering-place].
+        // that read them, so that the list is easy to follow, although the
+        // order decides nothing here.
         .feature(pieces::feature())
         .feature(text::feature())
         .feature(latex::feature())

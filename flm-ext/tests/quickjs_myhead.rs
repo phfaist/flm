@@ -1,4 +1,4 @@
-//! The second case of step E4 through JavaScript: the fixture `myhead` of
+//! A heading through JavaScript: the fixture `myhead` of
 //! `tests/js/myhead/`, the headings sketch reduced to one kind of heading,
 //! numbered, listed in the table of contents through a `Sectioning` handler,
 //! referenced through a `Referenceable` handler, its number written through a

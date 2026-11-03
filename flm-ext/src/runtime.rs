@@ -19,6 +19,7 @@ use crate::adapter::durable::DurableKind;
 use crate::adapter::handles::Handle;
 use crate::adapter::names;
 use crate::api::core::registry::FeatureBuilder;
+use crate::api::core::settings::ReadError;
 
 /// The extension side of the boundary: what FLM calls in an extension. A binding
 /// implements it once for its language; the Rust test double implements it in
@@ -31,14 +32,38 @@ pub trait ExtRuntime: Send + Sync {
     /// `package` (its name within the extension)
     /// ([`FlmFeature::register`](flm_core::core::registry::FlmFeature::register)):
     /// the handler declares everything the feature contributes through `b`.
-    /// `settings` is the feature's final configuration (`{}` when it declares
-    /// none or none is written).
+    /// `settings` is the feature's final configuration: the configuration
+    /// written, or what the feature's configuration reader answered for it
+    /// ([`read_settings`](ExtRuntime::read_settings)); `{}` when the feature
+    /// declares none.
     ///
     /// # Errors
     ///
     /// The handler's failure; the registry build reports it as
     /// [`BuildError::Feature`](flm_core::core::registry::BuildError::Feature).
     fn register(&self, package: &str, feature: &str, settings: &Value, b: &mut dyn FeatureBuilder) -> Result<(), ExtError>;
+
+    /// The configuration reader of the feature `feature` of the package
+    /// `package` (its name within the extension), the twin of the reading
+    /// that
+    /// [`SettingsDecl::config_data_read`](flm_core::core::settings::SettingsDecl::config_data_read)
+    /// takes, for a feature whose settings declare one
+    /// ([`SettingsReport::read`](crate::engine::SettingsReport::read)): the
+    /// host calls it whenever it reads a document's settings, for every
+    /// feature of a package the document uses that declares a reader and is
+    /// not switched off in the document's settings, before the registry is
+    /// built. `settings` is the configuration written under the feature (`{}`
+    /// when nothing is written under the feature, or none of the
+    /// configuration's own keys); the answer is the configuration the
+    /// feature's `register` receives, or the value at fault, which the host
+    /// reports where it was written, and with no place in the document when
+    /// its settings do not name the feature.
+    ///
+    /// # Errors
+    ///
+    /// The handler's failure; the settings are then reported as invalid as a
+    /// whole, with the failure's text.
+    fn read_settings(&self, package: &str, feature: &str, settings: &Value) -> Result<Result<Value, ReadError>, ExtError>;
 
     /// The bytes that identify the extension's code — every source text, the
     /// engine's version — fed into the registry digest by every feature's
@@ -84,12 +109,11 @@ pub enum ExtError {
     /// ([`namespaces`](crate::adapter::names::namespaces)).
     NameOutsideExtension {
         /// What the name names, as the text says it: such as `element`,
-        /// `table`, `stage`, `capability`, `diagnostic`, `option`, `rule`,
-        /// `style`, `script`, `scoped package`, `argument role`, `service
-        /// slot`, `citation provider`, `counter`, `counter style`, `parent
-        /// set`, `package definition`, `preamble piece`, `backend`, `output`
-        /// (the last two may also be a namespace itself, and their text says
-        /// so).
+        /// `table`, `stage`, `capability`, `option`, `rule`, `style`,
+        /// `script`, `scoped package`, `argument role`, `service slot`,
+        /// `citation provider`, `counter`, `counter style`, `parent set`,
+        /// `package definition`, `preamble piece`, `backend`, `output` (the
+        /// last two may also be a namespace itself, and their text says so).
         what: String,
         /// The name declared.
         name: String,

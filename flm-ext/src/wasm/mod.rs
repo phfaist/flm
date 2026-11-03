@@ -67,7 +67,9 @@
 //! The entries a module answers: `define(stem, module)` once per instance,
 //! then `packages()` at load (the package objects, in the shape the
 //! JavaScript prelude's `packages` answers); `register(settings, b)` and
-//! `rehearse(settings)`; the handlers' entries, `run_stage`, `expand`,
+//! `rehearse(settings)`; `read_settings(settings)`, a feature's
+//! configuration reader, which answers `{"value": …}` or `{"error":
+//! {"path", "detail"}}`; the handlers' entries, `run_stage`, `expand`,
 //! `lower`, `restage`, `answer_all`, `template_describe`, `template_files`,
 //! `template_render`, `points`, `level`, `in_toc`, `toc_title`, `late_init`,
 //! `finalize`, each with the package and the feature first.

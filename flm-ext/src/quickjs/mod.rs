@@ -31,7 +31,8 @@
 //! extension builder `ext`; each `ext.package(name, object)` declares one
 //! package of the extension (`_` is the default one). Each feature's
 //! `register(b, settings)` declares what the feature contributes; `settings`
-//! is the feature's configuration (`{}` when nothing is written). The
+//! is the feature's configuration, as written (`{}` when nothing is written)
+//! or as its configuration reader answers it (below). The
 //! example declares one package with one feature, a setting of each kind, a
 //! macro whose replacement a hook computes, and a stage reading an option,
 //! with a helper imported from a file beside the main module (`main.js`):
@@ -75,7 +76,7 @@
 //!             run(cx, out) {
 //!               const min = cx.option("wc.counting").min ?? 1;
 //!               let words = 0;
-//!               for (const node of cx.my_tree().descendants())
+//!               for (const node of cx.my_tree().root().descendants())
 //!                 if (node.is_chars()) words += words_of(node.chars(), min);
 //!               out.table("wc.words").push({ tree: cx.tree_id(), words });
 //!             },
@@ -112,12 +113,36 @@
 //! | `title`, `docs`, `version` | texts | yes | as a compiled feature's information |
 //! | `settings` | a map: `config` (`{ docs, schema }`), `options` (name → `{ bind, docs, schema }`, `bind` being `document`, `render` or `either`), `merge_entries`, `markup`, `path` | yes | the settings it declares, as data ([`SettingsReport`](crate::engine::SettingsReport)) |
 //! | `register(b, settings)` | a function | no | declares what the feature contributes, with its configuration |
+//! | `read(settings)` | a function | yes | the feature's configuration reader (below) |
 //!
 //! The feature's name is its key in `features`; any other key of the feature
 //! object is refused, and so is, at any depth below a key other than
-//! `register`, a value that is a function, a symbol or a BigInt, or a key
-//! that is a symbol (JSON would drop it); the refusal names the key path
-//! (`settings.options.x`). A key whose value is `null` is read as absent.
+//! `register` and `read`, a value that is a function, a symbol or a BigInt,
+//! or a key that is a symbol (JSON would drop it); the refusal names the key
+//! path (`settings.options.x`). A key whose value is `null` is read as
+//! absent.
+//!
+//! `read(settings)` reads the feature's configuration whenever the host reads
+//! a document's settings, for every feature of a package the document uses
+//! that declares a reader and is not switched off in the document's settings,
+//! before the registry is built: the twin of the Rust guest's
+//! `Feature::read`, and of the conversion of `flm-core`'s
+//! [`SettingsDecl::config_from`](flm_core::core::settings::SettingsDecl::config_from).
+//! It receives the configuration written under the feature (`{}` when nothing
+//! is written under the feature, or none of the configuration's own keys) and
+//! answers, as data, `{ value }`,
+//! `value` being the configuration `register` receives (the configuration
+//! itself, for a reader that only checks it), or
+//! `{ error: { path, detail } }`, the value at fault: `path` is its key path
+//! below the feature's name (`macros.abs`; optional, the configuration as a
+//! whole when absent) and `detail` the condition it violates (``must be a
+//! text, not `3` ``). The host reports a
+//! fault where the value was written, as the problems of a configuration
+//! declared in Rust are reported, and with no place in the document when
+//! its settings do not name the feature. The feature's `settings` declare the
+//! configuration it reads (`config`). A feature without `read` has its
+//! configuration's keys checked only, and `register` receives the
+//! configuration as written.
 //!
 //! A stage reads an option it declares with `cx.option(name)`, after naming
 //! it in its needs: `new Needs().option(name)`. The value comes as data (a
@@ -249,7 +274,8 @@
 //!    `{"@durable": { kind, table, index }}`. A template language's class
 //!    extends the class `Durable` (the per-call classes extend `Handle`); a
 //!    compiled template is a `CompiledTemplate` in either form, and each
-//!    instance writes back the form it came in. A durable object is
+//!    instance writes back the form it came in, as the receiver of its
+//!    method `placeholders` too. A durable object is
 //!    valid on every engine instance and every thread, in every later call
 //!    of that feature, for as long as the registry it was made under is in
 //!    use: a hook may keep it in module scope, and a lowering rule may use a
@@ -323,18 +349,18 @@
 //!    its tree (not its position in `nodes`) at `error.data.data.node`. A handler may catch it; uncaught, the handler
 //!    fails and the diagnostic's data holds it under `data.flm_error`.
 //! 9. **`Option<T>`** is `T` or `null`. A `Vec<T>` is an array; a tuple is an
-//!    array of its elements: `cx.trees()` answers `[[id, node], …]`.
+//!    array of its elements: `cx.trees()` answers `[[id, tree], …]`.
 //! 10. **Values are JSON.** Every argument and result crosses as JSON text: a
 //!     number must be an integer (`1.5` is refused with kind `"value"`); an
 //!     `undefined` inside data is left out, as `JSON.stringify` does (write
 //!     `null` for "no value"); a map key must not begin with `$` nor be
-//!     `@handle`. A byte string (`b.digest_input(text)`) is a string, whose
-//!     UTF-8 bytes are taken.
+//!     `@handle`. Bytes (`b.digest_input(bytes)`) are a content, as an
+//!     artifact's (`flm:core/artifact`): a string (its UTF-8 bytes),
+//!     `{ text }`, or `{ base64 }` (bytes of any kind).
 //! 11. **A diagnostic** a handler reports is the plain object
 //!     `{ id, severity, message, data, at }` (`data` and `at` optional, `at` a
 //!     node): `out.diags({ id: "wc.empty", severity: Severity.Warning, message: "the tree has no words" })`.
-//!     Its `id` must begin with the extension's stem and a dot (or with `X`
-//!     and a dot, for an extension whose stem is `profile-X`).
+//!     Its `id` is any identifier, a library condition's included.
 //! 12. **A `const` name** is a constant of the same name and value:
 //!     `MATH === "flm.math"` in `flm:stdcore/features/math`,
 //!     `BLOCK === "flm.pres.block"` and `BODY_SLOT === "body"` in
@@ -479,9 +505,10 @@
 //!   `b.table_named(name, StandardTable.LoweredTrees, docs)`;
 //! - the emit stage is a stage object, as `b.stage` takes one: it reads the
 //!   lowered trees (`cx.get(name).lowered`, an object with `trees()`,
-//!   `tree(id)`, `requires(id)` and `rounds(id)`), walks each tree's nodes
-//!   (`element_name()`, `payload()`, `slot_count()`, `slot_content_nodes(i)`,
-//!   …) and pushes the text it writes into a table of the extension's own;
+//!   `tree(id)`, `requires(id)` and `rounds(id)`), walks the nodes of each
+//!   tree from its `root()` (`element_name()`, `payload()`, `slot_count()`,
+//!   `slot_content_nodes(i)`, …) and pushes the text it writes into a table
+//!   of the extension's own;
 //! - the final stage is a stage object too: it reads that text and pushes the
 //!   output's files into a table declared with `StandardTable.ArtifactSet`, one
 //!   push per file (`Artifact.bytes(new ArtifactId(owner, name), media_type,
@@ -732,23 +759,24 @@
 //! modules where forwarding does not apply:
 //!
 //! - the methods that hand a script's object to FLM: `FeatureBuilder.stage`,
-//!   `FeatureBuilder.rewrite_stage`, `FeatureBuilder.attach`,
+//!   `FeatureBuilder.rewrite_stage`, `FeatureBuilder.backend` (for the stage
+//!   objects of its backend), `FeatureBuilder.attach`,
 //!   `FeatureBuilder.late_init`, `FeatureBuilder.finalizer`,
-//!   `ElementSpec.with`, `UserDefinition.element_def_with`, the constructors
-//!   of `LoweringRule` and `BackendDef` (the latter for its stage objects),
-//!   and `FeatureBuilder.contribute_to`, `contribute_first_to` and
-//!   `peer_slot` (the slot's name decides: any object given to
-//!   `flm.citations.providers` is a citation provider, any object given to
-//!   `flm.compose.templates` a template module, and a value given to any
-//!   other slot is data), which record the object so that another engine
-//!   instance finds it again ([The rehearsal](#the-rehearsal));
+//!   `ElementSpec.with`, `UserDefinition.element_def_with`, the constructor
+//!   of `LoweringRule`, and `FeatureBuilder.contribute_to`,
+//!   `contribute_first_to` and `peer_slot` (the slot's name decides: any
+//!   object given to `flm.citations.providers` is a citation provider, any
+//!   object given to `flm.compose.templates` a template module, and a value
+//!   given to any other slot is data), which record the object so that
+//!   another engine instance finds it again ([The rehearsal](#the-rehearsal));
 //! - `FeatureBuilder.feature`, which answers the registering feature's name
 //!   during a rehearsal without calling Rust;
 //! - the classes of the `flm-core` data types `ArgDef`, `BodyDef`,
 //!   `Definition`, `StyleDef`, `ScriptDef`, `OutputDef`, `ArtifactId` and
 //!   `Artifact`, whose fields and builder methods are `flm-core`'s and have
-//!   no source under `src/api/`, with the function `arg_def_from_code`,
-//!   which answers an `ArgDef`;
+//!   no source under `src/api/`, with the functions `arg_def_from_code` and
+//!   `label_fields_arg` (`flm:stdcore/features/refs`), which read the
+//!   argument Rust answers back as an `ArgDef`;
 //! - the classes of the data types re-exported from `flm-core` without a
 //!   source under `src/api/`: in `flm:model/aspects`, `RefPoint`,
 //!   `NumberSource`, `AnchorPolicy`, `ContentRef` and `AcceptedRefTypes`; in
@@ -758,20 +786,25 @@
 //!   the LaTeX modules, `LatexPreambleDef`, `LatexPackageDef` and the
 //!   payloads of the LaTeX construct elements;
 //! - the class `ElementDef`, which holds either a declaration as data or a
-//!   declaration a helper made, the class `DefinitionBindings`, the class
-//!   `LoweringStage`, whose constructor answers a `LibraryStage`, and the
+//!   declaration a helper made, the class `BackendDef` (data, whose stage
+//!   objects `FeatureBuilder.backend` hands to FLM), the class
+//!   `DefinitionBindings`, the class `LoweringStage`, whose constructor
+//!   answers a `LibraryStage`, and the
 //!   classes `TemplateSpec` (data), `TemplateLanguage` and `CompiledTemplate`
-//!   (durable objects, rule 4) and `ValueBindings`. Rust's
-//!   `ValueBindings::with` consumes the bindings and answers new ones;
-//!   `ValueBindings.with(name, node)` changes the instance it is called on
-//!   and answers that instance, so `new ValueBindings().with("number", root)`
-//!   reads as in Rust.
+//!   (durable objects, rule 4), `ValueBindings` and `ExtraValues` (data).
+//!   Rust's `ValueBindings::with` consumes the bindings and answers new
+//!   ones; `ValueBindings.with(name, tree)` changes the instance it is called
+//!   on and answers that instance, so `new ValueBindings().with("number",
+//!   tree)` reads as in Rust; the builder methods of `ExtraValues` do the
+//!   same, and its `over(base)` sends the values as their list.
 //!
-//! An argument crosses as its argument code (the codes
+//! An argument crosses, both ways, as its argument code (the codes
 //! [`arg_def_from_code`](crate::api::lang::mint::arg_def_from_code) reads)
 //! or as its structured syntax, its standard kind written as data
 //! ([`ArgStdKind`](crate::api::lang::mint::ArgStdKind#the-kind-as-data):
-//! `{ syntax: "chars-group" }`), never as a parser object: `new
+//! `{ syntax: "chars-group" }`, or a tack-on argument with its fields,
+//! `{ syntax: "tack-on", fields: [{ name: "label", args: [...] }] }`), never
+//! as a parser object: `new
 //! ArgDef(syntax)` and `ArgDef.named(name, syntax)` take a code or a
 //! structured syntax where Rust's `ArgDef::new` and `ArgDef::named` take a
 //! standard kind or a parser; `ArgDef.mandatory(name)` and
@@ -903,7 +936,7 @@
 //!
 //! | Failure | What the handler's caller gets | What the library does |
 //! |---|---|---|
-//! | an exception escapes a handler | the failure's text: an `Error`'s message, any other value by `String()`; the data hold the error's `name`, its `stack`, and for an `FlmError` its data under `flm_error` | `register`: the registry build fails; a stage: the Error `flm.ext.handler-failed` at the stage, what it pushed before kept; a hook: the use site kept as its source text, with that Error |
+//! | an exception escapes a handler | the failure's text: an `Error`'s message, any other value by `String()`; the data hold the error's `name`, its `stack`, and for an `FlmError` its data under `flm_error` | `register`: the registry build fails; `read`: the feature's configuration is reported as invalid as a whole ("the value of `F` is invalid: TEXT"), where the document wrote the feature's settings, as a setting that cannot be read is; a stage: the Error `flm.ext.handler-failed` at the stage, what it pushed before kept; a hook: the use site kept as its source text, with that Error |
 //! | an exception escapes a lowering rule's body, or its answer is not a `Lowering` | as above | the Error `flm.ext.handler-failed` at the node, whose message names the rule; a childless `flm.pres.unsupported` stand-in in the node's place, the rest of the tree lowered |
 //! | an exception escapes a rewrite stage's `restage`, or its answer is not a `Restage` | as above | the Error `flm.ext.handler-failed` at the node, whose message names the stage; the node copied as if the handler had answered `Restage.Descend`, the rest of the tree rewritten |
 //! | a method of `rs` meets a refusal after which the tree cannot be rewritten (content nested too deeply; a refusal of the new tree's builder; an argument's content inside a node the handler removed) | a thrown `FlmError`, kind `"core"`, which the handler may catch | the tree's rewrite is abandoned whatever the handler answers: the Error `flm.ext.rewrite-failed` at the tree's root, or `flm.blocks.nesting-too-deep`; the tree is absent from the output |
@@ -917,6 +950,7 @@
 //! | a template module's `files` or `render` fails | — | the Error `flm.compose.template-failed` holding "flm.ext.handler-failed: the template module `NAME` of the feature `F` … failed: TEXT"; the output is not made (a failing `describe` fails `register`, as in the first row) |
 //! | an exception escapes a handler aspect (`points`, `level`, `in_toc`, `toc_title`), or its answer cannot be read | — | nothing is reported (the aspect methods of the library take a node and answer a value, with no place to report to): the aspect answers as if the element carried none, so the occurrence has no reference point (a `\ref` to it is unresolved, and it has no number and no anchor), or the level 0, is not listed in the table of contents, and has no title |
 //! | an exception escapes a late-initialization hook or a finalizer | the failure's text | the registry build fails, as when `register` fails |
+//! | `read(settings)` answers a value that is neither `{ value }` nor `{ error: { path, detail } }` | "the answer of a configuration reader must be `{ value }` or `{ error: { path, detail } }`, not `ANSWER`" | as when an exception escapes `read` (the first row) |
 //! | a durable object is used under another registry than the one it was made under | a thrown `FlmError` of kind `"stale_durable"`, whose data hold the token under `durable` | uncaught, the same as an exception |
 //! | a call of the API fails (a stale object, a bad argument, a value that cannot cross, a name outside the extension's stem) | a thrown `FlmError` the script may catch | uncaught, the same as an exception |
 //! | the handler calls `import()` | the refusal's text, the data `{ "refusals": [...] }`, even when the script caught the rejection | the same |

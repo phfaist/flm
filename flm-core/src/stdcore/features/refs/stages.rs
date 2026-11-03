@@ -522,8 +522,6 @@ impl Stage for AnchorsStage {
     /// feature declares makes plan construction fail, and a stage, unlike a
     /// lowering rule, cannot declare a table of another feature through a
     /// peer declaration.
-    // Why the read is required and asked for under the feature's presence:
-    // see design rationale at [§flm-dd-dr:std-anchor-counters].
     fn needs(&self, cx: &PlanCx<'_>) -> Needs {
         let needs = Needs::new().reads(REFPOINTS).reads(LABELS);
         if cx.has_feature(numbering::FEATURE) { needs.reads(COUNTERS) } else { needs }
@@ -577,7 +575,6 @@ impl Stage for AnchorsStage {
                 AnchorPolicy::Explicit(id) => Some(id.clone()),
                 // A *labeled* point never falls back to its position: its
                 // identifier would move when a point is inserted before it.
-                // See design rationale at [§flm-dd-dr:std-anchor-encoding].
                 AnchorPolicy::FromFirstLabel => kept.map(label_anchor),
                 // `Auto` is `FromFirstLabel` for a labeled point, and the
                 // point's position among the points of its kind for an
@@ -590,8 +587,7 @@ impl Stage for AnchorsStage {
                 AnchorPolicy::Slug { prefix, content } => {
                     title = frozen_text(cx, record.id.addr.tree, record, content);
                     // Numbered when the title repeats, so that no heading is
-                    // left without an identifier. See design rationale at
-                    // [§flm-dd-dr:std-anchor-encoding].
+                    // left without an identifier.
                     Some(free_number(&claimed, title_anchor(prefix, &title)))
                 }
                 // The number this document gave the point. A point it did not
@@ -894,8 +890,7 @@ impl Stage for CheckLabels {
     fn needs(&self, _cx: &PlanCx<'_>) -> Needs {
         // The resolutions are read so that the resolver joins every `check`
         // plan and its unresolved-reference diagnostics come with it; the
-        // check itself reads only the labels. See design rationale at
-        // [§flm-dd-dr:std-check-unresolved].
+        // check itself reads only the labels.
         Needs::new().reads(LABELS).reads(REF_RESOLUTIONS)
     }
 

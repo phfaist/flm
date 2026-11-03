@@ -138,7 +138,7 @@ pub fn case_one_renders_through_the_text_workflow(loads: &dyn Loads) {
     let (text, diagnostics) = text_of(&registry, DOCUMENT);
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_javascript_text("case1.txt", &text);
-    // The hook agrees with WP-4's golden for the same text, as the JavaScript case's does.
+    // The hook agrees with `tests/expand.rs`'s golden for the same text, as the JavaScript case's does.
     let (text, diagnostics) = text_of(&registry, "Say \\shout{hey there} and \\shout{you}.");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     let shout = format!("{}/tests/goldens/shout.txt", env!("CARGO_MANIFEST_DIR"));

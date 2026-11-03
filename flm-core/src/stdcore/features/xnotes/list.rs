@@ -114,8 +114,8 @@ pub(super) fn declare_list(
 pub(super) fn list_decl() -> LoweringDecl {
     // The table of xnotes is read optionally: required wherever a stage
     // writes it, absent where a feature contributed the kind to a registry
-    // without the `xnotes` feature.
-    // See decision rationale at [§flm-dd-dr:std-xnote-list-rule].
+    // without the `xnotes` feature. A required read would set the rule aside
+    // in such a registry, leaving the list with no rule to render it.
     LoweringDecl::new()
         .reads_opt(XNOTES)
         .reads_opt(COUNTERS)
@@ -142,7 +142,10 @@ pub(super) fn list_decl() -> LoweringDecl {
 /// `xnotes` feature for its own rules. The registry merges a repeated
 /// identical peer declaration into the first, so each call declares every
 /// name.
-// See decision rationale at [§flm-dd-dr:std-xnote-pres-peers].
+// The function that adds the rules to the registry declares their names, since
+// it is the one that knows them: a declaration left to each contributing
+// feature could be forgotten, and the omission would fail only in a registry
+// lacking a feature that owns one of the names.
 pub(super) fn declare_peers(b: &mut FeatureBuilder<'_>) -> Result<(), BuildError> {
     b.peer_table::<Xnotes>(XNOTES.name(), "the xnotes feature's table of xnotes, by kind")?;
     b.peer_table::<Counters>(
@@ -182,7 +185,8 @@ impl std::fmt::Debug for Title {
 /// built) that compiles an xnote kind's title: a title that is not valid FLM,
 /// or that writes a `#` placeholder, fails the build, as a kind's mark
 /// does.
-// See decision rationale at [§flm-dd-dr:std-xnote-list-title].
+// A kind's configured text is read one way, as its mark is, and a mistake in it
+// is reported once, when the registry is built, and not for every document.
 struct CompileTitle {
     title: Arc<Title>,
 }
@@ -301,8 +305,8 @@ impl ListRule {
         let entries: Vec<NodeRef<'_, Flm>> =
             node.children().iter().filter(|child| child.ext().element.name.as_str() == ENTRY).collect();
         // Each entry's pointer, and the record of the xnote it names: by
-        // address and content region, among the kind's records.
-        // See decision rationale at [§flm-dd-dr:std-xnote-several].
+        // address and content region, among the kind's records, since two
+        // xnotes of one node share its address.
         let pointers: Vec<Option<NodeRef<'_, Flm>>> = entries
             .iter()
             .map(|entry| {

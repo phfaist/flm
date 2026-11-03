@@ -163,7 +163,7 @@ fn updates(address: &str) -> Receiver<String> {
     received
 }
 
-// --- acceptance 7 and 9: the program from end to end, and the browser ----------------------------
+// --- the program from end to end, and the browser ------------------------------------------------
 
 #[cfg(unix)]
 #[test]
@@ -242,7 +242,7 @@ fn the_terminal_lists_the_editors_found_and_the_default() {
     assert_eq!(running.interrupt(), Some(0));
 }
 
-// --- acceptance 10: what the preview refuses -------------------------------------------------------
+// --- what the preview refuses ----------------------------------------------------------------------
 
 #[cfg(unix)]
 #[test]

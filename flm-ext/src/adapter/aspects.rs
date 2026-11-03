@@ -18,8 +18,8 @@
 //!
 //! `flm-core`'s aspect traits take a node and answer a value: neither stage
 //! passes the aspect a place to report to. A handler that fails (an `Err`, or
-//! an answer that does not convert: a node of another tree, a synthesized
-//! content that is not the root of its tree, a span outside the node's source)
+//! an answer that does not convert: a node of another tree, a span outside
+//! the node's source)
 //! therefore makes the aspect answer as if the element carried none: no
 //! reference point (a `\ref` to the occurrence is then unresolved, and the
 //! occurrence gets no number and no anchor), the level 0, not listed in the
@@ -42,7 +42,7 @@ use flm_core::techy::source::SourceSpan;
 use crate::adapter::handles::CallTable;
 use crate::adapter::names::Owner;
 use crate::adapter::node::NodeFacade;
-use crate::adapter::values::{field, fields, handle_from_value, label_from_value, node_from_table, required_text};
+use crate::adapter::values::{field, fields, handle_from_value, label_from_value, node_from_table, required_text, tree_from_table};
 use crate::api::model::aspects::{
     AcceptedRefTypes, AnchorPolicy, ContentRef, MalformedLabel, NumberSource, RefPoint, Referenceable, Sectioning,
 };
@@ -145,32 +145,24 @@ fn span_on(span: Span, node: &NodeRef<'_, Flm>) -> Result<FlmSpan, ExtError> {
 }
 
 /// `content` as `flm-core`'s: a node resolved to its id in the tree of
-/// `node`, a synthesized root to the tree it is the root of.
+/// `node`, a synthesized tree to the tree its façade shares.
 ///
 /// # Errors
 ///
-/// A node of another tree than `node`'s; a synthesized content that is not
-/// the root node of a tree shared through an `Arc` ([`ExtError::Argument`]).
+/// A node of another tree than `node`'s ([`ExtError::Argument`]).
 pub fn content_ref_to_core(content: ContentRef<'_>, node: &NodeRef<'_, Flm>) -> Result<CoreContentRef, ExtError> {
     Ok(match content {
         ContentRef::Argument(position) => CoreContentRef::Argument(position),
         ContentRef::ArgumentNamed(name) => CoreContentRef::ArgumentNamed(name),
         ContentRef::Body => CoreContentRef::Body,
         ContentRef::Node(content) => CoreContentRef::Node(node_id_in(&*content, node)?),
-        ContentRef::Synthesized(root) => {
-            let id = root.core_node_ref(Token::new()).id();
-            let tree = root
-                .shared_tree(Token::new())
-                .filter(|tree| tree.root().id() == id)
-                .ok_or_else(|| not_converted("the synthesized content of a reference point must be the root node of a tree"))?;
-            CoreContentRef::Synthesized(tree)
-        }
+        ContentRef::Synthesized(tree) => CoreContentRef::Synthesized(tree.shared(Token::new())),
     })
 }
 
 /// `point`, answered for the occurrence `node`, as `flm-core`'s: every node
 /// resolved to its id in the tree of `node`, every span placed on the source
-/// of `node`, a synthesized root to its shared tree.
+/// of `node`, a synthesized tree to the tree its façade shares.
 ///
 /// # Errors
 ///
@@ -254,13 +246,12 @@ fn single_key(value: &Value) -> Option<(&str, &Value)> {
 
 /// A content reference: `{"argument": i}`, `{"argument_named": name}`,
 /// `"body"`, `{"node": node}` (a node handle of the call), or
-/// `{"synthesized": node}` (the handle of the root node of a tree the call
-/// holds).
+/// `{"synthesized": tree}` (a tree handle of the call).
 ///
 /// # Errors
 ///
 /// The value is not of the shape ([`ExtError::Value`]); a handle is stale or
-/// stands for no node.
+/// stands for no node, or for no tree.
 pub fn content_ref_from_value<'c>(table: &mut CallTable<'c>, value: &Value) -> Result<ContentRef<'c>, ExtError> {
     let shape = || ExtError::Value {
         detail: format!(
@@ -283,7 +274,7 @@ pub fn content_ref_from_value<'c>(table: &mut CallTable<'c>, value: &Value) -> R
             .map(|name| ContentRef::ArgumentNamed(name.to_string()))
             .ok_or_else(|| bad_field("a content reference", key, "a string", inner)),
         "node" => Ok(ContentRef::Node(node_from_table(table, handle_from_value(inner)?)?)),
-        "synthesized" => Ok(ContentRef::Synthesized(node_from_table(table, handle_from_value(inner)?)?)),
+        "synthesized" => Ok(ContentRef::Synthesized(tree_from_table(table, handle_from_value(inner)?)?)),
         _ => Err(shape()),
     }
 }

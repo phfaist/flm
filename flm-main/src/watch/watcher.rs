@@ -15,9 +15,13 @@
 //! and a file looked for and not found can only be watched through its folder.
 //!
 //! The changes of one save arrive as several events from the system, often within a few
-//! milliseconds. The watcher therefore waits for a *quiet period*, [`QUIET_PERIOD`] without
-//! a further change, and then reports the changes together, once ([`Seen::Changed`]). The
-//! crate `notify-debouncer-full`, over the crate `notify`, does the waiting, the joining of
+//! milliseconds. The watcher therefore reports a change only once a delay,
+//! [`QUIET_PERIOD`], has passed since it, and reports together ([`Seen::Changed`]) the
+//! changes whose delay has passed by the same check; the checks come every quarter of the
+//! delay. The delay runs from each change separately: a later change does not hold back an
+//! earlier one. The events of one save are thus most often reported together, once, but
+//! they may also be reported in two parts, one check apart. The crate
+//! `notify-debouncer-full`, over the crate `notify`, does the waiting, the joining of
 //! events, and the matching of the two halves of a rename.
 //!
 //! A path of the set is matched with the system's events through its folder's real path
@@ -37,8 +41,9 @@ use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, ne
 
 use crate::files::fold;
 
-/// How long a [`Watcher`] waits after a change for a further change before it reports
-/// the changes together: 100 milliseconds.
+/// How long a [`Watcher`] waits after each change before it reports it: 100 milliseconds.
+/// A later change does not extend the wait for an earlier one; see the [module
+/// documentation](self).
 pub const QUIET_PERIOD: Duration = Duration::from_millis(100);
 
 /// What a [`Watcher`] reports to the function given to [`Watcher::new`]: see the [module

@@ -1,4 +1,4 @@
-//! The numbering of an extension's construct (plan E4, section 9.3): a
+//! The numbering of an extension's construct: a
 //! counter and a counter style contributed as data, the number a rule reads
 //! back through the `Counters` façade, the `\ref` that prints the style's
 //! word, and a point read back from data. The rules act through the
@@ -74,7 +74,7 @@ enum Shows {
     Record,
     /// The error of `record` for the point given as data.
     Refused(Value),
-    /// The anchor of the point, as data (S18).
+    /// The anchor of the point, as data.
     Anchor,
 }
 
@@ -302,7 +302,7 @@ fn the_rust_facade_reads_the_record_and_formats_the_number() {
 
 #[test]
 fn a_stage_reads_the_counters_and_a_point_outside_the_document_is_refused() {
-    // The stage's side of section 9.2: the table answered by the stage's
+    // The stage's side: the table answered by the stage's
     // context, a point read back against the document's trees.
     let found = Arc::new(Mutex::new(Vec::new()));
     let log = Arc::clone(&found);
@@ -328,7 +328,7 @@ fn a_stage_reads_the_counters_and_a_point_outside_the_document_is_refused() {
                     }
                 }
                 let mut seen = vec![record.to_string()];
-                // S18: the anchors table a stage's context answers.
+                // The anchors table a stage's context answers.
                 let anchors = js.call(cx, "get", json!([refs::ANCHORS]))?;
                 let anchor = js.call(&anchors["anchors"], "id", json!([{ "addr": addr, "index": 0 }]))?;
                 let bad = json!({ "addr": { "tree": "tree#99", "node": 0 }, "index": 0 });
@@ -366,7 +366,7 @@ fn a_stage_reads_the_counters_and_a_point_outside_the_document_is_refused() {
 
 #[test]
 fn a_rule_reads_the_anchor_of_a_labeled_point_and_none_for_an_unlabeled_one() {
-    // S18: the anchors table a rule's lowerer answers, recorded and asked of
+    // The anchors table a rule's lowerer answers, recorded and asked of
     // the lowerer again, and `Anchors.id` through the dispatcher.
     let shown = text(exercises(Value::Null, words(), Vec::new(), Shows::Anchor), "\\exbox{A}\\label{ex:one}\n\n\\exbox{B}");
     assert_eq!(shown, "\"ex-one\": A  null: B");

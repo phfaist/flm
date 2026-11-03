@@ -92,8 +92,9 @@ impl RewriteStage for ExpandStage {
             Expands::Always => Needs::new(),
             // Ordering only: the `always` stage is activated by whoever
             // requires its capability — an `always` definition's lowering rule
-            // — never by this edge. See design rationale at
-            // [§flm-dd-dr:pipe-after-orders-only].
+            // — never by this edge: an ordering edge that activated a stage
+            // would be a hidden demand, and what runs could not be read from
+            // the demands alone.
             Expands::PerPlan => Needs::new().after(ALWAYS_EXPANDED.name()),
         }
     }

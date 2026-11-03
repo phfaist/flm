@@ -652,7 +652,6 @@ impl PackageCatalog {
 /// packages and the packages they use.
 // A loop of packages is skipped, not refused: its one harmful content, two
 // packages disagreeing on a value, is a problem of the settings, reported there.
-// See decision rationale at [§flm-dd-dr:feat-import-once].
 struct UseWalk<'c> {
     catalog: &'c PackageCatalog,
     /// The names of the factories of the packages being added, each package

@@ -37,12 +37,12 @@
 //!
 //! All four are **fields**: macros that a construct reads as data rather than
 //! as content ([fields](crate::guide::concepts_overview#fields-data-a-construct-reads)). Each node
-//! carries the field element [`FIELD`](crate::lang::mint::FIELD) with the
-//! command's name as its value, and the environment's reader, [`equation_lines`],
+//! carries an element named [`FIELD`](crate::lang::structural::FIELD) and is
+//! read by the command's name, and the environment's reader, [`equation_lines`],
 //! gives them their meaning. Where a command is written inside its line makes no
 //! difference to what the line records. The `\label` declared here is a
 //! separate declaration from the `\label` that a heading reads after its
-//! arguments, but it produces the same field node, with the same field name, so
+//! arguments, but it produces a field node of the same field name, so
 //! the references feature's reader of a label, [`label_use`](crate::stdcore::features::refs::label_use),
 //! reads it unchanged.
 //!
@@ -139,11 +139,15 @@
 //! - [`LinesBehavior`], [`body_behavior`] — the body parser of the environments.
 //! - [`LabelWithoutNumber`], [`LineCommand`] — the condition the parse reports.
 
-// Why the structure lands before numbering, why the `\label` written here is a
-// field like the other three, and why the four commands are scoped to the
-// environments' bodies rather than to every mathematics region: see design
-// rationale at [§flm-dd-dr:std-math-equation-lines]. The reference point of
-// each line: [§flm-dd-dr:std-math-line-points].
+// The lines are read by this one reader, of the feature that owns the
+// environments, so that a backend writing an environment back line by line
+// and the numbering of the lines agree on which line a label belongs to. The
+// `\label` written here is a field like the other three: it is data of its
+// line, as a `\tag` is. The four commands are scoped to the environments'
+// bodies, as in the Python implementation: in other mathematics, `\\` and
+// `\label` would become nodes no consumer wants. Each line has its own
+// reference point, so that a reference lands on the line its label is
+// written on.
 
 use std::fmt;
 use std::sync::Arc;
@@ -165,7 +169,7 @@ use crate::lang::flm::FlmGroupType;
 use crate::lang::origin::FlmOrigin;
 use crate::lang::structural;
 use crate::lang::mint::{
-    ArgDef, ArgStdKind, DefinitionShape, ElementDef, Field, FlmArgumentParser, FlmBodyParser,
+    ArgDef, ArgStdKind, DefinitionShape, ElementDef, FlmArgumentParser, FlmBodyParser,
     ScopedPackageDef, SyntaxDef, field_element,
     is_field_named,
 };
@@ -273,7 +277,6 @@ fn linebreak_def(owner: &FeatureName) -> ElementDef {
         [LINEBREAK_COMMAND],
         linebreak_syntax(),
         field_element(
-            LINEBREAK_COMMAND,
             "A `\\\\` inside a display-math environment: the end of an equation line, \
              with the optional vertical spacing written after it.",
         ),
@@ -297,7 +300,6 @@ fn tag_def(owner: &FeatureName) -> ElementDef {
             ],
         },
         field_element(
-            TAG_COMMAND,
             "A `\\tag{…}` or `\\tag*{…}` inside a display-math environment: a custom tag \
              for the equation line, replacing its number.",
         ),
@@ -318,7 +320,6 @@ fn nonumber_def(owner: &FeatureName) -> ElementDef {
         [NONUMBER_COMMAND],
         SyntaxDef::Macro { args: Vec::new() },
         field_element(
-            NONUMBER_COMMAND,
             "A `\\nonumber` inside a display-math environment: the equation line is not \
              to be numbered.",
         ),
@@ -344,7 +345,6 @@ fn label_def(owner: &FeatureName) -> ElementDef {
             ],
         },
         field_element(
-            refs::LABEL_FIELD,
             "A `\\label{type:label}` inside a display-math environment: a label on the \
              equation line it is written on.",
         ),
@@ -806,7 +806,10 @@ enum Piece {
 /// construct that holds them, gives each of them its meaning. A field of any
 /// other name is ordinary content of the line.
 fn piece_of(kind: &NodeKind<Flm>, element: &ElementSpec, source: &Source<FlmOrigin>) -> Piece {
-    let field = element.value_as::<Field>().map(|field| field.name.as_str());
+    let field = match kind {
+        NodeKind::Callable(data) if element.name == structural::FIELD => Some(&*data.name),
+        _ => None,
+    };
     if let Some(name) = field {
         if name == LINEBREAK_COMMAND {
             return Piece::Break;
@@ -928,7 +931,7 @@ pub fn equation_lines<'t>(node: &NodeRef<'t, Flm>) -> Vec<EquationLine<'t>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lang::mint::FIELD;
+    use crate::lang::structural::FIELD;
 
     #[test]
     fn the_package_declares_the_four_commands_in_math_mode_only() {
@@ -952,7 +955,7 @@ mod tests {
             .iter()
             .map(|def| {
                 assert_eq!(def.element.name, FIELD, "every line command is a field");
-                def.element.value_as::<Field>().expect("valued").name.as_str()
+                def.names[0].as_str()
             })
             .collect();
         assert_eq!(fields, [LINEBREAK_COMMAND, TAG_COMMAND, NONUMBER_COMMAND, refs::LABEL_FIELD]);

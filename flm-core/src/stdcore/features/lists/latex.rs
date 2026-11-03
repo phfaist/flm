@@ -319,11 +319,9 @@ fn stage_label_key(
     // The key is LaTeX's key-value syntax, a raw piece; the value is the
     // template's content, lowered through the rules as any content is, in a
     // brace group, so that a comma or a bracket in it is the value's.
-    // See decision rationale at [§flm-dd-dr:std-list-recomposed-labels].
     let value = label_value(label)?;
     // A number format where the content's characters are read — inside
     // verbatim content — has no LaTeX to stand for it.
-    // See decision rationale at [§flm-dd-dr:rend-kept-placeholder-characters].
     let content = match lw.splice(cx, &value) {
         Err(LowerError::PlaceholderCharacters) => {
             let condition =
@@ -367,9 +365,9 @@ impl Lower for ListLatexRule {
         report_no_numbering(&self.labels, &node, value, &body, own.as_ref(), lw)?;
         let mut shapes = Vec::new();
         let mut slots = Vec::new();
-        // One key where the author wrote one template for both, two where the
-        // reference template differs from the label template.
-        // See decision rationale at [§flm-dd-dr:std-list-recomposed-labels].
+        // One key where the author wrote one template for both, through which
+        // `enumitem` also refers to the items; two where the reference template
+        // differs from the label template.
         let label_text = body.own_label.as_ref().map(|own| own.template.as_str());
         let ref_text = body.own_ref.as_deref().filter(|text| Some(*text) != label_text);
         let mut keys = Vec::new();

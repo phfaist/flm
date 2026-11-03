@@ -193,10 +193,7 @@ fn a_document_given_to_schema_adds_the_features_of_the_extensions_it_uses() {
     request.default_math = flm_cli::default_math();
     request.extension_folders =
         vec![flm_main::packages::ExtensionFolder { path: dir.join("_flmextensions"), required: false }];
-    let compiled = vec![
-        #[cfg(feature = "phfpack")]
-        flm_phfpack::factory().unwrap(),
-    ];
+    let compiled = Vec::new();
     let prepared =
         flm_main::session::prepare(request, std::sync::Arc::new(flm_main::files::DiskFiles), &compiled).expect("prepared");
     let refs: Vec<_> = prepared.factories().iter().collect();

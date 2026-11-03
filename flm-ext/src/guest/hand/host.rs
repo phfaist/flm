@@ -4,7 +4,13 @@
 use serde_json::Value;
 
 use crate::adapter::handles::HandleKind;
+#[cfg(feature = "native")]
+use crate::adapter::handles::CallTable;
+#[cfg(feature = "native")]
+use crate::adapter::typed::FromApi;
 use crate::adapter::values::{handle_from_value, JsonForm};
+#[cfg(feature = "native")]
+use crate::api;
 use crate::guest::host::{Files, HostService};
 use crate::runtime::ExtError;
 
@@ -37,5 +43,16 @@ impl JsonForm for HostHandle {
                 detail: format!("an object of the kind `files` or `host_service` is expected here, not one of the kind `{}`", other.name()),
             }),
         }
+    }
+}
+
+/// The api's `HostHandle`, its service lent as its own kind's entry.
+#[cfg(feature = "native")]
+impl<'c> FromApi<'c, api::host::HostHandle> for HostHandle {
+    fn from_api(api: api::host::HostHandle, table: &mut CallTable<'c>) -> Result<Self, ExtError> {
+        Ok(match api {
+            api::host::HostHandle::Files(files) => HostHandle::Files(FromApi::from_api(files, table)?),
+            api::host::HostHandle::Service(service) => HostHandle::Service(FromApi::from_api(service, table)?),
+        })
     }
 }

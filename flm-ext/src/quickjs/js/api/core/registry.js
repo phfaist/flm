@@ -4,7 +4,7 @@
 // Mirrors `flm_core::core::registry`: the builder a feature declares its contributions through.
 import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 import { Needs } from "flm:core/stage";
-import { record_rewrite, lend_rewrite, rehearsing, contributed } from "flm:_runtime";
+import { record_rewrite, lend_rewrite, contributed } from "flm:_runtime";
 import { aspect_for, record_late_init, record_finalizer, lend_late_init, lend_finalizer } from "flm:_runtime";
 
 export const CallableKind = Object.freeze({ Macro: "macro", Environment: "environment", Specials: "specials" });
@@ -52,18 +52,17 @@ export class OutputDef {
 }
 
 // A backend: `new BackendDef(name, native, lowering, emit, final_stage)`,
-// then `.docs(text)`. Each of the three stages is a stage object `{ decl(),
-// needs(), run(cx, out) }`, as `b.stage` takes, or a stage of the library
-// (`new LoweringStage(backend)`, an object of the class `LibraryStage`). The
-// constructor records each stage object under its name and lends it, as
-// `b.stage` does, so it is called while a feature's `register` runs.
+// then `.docs(text)`, registered with `b.backend`. Each of the three stages
+// is a stage object `{ decl(), needs(), run(cx, out) }`, as `b.stage` takes,
+// or a stage of the library (`new LoweringStage(backend)`, an object of the
+// class `LibraryStage`).
 export class BackendDef {
   constructor(name, native, lowering, emit, final_stage) {
     this.name = name;
     this.native = native;
-    this.lowering = backend_stage(lowering);
-    this.emit = backend_stage(emit);
-    this.final_stage = backend_stage(final_stage);
+    this.lowering = lowering;
+    this.emit = emit;
+    this.final_stage = final_stage;
     this.docs_ = "";
   }
   // Mirrors `BackendDef::docs`: sets the documentation prose.
@@ -71,15 +70,15 @@ export class BackendDef {
   toJSON() { return { name: this.name, native: this.native, lowering: this.lowering, emit: this.emit, final_stage: this.final_stage, docs: this.docs_ }; }
 }
 
-// One stage of a `BackendDef`: a stage object recorded and lent (kept as it
-// is in a rehearsal, whose builder lends nothing); anything else (a
-// `LibraryStage`) as it is.
-function backend_stage(stage) {
+// What `b.backend` sends for one stage of a backend: a stage object recorded
+// and, when `dispatching`, lent (kept as it is in a rehearsal, whose builder
+// sends nothing); anything else (a `LibraryStage`) as it is.
+function backend_stage(stage, dispatching) {
   if (stage === null || typeof stage !== "object" || typeof stage.decl !== "function") return stage;
   const decl = stage.decl();
   const needs = typeof stage.needs === "function" ? stage.needs() : new Needs();
   record_stage(decl.name, stage);
-  return rehearsing() ? stage : lend_stage(decl, needs);
+  return dispatching ? lend_stage(decl, needs) : stage;
 }
 
 // No flm-core counterpart: a stage of the library, held as the `Arc<dyn Stage>` of `flm-core` that
@@ -136,8 +135,16 @@ export class FeatureBuilder extends Handle {
   // an element that exists only in the trees a backend writes, whose nodes carry a payload given as
   // data.
   presentation_element(name, docs) { if (this._token !== null) return call(this, "presentation_element", [name, docs]); }
-  // Mirrors `FeatureBuilder::backend`: registers a backend, its three stages as this feature's own.
-  backend(def) { if (this._token !== null) return call(this, "backend", [def]); }
+  // Mirrors `FeatureBuilder::backend`: registers the backend `def`, its three
+  // stages as this feature's own. Each stage object its fields hold is
+  // recorded under its name, as `b.stage` records it, and lent.
+  backend(def) {
+    const dispatching = this._token !== null;
+    const lowering = backend_stage(def.lowering, dispatching);
+    const emit = backend_stage(def.emit, dispatching);
+    const final_stage = backend_stage(def.final_stage, dispatching);
+    if (dispatching) return call(this, "backend", [{ ...def.toJSON(), lowering, emit, final_stage }]);
+  }
   // Mirrors `FeatureBuilder::output`: registers an output.
   output(def) { if (this._token !== null) return call(this, "output", [def]); }
   // Sets a workflow's lowering selections through `FeatureBuilder::workflow_fields`.

@@ -70,6 +70,10 @@ pub static NATIVE_EXTENSIONS: &[flm_ext::native::NativeExtension] = &[flm_ext::n
     manifest: include_str!("../rust/flmdoc/flmextension.yaml"),
     compiled: &flmdoc::FLM_EXTENSION,
 }, flm_ext::native::NativeExtension {
+    stem: "phfpack",
+    manifest: include_str!("../rust/phfpack/flmextension.yaml"),
+    compiled: &phfpack::FLM_EXTENSION,
+}, flm_ext::native::NativeExtension {
     stem: "profile-pdf-latex",
     manifest: include_str!("../rust/profile-pdf-latex/flmextension.yaml"),
     compiled: &profile_pdf_latex::FLM_EXTENSION,

@@ -199,7 +199,6 @@ impl OutputFolder {
     pub fn address_of(&self, path: &Path) -> String {
         // Both paths are taken from the current folder, whose names an output's folder
         // lying above it needs (`../site` seen from `/a/doc` leads back through `doc`).
-        // See decision rationale at [§flm-dd-dr:host-output-folder].
         let folder = fold(&self.current.join(&self.folder));
         let file = fold(&self.current.join(path));
         let as_written = || file.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/");
@@ -323,7 +322,9 @@ impl ArtifactNamer for EntryNames<'_> {
     /// artifact of an output that `names` lists; else the path that the wrapped naming
     /// scheme gives.
     fn url_of(&self, artifact: &ArtifactRef<'_>, scope: &NamingScope) -> RelPath {
-        // See decision rationale at [§flm-dd-dr:host-output-names].
+        // Only an output's entry file is renamed, at the path exactly as the setting writes
+        // it: the output's other files are named during the run, before the output they
+        // belong to is known (`artifact.output` is `None` for them).
         let own = artifact.output.filter(|_| artifact.entry).and_then(|output| self.names.get(output));
         match own {
             Some(path) => RelPath::new(path.clone()),
@@ -592,7 +593,8 @@ impl DiskSink {
             Some(slash) => (&record[..=slash], &record[slash + 1..]),
             None => ("", record),
         };
-        // See decision rationale at [§flm-dd-dr:host-written-record].
+        // The list is a hidden file beside the output's entry, named after it, so that the
+        // next run finds it from the entry's name alone.
         self.location.join(format!("{folder}.{name}.flm-written"))
     }
 

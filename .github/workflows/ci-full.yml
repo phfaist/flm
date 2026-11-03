@@ -4,6 +4,10 @@
 # the other parts run on Linux, one after the other in one job, each after installing
 # what it needs (the Rust toolchains, the WebAssembly target, TeX Live, Node and the npm
 # workspace). The script runs with `--strict`: a test skipped for a missing program fails.
+#
+# The test programs of the workspace take more disk than a runner has free: the tests run
+# in pieces, each piece's programs deleted after it runs (`--on-tight-disk-space`), and
+# both jobs show the free disk at their end.
 
 name: CI (full)
 
@@ -82,7 +86,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Tests
-        run: scripts/check.sh --locked --strict test
+        run: scripts/check.sh --locked --strict --on-tight-disk-space test
+      - name: Free disk after the tests
+        if: ${{ !cancelled() }}
+        run: df -h .
 
   linux:
     name: other checks (Linux)
@@ -130,25 +137,28 @@ jobs:
       # Each part runs even when an earlier one failed.
       - name: Clippy
         if: ${{ !cancelled() && inputs.clippy }}
-        run: scripts/check.sh --locked --strict clippy
+        run: scripts/check.sh --locked --strict --on-tight-disk-space clippy
       - name: API documentation
         if: ${{ !cancelled() && inputs.docs }}
-        run: scripts/check.sh --locked --strict docs
+        run: scripts/check.sh --locked --strict --on-tight-disk-space docs
       - name: Minimum supported Rust versions
         if: ${{ !cancelled() && inputs.msrv }}
-        run: scripts/check.sh --locked --strict msrv
+        run: scripts/check.sh --locked --strict --on-tight-disk-space msrv
       - name: Builds and tests with default features turned off
         if: ${{ !cancelled() && inputs.features }}
-        run: scripts/check.sh --locked --strict features
+        run: scripts/check.sh --locked --strict --on-tight-disk-space features
       - name: WebAssembly
         if: ${{ !cancelled() && inputs.wasm }}
-        run: scripts/check.sh --locked --strict wasm
+        run: scripts/check.sh --locked --strict --on-tight-disk-space wasm
       - name: LaTeX compilation
         if: ${{ !cancelled() && inputs.latex }}
-        run: scripts/check.sh --locked --strict latex
+        run: scripts/check.sh --locked --strict --on-tight-disk-space latex
       - name: Browser
         if: ${{ !cancelled() && inputs.browser }}
-        run: scripts/check.sh --locked --strict browser
+        run: scripts/check.sh --locked --strict --on-tight-disk-space browser
       - name: npm workspace
         if: ${{ !cancelled() && inputs.npm }}
-        run: scripts/check.sh --locked --strict npm
+        run: scripts/check.sh --locked --strict --on-tight-disk-space npm
+      - name: Free disk after the checks
+        if: ${{ !cancelled() }}
+        run: df -h .

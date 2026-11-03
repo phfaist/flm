@@ -1,5 +1,8 @@
-//! What the tests of the crate share: a registry holding the standard package
-//! and `phfpack`, and a document rendered through each output.
+//! What the tests of the extension share: a registry holding the standard
+//! package, `math-passthrough` and the extension's package, loaded through the
+//! loader of the extension interface with the engine `native`, the settings of
+//! the feature `phfqit` given as data; and a document rendered through each
+//! output.
 
 #![allow(dead_code)]
 
@@ -9,26 +12,94 @@ use std::process::Command;
 use std::sync::Arc;
 
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{
+    FlmRegistry, PackageEntry, PackageFactory, PackageResolver, RegistryBuildError, RegistryBuilder, RegistryInputs,
+};
 use flm_core::core::run::{Externals, Run, RunOptions};
+use flm_core::core::settings::PackageSettings;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::stdcore::backends::{html, latex_recomposed, text};
 use flm_core::stdcore::{self, StdcoreConfig};
-use flm_phfpack::settings::PhfqitConfig;
+use flm_ext::native::{NativeEngine, NativeExtension};
+use flm_ext::{ExtensionLoader, MemoryFiles, MemorySource};
+use serde_json::{json, Value};
 
-/// The registry holding the standard package and `phfpack` over `config`.
-pub fn registry_with(config: PhfqitConfig) -> Arc<FlmRegistry> {
+/// The extension's stem, which a document's `use` entry names, and the
+/// identity the tests' source answers for it: `phfpack`.
+pub const STEM: &str = "phfpack";
+
+/// The name the loader gives the extension's one package, the default package
+/// `_`: the identity, then `#_`.
+pub const PACKAGE: &str = "phfpack#_";
+
+/// The extension's feature, under whose name a document gives its settings:
+/// `phfqit`.
+pub const FEATURE: &str = "phfqit";
+
+/// The loader of the extension: the engine `native` holding this crate, and a
+/// source answering the stem `phfpack` with the manifest `engine: native`.
+pub fn loader() -> Arc<ExtensionLoader> {
+    let engine = NativeEngine::new([NativeExtension {
+        stem: STEM,
+        manifest: include_str!("../../flmextension.yaml"),
+        compiled: &phfpack::FLM_EXTENSION,
+    }]);
+    let manifest = json!({ "extension": { "engine": "native" } });
+    let source = MemorySource::new().with(STEM, STEM, manifest, MemoryFiles::new());
+    Arc::new(ExtensionLoader::new(vec![Arc::new(source)]).with_engine(Arc::new(engine)))
+}
+
+/// The factory of the extension's package, as the loader resolves the stem.
+pub fn factory() -> PackageFactory {
+    match loader().resolve(STEM) {
+        Ok(Some(factory)) => factory,
+        Ok(None) => panic!("no extension answers `{STEM}`"),
+        Err(errors) => panic!("`{STEM}` does not load: {:?}", errors.iter().map(|e| e.detail.clone()).collect::<Vec<_>>()),
+    }
+}
+
+/// The extension's package built with `settings`, the settings of the feature
+/// `phfqit` as a front matter writes them under `features: phfqit:`, read with
+/// the feature's declaration.
+pub fn package_with(settings: Value) -> PackageEntry {
+    let factory = factory();
+    let decl = factory.settings(FEATURE).expect("the feature declares settings");
+    let Value::Object(map) = settings else { panic!("the settings are a map: {settings}") };
+    let read = decl.read(&map).unwrap_or_else(|errors| {
+        panic!("the settings read: {:?}", errors.iter().map(ToString::to_string).collect::<Vec<_>>())
+    });
+    let mut package_settings = PackageSettings::new();
+    package_settings.insert(read);
+    factory.build(&package_settings).expect("the package builds")
+}
+
+/// The extension's package with no settings.
+pub fn package() -> PackageEntry {
+    package_with(json!({}))
+}
+
+/// The registry holding the standard package, `math-passthrough` and the
+/// extension's package with `settings` ([`package_with`]), or the build's
+/// error.
+pub fn try_registry_with(settings: Value) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
     let mut builder = RegistryBuilder::new();
     builder.use_package(stdcore::package(StdcoreConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
-    builder.use_package(flm_phfpack::package(config));
-    builder.build(&RegistryInputs::new()).expect("the registry builds")
+    builder.use_package(package_with(settings));
+    builder.build(&RegistryInputs::new())
 }
 
-/// The registry holding the standard package and `phfpack`, with no settings.
+/// The registry holding the standard package, `math-passthrough` and the
+/// extension's package with `settings`.
+pub fn registry_with(settings: Value) -> Arc<FlmRegistry> {
+    try_registry_with(settings).unwrap_or_else(|error| panic!("the registry builds: {}", error.render()))
+}
+
+/// The registry holding the standard package, `math-passthrough` and the
+/// extension's package, with no settings.
 pub fn registry() -> Arc<FlmRegistry> {
-    registry_with(PhfqitConfig::default())
+    registry_with(json!({}))
 }
 
 /// The run of `workflow` over the document `text`.
@@ -111,7 +182,7 @@ pub fn compile_under_both_engines(name: &str, body: &str) {
         "\\documentclass{{article}}\n\\usepackage{{amsmath}}\n\\begin{{document}}\n{body}\n\\end{{document}}\n"
     );
     for engine in ENGINES {
-        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("flm-phfpack-compile-{name}-{engine}"));
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("phfpack-compile-{name}-{engine}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("a temporary directory");
         fs::write(dir.join("doc.tex"), &document).expect("the document");

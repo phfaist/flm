@@ -173,7 +173,6 @@ pub(super) fn fields_package(owner: &FeatureName) -> ScopedPackageDef {
             ],
         },
         field_element(
-            CAPTION_FIELD,
             "A `\\caption[alt=…]{…}` in a float's body: the float's caption.",
         ),
     )
@@ -184,7 +183,7 @@ pub(super) fn fields_package(owner: &FeatureName) -> ScopedPackageDef {
         owner.clone(),
         [NONUMBER_FIELD],
         SyntaxDef::Macro { args: Vec::new() },
-        field_element(NONUMBER_FIELD, "A `\\nonumber` in a float's body: the float is not numbered."),
+        field_element("A `\\nonumber` in a float's body: the float is not numbered."),
     )
     .docs("`\\nonumber`: the float is not numbered.");
     let mut elements = vec![caption, nonumber];

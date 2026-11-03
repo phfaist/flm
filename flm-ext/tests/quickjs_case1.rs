@@ -35,7 +35,7 @@ use common::{html_of, registry_with, text_of};
 
 // --- helpers -----------------------------------------------------------------------------------
 
-/// Plan B 8.3's document, with `\flmname{}` (plan A, A40).
+/// Case 1's document, with `\flmname{}`.
 const DOCUMENT: &str = "\\flmname{} counts words. \\sayhi{World}\n\n\\shout{listen} to this \\todo{check the numbers}.\n\n\\section{Two}\nSecond paragraph, \\shout{quietly}.";
 
 /// The table of word counts.
@@ -49,8 +49,9 @@ fn golden(name: &str) -> String {
     format!("{}/tests/goldens/quickjs/{name}", env!("CARGO_MANIFEST_DIR"))
 }
 
-/// The golden file `name` of WP-4 under `tests/goldens/`.
-fn wp4_golden(name: &str) -> String {
+/// The golden file `name` under `tests/goldens/`, which `tests/expand.rs`
+/// compares too.
+fn expand_golden(name: &str) -> String {
     format!("{}/tests/goldens/{name}", env!("CARGO_MANIFEST_DIR"))
 }
 
@@ -193,15 +194,15 @@ fn case_one_renders_through_the_text_workflow() {
     }
     assert!(!text.contains("\\todo") && !text.contains("check the numbers") && !text.contains("\\shout"), "{text}");
     assert_text_golden(golden("case1.txt"), &text);
-    // The hook agrees with WP-4's golden for the same text.
+    // The hook agrees with `tests/expand.rs`'s golden for the same text.
     let (text, diagnostics) = text_of(&wordcount_registry(), "Say \\shout{hey there} and \\shout{you}.");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    assert_text_golden(wp4_golden("shout.txt"), &text);
+    assert_text_golden(expand_golden("shout.txt"), &text);
 }
 
-/// Plan A, A54 and A63: the adapter does not compile a definition that an
-/// expansion hook expands and that declares no template, so `\shout` is not
-/// refused when the registry is built.
+/// The adapter does not compile a definition that an expansion hook expands
+/// and that declares no template, so `\shout` is not refused when the
+/// registry is built.
 #[test]
 fn case_one_s_registry_builds_without_a_diagnostic() {
     let registry = wordcount_registry();
@@ -209,11 +210,10 @@ fn case_one_s_registry_builds_without_a_diagnostic() {
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
-/// Plan A, A63, and E4's section 7.5: a scripted definition with neither an
-/// expansion hook nor a template is reported by the adapter when the
-/// registry is built, naming the feature, the package and the extension
-/// (`flm.ext.definition-needs-template`); the definition with a hook and no
-/// template beside it is not.
+/// A scripted definition with neither an expansion hook nor a template is
+/// reported by the adapter when the registry is built, naming the feature,
+/// the package and the extension (`flm.ext.definition-needs-template`); the
+/// definition with a hook and no template beside it is not.
 #[test]
 fn a_definition_with_neither_a_hook_nor_a_template_is_refused_when_the_registry_is_built() {
     let main = wc_main(
@@ -381,8 +381,9 @@ fn a_helper_made_declaration_takes_docs_and_modes_from_javascript() {
 
 #[test]
 fn a_definition_declared_from_javascript_with_a_block_role_shapes_the_html() {
-    // WP-4's scenario (`a_block_definition_renders_its_body_s_paragraphs`),
-    // declared from a script: the same golden.
+    // The scenario of `tests/expand.rs`'s
+    // `a_block_definition_renders_its_body_s_paragraphs`, declared from a
+    // script: the same golden.
     let main = wc_main(
         r##"
   declare(b, Definition.environment("note", []).content("\\textbf{Note.} #{body}").block_role(BlockRole.Block));
@@ -391,7 +392,7 @@ fn a_definition_declared_from_javascript_with_a_block_role_shapes_the_html() {
     let document = "Before.\n\n\\begin{note}Mind the gap.\n\nAnd the step.\\end{note}\n\nAfter.";
     let (html, diagnostics) = html_of(&registry_with([package(&main)]), document);
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    assert_text_golden(wp4_golden("block.html"), &html);
+    assert_text_golden(expand_golden("block.html"), &html);
 }
 
 #[test]
@@ -406,7 +407,7 @@ fn a_fallback_and_an_override_declared_from_javascript_take_effect() {
   b.stage({
     decl: () => new StageDecl("wc.names", Effect.Compute, Scope.PerTree).writes("wc.names"),
     run(cx, out) {
-      for (const node of cx.my_tree().descendants()) if (node.is_callable()) out.table("wc.names").push(node.element_name());
+      for (const node of cx.my_tree().root().descendants()) if (node.is_callable()) out.table("wc.names").push(node.element_name());
     },
   });
 "##,
@@ -436,7 +437,7 @@ fn key_values_are_read_from_javascript() {
   b.stage({
     decl: () => new StageDecl("wc.options", Effect.Compute, Scope.PerTree).writes("wc.options"),
     run(cx, out) {
-      for (const node of cx.my_tree().descendants()) {
+      for (const node of cx.my_tree().root().descendants()) {
         if (!node.is_callable() || node.name() !== "section") continue;
         const list = parse_keyval_drop_annotations(node.argument_content_nodes_named("options"));
         const toc = list.get("toc");
@@ -587,7 +588,7 @@ fn the_count_stage_reads_both_options() {
     );
 }
 
-/// E4's section 7.1: the count stage's capability joins `flm.validated`, so
+/// The count stage's capability joins `flm.validated`, so
 /// that the count runs with every standard workflow, and its Note appears
 /// under the plain text and HTML workflows, which demand no table of the
 /// extension.

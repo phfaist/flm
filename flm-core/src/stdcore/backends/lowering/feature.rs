@@ -5,13 +5,12 @@
 //!
 //! - the presentation vocabulary ([`super::super::pres`]), through
 //!   [`pres::register()`];
-//! - the field element ([`FIELD`](crate::lang::mint::FIELD)): every field (a
+//! - the default lowering rules of the structural elements ([`super::rules`]),
+//!   among them the rule of the field element
+//!   ([`FIELD`](crate::lang::structural::FIELD)), which every field carries (a
 //!   macro that a construct absorbs as data, such as a `\label` written after
 //!   a heading; see [fields: data a construct
-//!   reads](crate::guide::concepts_overview#fields-data-a-construct-reads))
-//!   carries this element;
-//! - the default lowering rules of the structural elements and of the field
-//!   element ([`super::rules`]);
+//!   reads](crate::guide::concepts_overview#fields-data-a-construct-reads));
 //! - the two native-set implications the lowering driver relies on
 //!   ([`native_implications`]);
 //! - the service slot [`NAMER_SLOT`], through which the embedding program
@@ -19,11 +18,10 @@
 //!   [`REGIONS_SLOT`], through which each backend states which of its outputs
 //!   are made of output regions.
 //!
-//! The field element is declared here, with no callable name of its own, so
-//! that it and its rule exist in every registry that renders anything: the
-//! language layer creates a field node wherever a declaration carries a
-//! field, and a construct that fails to read its field must be reported
-//! regardless of which features are registered. A backend's own feature
+//! The rules are registered here so that they exist in every registry that
+//! renders anything: the language layer creates a field node wherever a
+//! declaration carries a field, and a construct that fails to read its field
+//! must be reported regardless of which features are registered. A backend's own feature
 //! ([`TextBackend`](crate::stdcore::backends::text::TextBackend), for
 //! instance) is registered beside this one and adds the backend, its stages
 //! and its output. Registering this feature twice into one registry is a
@@ -37,7 +35,6 @@ use crate::core::registry::{
     BuildError, FeatureBuilder, FeatureInfo, FlmFeature, NativeImplication,
 };
 use crate::core::services::Arity;
-use crate::lang::mint::{ElementDef, SyntaxDef, field_type_element};
 use crate::stdcore::backends::pres::{self, Decoration};
 
 use super::rules::default_rules;
@@ -83,8 +80,8 @@ pub const NAMER_SLOT: &str = "flm.artifacts.namer";
 pub const REGIONS_SLOT: &str = "flm.output.regions";
 
 /// The `lowering` feature: it registers the presentation vocabulary
-/// ([`pres::register()`]), the field element, the default lowering rules of
-/// the structural elements and of the field element ([`default_rules`]), the
+/// ([`pres::register()`]), the default lowering rules of the structural
+/// elements, the field element's among them ([`default_rules`]), the
 /// native-set implications the driver relies on ([`native_implications`]),
 /// and the service slots [`NAMER_SLOT`] and [`REGIONS_SLOT`] (see the module
 /// documentation).
@@ -98,8 +95,7 @@ impl FlmFeature for LoweringFeature {
     fn info(&self) -> FeatureInfo {
         FeatureInfo::new(FEATURE_NAME, "Lowering")
             .docs(
-                "the presentation vocabulary, the field element and the structural elements' \
-                 default lowering rules",
+                "the presentation vocabulary and the structural elements' default lowering rules",
             )
     }
 
@@ -117,20 +113,6 @@ impl FlmFeature for LoweringFeature {
             "the outputs whose entry artifact is made of output regions, each with the table \
              that holds its regions and the tables of the files written beside its entry \
              artifact",
-        )?;
-        let owner = b.feature().clone();
-        b.element(
-            ElementDef::new(
-                owner,
-                Vec::<&str>::new(),
-                SyntaxDef::Synthesized,
-                field_type_element(),
-            )
-            .docs(
-                "A field: a macro a construct absorbs as data, such as the `\\label` written \
-                 after a heading. It is never written on its own: only the construct that \
-                 declares a field accepts it, and the construct that absorbed it reads it.",
-            ),
         )?;
         for rule in default_rules() {
             b.lowering_rule(rule)?;

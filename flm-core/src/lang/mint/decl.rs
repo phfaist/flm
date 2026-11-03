@@ -41,7 +41,7 @@ use techy::latexlike::Mode;
 use crate::model::element::ElementSpec;
 use crate::model::names::{FeatureName, Name};
 use crate::lang::flm::FlmCallableType;
-use crate::lang::mint::codes::ArgData;
+use crate::lang::mint::codes::{ArgCode, ArgData};
 use crate::lang::mint::parsers::{
     ArgStdKind, FlmArgumentParser, FlmBodyParser, IntoFlmArgumentParser, IntoFlmBodyParser,
 };
@@ -97,21 +97,26 @@ impl fmt::Display for CallableKind {
 /// as data after its own arguments, as `\section{…}` absorbs the `\label{…}`
 /// written after it.
 ///
-/// A construct accepts its tack-on fields through its tack-on argument, the
-/// trailing argument declared as [`ArgStdKind::TackOn`] with the list of
-/// fields. A field is written like a macro, but its name is not defined as a
-/// command anywhere: only the construct that declares the field accepts it,
-/// and only directly after that construct's other arguments.
+/// A construct accepts its tack-on fields through its tack-on argument, an
+/// argument declared as [`ArgStdKind::TackOn`] with the list of fields,
+/// usually its last. A field is written like a macro, but its name is not
+/// defined as a command anywhere: only the construct that declares the field
+/// accepts it, and only where that construct's tack-on argument stands.
 ///
 /// A field is **data that the declaring construct reads**, not content: its
-/// node carries the field element ([`FIELD`](super::FIELD)), the same element
-/// name for every field, with the field's name as its value, and the construct that
-/// declared the field is its only reader. The declaration therefore chooses no
-/// element. See the [`field`](super::field) module and
+/// node is a macro node named as the field is written, carrying the language's
+/// field element ([`FIELD`](crate::lang::structural::FIELD)), the same element
+/// for every field, and the construct that declared the field is its only
+/// reader. The declaration is data only: a name, arguments, whether the field
+/// repeats, and documentation. See the [`field`](super::field) module and
 /// [fields](crate::guide::concepts_overview#fields-data-a-construct-reads).
-#[derive(Clone)]
+///
+/// Settings given as data declare a field in the structured syntax `tack-on`
+/// of its tack-on argument ([the kind as data](ArgStdKind#the-kind-as-data)).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TackOnField {
-    /// The field's name, without the escape character (`label`).
+    /// The field's name, without the escape character (`label`), distinct
+    /// from the names of the other fields of its tack-on argument.
     pub name: String,
     /// The field's own arguments, in the order they are written.
     pub args: Vec<ArgDef>,
@@ -122,23 +127,14 @@ pub struct TackOnField {
     /// ([`FlmRegistry::declarations`](crate::core::registry::FlmRegistry::declarations))
     /// for a program that describes what an author may write.
     pub docs: String,
-    /// The element the field's node carries: the field element, created from
-    /// the name when the field is declared.
-    element: Arc<ElementSpec>,
 }
 
 impl TackOnField {
     /// Declares a field written `\name`, taking the given arguments, which may
     /// be written at most once after the construct;
-    /// [`TackOnField::repeatable`] allows it more than once. The field's
-    /// element is created here with [`field_element`](super::field_element).
+    /// [`TackOnField::repeatable`] allows it more than once.
     pub fn new(name: impl Into<String>, args: Vec<ArgDef>) -> TackOnField {
-        let name = name.into();
-        let element = super::field::field_element(
-            Name::from(name.as_str()),
-            format!("The field `\\{name}`, which the construct it is written after reads as data."),
-        );
-        TackOnField { name, args, repeatable: false, docs: String::new(), element }
+        TackOnField { name: name.into(), args, repeatable: false, docs: String::new() }
     }
 
     /// Builder: the field may be written more than once after one construct.
@@ -152,47 +148,7 @@ impl TackOnField {
         self.docs = crate::kept_docs(docs);
         self
     }
-
-    /// Returns the element this field's nodes carry: the field element
-    /// ([`FIELD`](super::FIELD)) whose value is this field's name.
-    pub fn element(&self) -> &Arc<ElementSpec> {
-        &self.element
-    }
-
-    /// Gives mutable access to the element, for the registry build, which
-    /// replaces it with the element value that carries the aspects that
-    /// features attached to the field element. Nothing else may change which element a
-    /// field carries.
-    pub(crate) fn element_mut(&mut self) -> &mut Arc<ElementSpec> {
-        &mut self.element
-    }
 }
-
-impl fmt::Debug for TackOnField {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TackOnField")
-            .field("name", &self.name)
-            .field("args", &self.args)
-            .field("repeatable", &self.repeatable)
-            .finish()
-    }
-}
-
-/// Two fields are equal when they have the same name, the same arguments
-/// (compared as [`ArgDef`]'s `PartialEq` states), the same repetition and the
-/// same documentation. Their elements are not compared: a field's element is
-/// created from its name, and the registry build replaces it only with the
-/// value that carries the aspects attached to the field element.
-impl PartialEq for TackOnField {
-    fn eq(&self, other: &TackOnField) -> bool {
-        self.name == other.name
-            && self.args == other.args
-            && self.repeatable == other.repeatable
-            && self.docs == other.docs
-    }
-}
-
-impl Eq for TackOnField {}
 
 /// How the [block-structure pass](crate::lang::rewrites::blocks) lays out an
 /// argument's content: as inline
@@ -340,8 +296,9 @@ pub struct ArgDef {
     /// label a reference points to). `None`, the default, says nothing about
     /// what the argument holds. See [`ArgDef::role`].
     pub role: Option<Name>,
-    /// The argument code the declaration was read from; see [`ArgDef::code`].
-    pub(super) code: Option<String>,
+    /// The argument code the declaration was read from, with the kind it
+    /// stands for; see [`ArgDef::code`].
+    pub(super) code: Option<ArgCode>,
 }
 
 impl ArgDef {
@@ -369,12 +326,14 @@ impl ArgDef {
         }
     }
 
-    /// The argument code this declaration was read from
-    /// ([`arg_def_from_code`](super::arg_def_from_code), and every reader of
-    /// settings given as data, which reads its codes through it): `"["`,
-    /// `"r()"`. `None` for a declaration built from a standard kind or a
-    /// parser ([`ArgDef::new`] and the constructors built on it), and for one
-    /// read from a structured syntax, whose standard kind the parser returns
+    /// The argument code this declaration was read from: `"["`, `"r()"`. A
+    /// declaration has one when it was made from a code, by
+    /// [`arg_def_from_code`](super::arg_def_from_code) (every reader of
+    /// settings given as data reads its codes through it) or from a code
+    /// read already ([`ArgCode`], through `From`). `None` for a declaration
+    /// built from a standard kind or a parser ([`ArgDef::new`] and the
+    /// constructors built on it), and for one read from a structured syntax,
+    /// whose standard kind the parser returns
     /// ([`FlmArgumentParser::std_kind`]).
     ///
     /// A program that writes a declaration back as data writes it in the
@@ -387,9 +346,8 @@ impl ArgDef {
     ///   structured syntax, the kind written as data under the key `syntax`
     ///   (see [`ArgStdKind`]); this covers a declaration read from a
     ///   structured syntax and one built in Rust from a standard kind;
-    /// - a declaration whose parser is a feature's own, and a tack-on
-    ///   argument ([`ArgStdKind::TackOn`]), writes neither, and does not read
-    ///   back.
+    /// - a declaration whose parser is a feature's own writes neither, and
+    ///   does not read back.
     ///
     /// [`ArgDataFields`](super::ArgDataFields)' conversion from an `ArgDef`
     /// follows this rule. The builder methods leave the code as it is; a
@@ -403,7 +361,16 @@ impl ArgDef {
     /// assert_eq!(ArgDef::new(ArgStdKind::Mandatory).code(), None);
     /// ```
     pub fn code(&self) -> Option<&str> {
-        self.code.as_deref()
+        self.code.as_ref().map(ArgCode::as_str)
+    }
+
+    /// The argument code this declaration was read from, with the standard
+    /// kind it stands for ([`ArgCode`]); `None` where [`ArgDef::code`] is
+    /// `None`. A program that holds declarations in a form of its own takes
+    /// the code from here, already read, and makes the declaration again from
+    /// it through `From`, without reading the code again.
+    pub fn arg_code(&self) -> Option<&ArgCode> {
+        self.code.as_ref()
     }
 
     /// Creates the declaration of an argument read by `kind`, which can be
@@ -555,37 +522,11 @@ impl ArgDef {
     /// assert_eq!(target.role.as_ref().map(|name| name.as_str()), Some("flm.refs.target"));
     /// assert!(ArgDef::mandatory("text").role.is_none());
     /// ```
-    // See decision rationale at [§flm-dd-dr:arg-role].
+    // A role is a fact of the declaration, which the declaring feature knows; a
+    // registered name gives each role an owner, a description and a listing.
     pub fn role(mut self, name: impl Into<Name>) -> ArgDef {
         self.role = Some(name.into());
         self
-    }
-
-    /// Replaces the element of each [tack-on field](TackOnField) this
-    /// argument declares by the element `remap` returns for it, and keeps a
-    /// field's element when `remap` returns `None`. The registry build uses it
-    /// to put onto the declaration the element value that carries the
-    /// aspects that features attached to the field element. An argument that
-    /// declares no field is left unchanged.
-    ///
-    /// The parser object is shared, so it is not changed in place: when a
-    /// field's element changes, the argument gets a new tack-on parser holding
-    /// the changed fields.
-    pub(crate) fn remap_field_elements(
-        &mut self,
-        remap: impl Fn(&Arc<ElementSpec>) -> Option<Arc<ElementSpec>>,
-    ) {
-        let Some(fields) = self.kind.tack_on_fields() else { return };
-        if fields.iter().all(|field| remap(field.element()).is_none()) {
-            return;
-        }
-        let mut fields = fields.to_vec();
-        for field in &mut fields {
-            if let Some(element) = remap(field.element()) {
-                *field.element_mut() = element;
-            }
-        }
-        self.kind = ArgStdKind::TackOn { fields }.into_flm_argument_parser();
     }
 }
 

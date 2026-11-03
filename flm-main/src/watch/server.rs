@@ -518,7 +518,6 @@ fn reason(status: u16) -> &'static str {
 /// The answer is written by hand, as the stream's head is, to say `Connection: close`,
 /// which `tiny_http` does not let an answer say, so that a browser never sends a request on
 /// a connection a dropped server keeps without answering.
-// See decision rationale at [§flm-dd-dr:host-watch-answers].
 fn reply(request: Request, status: u16, media_type: Option<&str>, served_by: Option<&str>, body: &[u8]) {
     let head_only = *request.method() == Method::Head;
     let mut head = format!("HTTP/1.1 {status} {}\r\nCache-Control: no-store\r\nConnection: close\r\n", reason(status));
@@ -594,7 +593,8 @@ fn answer(shared: &Arc<Shared>, request: Request) {
 /// Whether `request` may change something: it carries no `Origin` header, or the origin of
 /// the pages this server serves (see the [module documentation](self), "Only the preview's
 /// own page can act").
-// See decision rationale at [§flm-dd-dr:host-watch-address].
+// The header is compared with the server's own origin, never with the request's `Host`: a
+// page of a site whose name is made to resolve to this machine would pass that comparison.
 fn from_own_page(shared: &Shared, request: &Request) -> bool {
     request
         .headers()

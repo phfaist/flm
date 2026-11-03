@@ -362,6 +362,19 @@ fn display_math_inside_a_paragraph_takes_lines_of_its_own() {
     check("emit-math-in-par.txt", &emit_tree(tree, Some(40)));
 }
 
+#[test]
+fn display_math_between_two_paragraphs_stands_one_blank_line_from_each() {
+    // At a top level, a displayed formula alone between two paragraphs is
+    // inline content of its own, filled apart from the paragraphs on either
+    // side, which are blocks.
+    let mut site = PresSite::new(&vocabulary());
+    let first = par(&mut site, "Before.");
+    let display = math(&mut site, MathDisplay::Display, None, "z");
+    let second = par(&mut site, "After.");
+    let tree = site.finish(vec![first, display, second]);
+    assert_eq!(text_of(&emit_tree(tree, Some(40))), "Before.\n\n  \\[z\\]\n\nAfter.\n");
+}
+
 // --- inline context ----------------------------------------------------------------------------
 
 #[test]

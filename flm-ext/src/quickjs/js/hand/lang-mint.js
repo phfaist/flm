@@ -1,19 +1,21 @@
 // The hand-written parts of `flm:lang/mint`, spliced into the generated stub
 // `api/lang/mint.js` by `tests/api_surface.rs`: the classes of the `flm-core`
-// types `ArgDef` and `BodyDef`, the function `arg_def_from_code` (which wraps
-// its answer in an `ArgDef`), and the dual class `ElementDef` (a data form
-// with fields, or a helper-made form holding a handle).
+// types `ArgDef` and `BodyDef`, the function `arg_def_from_code` (which reads
+// its answer back as an `ArgDef`), and the dual class `ElementDef` (a data
+// form with fields, or a helper-made form holding a handle).
 
 // @hand export ArgDef
 // An argument: `ArgDef.mandatory(name)`, `ArgDef.optional(name)`,
 // `arg_def_from_code(code)`, or `new ArgDef(syntax)` and
 // `ArgDef.named(name, syntax)`, where `syntax` is an argument code (`"r()"`)
 // or a structured syntax, a standard kind written as data (`{ syntax:
-// "delimited-group", delimiters: ["(", ")"] }`); Rust's `ArgDef::new` takes
-// the standard kind itself, or a parser of a feature's own, which data
-// cannot carry. Written as the map `{ code, name, layout, opaque_wrapper,
-// docs, mode, scoped, role }`, with the keys of the structured syntax in
-// place of `code` for an argument declared by one.
+// "delimited-group", delimiters: ["(", ")"] }`, a tack-on argument with its
+// fields: `{ syntax: "tack-on", fields: [{ name: "label", args:
+// [new ArgDef({ syntax: "chars-group" })], repeatable: true }] }`); Rust's
+// `ArgDef::new` takes the standard kind itself, or a parser of a feature's
+// own, which data cannot carry. Written as the map `{ code, name, layout,
+// opaque_wrapper, docs, mode, scoped, role }`, with the keys of the
+// structured syntax in place of `code` for an argument declared by one.
 export class ArgDef {
   constructor(syntax) {
     const code = typeof syntax === "string";
@@ -48,19 +50,26 @@ export class ArgDef {
     const syntax = this.code === null ? this.syntax_ : { code: this.code };
     return { ...syntax, name: this.name, layout: this.layout_, opaque_wrapper: this.opaque_wrapper_, docs: this.docs_, mode: this.mode_, scoped: this.scoped_, role: this.role_ };
   }
+  // The argument the map `data` declares, as Rust writes an argument it
+  // answers (`arg_def_from_code`, `refs.label_fields_arg`); the arguments
+  // of a tack-on argument's fields are read the same way.
+  static read_(data) {
+    const { code, name, layout, opaque_wrapper, docs, mode, scoped, role, ...syntax } = data;
+    if (syntax.syntax === "tack-on") {
+      syntax.fields = syntax.fields.map((field) => ({ ...field, args: field.args.map(ArgDef.read_) }));
+    }
+    const arg = new ArgDef(code ?? syntax).layout(layout ?? ArgLayout.Inline).docs(docs ?? "");
+    arg.name = name ?? null;
+    arg.opaque_wrapper_ = opaque_wrapper ?? false;
+    arg.mode_ = mode ?? null;
+    arg.scoped_ = scoped ?? [];
+    arg.role_ = role ?? null;
+    return arg;
+  }
 }
 // @hand export arg_def_from_code
 // The argument the code `code` stands for (`"{"`, `"["`, `"*"`, `"r()"`, …).
-export function arg_def_from_code(code) {
-  const data = call(MODULE, "arg_def_from_code", [code]);
-  const arg = new ArgDef(data.code).layout(data.layout).docs(data.docs);
-  arg.name = data.name;
-  arg.opaque_wrapper_ = data.opaque_wrapper ?? false;
-  arg.mode_ = data.mode ?? null;
-  arg.scoped_ = data.scoped ?? [];
-  arg.role_ = data.role ?? null;
-  return arg;
-}
+export function arg_def_from_code(code) { return ArgDef.read_(call(MODULE, "arg_def_from_code", [code])); }
 // @hand export BodyDef
 // An environment's body: `new BodyDef()` and the builder methods.
 export class BodyDef {

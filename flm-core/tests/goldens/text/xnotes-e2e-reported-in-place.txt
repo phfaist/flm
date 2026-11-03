@@ -3,7 +3,6 @@ paragraph.]
 =======================================================================================
 
 A formula holds blocks:
-
   \begin{equation}
   x \text{where a note stands[2The formula’s first paragraph. The formula’s second paragraph.]}
   \tag*{(1)}\end{equation}

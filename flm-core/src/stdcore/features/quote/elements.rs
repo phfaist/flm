@@ -257,7 +257,6 @@ pub(super) fn lines_package(owner: &FeatureName) -> ScopedPackageDef {
         [LINEBREAK_COMMAND],
         SyntaxDef::Macro { args: Vec::new() },
         field_element(
-            LINEBREAK_COMMAND,
             "A `\\\\` inside a lines section of a quotation: the end of a line.",
         ),
     )
@@ -267,7 +266,6 @@ pub(super) fn lines_package(owner: &FeatureName) -> ScopedPackageDef {
         [INDENT_COMMAND],
         SyntaxDef::Macro { args: Vec::new() },
         field_element(
-            INDENT_COMMAND,
             "An `\\indent` at the start of a line of a lines section of a quotation: one tab of \
              indentation for the line.",
         ),

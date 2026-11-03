@@ -542,7 +542,8 @@ pub(super) fn stage_failed(out: &mut StageOut<'_>, stage: &str, detail: impl ToS
 /// span (for an image that the expansion of a user definition put in place,
 /// the document source in which the use site is written), else the origin of
 /// the span's own source.
-// See decision rationale at [§flm-dd-dr:std-graphics-record].
+// A source that the expansion of a user definition produces has no file of its
+// own, so the host is given the file in which the author wrote the use site.
 fn request_origin(span: &FlmSpan) -> FlmOrigin {
     let own = span.source().origin().clone();
     let mut span = span.clone();
@@ -696,8 +697,9 @@ pub struct InspectStage;
 
 impl Stage for InspectStage {
     fn decl(&self) -> StageDecl {
-        // Once per tree, so that value catch-up re-enters it.
-        // See decision rationale at [§flm-dd-dr:std-graphics-record].
+        // Once per tree, so that value catch-up, which re-runs only per-tree
+        // stages, re-enters it and an image a value shows is inspected too; an
+        // image needs nothing outside the tree it stands in.
         StageDecl::new(INSPECT_STAGE, Effect::Compute, Scope::PerTree).writes(INFO).docs(
             "Asks the host's graphics resolver and inspector, where they are registered, about \
              every image, and records the file found and the inspector's result, completed, by \

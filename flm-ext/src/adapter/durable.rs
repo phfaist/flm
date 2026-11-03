@@ -38,7 +38,8 @@ use flm_core::lang::BuiltLang;
 use serde_json::Value;
 use flm_core::techy::latexlike::Mode;
 
-use crate::api::lang::rewrites::userdefs::CompiledTemplate;
+use crate::adapter::expand::placeholder_refs;
+use crate::api::lang::rewrites::userdefs::{CompiledTemplate, PlaceholderRef};
 use crate::runtime::ExtError;
 use crate::sealed::{CompiledTemplateCore, Token};
 
@@ -367,7 +368,10 @@ fn push(entries: &mut Entries, entry: DurableEntry) -> u32 {
 /// The façade of a durable compiled template: the template's `Arc` and the
 /// token that names it. It borrows nothing, so it may outlive the call that
 /// made it; [`Expander::instantiate`](crate::api::lang::rewrites::userdefs::Expander::instantiate)
-/// takes it as it takes a definition's template.
+/// takes it as it takes a definition's template, and
+/// [`ExtraValues::template`](crate::api::lang::rewrites::userdefs::ExtraValues::template)
+/// as the value of an extra placeholder.
+#[derive(Clone)]
 pub struct DurableTemplateFacade {
     template: Arc<CoreCompiledTemplate>,
     token: DurableToken,
@@ -384,9 +388,17 @@ impl CompiledTemplateCore for DurableTemplateFacade {
     fn with_core(&self, _: Token, f: &mut dyn FnMut(&CoreCompiledTemplate)) {
         f(&self.template);
     }
+
+    fn shared(&self, _: Token) -> Arc<CoreCompiledTemplate> {
+        Arc::clone(&self.template)
+    }
 }
 
-impl CompiledTemplate for DurableTemplateFacade {}
+impl CompiledTemplate for DurableTemplateFacade {
+    fn placeholders(&self) -> Vec<PlaceholderRef> {
+        placeholder_refs(&self.template)
+    }
+}
 
 #[cfg(test)]
 mod tests {

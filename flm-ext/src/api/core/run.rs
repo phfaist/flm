@@ -6,7 +6,7 @@ use serde_json::Value;
 use crate::api::core::data::table::TableValue;
 use crate::api::core::stage::Scope;
 use crate::api::host::HostHandle;
-use crate::api::techy::node::Node;
+use crate::api::techy::node::{Node, Tree};
 use crate::runtime::ExtError;
 use crate::sealed::{RewriteCxCore, StageCxCore};
 
@@ -18,8 +18,8 @@ use crate::sealed::{RewriteCxCore, StageCxCore};
 /// read by its name ([`service`](StageCx::service),
 /// [`services`](StageCx::services)), and [`host`](StageCx::host), which has no
 /// counterpart, lends a host service. A tree id
-/// crosses as its display text; a tree is answered as its root node. The
-/// nodes and tables it answers borrow the context.
+/// crosses as its display text. The nodes and tables it answers borrow the
+/// context; the trees share what they hold.
 ///
 /// The trait is sealed: the adapter alone implements it.
 pub trait StageCx: StageCxCore {
@@ -31,23 +31,21 @@ pub trait StageCx: StageCxCore {
     fn tree_id(&self) -> Option<String>;
 
     /// Mirrors [`StageCx::tree`](flm_core::core::run::StageCx::tree): the
-    /// current state of the tree of id `id`. What differs: the id as text, the
-    /// tree as its root node.
-    fn tree(&self, id: &str) -> Option<Box<dyn Node<'_> + '_>>;
+    /// current state of the tree of id `id`. What differs: the id as text.
+    fn tree(&self, id: &str) -> Option<Box<dyn Tree>>;
 
     /// Mirrors [`StageCx::frozen_tree`](flm_core::core::run::StageCx::frozen_tree):
-    /// the frozen tree of id `id`. What differs: the id as text, the tree as its
-    /// root node.
-    fn frozen_tree(&self, id: &str) -> Option<Box<dyn Node<'_> + '_>>;
+    /// the frozen tree of id `id`. What differs: the id as text.
+    fn frozen_tree(&self, id: &str) -> Option<Box<dyn Tree>>;
 
     /// Mirrors [`StageCx::my_tree`](flm_core::core::run::StageCx::my_tree): the
-    /// tree a per-tree stage runs on. What differs: its root node.
-    fn my_tree(&self) -> Option<Box<dyn Node<'_> + '_>>;
+    /// tree a per-tree stage runs on.
+    fn my_tree(&self) -> Option<Box<dyn Tree>>;
 
     /// Mirrors [`StageCx::trees`](flm_core::core::run::StageCx::trees): every
     /// frozen tree of the document. What differs: a list of ids as text and
-    /// root nodes.
-    fn trees(&self) -> Vec<(String, Box<dyn Node<'_> + '_>)>;
+    /// trees.
+    fn trees(&self) -> Vec<(String, Box<dyn Tree>)>;
 
     /// Mirrors [`StageCx::walk`](flm_core::core::run::StageCx::walk): every node
     /// of every tree of the run, in document order (for a per-tree stage too).

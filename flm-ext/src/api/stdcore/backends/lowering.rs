@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use crate::api::core::registry::LibraryStage;
-use crate::api::techy::node::Node;
+use crate::api::techy::node::Tree;
 use crate::sealed::Sealed;
 
 /// Mirrors [`LoweredTrees`](flm_core::stdcore::backends::lowering::LoweredTrees):
@@ -15,26 +15,28 @@ use crate::sealed::Sealed;
 ///
 /// What differs: a façade over the table, answered by a read of the table by
 /// name ([`TableValue::Lowered`](crate::api::core::data::table::TableValue::Lowered));
-/// a document tree is named by its id's display text (`tree#0`), and a
-/// lowered tree is answered as its root node, whose nodes are the
-/// presentation nodes the emitter walks ([`Node::element_name`],
-/// [`Node::payload`], [`Node::slot_content_nodes`]). A document tree whose
-/// lowering failed has no entry. The order of the document is the order of
+/// a document tree is named by its id's display text (`tree#0`); the nodes
+/// of a lowered tree are the presentation nodes the emitter walks
+/// ([`Node::element_name`](crate::api::techy::node::Node::element_name),
+/// [`Node::payload`](crate::api::techy::node::Node::payload),
+/// [`Node::slot_content_nodes`](crate::api::techy::node::Node::slot_content_nodes)).
+/// A document tree whose lowering failed has no entry. The order of the
+/// document is the order of
 /// [`StageCx::trees`](crate::api::core::run::StageCx::trees); the ids here
-/// are in id order. `'t` is the lifetime of the trees, as for [`Node`].
+/// are in id order.
 ///
 /// The trait is sealed: the adapter alone implements it.
-pub trait LoweredTrees<'t>: Sealed {
+pub trait LoweredTrees: Sealed {
     /// Mirrors the field [`LoweredTrees::trees`](flm_core::stdcore::backends::lowering::LoweredTrees::trees):
     /// every lowered tree, by the id of the document tree it was lowered
-    /// from, in id order. What differs: a list of pairs, each tree its root.
-    fn trees(&self) -> Vec<(String, Box<dyn Node<'t> + 't>)>;
+    /// from, in id order. What differs: a list of pairs.
+    fn trees(&self) -> Vec<(String, Box<dyn Tree>)>;
 
     /// Mirrors [`LoweredTrees::get`](flm_core::stdcore::backends::lowering::LoweredTrees::get)
     /// and the field [`LoweredTree::tree`](flm_core::stdcore::backends::lowering::LoweredTree::tree):
-    /// the root of the lowered form of the document tree `id`, or `None` when
-    /// the backend has none for it (or `id` names no tree).
-    fn tree(&self, id: &str) -> Option<Box<dyn Node<'t> + 't>>;
+    /// the lowered form of the document tree `id`, or `None` when the backend
+    /// has none for it (or `id` names no tree).
+    fn tree(&self, id: &str) -> Option<Box<dyn Tree>>;
 
     /// Mirrors the field [`LoweredTree::requires`](flm_core::stdcore::backends::lowering::LoweredTree::requires)
     /// of the lowered form of the document tree `id`: the identifiers of the
@@ -49,7 +51,7 @@ pub trait LoweredTrees<'t>: Sealed {
     fn rounds(&self, id: &str) -> Option<u32>;
 }
 
-fn _object_safe(_: &dyn LoweredTrees<'_>) {}
+fn _object_safe(_: &dyn LoweredTrees) {}
 
 /// Mirrors [`LoweringStage`](flm_core::stdcore::backends::lowering::LoweringStage):
 /// the library's lowering stage for one backend, `flm.<backend>.lower`, a

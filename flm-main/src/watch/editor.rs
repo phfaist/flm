@@ -58,7 +58,9 @@ struct Known {
 }
 
 /// The editors the preview knows, in the order of [`EDITORS`].
-// See decision rationale at [§flm-dd-dr:host-watch-editor-menu].
+// An editor installed as a macOS application often puts no program on `PATH` (VS Code's
+// `code` and Zed's `zed` get there only through a command of the editor's own), so its
+// program is also looked for at fixed paths inside its application bundles.
 const KNOWN: [Known; 5] = [
     Known {
         name: "code",
@@ -430,7 +432,8 @@ impl Places {
     /// during lowering) counts for the source it was made from, which is the source the
     /// HTML backend writes into the page for it.
     pub fn of_run(run: &Run) -> Places {
-        // See decision rationale at [§flm-dd-dr:host-watch-gestures].
+        // The sources are the build's own, never the files read again: a file may have
+        // changed since the build, whose output is the page the places come from.
         let content = run.doc().content();
         let mut sources = BTreeMap::new();
         for (_, fragment) in content.trees() {

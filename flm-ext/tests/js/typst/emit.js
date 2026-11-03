@@ -3,10 +3,11 @@
 // Typst's math delimiters, the fixture's callout, and the `[unsupported: …]`
 // stand-in for every other presentation element, as the text backend writes it.
 //
-// What it reads of the prelude: `cx.trees()` (the frozen trees, `[id, root]` in
-// document order); `lowered.tree(id)` (a lowered tree's root, or null); and per
-// node `element_name()`, `payload()`, `body()`, `children()`, `is_chars()`,
-// `chars()`, `span_content()`, `slot_count()`, `slot_content_nodes(index)`.
+// What it reads of the prelude: `cx.trees()` (the frozen trees, `[id, tree]` in
+// document order); `lowered.tree(id)` (a lowered tree, or null) and its
+// `root()`; and per node `element_name()`, `payload()`, `body()`, `children()`,
+// `is_chars()`, `chars()`, `span_content()`, `slot_count()`,
+// `slot_content_nodes(index)`.
 import { PAR, BLOCK, BLOCK_HEADING, SPAN, LIST, VERBATIM, MATH_PASSTHROUGH, MATH_TEXT, LINK, UNSUPPORTED, DROPPED } from "flm:stdcore/backends/pres";
 import { PARBREAK } from "flm:lang/structural";
 
@@ -19,8 +20,8 @@ function escape(text) { return text.replace(/[\\*_`#$@<>\[\]~]/g, c => "\\" + c)
 export function emit(cx, lowered) {
   const parts = [];
   for (const [id] of cx.trees()) {
-    const root = lowered.tree(id);
-    if (root !== null) parts.push(blocks(root.children()));
+    const tree = lowered.tree(id);
+    if (tree !== null) parts.push(blocks(tree.root().children()));
   }
   return parts.filter(text => text !== "").join("\n\n") + "\n";
 }

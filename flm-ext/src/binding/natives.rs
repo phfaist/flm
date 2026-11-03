@@ -1,22 +1,54 @@
 //! The natives every binding shares: the requests an extension makes of the
-//! host ([`Native`]) and their bodies ([`answer`]), the envelope a native
-//! answers, the refusal of a native called while no handler runs, and the
-//! reading of the JSON a script or a guest passes (its depth bounded).
+//! host ([`Native`]), the body of each lending, the envelope a native answers,
+//! the refusal of a native called while no handler runs, and the reading of
+//! the JSON a script or a guest passes (its depth bounded).
 //!
 //! | Native | What it does |
 //! |---|---|
 //! | `call(handle, method, args)` | [`dispatch::call`] on the running call's table |
 //! | `module_handle(path)` | the handle of the module `path` ([`module_handle`]) |
-//! | `lend_stage(decl, needs)` | lends a stage of the extension's own ([`BindingStage`]) |
-//! | `lend_expand(element, policy)` | lends an expansion hook of the extension's own ([`BindingExpand`]) |
-//! | `lend_lower(rule)` | lends a lowering rule's body of the extension's own ([`BindingLower`]) |
-//! | `lend_rewrite(decl, needs)` | lends a rewrite stage of the extension's own ([`BindingRewrite`]) |
-//! | `lend_provider(name)` | lends a citation provider of the extension's own ([`BindingProvider`]) |
-//! | `lend_template(name)` | lends a template module of the extension's own ([`BindingTemplate`]) |
-//! | `lend_aspect(kind, element, methods)` | lends an element's handler aspect of the extension's own ([`BindingReferenceable`], [`BindingSectioning`]) |
-//! | `lend_late_init(index)` | lends a late-initialization hook of the extension's own ([`BindingLateInit`]) |
-//! | `lend_finalizer(index)` | lends a finalizer of the extension's own ([`BindingFinalizer`]) |
+//! | `lend_stage(decl, needs)` | lends a stage of the extension's own ([`lend_stage`], a [`BindingStage`]) |
+//! | `lend_expand(element, policy)` | lends an expansion hook of the extension's own ([`lend_expand`], a [`BindingExpand`]) |
+//! | `lend_lower(rule)` | lends a lowering rule's body of the extension's own ([`lend_lower`], a [`BindingLower`]) |
+//! | `lend_rewrite(decl, needs)` | lends a rewrite stage of the extension's own ([`lend_rewrite`], a [`BindingRewrite`]) |
+//! | `lend_provider(name)` | lends a citation provider of the extension's own ([`lend_provider`], a [`BindingProvider`]) |
+//! | `lend_template(name)` | lends a template module of the extension's own ([`lend_template`], a [`BindingTemplate`]) |
+//! | `lend_aspect(kind, element, methods)` | lends an element's handler aspect of the extension's own ([`lend_referenceable`], a [`BindingReferenceable`]; [`lend_sectioning`], a [`BindingSectioning`]) |
+//! | `lend_late_init(index)` | lends a late-initialization hook of the extension's own ([`lend_late_init`], a [`BindingLateInit`]) |
+//! | `lend_finalizer(index)` | lends a finalizer of the extension's own ([`lend_finalizer`], a [`BindingFinalizer`]) |
 //! | `console(level, text)` | the host's console sink |
+//!
+//! # One body, two front doors
+//!
+//! The body of a lending takes the running call's frame and the lending's
+//! arguments, typed, and builds the shared handler object over the frame's
+//! registration; it reads no value and cannot fail. `lend_aspect` has one
+//! body per kind of aspect, since the kind decides the object's type. Two
+//! front doors reach the bodies:
+//!
+//! - **The text bindings** (QuickJS, the engine `wasm`): [`answer`] takes the
+//!   request ([`Native`], its arguments JSON values), looks the frame up,
+//!   reads the arguments into their types, calls the body, lends the object
+//!   into the call's table and answers its handle, as a value, in the
+//!   envelope.
+//! - **The guest client compiled into a program** (the engine `native`): each
+//!   record-and-lend method of `flm_ext::guest` calls the body inside the
+//!   closure of the frame of the call it runs in (`guest::abi::in_frame`), with
+//!   the arguments it read from the extension's object, and hands the object
+//!   to the API method that takes it (`FeatureBuilder::stage`, …) in the same
+//!   closure, with no handle; `ElementSpec::with`, whose aspect crosses later
+//!   inside an element's declaration, lends the object into the table and
+//!   keeps the handle, as a guest of a text binding keeps the handle its
+//!   lending answered.
+//!
+//! The other natives (`call`, `module_handle`, `console`) serve the text
+//! bindings alone. Compiled into a program, the guest client calls the
+//! extension API directly where a text binding's guest sends `call` or
+//! `module_handle` (`guest::abi::typed`), and writes a line of console
+//! output to the sink its instance's state holds, which the engine `native`
+//! gave it, where a text binding's guest sends `console`. The refusal
+//! [`outside`] names what the extension must do from a handler ([`Act`]), in
+//! one text for both front doors.
 //!
 //! What a native needs of the running handler, [`answer`] reads from the
 //! thread's frames ([`frames`]): the frame is looked up before the values are
@@ -26,7 +58,8 @@
 //! that extension's handler call runs there runs its module's top level (or
 //! `define`) inside that call, and natively the objects of an instance the
 //! engine `native` discards there are dropped inside it; a native sent from
-//! either is refused likewise. A binding reads its own wire format first
+//! either, or natively a request or a lending of the typed route, is refused
+//! likewise. A binding reads its own wire format first
 //! (QuickJS each text with [`parse`]); only a JSON text that does not parse
 //! or nests too deep is refused before the frame lookup.
 //!
@@ -46,27 +79,38 @@
 //! bound when the binding reads it ([`parse_reply`]): a deeper reply fails the
 //! handler, with a message naming the bound.
 
+use std::fmt;
 use std::sync::Arc;
 
-use serde_json::{json, Value};
+use serde_json::Value;
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
+use serde_json::json;
 
-use super::frames::{self, FrameView};
+use super::frames::FrameView;
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
+use super::frames;
 use super::handlers::{
     BindingExpand, BindingFinalizer, BindingLateInit, BindingLower, BindingProvider, BindingReferenceable, BindingRewrite,
     BindingSectioning, BindingStage, BindingTemplate,
 };
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
 use crate::adapter::dispatch;
-use crate::adapter::handles::{module_handle, Entry};
-use crate::adapter::values::{handle_from_value, handle_to_value, JsonForm};
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
+use crate::adapter::handles::{module_handle, CallTable, Entry, Handle};
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
+use crate::adapter::values::{handle_from_value, handle_to_value, is_durable, JsonForm};
 use crate::api::core::stage::{Needs, RewriteDecl, StageDecl};
 use crate::api::lang::rewrites::userdefs::ExpandPolicy;
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
 use crate::engine::ExtensionIdentity;
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
 use crate::host::{ConsoleLevel, ConsoleSink};
 use crate::runtime::ExtError;
 
 /// One request to the host: the WebAssembly ABI carries it as JSON
 /// (`{"native": "lend_stage", "decl": …, "needs": …}`); the QuickJS glue builds it from
 /// its natives' arguments.
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
 #[derive(Debug, serde::Deserialize)]
 #[cfg_attr(test, derive(PartialEq))]
 #[serde(tag = "native", rename_all = "snake_case", deny_unknown_fields)]
@@ -74,7 +118,8 @@ pub(crate) enum Native {
     /// Calls `method` on the object `handle` stands for in the running handler call,
     /// with the list `args`; answers the dispatcher's answer.
     Call {
-        /// The handle.
+        /// The handle, or the durable token of a durable object
+        /// ([`receiver`]).
         handle: Value,
         /// The method's name.
         method: String,
@@ -151,76 +196,175 @@ pub(crate) enum Native {
     },
 }
 
-impl Native {
-    /// What the extension must do from a handler, for the [`outside`] refusal:
-    /// "call `chars` of the extension API", "declare a stage", ….
-    fn act(&self) -> String {
+/// What an extension must do from a handler, which the refusal [`outside`]
+/// names: the act of a native that needs the running call, in one text for
+/// both front doors.
+#[derive(Clone, Copy)]
+pub(crate) enum Act<'a> {
+    /// A call of the method or function of the extension API of this name:
+    /// the native `call`, and a request of the guest client's typed route.
+    Call(&'a str),
+    /// The lending of a stage (`lend_stage`).
+    Stage,
+    /// The lending of the expansion hook of the element of this name
+    /// (`lend_expand`).
+    Expand(&'a str),
+    /// The lending of the body of the lowering rule of this name
+    /// (`lend_lower`).
+    Lower(&'a str),
+    /// The lending of a rewrite stage (`lend_rewrite`).
+    Rewrite,
+    /// The lending of the citation provider of this name (`lend_provider`).
+    Provider(&'a str),
+    /// The lending of the template module of this name (`lend_template`).
+    Template(&'a str),
+    /// The lending of a handler aspect (`lend_aspect`).
+    Aspect {
+        /// The aspect's kind: `Referenceable` or `Sectioning`.
+        kind: &'a str,
+        /// The element.
+        element: &'a str,
+    },
+    /// The lending of a late-initialization hook (`lend_late_init`).
+    LateInit,
+    /// The lending of a finalizer (`lend_finalizer`).
+    Finalizer,
+}
+
+/// "call `chars` of the extension API", "declare a stage", ….
+impl fmt::Display for Act<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Native::Call { method, .. } => format!("call `{method}` of the extension API"),
-            Native::LendStage { .. } => "declare a stage".to_string(),
-            Native::LendExpand { element, .. } => format!("attach the expansion hook of the element `{element}`"),
-            Native::LendLower { rule } => format!("build the lowering rule `{rule}`"),
-            Native::LendRewrite { .. } => "declare a rewrite stage".to_string(),
-            Native::LendProvider { name } => format!("contribute the citation provider `{name}`"),
-            Native::LendTemplate { name } => format!("contribute the template module `{name}`"),
-            Native::LendAspect { kind, element, .. } => format!("attach the aspect `{kind}` of the element `{element}`"),
-            Native::LendLateInit { .. } => "register a late-initialization hook".to_string(),
-            Native::LendFinalizer { .. } => "register a finalizer".to_string(),
-            Native::ModuleHandle { .. } | Native::Console { .. } => String::new(),
+            Act::Call(method) => write!(f, "call `{method}` of the extension API"),
+            Act::Stage => f.write_str("declare a stage"),
+            Act::Expand(element) => write!(f, "attach the expansion hook of the element `{element}`"),
+            Act::Lower(rule) => write!(f, "build the lowering rule `{rule}`"),
+            Act::Rewrite => f.write_str("declare a rewrite stage"),
+            Act::Provider(name) => write!(f, "contribute the citation provider `{name}`"),
+            Act::Template(name) => write!(f, "contribute the template module `{name}`"),
+            Act::Aspect { kind, element } => write!(f, "attach the aspect `{kind}` of the element `{element}`"),
+            Act::LateInit => f.write_str("register a late-initialization hook"),
+            Act::Finalizer => f.write_str("register a finalizer"),
         }
     }
+}
 
-    /// Runs a native that needs the running call, on its frame `view`. A lending clones
-    /// the frame's registration into the handler object it builds; `call` needs none.
-    fn in_frame(&self, view: &mut FrameView<'_, '_>) -> Result<Value, ExtError> {
-        let entry = match self {
-            Native::Call { handle, method, args } => {
-                let target = handle_from_value(handle).map_err(|error| for_method(method, error))?;
-                return dispatch::call(view.table, target, method, args);
-            }
-            Native::LendStage { decl, needs } => {
-                let decl = StageDecl::from_value(decl)?;
-                let needs = Needs::from_value(needs)?;
-                let registration = view.registration.clone();
-                Entry::Stage(Arc::new(BindingStage { registration, decl, needs }))
-            }
-            Native::LendExpand { element, policy } => {
-                let policy = ExpandPolicy::from_value(&Value::String(policy.clone()))?;
-                let registration = view.registration.clone();
-                Entry::Expand(Arc::new(BindingExpand { registration, element: element.clone(), policy }))
-            }
-            Native::LendLower { rule } => {
-                let registration = view.registration.clone();
-                Entry::Lower(Arc::new(BindingLower { registration, rule: rule.clone() }))
-            }
-            Native::LendRewrite { decl, needs } => {
-                let decl = RewriteDecl::from_value(decl)?;
-                let needs = Needs::from_value(needs)?;
-                let registration = view.registration.clone();
-                Entry::RewriteStage(Arc::new(BindingRewrite { registration, decl, needs }))
-            }
-            Native::LendProvider { name } => {
-                let registration = view.registration.clone();
-                Entry::CitationProvider(Arc::new(BindingProvider { registration, name: name.clone() }))
-            }
-            Native::LendTemplate { name } => {
-                let registration = view.registration.clone();
-                Entry::TemplateModule(Arc::new(BindingTemplate { registration, name: name.clone() }))
-            }
-            Native::LendAspect { kind, element, methods } => {
-                let methods: Vec<String> = serde_json::from_value(methods.clone()).map_err(|_| ExtError::Argument {
+/// The body of `lend_stage`: the stage of the running feature of the
+/// declaration `decl` and the needs `needs`, over the frame's registration.
+pub(crate) fn lend_stage(view: &FrameView<'_, '_>, decl: StageDecl, needs: Needs) -> Arc<BindingStage> {
+    Arc::new(BindingStage { registration: view.registration.clone(), decl, needs })
+}
+
+/// The body of `lend_rewrite`: the rewrite stage of the running feature of
+/// the declaration `decl` and the needs `needs`, over the frame's
+/// registration.
+pub(crate) fn lend_rewrite(view: &FrameView<'_, '_>, decl: RewriteDecl, needs: Needs) -> Arc<BindingRewrite> {
+    Arc::new(BindingRewrite { registration: view.registration.clone(), decl, needs })
+}
+
+/// The body of `lend_expand`: the expansion hook of the running feature for
+/// the element `element`, of the policy `policy`, over the frame's
+/// registration.
+pub(crate) fn lend_expand(view: &FrameView<'_, '_>, element: String, policy: ExpandPolicy) -> Arc<BindingExpand> {
+    Arc::new(BindingExpand { registration: view.registration.clone(), element, policy })
+}
+
+/// The body of `lend_lower`: the body of the lowering rule `rule` of the
+/// running feature, over the frame's registration.
+pub(crate) fn lend_lower(view: &FrameView<'_, '_>, rule: String) -> Arc<BindingLower> {
+    Arc::new(BindingLower { registration: view.registration.clone(), rule })
+}
+
+/// The body of `lend_provider`: the citation provider `name` of the running
+/// feature, over the frame's registration.
+pub(crate) fn lend_provider(view: &FrameView<'_, '_>, name: String) -> Arc<BindingProvider> {
+    Arc::new(BindingProvider { registration: view.registration.clone(), name })
+}
+
+/// The body of `lend_template`: the template module `name` of the running
+/// feature, over the frame's registration.
+pub(crate) fn lend_template(view: &FrameView<'_, '_>, name: String) -> Arc<BindingTemplate> {
+    Arc::new(BindingTemplate { registration: view.registration.clone(), name })
+}
+
+/// The body of `lend_aspect` for the kind `Referenceable`: the aspect of the
+/// running feature for the element `element`, over the frame's
+/// registration.
+pub(crate) fn lend_referenceable(view: &FrameView<'_, '_>, element: String) -> Arc<BindingReferenceable> {
+    Arc::new(BindingReferenceable { registration: view.registration.clone(), element })
+}
+
+/// The body of `lend_aspect` for the kind `Sectioning`: the aspect of the
+/// running feature for the element `element`, whose object has the methods
+/// `methods`, over the frame's registration.
+pub(crate) fn lend_sectioning(view: &FrameView<'_, '_>, element: String, methods: Vec<String>) -> Arc<BindingSectioning> {
+    Arc::new(BindingSectioning { registration: view.registration.clone(), element, methods })
+}
+
+/// The body of `lend_late_init`: the late-initialization hook of the running
+/// feature at the position `index`, over the frame's registration.
+pub(crate) fn lend_late_init(view: &FrameView<'_, '_>, index: usize) -> Arc<BindingLateInit> {
+    Arc::new(BindingLateInit { registration: view.registration.clone(), index })
+}
+
+/// The body of `lend_finalizer`: the finalizer of the running feature at the
+/// position `index`, over the frame's registration.
+pub(crate) fn lend_finalizer(view: &FrameView<'_, '_>, index: usize) -> Arc<BindingFinalizer> {
+    Arc::new(BindingFinalizer { registration: view.registration.clone(), index })
+}
+
+/// Runs `native` for the extension `extension`, the loaded extension of number `load`
+/// ([`Binding::id`](super::Binding::id)), on the running call's frame; answers its
+/// envelope: the front door of the text bindings. The frame is looked up first: a
+/// native that needs one, called while no handler runs or while the innermost frame's
+/// registration is another loaded extension's, answers the `outside` refusal whatever
+/// its arguments, and the frame's table is not borrowed ([`frames::with_current`]).
+/// A lending then reads its arguments, calls its body, lends the object into the
+/// call's table and answers its handle.
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
+pub(crate) fn answer(extension: &ExtensionIdentity, load: u64, console: &ConsoleSink, native: Native) -> Value {
+    envelope(match native {
+        Native::Call { handle, method, args } => in_frame(extension, load, Act::Call(&method), |view| {
+            let target = receiver(view.table, &handle).map_err(|error| for_method(&method, error))?;
+            dispatch::call(view.table, target, &method, &args)
+        }),
+        Native::ModuleHandle { path } => module_handle(&path).map(handle_to_value).ok_or_else(|| ExtError::Argument {
+            method: "module_handle".to_string(),
+            detail: format!("`flm:{path}` must be a module of the extension API that has functions"),
+        }),
+        Native::LendStage { decl, needs } => in_frame(extension, load, Act::Stage, |view| {
+            let stage = lend_stage(view, StageDecl::from_value(&decl)?, Needs::from_value(&needs)?);
+            Ok(lent(view.table, Entry::Stage(stage)))
+        }),
+        Native::LendExpand { element, policy } => in_frame(extension, load, Act::Expand(&element), |view| {
+            let hook = lend_expand(view, element.clone(), ExpandPolicy::from_value(&Value::String(policy))?);
+            Ok(lent(view.table, Entry::Expand(hook)))
+        }),
+        Native::LendLower { rule } => in_frame(extension, load, Act::Lower(&rule), |view| {
+            let body = lend_lower(view, rule.clone());
+            Ok(lent(view.table, Entry::Lower(body)))
+        }),
+        Native::LendRewrite { decl, needs } => in_frame(extension, load, Act::Rewrite, |view| {
+            let stage = lend_rewrite(view, RewriteDecl::from_value(&decl)?, Needs::from_value(&needs)?);
+            Ok(lent(view.table, Entry::RewriteStage(stage)))
+        }),
+        Native::LendProvider { name } => in_frame(extension, load, Act::Provider(&name), |view| {
+            let provider = lend_provider(view, name.clone());
+            Ok(lent(view.table, Entry::CitationProvider(provider)))
+        }),
+        Native::LendTemplate { name } => in_frame(extension, load, Act::Template(&name), |view| {
+            let template = lend_template(view, name.clone());
+            Ok(lent(view.table, Entry::TemplateModule(template)))
+        }),
+        Native::LendAspect { kind, element, methods } => {
+            in_frame(extension, load, Act::Aspect { kind: &kind, element: &element }, |view| {
+                let methods: Vec<String> = serde_json::from_value(methods).map_err(|_| ExtError::Argument {
                     method: "lend_aspect".to_string(),
                     detail: "the aspect's methods must be a list of texts".to_string(),
                 })?;
-                match kind.as_str() {
-                    "Referenceable" => {
-                        let registration = view.registration.clone();
-                        Entry::Referenceable(Arc::new(BindingReferenceable { registration, element: element.clone() }))
-                    }
-                    "Sectioning" => {
-                        let registration = view.registration.clone();
-                        Entry::Sectioning(Arc::new(BindingSectioning { registration, element: element.clone(), methods }))
-                    }
+                let entry = match kind.as_str() {
+                    "Referenceable" => Entry::Referenceable(lend_referenceable(view, element.clone())),
+                    "Sectioning" => Entry::Sectioning(lend_sectioning(view, element.clone(), methods)),
                     other => {
                         return Err(ExtError::Argument {
                             method: "lend_aspect".to_string(),
@@ -229,46 +373,67 @@ impl Native {
                             ),
                         })
                     }
-                }
-            }
-            Native::LendLateInit { index } => {
-                let registration = view.registration.clone();
-                Entry::LateInit(Arc::new(BindingLateInit { registration, index: *index as usize }))
-            }
-            Native::LendFinalizer { index } => {
-                let registration = view.registration.clone();
-                Entry::Finalizer(Arc::new(BindingFinalizer { registration, index: *index as usize }))
-            }
-            Native::ModuleHandle { .. } | Native::Console { .. } => return Ok(Value::Null),
-        };
-        Ok(handle_to_value(view.table.lend(entry)))
-    }
-}
-
-/// Runs `native` for the extension `extension`, the loaded extension of number `load`
-/// ([`Binding::id`](super::Binding::id)), on the running call's frame; answers its
-/// envelope. The frame is looked up first: a native that needs one, called while no
-/// handler runs or while the innermost frame's registration is another loaded
-/// extension's, answers the `outside` refusal whatever its arguments, and the frame's
-/// table is not borrowed ([`frames::with_current`]).
-pub(crate) fn answer(extension: &ExtensionIdentity, load: u64, console: &ConsoleSink, native: Native) -> Value {
-    envelope(match &native {
-        Native::ModuleHandle { path } => module_handle(path).map(handle_to_value).ok_or_else(|| ExtError::Argument {
-            method: "module_handle".to_string(),
-            detail: format!("`flm:{path}` must be a module of the extension API that has functions"),
+                };
+                Ok(lent(view.table, entry))
+            })
+        }
+        Native::LendLateInit { index } => in_frame(extension, load, Act::LateInit, |view| {
+            let hook = lend_late_init(view, index as usize);
+            Ok(lent(view.table, Entry::LateInit(hook)))
+        }),
+        Native::LendFinalizer { index } => in_frame(extension, load, Act::Finalizer, |view| {
+            let hook = lend_finalizer(view, index as usize);
+            Ok(lent(view.table, Entry::Finalizer(hook)))
         }),
         Native::Console { level, text } => {
-            console(ConsoleLevel::from_name(level), text);
+            console(ConsoleLevel::from_name(&level), &text);
             Ok(Value::Null)
         }
-        native => frames::with_current(load, |view| native.in_frame(view))
-            .unwrap_or_else(|| Err(outside(&extension.stem, &native.act()))),
     })
+}
+
+/// The handle of `entry`, lent into `table`, as a value.
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
+fn lent<'c>(table: &mut CallTable<'c>, entry: Entry<'c>) -> Value {
+    handle_to_value(table.lend(entry))
+}
+
+/// What `body` answers on the frame of the running call of the loaded
+/// extension `load`, or the refusal of `act` by the extension `extension`
+/// when no frame of that loaded extension is the innermost one.
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
+fn in_frame(
+    extension: &ExtensionIdentity,
+    load: u64,
+    act: Act<'_>,
+    body: impl for<'v, 'c> FnOnce(&mut FrameView<'v, 'c>) -> Result<Value, ExtError>,
+) -> Result<Value, ExtError> {
+    frames::with_current(load, body).unwrap_or_else(|| Err(outside(&extension.stem, act)))
+}
+
+/// The receiver of a `call` written as `value`: a handle, or a durable token,
+/// whose object is resolved against the call's durable table and lent into
+/// the call ([`dispatch::lend_durable`]), so that a method of a durable
+/// object (a compiled template's `placeholders`) is called on it as on a
+/// per-call one.
+///
+/// # Errors
+///
+/// `value` is not a handle or a durable token, or the token names no object
+/// of the call's durable table.
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
+fn receiver(table: &mut CallTable<'_>, value: &Value) -> Result<Handle, ExtError> {
+    if is_durable(value) {
+        dispatch::lend_durable(table, value)
+    } else {
+        handle_from_value(value)
+    }
 }
 
 /// `error` with the method `method` named, when it is an argument error that names
 /// none (a value of `call` that does not read: "`chars`: the arguments must be JSON
 /// text: …").
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
 pub(crate) fn for_method(method: &str, error: ExtError) -> ExtError {
     match error {
         ExtError::Argument { method: found, detail } if found.is_empty() => {
@@ -279,6 +444,7 @@ pub(crate) fn for_method(method: &str, error: ExtError) -> ExtError {
 }
 
 /// The envelope of `result`.
+#[cfg(any(feature = "quickjs", feature = "wasm"))]
 pub(crate) fn envelope(result: Result<Value, ExtError>) -> Value {
     match result {
         Ok(value) => json!({ "ok": value }),
@@ -290,7 +456,7 @@ pub(crate) fn envelope(result: Result<Value, ExtError>) -> Value {
 /// this thread (at a module's top level, in the default export, in `define`):
 /// the extension of stem `stem` must `act` ("call `chars` of the extension
 /// API") from a handler.
-pub(crate) fn outside(stem: &str, act: &str) -> ExtError {
+pub(crate) fn outside(stem: &str, act: Act<'_>) -> ExtError {
     ExtError::Handler {
         detail: format!(
             "the extension `{stem}` must {act} from a feature's `register` or from a handler that `register` declared"
@@ -378,7 +544,7 @@ pub(crate) fn parse_reply(text: Option<&str>, what: &str) -> Result<Value, ExtEr
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(feature = "quickjs", feature = "wasm")))]
 mod tests {
     use super::*;
     use crate::binding::next_extension_id;
@@ -487,9 +653,9 @@ mod tests {
 
         fn enter(
             self: Arc<Self>,
-            _run: &mut dyn FnMut(&mut dyn super::super::Instance) -> Result<Value, ExtError>,
-        ) -> Result<Value, ExtError> {
-            Ok(Value::Null)
+            _run: &mut dyn FnMut(&mut dyn super::super::Instance) -> Result<super::super::Reply, ExtError>,
+        ) -> Result<super::super::Reply, ExtError> {
+            unreachable!("no handler call enters the binding")
         }
     }
 
@@ -498,7 +664,7 @@ mod tests {
         let identity = |name: &str| ExtensionIdentity { identity: name.to_string(), stem: name.to_string() };
         let console: ConsoleSink = Arc::new(|_, _| {});
         let lend = || Native::LendLower { rule: "r".to_string() };
-        let refused = |stem: &str| envelope(Err(outside(stem, "build the lowering rule `r`")));
+        let refused = |stem: &str| envelope(Err(outside(stem, Act::Lower("r"))));
         let (a, b, a_again) = (next_extension_id(), next_extension_id(), next_extension_id());
         assert_eq!(answer(&identity("b"), b, &console, lend()), refused("b"));
         let mut table = crate::adapter::handles::CallTable::new(frames::next_call());
@@ -526,7 +692,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "quickjs", feature = "wasm"))]
     fn json_depth_counts_lists_and_maps_and_skips_strings() {
         assert_eq!(json_depth("1"), 0);
         assert_eq!(json_depth("[]"), 1);
@@ -536,7 +701,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "quickjs", feature = "wasm"))]
     fn a_text_or_a_reply_nesting_past_the_bound_is_refused() {
         let deep = format!("{}{}", "[".repeat(MAX_JSON_DEPTH + 1), "]".repeat(MAX_JSON_DEPTH + 1));
         let bound = format!("{}{}", "[".repeat(MAX_JSON_DEPTH), "]".repeat(MAX_JSON_DEPTH));

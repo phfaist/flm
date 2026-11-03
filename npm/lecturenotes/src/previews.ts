@@ -135,11 +135,6 @@ const HEADING = '.flm-pres-block--heading';
 const BLOCKS = '.flm-pres-par, .flm-pres-block, li, figure, figcaption, blockquote';
 /** The elements that are inline: a target of one of these is shown in its enclosing block. */
 const INLINE_TAGS = new Set(['SPAN', 'A', 'EM', 'STRONG', 'SUP']);
-/** A displayed formula: its source element, or the container MathJax typeset it into. */
-const DISPLAY_SOURCE = '.flm-pres-math--source[data-flm-display="display"]';
-const DISPLAY_TYPESET = 'mjx-container[display="true"]';
-/** A paragraph. */
-const PARAGRAPH = '.flm-pres-par';
 /** How many siblings after a heading its preview shows at most. */
 export const HEADING_SIBLINGS = 3;
 /** How many entries a citation's preview lists at most. */
@@ -150,10 +145,8 @@ export const MAX_ENTRIES = 8;
  * - a heading: the heading and up to three following siblings, until the next heading;
  * - a list entry: the entry;
  * - an inline element: the nearest enclosing block (a paragraph, a block, a
- *   list entry, a figure, a caption, a quotation); when there is none and the
- *   target stands in a displayed formula (between paragraphs, outside any
- *   paragraph), the formula with the paragraph before it and the paragraph
- *   after it, each when there is one;
+ *   list entry, a figure, a caption, a quotation), or the target itself when
+ *   there is none;
  * - anything else: the target itself.
  */
 export function previewElements(target: Element): Element[] {
@@ -167,17 +160,7 @@ export function previewElements(target: Element): Element[] {
     return out;
   }
   if (target.tagName === 'LI' || !INLINE_TAGS.has(target.tagName)) return [target];
-  const block = target.closest(BLOCKS);
-  if (block !== null) return [block];
-  const formula = target.closest(DISPLAY_SOURCE) ?? target.closest(DISPLAY_TYPESET);
-  if (formula === null) return [target];
-  const before = formula.previousElementSibling;
-  const after = formula.nextElementSibling;
-  return [
-    ...(before !== null && before.matches(PARAGRAPH) ? [before] : []),
-    formula,
-    ...(after !== null && after.matches(PARAGRAPH) ? [after] : []),
-  ];
+  return [target.closest(BLOCKS) ?? target];
 }
 
 /** The texts the popup writes. */

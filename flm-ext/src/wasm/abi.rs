@@ -142,17 +142,16 @@ fn take(mut caller: Caller<'_, Guest>, ptr: i32, len: i32) -> Result<(), Error> 
 }
 
 /// The JSON text of the request of the entry `entry` with `args`: `{"entry":
-/// NAME, "args": [ … ]}`, each argument a JSON value (a name as a string). The
-/// entry's name comes first, so that a guest may read it at a fixed place.
-pub(crate) fn entry_request(entry: &str, args: &[EntryArg]) -> String {
-    let args: Vec<Value> = args
-        .iter()
-        .map(|arg| match arg {
-            EntryArg::Text(text) => Value::String(text.clone()),
-            EntryArg::Json(value) => value.clone(),
-        })
-        .collect();
-    format!("{{\"entry\":{},\"args\":{}}}", Value::String(entry.to_string()), Value::Array(args))
+/// NAME, "args": [ … ]}`, each argument the JSON value of
+/// [`EntryArg::to_value`] (a name as a string). The entry's name comes first,
+/// so that a guest may read it at a fixed place.
+///
+/// # Errors
+///
+/// [`EntryArg::to_value`]'s.
+pub(crate) fn entry_request(entry: &str, args: &[EntryArg<'_>]) -> Result<String, ExtError> {
+    let args = args.iter().map(EntryArg::to_value).collect::<Result<Vec<Value>, ExtError>>()?;
+    Ok(format!("{{\"entry\":{},\"args\":{}}}", Value::String(entry.to_string()), Value::Array(args)))
 }
 
 /// What the guest answered in the reply `reply` of the entry call `what`:
@@ -263,7 +262,7 @@ mod tests {
     #[test]
     fn an_entry_request_writes_the_name_first_and_the_arguments_as_values() {
         let args = [EntryArg::Text("_".to_string()), EntryArg::Json(json!({ "level": 2 }))];
-        assert_eq!(entry_request("register", &args), r#"{"entry":"register","args":["_",{"level":2}]}"#);
+        assert_eq!(entry_request("register", &args), Ok(r#"{"entry":"register","args":["_",{"level":2}]}"#.to_string()));
     }
 
     #[test]

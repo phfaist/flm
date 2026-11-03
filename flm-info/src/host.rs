@@ -20,7 +20,8 @@
 //! content is read or described here.
 
 // What flm info describes: the environment, which a document influences through its front
-// matter alone. See decision rationale at [§flm-dd-dr:info-scope].
+// matter alone. The environment is what a person or a tool asks about before writing; a
+// document's content is what `flm dump` and the diagnostics show.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

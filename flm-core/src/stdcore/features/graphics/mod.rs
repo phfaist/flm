@@ -612,7 +612,6 @@ impl FlmFeature for Graphics {
         if self.config.global {
             // The same element, as an ordinary command: which declaration
             // answers inside a body naming the package is immaterial.
-            // See decision rationale at [§flm-dd-dr:std-graphics-global].
             b.element(command_def(&owner, &spec))?;
         }
         // Where the floats feature is absent, nobody declares the slot and

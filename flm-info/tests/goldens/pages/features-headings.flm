@@ -28,16 +28,6 @@ Each node of a document's tree carries an element, which says what the node mean
 \item `subparagraph`: A heading of level 5. Written as \docref{features/headings/macros/subparagraph}{\verbcode{\subparagraph}}.
 \end{itemize}
 
-\docfield{Element type}{\docref{namespaces/element/flm.field}{\verbcode{flm.field}}}
-
-\begin{itemize}
-\item The field `\label`, which the construct it is written after reads as data. Written as the field \verbcode{\label} after \docref{features/headings/macros/section}{\verbcode{\section}}.
-\item The field `\label`, which the construct it is written after reads as data. Written as the field \verbcode{\label} after \docref{features/headings/macros/subsection}{\verbcode{\subsection}}.
-\item The field `\label`, which the construct it is written after reads as data. Written as the field \verbcode{\label} after \docref{features/headings/macros/subsubsection}{\verbcode{\subsubsection}}.
-\item The field `\label`, which the construct it is written after reads as data. Written as the field \verbcode{\label} after \docref{features/headings/macros/paragraph}{\verbcode{\paragraph}}.
-\item The field `\label`, which the construct it is written after reads as data. Written as the field \verbcode{\label} after \docref{features/headings/macros/subparagraph}{\verbcode{\subparagraph}}.
-\end{itemize}
-
 \docfield{Element type}{\docref{namespaces/element/flm.heading.number}{\verbcode{flm.heading.number}}}
 
 \begin{itemize}

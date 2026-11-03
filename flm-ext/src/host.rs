@@ -157,7 +157,7 @@ pub enum ConsoleLevel {
 impl ConsoleLevel {
     /// The level named by the `console` method `name`; an unknown name is
     /// [`ConsoleLevel::Log`].
-    #[cfg(any(feature = "quickjs", feature = "wasm", feature = "native"))]
+    #[cfg(any(feature = "quickjs", feature = "wasm"))]
     pub(crate) fn from_name(name: &str) -> ConsoleLevel {
         match name {
             "info" => ConsoleLevel::Info,

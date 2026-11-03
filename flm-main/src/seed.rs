@@ -289,7 +289,9 @@ impl Node {
 /// (`!name`) is ignored: the value is read as if it had none. Only the first YAML document
 /// of the text is read.
 pub fn read_front_matter(text: &str, first_line: u32) -> Result<Node, SeedError> {
-    // See decision rationale at [§flm-dd-dr:host-yaml-reader].
+    // The reader is `saphyr`, which gives every value the place it is written at, so that a
+    // problem with any value is reported there: `serde_yaml_ng` places only its own errors,
+    // and `serde-saphyr` needs a newer Rust than this workspace's minimum.
     let read = ReadText::new(text);
     let documents = MarkedYaml::load_from_str(text).map_err(|error| SeedError {
         place: Some(read.place(error.marker(), first_line - 1)),

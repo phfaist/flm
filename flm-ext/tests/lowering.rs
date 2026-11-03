@@ -287,8 +287,6 @@ fn every_method_of_the_lowerer_answers() {
         let g = lw.text(cx, "|")?;
         lw.require("lw.style-def");
         lw.diagnose(Diagnostic::new(Severity::Note, "lw.seen", "the probe ran"))?;
-        let outside = lw.diagnose(Diagnostic::new(Severity::Note, "other.seen", "")).map_err(|error| error.to_string());
-        note(log, format!("diagnose outside {outside:?}"));
         Ok(Lowering::Emit(vec![a, b, c, d, e, f, g]))
     });
     let collect = stage(
@@ -332,7 +330,6 @@ fn every_method_of_the_lowerer_answers() {
             "option {}",
             "option undeclared Err(\"option\")",
             "lowered 2 2 2 2 1 1",
-            "diagnose outside Err(\"the diagnostic `other.seen` declared by the package `_` of the extension `lw` must begin with `lw.`\")",
         ]
     );
 }
@@ -359,29 +356,6 @@ fn a_body_lowers_an_environment_s_body() {
     let (text, diagnostics) = text_of(&registry, "\\begin{lwenv}inside\\end{lwenv}");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(text.trim(), "inside");
-}
-
-#[test]
-fn a_body_splices_a_copy_of_a_tree() {
-    // In the document's tree, the body splices a copy of that tree; inside
-    // the copy (a synthesized value) it writes text.
-    let splicing = body(|node, cx, lw| {
-        if lw.tree_id().starts_with("value#") {
-            return Ok(Lowering::Emit(vec![lw.text(cx, "[copy]")?]));
-        }
-        let mut root = node.parent().expect("the node has a parent");
-        while let Some(parent) = root.parent() {
-            root = parent;
-        }
-        let refused = lw.splice(cx, node).map_err(|error| error.to_string());
-        assert_eq!(refused, Err("`splice`: `value` must be the root node of its tree".to_string()));
-        let copy = lw.splice(cx, &*root)?;
-        Ok(Lowering::Emit(copy))
-    });
-    let registry = registry_with([boxes(produces_spans(), DefaultMark::Everywhere, splicing)]);
-    let (text, diagnostics) = text_of(&registry, "A \\lwbox{x}.");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    assert_eq!(text, "A A [copy]..\n");
 }
 
 // --- payloads from data ----------------------------------------------------------------------------
@@ -551,7 +525,7 @@ fn the_dispatcher_offers_the_lowerer_s_methods() {
         js.call(b, "stage", json!([stage]))?;
         let seen = Arc::clone(&seen);
         let lower = js.lend_lower(move |js, node, cx, lw| {
-            // In the spliced copy (a synthesized value), the body writes text.
+            // In the spliced tree (a synthesized value), the body writes text.
             let tree = js.call(lw, "tree_id", json!([]))?;
             if tree.as_str().is_some_and(|id| id.starts_with("value#")) {
                 return Ok(json!({ "emit": [js.call(lw, "text", json!([cx, "[copy]"]))?] }));
@@ -575,8 +549,8 @@ fn the_dispatcher_offers_the_lowerer_s_methods() {
             }
             let bar = js.call(lw, "text", json!([cx, "|"]))?;
             spans.push(js.call(lw, "pres_slots", json!([cx, "flm.pres.span", {}, [["body", [bar]]]]))?);
-            // S29 and S28: the reads, the option, `default`, `lower_body`,
-            // `splice` through the dispatcher.
+            // The reads, the option, `default`, `lower_body`, `splice`
+            // through the dispatcher.
             let rows = js.call(lw, "get", json!(["lw.rows"]))?;
             answers.push(js.call(&rows["ext"], "items", json!([]))?);
             answers.push(js.call(lw, "get_at", json!(["lw.rows", node]))?);
@@ -586,11 +560,9 @@ fn the_dispatcher_offers_the_lowerer_s_methods() {
             spans.push(js.call(lw, "pres", json!([cx, "flm.pres.span", {}, defaulted]))?);
             let body = js.call(lw, "lower_body", json!([cx, node]))?;
             spans.push(js.call(lw, "pres", json!([cx, "flm.pres.span", {}, body]))?);
-            let mut root = node.clone();
-            while let Value::Object(_) = js.call(&root, "parent", json!([]))? {
-                root = js.call(&root, "parent", json!([]))?;
-            }
-            let copy = js.call(lw, "splice", json!([cx, root]))?;
+            let expanded = js.call(lw, "get", json!(["flm.userdefs.always-expanded"]))?;
+            let expanded = js.call(&expanded["trees"], "tree", json!([tree]))?;
+            let copy = js.call(lw, "splice", json!([cx, expanded]))?;
             spans.push(js.call(lw, "pres", json!([cx, "flm.pres.span", {}, copy]))?);
             js.call(lw, "require", json!(["lw.style-def"]))?;
             js.call(lw, "diagnose", json!([{ "id": "lw.seen", "severity": "note", "message": "seen" }]))?;
@@ -605,7 +577,7 @@ fn the_dispatcher_offers_the_lowerer_s_methods() {
             json!([
                 "lw.box.lower.default",
                 "lw.box",
-                { "produces": ["flm.pres.span"], "reads": ["lw.rows"], "options": ["lw.style"] },
+                { "produces": ["flm.pres.span"], "reads": ["lw.rows", "flm.userdefs.always-expanded"], "options": ["lw.style"] },
                 lower,
                 { "on_backends": ["text"] }
             ]),
@@ -644,7 +616,7 @@ fn the_dispatcher_offers_the_lowerer_s_methods() {
         .unwrap_or_default();
     // `lower_arg`, `lower_arg_named`, `lower_nodes`: `a`; `lower_children`:
     // `ab`; the text `|`; `default` of the argument's characters: `a`;
-    // `lower_body`: `b`; `splice` of the document's copy: `[copy]`.
+    // `lower_body`: `b`; `splice` of the document's expanded tree: `[copy]`.
     assert_eq!(text, "aaaab|ab[copy]\n");
 }
 
@@ -705,7 +677,8 @@ fn noting(log: &Log) -> PackageEntry {
                     note(&seeing, "not the lowered trees".to_string());
                     return Ok(());
                 };
-                for (id, root) in lowered.trees() {
+                for (id, tree) in lowered.trees() {
+                    let root = tree.root();
                     let spans: Vec<Value> = root
                         .descendants()
                         .iter()
@@ -719,7 +692,7 @@ fn noting(log: &Log) -> PackageEntry {
                             root.element_name(),
                             lowered.rounds(&id),
                             lowered.requires(&id),
-                            lowered.tree(&id).map(|tree| tree.span()) == Some(root.span()),
+                            lowered.tree(&id).map(|tree| tree.root().span()) == Some(root.span()),
                             Value::Array(spans),
                         ),
                     );

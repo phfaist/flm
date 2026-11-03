@@ -15,8 +15,9 @@
 //! QuickJS engine needs is kept by that engine itself, not by a frame.) The
 //! engines `wasm` and `native` use the same frames: a guest's request reaches
 //! the table of the call it was sent from through them, while the guest is
-//! suspended in its request (in the import `flm.call`, or, compiled into the
-//! program, in the guest client's `abi::native`).
+//! suspended in its request (in the import `flm.call`; compiled into the
+//! program, in the guest client's `abi::in_frame`, the typed route of a
+//! request and of a lending).
 //!
 //! # The invariants that make the `unsafe` blocks sound
 //!
@@ -37,7 +38,19 @@
 //!    of the extension (JavaScript, a guest's WebAssembly, or a native
 //!    extension's Rust) of the frame it reads: an extension's code runs again
 //!    only in a nested handler call, which pushes a frame of its own (with
-//!    its own table). Two cases run extension code inside the closure before
+//!    its own table). A request of the guest client's typed route runs
+//!    inside the closure where the dispatcher's `call` runs for one sent as
+//!    JSON: its conversions of the guest's values and the API's call, which
+//!    may start a nested handler call (with its own frame). A lending of the
+//!    typed route runs there too, where a lending native runs for one sent
+//!    as JSON: the native's body builds the host's handler object over the
+//!    frame's registration, and the API method that takes it is called in
+//!    the same closure. Either body takes the guest's values prepared before
+//!    the closure (an `impl Into` value converted, an `impl IntoIterator`
+//!    collected, a recorded object's declaration, policy or name read, each
+//!    of which may run the extension's code), and borrows a value that may
+//!    hold the extension's handler objects, which is dropped after the
+//!    closure ends. Two cases run extension code inside the closure before
 //!    any new frame exists, and in both a native that code sends comes from a
 //!    loaded extension with no handler call running on this thread, so it
 //!    finds a frame of a different loaded extension innermost (or no frame),
@@ -60,10 +73,10 @@
 //!      instance").
 //!
 //!    So no two `&mut` to one table are ever live.
-//! 3. An entry of a table borrows only what lives for the whole call (plan A,
-//!    A15). [`with_current`]'s closure is generic over the table's lifetime as
-//!    well as the view's, so it can lend into the table only owned data or what
-//!    it takes from the table's own entries: never a borrow of the view (its
+//! 3. An entry of a table borrows only what lives for the whole call.
+//!    [`with_current`]'s closure is generic over the table's lifetime as well
+//!    as the view's, so it can lend into the table only owned data or what it
+//!    takes from the table's own entries: never a borrow of the view (its
 //!    `registration`), which ends with the closure.
 //! 4. Nothing is `Send`: the frame stack is thread-local; a frame never leaves
 //!    its thread; the raw pointer keeps the erased frame out of `Send` by
@@ -182,7 +195,7 @@ pub(crate) fn with_current<R>(load: u64, f: impl for<'v, 'c> FnOnce(&mut FrameVi
     // lifetime parameter is one `f` cannot name: `f` is generic over both
     // (invariant 3), so it can neither keep the reference beyond its own run
     // nor lend into the table anything that does not live as long as the
-    // table's own entries (A15).
+    // table's own entries.
     let table: &mut CallTable<'_> = unsafe { &mut *table.cast::<CallTable<'_>>() };
     let mut view = FrameView { call, registration: &registration, table };
     Some(f(&mut view))

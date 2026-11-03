@@ -50,7 +50,6 @@ static SET: OnceLock<Result<(), String>> = OnceLock::new();
 /// # Errors
 ///
 /// The system's reason, as text, when the handling cannot be set.
-// See decision rationale at [§flm-dd-dr:pipe-tool-stop]
 #[cfg(unix)]
 pub(crate) fn stop_programs_on_signals(on_interrupt: OnInterrupt) -> Result<(), String> {
     INTERRUPT_EXITS_DONE.store(on_interrupt == OnInterrupt::ExitDone, Ordering::Relaxed);

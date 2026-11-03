@@ -159,9 +159,10 @@ pub trait FlmArgumentParser: ArgumentParser<Flm> + Send + Sync {
     fn identity(&self) -> Vec<u8>;
 
     /// Returns the [tack-on fields](TackOnField) the argument declares, when
-    /// it is a **tack-on argument**: the trailing argument that absorbs the
-    /// field macros written after a command, such as the `\label{…}` after a
-    /// heading. The default returns `None`, for every other argument.
+    /// it is a **tack-on argument**: the argument that absorbs the field macros
+    /// written at its position in a call, after the arguments declared before
+    /// it, such as the `\label{…}` after a heading. The default returns `None`,
+    /// for every other argument.
     ///
     /// A parser of a feature's own keeps the default; declare a tack-on
     /// argument with [`ArgStdKind::TackOn`]. For any argument whose parser
@@ -170,7 +171,7 @@ pub trait FlmArgumentParser: ArgumentParser<Flm> + Send + Sync {
     /// [`parse_argument`](ArgumentParser::parse_argument).
     ///
     /// The reason is that each tack-on field is a declaration of its own, with
-    /// its own element and arguments. Minting builds the field's specification
+    /// its own arguments. Minting builds the field's specification
     /// into the techy package of fields
     /// ([`FIELDS_PACKAGE_NAME`](super::FIELDS_PACKAGE_NAME)), which records
     /// where the specification is held so that a serialized tree can find it
@@ -293,7 +294,7 @@ impl IntoFlmArgumentParser for Arc<dyn FlmArgumentParser> {
 /// | [`Mandatory`](ArgStdKind::Mandatory) | `mandatory` | none |
 /// | [`Optional`](ArgStdKind::Optional) | `optional` | none |
 /// | [`Star`](ArgStdKind::Star) | `star` | none |
-/// | [`Marker`](ArgStdKind::Marker) | `marker` | `marker`: the marker's character (`*` reads as `star`) |
+/// | [`Marker`](ArgStdKind::Marker) | `marker` | `marker`: the marker's characters, one or more (`*` reads as `star`) |
 /// | [`DelimitedGroup`](ArgStdKind::DelimitedGroup) | `delimited-group` | `delimiters`: the opening and the closing character, as a list of two (`["(", ")"]`) |
 /// | [`OptionalDelimitedGroup`](ArgStdKind::OptionalDelimitedGroup) | `optional-delimited-group` | `delimiters`, as for `delimited-group` |
 /// | [`AnyDelimitedGroup`](ArgStdKind::AnyDelimitedGroup) | `any-delimited-group` | none |
@@ -303,34 +304,35 @@ impl IntoFlmArgumentParser for Arc<dyn FlmArgumentParser> {
 /// | [`KeyVals`](ArgStdKind::KeyVals) | `key-vals` | none |
 /// | [`CharsGroup`](ArgStdKind::CharsGroup) | `chars-group` | none |
 /// | [`Verbatim`](ArgStdKind::Verbatim) | `verbatim` | `delimiters`: the prescribed pair, as for `delimited-group`; absent for a closing delimiter matched to whichever opening one is found |
-/// | [`TackOn`](ArgStdKind::TackOn) | `tack-on` | `fields`: a list of maps `{"name", "args", "repeatable", "docs"}`, one per field, each field's `args` a list of maps of its arguments ([`ArgDataFields`](crate::lang::mint::ArgDataFields)) |
+/// | [`TackOn`](ArgStdKind::TackOn) | `tack-on` | `fields`: a list of maps `{"name", "args", "repeatable", "docs"}`, one per field: `name`, the field's name without the backslash; `args`, the field's arguments as an argument list ([`ArgListData`](crate::lang::mint::ArgListData)), none by default; `repeatable`, `false` by default; `docs`, empty by default |
 /// | [`Terminated`](ArgStdKind::Terminated) | `terminated` | `terminator`: text; `repeat_char`: one character, absent for none; `opener`: text, empty by default; `head`: text, empty by default; `raw`: `true` or `false`, `false` by default |
 ///
-/// Each character is written as a text of one character, which must not be
-/// whitespace, as in the argument codes. A parameter that has no default must
-/// be written. Reading a kind refuses, with a message that states the
-/// condition broken:
+/// Each character is written as a text of one character, and a marker as a
+/// text of one or more characters; none of them may be whitespace, as in the
+/// argument codes. A parameter that has no default must be written. Reading a
+/// kind refuses, with a message that states the condition broken:
 ///
 /// - a key that is not one of the kind's parameters, and a name that is no
 ///   kind's;
-/// - a character written as a text of another length, or as whitespace;
+/// - a character written as a text of another length, or as whitespace, and
+///   a marker written as an empty text or with whitespace;
 /// - `delimiters` that are not two, and an empty list of `markers`;
 /// - the two configurations of `terminated` that can never work (see
 ///   [`Terminated`](ArgStdKind::Terminated)): a terminator that is always
 ///   empty, and an `opener` that begins with `repeat_char`;
-/// - every `tack-on` kind: its fields are declarations a feature makes in
-///   Rust, each with an element of its own ([`TackOnField`]), so a tack-on
-///   argument is declared by a feature, never in settings.
+/// - a `tack-on` field's argument that cannot be read (its position and the
+///   field's name are given); that the fields' names are distinct is checked
+///   by the minting (see [`TackOn`](ArgStdKind::TackOn)).
 ///
 /// Three kinds have no argument code ([`KeyVals`](ArgStdKind::KeyVals),
 /// [`CharsGroup`](ArgStdKind::CharsGroup), [`TackOn`](ArgStdKind::TackOn)),
 /// and the codes of [`Terminated`](ArgStdKind::Terminated) set neither its
 /// opener nor its terminator head: settings write those with the structured
-/// syntax, a tack-on argument excepted.
+/// syntax.
 ///
 /// Two kinds are equal (`PartialEq`) when they are the same kind with equal
-/// parameters; the fields of two tack-on kinds are compared as
-/// [`TackOnField`]'s `PartialEq` states.
+/// parameters; two tack-on fields are equal when their names, arguments,
+/// repetition and documentation are.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[derive(schemars::JsonSchema)]
 #[serde(
@@ -348,12 +350,18 @@ pub enum ArgStdKind {
     /// An optional `*` marker: whether the command was written in its starred
     /// form.
     Star,
-    /// An optional marker made of one character other than `*`, as the `!` of
-    /// `\name!`: whether the command was written with it. The `*` marker is
+    /// An optional marker made of one or more characters, as the `!` of
+    /// `\name!`: whether the command was written with it. The marker's
+    /// characters are matched as they are written in the source, even a
+    /// character that elsewhere begins a command, a group or a special
+    /// character sequence: a marker `\big` matches the four characters `\big`
+    /// in `\name\big`, which are then not read as the command `\big`. The
+    /// characters after the marker are not checked, so the marker `\big` also
+    /// matches the beginning of `\name\bigg`. The `*` marker is
     /// [`ArgStdKind::Star`].
     Marker {
-        /// The marker's character.
-        marker: char,
+        /// The marker's characters, one or more.
+        marker: String,
     },
     /// A mandatory group between a prescribed pair of characters, as the
     /// `(…)` of `\name(arg)`. Nothing else is accepted: no `{…}` group and no
@@ -389,8 +397,9 @@ pub enum ArgStdKind {
     /// **Embellishments**: a run of pairs, each a marker character followed by
     /// one expression (a group, a command with its arguments, or one
     /// character), in any order, each marker at most once, as the subscript
-    /// and the superscript of `\name_{a}^{b}` or `\name^{b}_{a}`. The argument
-    /// is absent when no marker follows the command. techy's
+    /// and the superscript of `\name_{a}^{b}` or `\name^{b}_{a}`. A marker is
+    /// matched as written, as the marker of [`ArgStdKind::Marker`] is. The
+    /// argument is absent when no marker follows the command. techy's
     /// [`split_embellishments`](techy::extract::split_embellishments) reads
     /// the pairs back by marker.
     Embellishments {
@@ -430,15 +439,26 @@ pub enum ArgStdKind {
         /// again); `Some((open, close))` prescribes the pair.
         delimiters: Option<(char, char)>,
     },
-    /// The [tack-on fields](TackOnField) a command accepts after its other
-    /// arguments, absorbed as its last argument. Each field written there
-    /// becomes a node carrying the field's element.
+    /// The [tack-on fields](TackOnField) a command accepts: the argument
+    /// absorbs the run of field macros written where it stands, and anything
+    /// else ends the run, after which the next declared argument is read.
+    /// Declared last, as a heading declares it, it absorbs the fields written
+    /// after the command's other arguments (`\section{…}\label{…}`). Each
+    /// field written there becomes a macro node named as the field is
+    /// written, carrying the language's field element
+    /// ([`FIELD`](crate::lang::structural::FIELD)).
+    ///
+    /// Its fields must have distinct names. Minting reports a declaration that
+    /// breaks this rule
+    /// ([`MintError::FieldDeclaredTwice`](crate::lang::mint::MintError::FieldDeclaredTwice)).
     TackOn {
         /// The fields this command accepts, in no particular order: they may be
         /// written in any order after the command.
         fields: Vec<TackOnField>,
     },
-    // See decision rationale at [§flm-dd-dr:terminated-argument].
+    // One general kind over the toolkit's parser serves every construct that runs up to
+    // a terminator: the parsing state decides how the content is read, and a longer run
+    // of the repeat character lets any content hold the terminator.
     /// A mandatory argument that runs up to a fixed character sequence, its
     /// **terminator**, as in `\phf … \endphf` or a code span `` `…` ``.
     ///
@@ -540,7 +560,7 @@ impl ArgStdKind {
             ArgStdKind::Mandatory => preset("m"),
             ArgStdKind::Optional | ArgStdKind::KeyVals => preset("o"),
             ArgStdKind::Star => preset("s"),
-            ArgStdKind::Marker { marker } => Arc::new(MarkerArgumentParser::new(String::from(*marker))),
+            ArgStdKind::Marker { marker } => Arc::new(MarkerArgumentParser::new(marker.clone())),
             ArgStdKind::DelimitedGroup { open, close } => {
                 Arc::new(GroupArgumentParser::with_rule(group_rule(*open, *close)))
             }
@@ -601,7 +621,7 @@ impl ArgStdKind {
             ArgStdKind::Star => put(&mut out, "star"),
             ArgStdKind::Marker { marker } => {
                 put(&mut out, "marker");
-                put(&mut out, &String::from(*marker));
+                put(&mut out, marker);
             }
             ArgStdKind::DelimitedGroup { open, close } => {
                 put(&mut out, "delimited");
@@ -987,8 +1007,9 @@ mod tests {
             ArgStdKind::TackOn {
                 fields: vec![TackOnField::new("label", vec![ArgDef::new(ArgStdKind::CharsGroup)])],
             },
-            ArgStdKind::Marker { marker: '!' },
-            ArgStdKind::Marker { marker: '+' },
+            ArgStdKind::Marker { marker: String::from("!") },
+            ArgStdKind::Marker { marker: String::from("+") },
+            ArgStdKind::Marker { marker: String::from("!+") },
             ArgStdKind::DelimitedGroup { open: '(', close: ')' },
             ArgStdKind::DelimitedGroup { open: '<', close: '>' },
             ArgStdKind::OptionalDelimitedGroup { open: '(', close: ')' },
@@ -1036,7 +1057,7 @@ mod tests {
             ("m", ArgStdKind::Mandatory),
             ("o", ArgStdKind::Optional),
             ("s", ArgStdKind::Star),
-            ("t!", ArgStdKind::Marker { marker: '!' }),
+            ("t!", ArgStdKind::Marker { marker: String::from("!") }),
             ("r()", ArgStdKind::DelimitedGroup { open: '(', close: ')' }),
             ("d<>", ArgStdKind::OptionalDelimitedGroup { open: '<', close: '>' }),
             ("AnyDelimited", ArgStdKind::AnyDelimitedGroup),
@@ -1058,7 +1079,7 @@ mod tests {
         assert!(!object(ArgStdKind::Mandatory).can_match_empty());
         assert!(!object(ArgStdKind::CharsGroup).can_match_empty());
         assert!(!object(ArgStdKind::Verbatim { delimiters: None }).can_match_empty());
-        assert!(object(ArgStdKind::Marker { marker: '!' }).can_match_empty());
+        assert!(object(ArgStdKind::Marker { marker: String::from("!") }).can_match_empty());
         assert!(object(ArgStdKind::OptionalDelimitedGroup { open: '<', close: '>' }).can_match_empty());
         assert!(object(ArgStdKind::OptionalAnyDelimitedGroup).can_match_empty());
         assert!(object(ArgStdKind::Embellishments { markers: vec!['^'] }).can_match_empty());
@@ -1120,8 +1141,8 @@ mod tests {
 
     #[test]
     fn only_a_standard_parser_tells_its_kind() {
-        let kind = object(ArgStdKind::Marker { marker: '!' });
-        assert!(matches!(kind.std_kind(), Some(ArgStdKind::Marker { marker: '!' })));
+        let kind = object(ArgStdKind::Marker { marker: String::from("!") });
+        assert!(matches!(kind.std_kind(), Some(ArgStdKind::Marker { marker }) if marker == "!"));
         let own: Arc<dyn FlmArgumentParser> =
             Arc::new(Bang(MarkerArgumentParser::new(String::from("!"))));
         assert!(own.std_kind().is_none());

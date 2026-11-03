@@ -54,7 +54,6 @@
 //! modifier letters are left out too, because they are raised forms of Greek
 //! characters, not of the Latin ones a number format writes.
 
-// See decision rationale at [§flm-dd-dr:rend-text-superscript].
 const SUPERSCRIPTS: [(char, char); 59] = [
     ('0', '\u{2070}'), ('1', '\u{00b9}'), ('2', '\u{00b2}'), ('3', '\u{00b3}'), ('4', '\u{2074}'),
     ('5', '\u{2075}'), ('6', '\u{2076}'), ('7', '\u{2077}'), ('8', '\u{2078}'), ('9', '\u{2079}'),
@@ -70,7 +69,6 @@ const SUPERSCRIPTS: [(char, char); 59] = [
     ('T', '\u{1d40}'), ('U', '\u{1d41}'), ('V', '\u{2c7d}'), ('W', '\u{1d42}'),
 ];
 
-// See decision rationale at [§flm-dd-dr:rend-text-superscript].
 const SUBSCRIPTS: [(char, char); 32] = [
     ('0', '\u{2080}'), ('1', '\u{2081}'), ('2', '\u{2082}'), ('3', '\u{2083}'), ('4', '\u{2084}'),
     ('5', '\u{2085}'), ('6', '\u{2086}'), ('7', '\u{2087}'), ('8', '\u{2088}'), ('9', '\u{2089}'),

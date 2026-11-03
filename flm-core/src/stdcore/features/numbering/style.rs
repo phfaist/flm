@@ -1171,8 +1171,8 @@ pub fn format(
     // Building the pieces walks the chain of ancestors and assembling a
     // segment copies content: both descend recursively, so the whole call runs
     // under the fixed stack budget, on the worker thread the recursion guard's
-    // contract asks for. See decision rationale at
-    // [§flm-dd-dr:lang-stack-budget].
+    // contract asks for, and input nested too deeply is refused rather than
+    // overflowing the stack.
     on_worker(|| {
         let mut numbered = NumberedValue::new(value);
         if let Some(parent) = parent {

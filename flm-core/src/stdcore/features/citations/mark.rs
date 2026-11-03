@@ -412,8 +412,8 @@ pub fn stage_mark(
     let delimited = form == MarkForm::Bracketed;
     let mut children = Vec::new();
     for (index, group) in groups.iter().enumerate() {
-        // The join between two groups under the superscript form: see decision
-        // rationale at [§flm-dd-dr:std-citations-grammar].
+        // The superscript form writes no delimiters, so two groups are separated
+        // by the style's join text between two items of a list.
         if index > 0 && !delimited {
             children.extend(lw.splice(cx, style.join().text(JoinText::ListMid))?);
         }

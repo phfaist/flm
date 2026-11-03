@@ -4,7 +4,15 @@
 use serde_json::{json, Value};
 
 use super::{not_shape, single};
+#[cfg(feature = "native")]
+use crate::adapter::dispatch::extra::LowererTable;
+#[cfg(feature = "native")]
+use crate::adapter::handles::{CallTable, Entry, TableEntry};
+#[cfg(feature = "native")]
+use crate::adapter::typed::FromApi;
 use crate::adapter::values::JsonForm;
+#[cfg(feature = "native")]
+use crate::api;
 use crate::guest::core::data::table::ExtTableRead;
 use crate::guest::core::stage::TreesTable;
 use crate::guest::stdcore::backends::lowering::LoweredTrees;
@@ -58,6 +66,38 @@ impl JsonForm for TableValue {
             "projection" => TableValue::Projection(inner.clone()),
             "counters" => TableValue::Counters(JsonForm::from_value(inner)?),
             _ => TableValue::Anchors(JsonForm::from_value(inner)?),
+        })
+    }
+}
+
+/// The api's `TableValue`, its table lent (the counters and the anchors as
+/// lent façades); the host's `table_value_to_value`.
+#[cfg(feature = "native")]
+impl<'c> FromApi<'c, api::core::data::table::TableValue<'c>> for TableValue {
+    fn from_api(api: api::core::data::table::TableValue<'c>, table: &mut CallTable<'c>) -> Result<Self, ExtError> {
+        use api::core::data::table::TableValue as Api;
+        Ok(match api {
+            Api::Ext(read) => TableValue::Ext(FromApi::from_api(read, table)?),
+            Api::Trees(trees) => TableValue::Trees(FromApi::from_api(trees, table)?),
+            Api::Lowered(lowered) => TableValue::Lowered(FromApi::from_api(lowered, table)?),
+            Api::Projection(projection) => TableValue::Projection(projection),
+            Api::Counters(counters) => TableValue::Counters(Counters { handle: table.lend(Entry::Counters(TableEntry::Lent(counters))) }),
+            Api::Anchors(anchors) => TableValue::Anchors(Anchors { handle: table.lend(Entry::Anchors(TableEntry::Lent(anchors))) }),
+        })
+    }
+}
+
+/// A table as a rule's lowerer answers it, the counters and the anchors
+/// recorded under their handles, any other table lent as `TableValue`'s
+/// conversion lends it; the host's reply of `Lowerer.get`.
+#[cfg(feature = "native")]
+impl<'c> FromApi<'c, LowererTable<'c>> for TableValue {
+    fn from_api(api: LowererTable<'c>, table: &mut CallTable<'c>) -> Result<Self, ExtError> {
+        Ok(match api {
+            LowererTable::Projection(projection) => TableValue::Projection(projection),
+            LowererTable::Counters(handle) => TableValue::Counters(Counters { handle }),
+            LowererTable::Anchors(handle) => TableValue::Anchors(Anchors { handle }),
+            LowererTable::Owned(owned) => FromApi::from_api(owned, table)?,
         })
     }
 }

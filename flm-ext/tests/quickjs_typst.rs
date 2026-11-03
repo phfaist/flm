@@ -37,7 +37,7 @@ const TYPST_EMIT: &str = include_str!("js/typst/emit.js");
 /// The table of the output's artifact set.
 const DOCUMENT_TABLE: &str = "typst.document";
 
-/// The document of the goldens (plan section 10.1), without its front
+/// The document of the goldens, without its front
 /// matter, which the program reads (`flm-cli/tests/documents/extensions/typst.flm`),
 /// and with a definition of the term `defined`, which the last paragraph
 /// refers to (without it the reference is unresolved, an error).

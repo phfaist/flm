@@ -2,8 +2,9 @@
 //!
 //! The structural elements are the elements of the node shapes no feature
 //! declares: text, comments, containers, groups of each class, paragraphs,
-//! paragraph breaks, template placeholders, and the macros and environments a
-//! parse could not attribute to any feature (`flm.unknown.macro`,
+//! paragraph breaks, template placeholders, the fields a construct absorbs as
+//! data (`flm.field`), and the macros and environments a parse could not
+//! attribute to any feature (`flm.unknown.macro`,
 //! `flm.unknown.environment`); there is one element value per shape. See
 //! [structural elements](crate::guide::concepts_overview#structural-elements).
 //!
@@ -30,6 +31,10 @@
 
 use std::sync::Arc;
 
+use techy::core::node::NodeRef;
+use techy::latexlike::MathGroupForm;
+
+use crate::lang::Flm;
 use crate::model::aspects::{BlockRole, BlockRoleAspect, FixedBlockRole};
 use crate::model::element::ElementSpec;
 use crate::model::names::ElementName;
@@ -73,6 +78,27 @@ pub const PARBREAK: &str = "flm.parbreak";
 /// definition](crate::lang::rewrites::userdefs::Definition)'s template where the
 /// content of one of its arguments is inserted: `flm.placeholder`.
 pub const PLACEHOLDER: &str = "flm.placeholder";
+/// The name of the element of a field node: `flm.field`.
+///
+/// A [field](crate::guide::concepts_overview#fields-data-a-construct-reads)
+/// is a macro that a construct absorbs as data rather than as content, such
+/// as the `\label{sec:intro}` written after `\section{Introduction}`. A
+/// construct accepts its fields through its tack-on argument
+/// ([`ArgStdKind::TackOn`](crate::lang::mint::ArgStdKind::TackOn)), which
+/// lists them as [tack-on fields](crate::lang::mint::TackOnField): each field
+/// node it absorbs is a macro node, named as the field is written, that
+/// carries this element. A field may also be a macro of a [scoped
+/// package](crate::lang::mint::ScopedPackageDef), whose declaration gives it an
+/// element value of the same name
+/// ([`field_element`](crate::lang::mint::field_element)). The construct that
+/// declared a field reads its node by the name it is written with
+/// ([`field_name`](crate::lang::mint::field_name)); see the
+/// [`field`](crate::lang::mint::field) module.
+///
+/// A field node that reaches a backend's lowering is reported as an error
+/// ([`FieldRule`](crate::stdcore::backends::lowering::FieldRule)): the
+/// construct that absorbed it did not read its data.
+pub const FIELD: &str = "flm.field";
 /// The name of the element of a macro the parse could not attribute to any
 /// feature (`\foo` where nothing defines `foo`): `flm.unknown.macro`. Such a
 /// node always comes with an error diagnostic.
@@ -108,7 +134,7 @@ pub const UNKNOWN_ENVIRONMENT: &str = "flm.unknown.environment";
 
 /// Every structural element name, in the fixed order in which the set is
 /// listed. [`StructuralElements::all`] returns the elements in the same order.
-pub const NAMES: [&str; 12] = [
+pub const NAMES: [&str; 13] = [
     TEXT,
     COMMENT,
     CONTAINER,
@@ -119,6 +145,7 @@ pub const NAMES: [&str; 12] = [
     PARAGRAPH,
     PARBREAK,
     PLACEHOLDER,
+    FIELD,
     UNKNOWN_MACRO,
     UNKNOWN_ENVIRONMENT,
 ];
@@ -143,9 +170,10 @@ pub struct StructuralElementSpecs {
     /// The element of content groups, and of groups the library creates
     /// without a group class; inline content. See [`GROUP`].
     pub group: ElementSpec,
-    /// The element of mathematics groups; inline content, display mathematics
-    /// included, because a display equation is still part of a paragraph. See
-    /// [`MATH`].
+    /// The element of mathematics groups; a [displayed
+    /// item](BlockRole::Displayed) for display mathematics (`\[…\]`,
+    /// `$$…$$`) and inline content for inline mathematics (`\(…\)`, `$…$`),
+    /// as its block role aspect reads from the group's form. See [`MATH`].
     pub math: ElementSpec,
     /// The element of verbatim groups; inline content. See [`VERBATIM`].
     pub verbatim: ElementSpec,
@@ -159,6 +187,8 @@ pub struct StructuralElementSpecs {
     pub parbreak: ElementSpec,
     /// The element of placeholder nodes; no block role. See [`PLACEHOLDER`].
     pub placeholder: ElementSpec,
+    /// The element of field nodes; inline content. See [`FIELD`].
+    pub field: ElementSpec,
     /// The element of a macro no feature defines; inline content. See
     /// [`UNKNOWN_MACRO`].
     pub unknown_macro: ElementSpec,
@@ -183,6 +213,7 @@ impl StructuralElementSpecs {
             PARAGRAPH => &mut self.paragraph,
             PARBREAK => &mut self.parbreak,
             PLACEHOLDER => &mut self.placeholder,
+            FIELD => &mut self.field,
             UNKNOWN_MACRO => &mut self.unknown_macro,
             UNKNOWN_ENVIRONMENT => &mut self.unknown_environment,
             _ => return None,
@@ -194,13 +225,14 @@ impl Default for StructuralElementSpecs {
     /// Returns the set FLM starts from, with a block role
     /// ([`BlockRoleAspect`]) attached where the node shape has one.
     ///
-    /// Text, comments, groups, mathematics, verbatim groups, opaque wrappers
-    /// and a macro no feature defines are inline content. A paragraph and an
-    /// environment no feature defines are blocks. The paragraph-break node and
-    /// the placeholder have no block role, and neither does the container: the
-    /// library asks a
-    /// container's children for their roles, not the container, and an element
-    /// without the aspect counts as inline content
+    /// Text, comments, groups, verbatim groups, opaque wrappers, fields and a
+    /// macro no feature defines are inline content. A mathematics group is a
+    /// displayed item or inline content, according to its form
+    /// ([`math`](Self::math)). A paragraph and an environment no feature defines
+    /// are blocks. The paragraph-break node and the placeholder have no block
+    /// role, and neither does the container: the library asks a container's
+    /// children for their roles, not the container, and an element without the
+    /// aspect counts as inline content
     /// ([`block_role_of`](crate::model::aspects::block_role_of)).
     fn default() -> StructuralElementSpecs {
         // Aspects are keyed by their trait object type: every attachment names
@@ -216,7 +248,7 @@ impl Default for StructuralElementSpecs {
                 "a container that holds content without meaning anything itself",
             ),
             group: element(GROUP, "a `{…}` content group").with::<dyn BlockRoleAspect>(inline()),
-            math: element(MATH, "a mathematics group").with::<dyn BlockRoleAspect>(inline()),
+            math: element(MATH, "a mathematics group").with::<dyn BlockRoleAspect>(Arc::new(MathGroupRole)),
             verbatim: element(VERBATIM, "a verbatim group, the parent of a run of raw text")
                 .with::<dyn BlockRoleAspect>(inline()),
             opaque_wrapper: element(
@@ -231,6 +263,12 @@ impl Default for StructuralElementSpecs {
                 "a placeholder of a template (`#1`, `#{name}`), replaced by content when the \
                  template is expanded",
             ),
+            field: element(
+                FIELD,
+                "a field: a macro that a construct absorbs as data, such as the `\\label` written \
+                 after a heading; only the construct that declared the field reads it",
+            )
+            .with::<dyn BlockRoleAspect>(inline()),
             unknown_macro: element(
                 UNKNOWN_MACRO,
                 "a macro the parse could not attribute to any feature, reported as an error",
@@ -242,6 +280,27 @@ impl Default for StructuralElementSpecs {
                  error; its body is block content",
             )
             .with::<dyn BlockRoleAspect>(block()),
+        }
+    }
+}
+
+/// The [`BlockRoleAspect`] of the element of mathematics groups, [`MATH`]: a
+/// group of display mathematics, written `\[…\]` or `$$…$$`, is a
+/// [displayed item](BlockRole::Displayed), and a group of inline mathematics,
+/// written `\(…\)` or `$…$`, is ordinary inline content
+/// ([`BlockRole::DEFAULT`]).
+///
+/// The aspect reads the form of the group from the node's group class
+/// ([`FlmGroupType::Math`](crate::lang::FlmGroupType::Math)), where the parse
+/// records it; a node that is no mathematics group has the default role.
+#[derive(Debug)]
+struct MathGroupRole;
+
+impl BlockRoleAspect for MathGroupRole {
+    fn block_role(&self, node: &NodeRef<'_, Flm>) -> BlockRole {
+        match node.math_form() {
+            Some(MathGroupForm::Display) => BlockRole::Displayed,
+            Some(MathGroupForm::Inline) | None => BlockRole::DEFAULT,
         }
     }
 }
@@ -276,6 +335,8 @@ pub struct StructuralElements {
     pub parbreak: Arc<ElementSpec>,
     /// See [`StructuralElementSpecs::placeholder`].
     pub placeholder: Arc<ElementSpec>,
+    /// See [`StructuralElementSpecs::field`].
+    pub field: Arc<ElementSpec>,
     /// See [`StructuralElementSpecs::unknown_macro`].
     pub unknown_macro: Arc<ElementSpec>,
     /// See [`StructuralElementSpecs::unknown_environment`].
@@ -297,13 +358,14 @@ impl StructuralElements {
             paragraph: Arc::new(specs.paragraph),
             parbreak: Arc::new(specs.parbreak),
             placeholder: Arc::new(specs.placeholder),
+            field: Arc::new(specs.field),
             unknown_macro: Arc::new(specs.unknown_macro),
             unknown_environment: Arc::new(specs.unknown_environment),
         }
     }
 
     /// Returns every structural element, in the same fixed order as [`NAMES`].
-    pub fn all(&self) -> [&Arc<ElementSpec>; 12] {
+    pub fn all(&self) -> [&Arc<ElementSpec>; 13] {
         [
             &self.text,
             &self.comment,
@@ -315,6 +377,7 @@ impl StructuralElements {
             &self.paragraph,
             &self.parbreak,
             &self.placeholder,
+            &self.field,
             &self.unknown_macro,
             &self.unknown_environment,
         ]
@@ -353,5 +416,27 @@ mod tests {
         assert!(set.paragraph.has_aspect::<dyn BlockRoleAspect>());
         assert!(set.text.has_aspect::<dyn BlockRoleAspect>());
         assert!(!set.parbreak.has_aspect::<dyn BlockRoleAspect>());
+    }
+
+    #[test]
+    fn display_mathematics_is_a_displayed_item_and_inline_mathematics_inline_content() {
+        use crate::lang::{FlmSource, LangInputs, ParseOptions, build_language, parse_fragment};
+        use crate::model::aspects::block_role_of;
+        use crate::model::doc::FragmentLayout;
+
+        let mut inputs = LangInputs::new();
+        inputs.parsing.dollar_math = true;
+        let lang = build_language(inputs);
+        let source = Arc::new(FlmSource::new(r"\(a\) $b$ \[c\] $$d$$"));
+        let fragment = parse_fragment(&lang, source, FragmentLayout::Inline, &ParseOptions::default())
+            .expect("a parse");
+        let roles: Vec<BlockRole> = fragment
+            .tree()
+            .root()
+            .descendants()
+            .filter(|node| node.ext().element.name.as_str() == MATH)
+            .map(|node| block_role_of(&node))
+            .collect();
+        assert_eq!(roles, [BlockRole::DEFAULT, BlockRole::DEFAULT, BlockRole::Displayed, BlockRole::Displayed]);
     }
 }

@@ -242,13 +242,13 @@
 //!   [`DefinitionKind`], [`DefinitionModes`], [`ExpandPolicy`] and
 //!   [`NotRecomposable`].
 
-// Naming, the two-round build and the digest: see design rationale at
-// [§flm-dd-dr:name-userdef-element], [§flm-dd-dr:feat-late-init] and
-// [§flm-dd-dr:feat-digest]. The guard against two definitions of one name sits
-// where the names are minted, because the registry's own roster validation
-// permits two element values under one name and reports the ambiguity only
-// when the name is resolved: [§flm-dd-dr:feat-name-guard],
-// [§flm-dd-dr:std-userdefs-element].
+// Each definition is its own element, so that its block role, expansion policy,
+// documentation and rule selection are its own. Its name holds the feature's
+// segment, so that an author's name cannot become a standard element's. The
+// guard against two definitions of one name sits where the names are minted,
+// because the registry's own roster validation permits two element values under
+// one name and reports the ambiguity only when the name is resolved, far from
+// the definition at fault.
 
 mod config;
 pub mod kept;

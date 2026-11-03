@@ -20,10 +20,10 @@
 //! element of its own, or an element of its own whose content is opaque, is
 //! handled exactly like the elements of the vocabulary.
 
-// Why the driver reads aspects rather than element names, and why content
-// inside opaque content is an element of this vocabulary with an aspect of its
-// own: see decision rationale at [§flm-dd-dr:rend-pres-aspects] and
-// [§flm-dd-dr:rend-pres-math-text].
+// Content standing inside opaque content (the text of a formula) is an element
+// of the vocabulary every backend shares, since it is document content wherever
+// it stands, and the driver knows it by its aspect for the same reason as the
+// other two: no element name is privileged in the driver.
 
 /// The aspect that makes an element a decoration element.
 ///

@@ -85,7 +85,7 @@ function register(b, settings) {
     run(cx, out) {
       const min = cx.option("wordcount.counting").min_length ?? 1;
       let words = 0;
-      for (const node of cx.my_tree().descendants()) if (node.is_chars()) words += count_words(node.chars(), min);
+      for (const node of cx.my_tree().root().descendants()) if (node.is_chars()) words += count_words(node.chars(), min);
       out.table(WORDS).push({ tree: cx.tree_id(), words });
       if (cx.option("wordcount.reporting").report_counts === true)
         out.diags({ id: "wordcount.count", severity: "note",
@@ -100,8 +100,8 @@ function register(b, settings) {
     needs: () => new Needs().reads("flm.userdefs.always-expanded"),
     run(cx, out) {
       const trees = cx.get("flm.userdefs.always-expanded").trees;
-      for (const [tree, root] of trees.trees())
-        for (const node of root.descendants())
+      for (const [tree, rewritten] of trees.trees())
+        for (const node of rewritten.root().descendants())
           if (node.is_callable() && node.element_name() === TODO_ELEMENT)
             out.table(TODOS).push({ tree, text: chars_text(node.argument_content_nodes_named("text")) });
     },

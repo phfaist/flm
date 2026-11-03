@@ -20,7 +20,7 @@
 //!   answered as nodes of the same kind;
 //! - a line's frame ([`LineFrame`]) names its environment and its index, so
 //!   that the parts that take a frame read the line again from the tree; a
-//!   number's segments are the roots of their synthesized values;
+//!   number's segments are the trees of their synthesized values;
 //! - [`line_frames`] reads the two tables itself, through the stage's context
 //!   or the rule's lowerer it is given ([`FrameReader`]), since a script reads
 //!   another feature's table as its projection, which cannot be read back;
@@ -39,12 +39,12 @@ use flm_core::model::element::element_value;
 use flm_core::stdcore::features::math::{self as core_math, frame as core_frame, latex as core_latex, lines as core_lines};
 use flm_core::stdcore::features::numbering::{self, NumberSegment};
 use flm_core::stdcore::features::refs;
-use flm_core::techy::core::node::{NodeRef, NodeTree};
+use flm_core::techy::core::node::NodeRef;
 
-use crate::adapter::node::NodeFacade;
+use crate::adapter::node::TreeFacade;
 use crate::api::core::lowering::{LowerCx, Lowerer, Staged};
 use crate::api::core::run::StageCx;
-use crate::api::techy::node::{Node, Span};
+use crate::api::techy::node::{Node, Span, Tree};
 use crate::runtime::ExtError;
 use crate::sealed::Token;
 
@@ -248,16 +248,16 @@ pub struct LineFrame<'t> {
 /// Mirrors [`LineShows`](flm_core::stdcore::features::math::frame::LineShows):
 /// what an equation line shows at its tag's place. What differs: a number
 /// carries its plain text ([`number_text`]) beside its segments, and each
-/// segment is the root node of its synthesized value (the segment's link to a
+/// segment is the tree of its synthesized value (the segment's link to a
 /// reference point is left out; nothing of the mirror reads it).
 pub enum LineShows<'t> {
     /// Nothing.
     Nothing,
     /// The line's number.
     Number {
-        /// The segments, each the root of a synthesized value; empty where the
-        /// counter table was not read or is absent.
-        segments: Vec<Box<dyn Node<'t> + 't>>,
+        /// The segments, each the tree of a synthesized value; empty where
+        /// the counter table was not read or is absent.
+        segments: Vec<Box<dyn Tree>>,
         /// The segments' plain text joined, the counter style's delimiters
         /// included (`(3)`); empty for an empty number.
         text: String,
@@ -300,11 +300,7 @@ fn frames_of<'t>(site: &dyn Node<'t>, frames: &[core_frame::LineFrame<'_>]) -> V
                 core_frame::LineShows::Number(segments) => LineShows::Number {
                     segments: segments
                         .iter()
-                        .map(|segment| {
-                            let tree = Arc::clone(segment.content());
-                            let root = tree.root().id();
-                            Box::new(NodeFacade::shared(tree, root)) as Box<dyn Node<'t> + 't>
-                        })
+                        .map(|segment| Box::new(TreeFacade::new(Arc::clone(segment.content()))) as Box<dyn Tree>)
                         .collect(),
                     text: core_frame::number_text(frame).unwrap_or_default(),
                 },
@@ -384,30 +380,17 @@ pub fn number_text(frame: &LineFrame<'_>) -> Option<String> {
 
 /// `flm-core`'s frame of what `frame` shows, its line left empty: what
 /// [`stage_tag_content`] reads.
-fn core_shows<'a>(frame: &'a LineFrame<'_>) -> Result<core_frame::LineShows<'a>, ExtError> {
-    Ok(match &frame.shows {
+fn core_shows<'a>(frame: &'a LineFrame<'_>) -> core_frame::LineShows<'a> {
+    match &frame.shows {
         LineShows::Nothing => core_frame::LineShows::Nothing,
-        LineShows::Number { segments, .. } => {
-            let mut core = Vec::with_capacity(segments.len());
-            for segment in segments {
-                let root = segment.core_node_ref(Token::new());
-                if root.parent().is_some() {
-                    return Err(ExtError::Argument {
-                        method: "stage_tag_content".to_string(),
-                        detail: "each segment of a number must be the root node of its value".to_string(),
-                    });
-                }
-                let tree: Arc<NodeTree<Flm>> =
-                    segment.shared_tree(Token::new()).unwrap_or_else(|| Arc::new(root.tree().clone()));
-                core.push(NumberSegment::new(tree, None));
-            }
-            core_frame::LineShows::Number(core)
-        }
+        LineShows::Number { segments, .. } => core_frame::LineShows::Number(
+            segments.iter().map(|segment| NumberSegment::new(segment.shared(Token::new()), None)).collect(),
+        ),
         LineShows::Tag { starred, content } => core_frame::LineShows::Tag {
             starred: *starred,
             content: content.iter().map(|node| node.core_node_ref(Token::new())).collect(),
         },
-    })
+    }
 }
 
 /// Stages through `flm-core`'s part `f`, as the call of `lw`.
@@ -429,10 +412,10 @@ fn stage(
 ///
 /// # Errors
 ///
-/// A segment that is not the root of its value, `cx` not the call's context
-/// ([`ExtError::Argument`]), or `flm-core`'s refusal ([`ExtError::Core`]).
+/// `cx` not the call's context ([`ExtError::Argument`]), or `flm-core`'s
+/// refusal ([`ExtError::Core`]).
 pub fn stage_tag_content(cx: &mut dyn LowerCx, lw: &mut dyn Lowerer, frame: &LineFrame<'_>) -> Result<Vec<Staged>, ExtError> {
-    let core = core_frame::LineFrame { line: core_lines::EquationLine::default(), anchor: None, shows: core_shows(frame)? };
+    let core = core_frame::LineFrame { line: core_lines::EquationLine::default(), anchor: None, shows: core_shows(frame) };
     stage("stage_tag_content", cx, lw, |cx, lw| core_frame::stage_tag_content(cx, lw, &core))
 }
 

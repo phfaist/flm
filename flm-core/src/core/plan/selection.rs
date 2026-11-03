@@ -512,7 +512,6 @@ impl<'a> Solver<'a> {
         // A preference naming a stage the deduction ruled out is reported even
         // when no contest ever looked at that preference: the caller asked for
         // something that did not happen, and the reason is the same either way.
-        // See the design rationale at [§flm-dd-dr:pipe-selection].
         for stage in self.prefer.iter().copied() {
             if let Some(excluded) = self.excluded.get(&stage) {
                 if self.warned.insert(stage) {

@@ -57,7 +57,10 @@
 //!   copies every node of the template onto a new source created for this use
 //!   site. The function [`instantiate`](fn@instantiate) runs the two passes, and
 //!   a feature outside the library calls it to instantiate a template it
-//!   compiled, with the values it computed held by [`ValueBindings`].
+//!   compiled, with the values it computed held by [`ValueBindings`]. An
+//!   expansion hook holds the values it computed for the extra placeholders of a
+//!   definition's template in [`ExtraValues`], laid over the use site's
+//!   bindings.
 //! - [`pass`]: [`expand`], the pass over a whole tree, its options
 //!   ([`ExpandOptions`]) and its failure ([`ExpandFailure`]).
 //! - [`diagnostics`]: the conditions the pass and the compiler report.
@@ -182,7 +185,7 @@ pub use hook::{
     Expand, ExpandCx, ExpandError, ExpandPolicy, ExpandSet, Expander, Expansion,
     PlaceholderBindings, PlaceholderValue,
 };
-pub use instantiate::{instantiate, ValueBindings};
+pub use instantiate::{instantiate, ExtraValues, LayeredBindings, ValueBindings};
 pub use pass::{expand, ExpandFailure, ExpandOptions, DEFAULT_RECURSION_LIMIT};
 pub use template::{
     compile_in_modes, compile_template, compile_template_with, CompiledTemplate, PlaceholderRef,

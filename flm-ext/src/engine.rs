@@ -152,6 +152,15 @@ pub struct SettingsReport {
     /// The keys whose values are paths.
     #[serde(default)]
     pub path: Vec<String>,
+    /// `read`: whether the feature reads its configuration whenever a
+    /// document's settings are read and do not switch the feature off, with
+    /// its configuration reader (the entry `read_settings`,
+    /// [`ExtRuntime::read_settings`]):
+    /// the configuration is then declared with
+    /// [`SettingsDecl::config_data_read`](flm_core::core::settings::SettingsDecl::config_data_read),
+    /// and needs `config`.
+    #[serde(default)]
+    pub read: bool,
 }
 
 /// A feature's configuration declared as data.

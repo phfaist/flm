@@ -131,7 +131,6 @@ pub const LABEL_TYPES: [&str; 2] = ["term", "topic"];
 /// The type of the labels computed from a term's identity, `defterm`: kept
 /// apart from every type an author writes, so that a computed label can never
 /// equal a label an author writes.
-// See decision rationale at [§flm-dd-dr:std-defterm-internal-label].
 pub(crate) const COMPUTED_TYPE: &str = "defterm";
 
 /// The label computed from the identity `identity`, or `None` for the empty
@@ -224,7 +223,8 @@ fn defines(node: &NodeRef<'_, Flm>, target: &Label) -> bool {
 /// the term, and it is anchored on its first label: the label computed from
 /// the term, or, where the term is empty (and so computes no label), the
 /// first alias's label or the first written label.
-// See decision rationale at [§flm-dd-dr:std-defterm-internal-label].
+// One point, not one for the computed labels and one for the written ones: a
+// term definition carries one identifier in every output, so it has one anchor.
 impl Referenceable for DeftermElement {
     fn points(&self, node: &NodeRef<'_, Flm>) -> Vec<RefPoint> {
         let mut labels = computed_labels(node);

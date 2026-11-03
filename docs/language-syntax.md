@@ -172,6 +172,8 @@ whitespace, it removes them too. They are removed:
   [lines section](#quotations);
 - where nothing else stands between two blank lines or between two blocks: a
   `~` written alone there makes no paragraph;
+- on both sides of a [displayed item](#displayed-items), such as a displayed
+  formula: `word~\[x\]` reads the same as `word \[x\]` and `word\[x\]`;
 - before a command that removes the whitespace written before it, such as
   [`\cite`](#citations) and [`\footnote`](#xnotes): `word~\cite{a}` reads the
   same as `word \cite{a}` and `word\cite{a}`.
@@ -234,20 +236,22 @@ package use these kinds:
 | field macros written after the command | [tack-on argument](crate::lang::mint::ArgStdKind::TackOn) | `\section{Title}\label{sec:a}` |
 
 A feature, or a [user definition](#author-definitions), may also declare an
-argument of one of the other standard kinds: a marker made of one character
-other than `*` (`\m!`), a group between a given pair of characters, mandatory
-(`\m(arg)`) or optional (`\m<arg>`), a group between any of the pairs `{…}`,
-`[…]`, `(…)` and `<…>`, a braced group that a single token cannot replace, and
-*embellishments*, a run of markers each followed by one expression
-(`\m_{a}^{b}`). [`ArgStdKind`](crate::lang::mint::ArgStdKind) describes each.
+argument of one of the other standard kinds: a marker of one or more
+characters other than a lone `*`, matched as written (`\m!`, `\m\big`), a group
+between a given pair of characters, mandatory (`\m(arg)`) or optional
+(`\m<arg>`), a group between any of the pairs `{…}`, `[…]`, `(…)` and `<…>`, a
+braced group that a single token cannot replace, and *embellishments*, a run of
+markers each followed by one expression (`\m_{a}^{b}`).
+[`ArgStdKind`](crate::lang::mint::ArgStdKind) describes each.
 
 A mandatory argument takes a single token when no brace follows, so `\emph xy`
 is `\emph{x}` followed by `y`. Inside a character group, a backslash and a
 special character sequence are ordinary characters, so a label is read as the
 characters written; comments and nested braces are still recognized there
 ([`lang::chars_group`](crate::lang::chars_group)). A *tack-on argument* is the
-trailing argument through which a construct absorbs the *field* macros written
-after its other arguments, such as `\label` (see [fields: data a construct
+argument through which a construct absorbs the *field* macros, such as
+`\label`, written at its position in a call, after the arguments declared
+before it (see [fields: data a construct
 reads](crate::guide::concepts_overview#fields-data-a-construct-reads)). A field
 is not a command: `\label{…}` is read only after a construct that declares it,
 and in `\emph{x}\label{a:b}`, `\label` is an unknown macro.
@@ -275,8 +279,9 @@ elements](crate::guide::concepts_overview#block-transparent-elements)): the
 content of its arguments is laid out as if it were written in the text around
 the command. A blank line in such an argument is then not an error but a
 paragraph break of the surrounding text — what the command marks continues
-across it into the next paragraph — and a list or a displayed formula in it is a
-block of the surrounding text. Such a command never becomes a block of its own.
+across it into the next paragraph — a list in it is a block of the surrounding
+text, and a [displayed formula](#displayed-items) in it stays in the paragraph of
+the surrounding text. Such a command never becomes a block of its own.
 Where the surrounding text is itself inline content, as in a heading's title,
 the blank line is reported there, as in any inline content.
 
@@ -354,8 +359,9 @@ level of a document, an environment's body, an argument's content, or the
 content of a `{…}` group. Each element declares a *block role*
 ([`BlockRoleAspect`](crate::model::aspects::BlockRoleAspect), whose values are
 [`BlockRole`](crate::model::aspects::BlockRole)): whether it is a block of its
-own, inline content inside a paragraph, or attached to the block it occurs in.
-The pass lays out each content region in
+own, inline content inside a paragraph, a [displayed item](#displayed-items)
+set on lines of its own inside a paragraph, or attached to the block it occurs
+in. The pass lays out each content region in
 one of three ways, its *region layout*:
 
 - **as blocks**: the content is divided into paragraphs, and every element of
@@ -401,18 +407,91 @@ A second paragraph. Still the second paragraph.
 
 An element whose block role is *block* is a block of its own: it is not part of
 the paragraph around it, and the text before it and the text after it become two
-paragraphs. Among the elements of the standard package, the blocks are the
-[headings](#headings), the [display-math environments](#mathematics), the
+paragraphs, even where no blank line separates them from the block. Among the
+elements of the standard package, the blocks are the [headings](#headings), the
 [lists](#lists), the [tables of cells](#tables-of-cells), the
 [theorems](#theorems), the [term definitions](#defined-terms), the
 [quotations](#quotations), the [floats](#floats), the `verbatimcode`
 environment, a [file included with a heading of its
 own](#a-file-that-opens-with-a-heading), and the node an [unknown
-environment](#unknown-macros-and-environments) becomes. Everything else is
-inline, with two cases decided by the position: an image is a block as the
-direct content of a float, and an xnote shown in place is a block where its
-content holds paragraphs. A [user definition](#author-definitions) declares its
-own block role. Whitespace between two blocks is removed.
+environment](#unknown-macros-and-environments) becomes. The displayed formulas
+are [displayed items](#displayed-items), which stand inside a paragraph.
+Everything else is inline, with two cases decided by the position: an image is
+a block as the direct content of a float, and an xnote shown in place is a
+block where its content holds paragraphs. A [user
+definition](#author-definitions) declares its own block role. Whitespace
+between two blocks is removed.
+
+### Displayed items
+
+A *displayed item* is content that stands inside a paragraph and is set on
+lines of its own, apart from the text before it and the text after it (block
+role [`Displayed`](crate::model::aspects::BlockRole::Displayed)). The displayed
+items of the standard package are the displayed formulas: display mathematics
+written `\[…\]` or `$$…$$`, and the six [display-math
+environments](#mathematics), such as `equation` and `align*`. A formula written
+`\(…\)` or `$…$` is inline content.
+
+A displayed item is part of the paragraph it is written in. Where no blank line
+separates the item from the text after it, that text continues the paragraph; a
+blank line before or after the item begins a new paragraph, as anywhere else.
+So
+
+```text
+The energy of the system is
+\begin{equation*}
+  E = mc^2,
+\end{equation*}
+where \(m\) is its mass.
+
+The next paragraph.
+```
+
+is two paragraphs, the first of which holds the formula and the text on both of
+its sides. Under [`math-passthrough`](#mathematics), the text backend prints:
+
+```text
+The energy of the system is
+  \begin{equation*}
+    E = mc^2,
+  \end{equation*}
+where \(m\) is its mass.
+
+The next paragraph.
+```
+
+The whitespace on both sides of a displayed item is removed, `~` and `\ `
+included (see [writing a character that means something
+else](#writing-a-character-that-means-something-else)), and the comments there
+are kept. A straight quote right after a displayed item opens (see [typographic
+substitutions](#typographic-substitutions)).
+
+A displayed item is not a block. It may be written wherever inline content may:
+in a paragraph, in an argument that holds inline content, such as the argument
+of `\emph{…}`, or in a heading's title; nothing is reported there. Content
+whose layout depends on what it holds, such as the content of a
+[footnote](#xnotes), holds paragraphs only when it holds a blank line or a
+block: a footnote whose content is text and a displayed formula, with no blank
+line, is inline content. A [user definition](#blocks-and-paragraph-breaks) may
+declare itself a displayed item.
+
+A block, by contrast, ends the paragraph it is written in, and the text after
+the block is a new paragraph, with or without a blank line between them:
+
+```text
+We consider three cases:
+\begin{itemize}
+\item the first;
+\item the second.
+\end{itemize}
+In each case, the bound holds.
+```
+
+is a paragraph, a list, and the paragraph "In each case, the bound holds." On
+the HTML page and in the rendered LaTeX, that last paragraph is set as every new
+paragraph is, indented where the page's stylesheet or the LaTeX template
+indents paragraphs. The recomposed LaTeX writes the source back as it is
+written, with no blank line after the list.
 
 ### Typographic substitutions
 
@@ -438,8 +517,9 @@ them on by default:
 don’t forget the apostrophe.
 ```
 
-A straight quote opens at the start of a text that nothing precedes, and after
-whitespace (`~` and `\ ` included), an opening bracket or a dash; a single quote
+A straight quote opens at the start of a text that nothing precedes, right after
+a [displayed item](#displayed-items), and after whitespace (`~` and `\ `
+included), an opening bracket or a dash; a single quote
 also opens before a digit (`x'9` becomes `x‘9`), except directly after a letter, a digit or an
 underscore and before two digits and an `s`, a decade abbreviation (`x'90s`
 becomes `x’90s`); after a space, `the '90s` becomes `the ‘90s`. A straight quote closes everywhere
@@ -945,7 +1025,10 @@ program switched on [`dollar_math`](crate::lang::FlmParsing::dollar_math). Six
 environments write display mathematics under their own name: `equation`,
 `align`, `gather` and their starred forms
 ([`ENVIRONMENTS`](crate::stdcore::features::math::ENVIRONMENTS)). The
-[`math`](crate::stdcore::features::math) feature declares them.
+[`math`](crate::stdcore::features::math) feature declares them. Display
+mathematics, written `\[…\]`, `$$…$$` or with one of the six environments, is a
+[displayed item](#displayed-items): it stands inside the paragraph it is written
+in, on lines of its own.
 
 The `math` feature introduces mathematics into the language and processes none of
 it. A second feature, a *processing feature*, decides which commands a formula may
@@ -1030,7 +1113,7 @@ does not check whether the notation means anything either: its check stage
 ([`flm.math-passthrough.check`](crate::math_passthrough::CHECK))
 accepts every formula and reports only an equation line that holds no mathematics
 (see below). Under `math-passthrough`, the text backend prints the source, display
-mathematics as an indented block of its own:
+mathematics on indented lines of its own:
 
 ```text
 Inline math \(x_1 + \alpha\) and display math
@@ -1393,8 +1476,9 @@ Table 1: Who lives where
 The body of the environment is a sequence of instructions; blank lines and
 comments between them have no effect:
 
-- `\cell<styles>[placement]{content}` adds one cell. Its content holds blocks:
-  paragraphs, a list, a displayed formula, a footnote, another table of cells.
+- `\cell<styles>[placement]{content}` adds one cell. Its content is laid out as
+  blocks: it may hold paragraphs, a list, a displayed formula, a footnote,
+  another table of cells.
   Unless a placement says otherwise, the cell goes in the next column of the
   current row.
 - `\celldata<styles>[mapping]{data}` adds one cell per entry of its data,
@@ -1510,9 +1594,11 @@ See \ref{fn:appendix}, or \ref[noprefix]{fn:appendix}.
 - The label type is the xnote kind's, `fn` for `footnote`; a label of another
   type labels nothing and is reported (`flm.refs.label-type-not-accepted`).
 - The content is inline content when it is written as one run of text, and
-  paragraphs when it holds a blank line or a block such as a list or a displayed
-  formula. An xnote kind may be configured to take inline content only, where a
-  blank line is an error, or paragraphs always. An xnote with no content
+  paragraphs when it holds a blank line or a block such as a list. A displayed
+  formula is not a block (see [displayed items](#displayed-items)): content
+  written as one run of text around a formula is inline content. An xnote kind
+  may be configured to take inline content only, where a blank line is an
+  error, or paragraphs always. An xnote with no content
   (nothing but whitespace, `~` and `\ ` included, and comments) is still
   written, and reported as the Warning `flm.xnotes.empty`.
 - A space written before `\footnote`, `~` and `\ ` included, is not kept: the
@@ -1914,10 +2000,11 @@ City, ST 12345
 
 - **The quotation sections.** `\text{…}` is a quoted passage, one paragraph;
   `\lines{…}` holds lines set as written (below); `\attributed{…}` is the
-  attribution, an author or a source; `\block{…}` holds ordinary paragraphs and
-  blocks, such as a list or a displayed formula, or one paragraph where its
-  content is written on one line. The quotation sections are shown in the order
-  written; whitespace and comments between them have no effect.
+  attribution, an author or a source; `\block{…}` holds ordinary paragraphs,
+  displayed formulas among their content, and blocks such as a list, or one
+  paragraph where its content is written as one run of text. The quotation
+  sections are shown in the order written; whitespace and comments between
+  them have no effect.
 - **The three environments.** `quote` accepts the four section commands and
   nothing else. `blockquote` accepts no section command: its whole content is
   one block section, its paragraphs as written. `address` accepts none either:
@@ -2025,8 +2112,9 @@ appendix.
   With multiple paragraphs.] More text
   ```
 
-  A list or a displayed formula inside an annotation is a block of the text
-  around it, still marked. The initials are shown once, beside the line where
+  A list inside an annotation is a block of the text around it, still marked;
+  a displayed formula inside an annotation stays in its paragraph, inside the
+  marked passage. The initials are shown once, beside the line where
   the annotation starts.
 - **A reviewer's comment is not part of the text.** A heading whose title holds
   a reviewer's comment gets its anchor from the title's other words; a
@@ -2207,8 +2295,8 @@ See Fig. 1.
   caption has nothing to show and is reported (`flm.refs.nothing-to-show`).
 - A float is a block, written where blocks are written: between paragraphs, in a
   list item, in a footnote, in a quotation's `\block{…}` section. Written inside
-  a paragraph's text, it is a block of its own between the two parts of the
-  paragraph.
+  a paragraph's text, it is a block of its own: the paragraph ends before it, and
+  the text after it is a new paragraph.
 
 The float's body is read, and its mistakes reported, when a backend converts the
 float into its output, so the [`check`](crate::stdcore::CHECK_WORKFLOW) workflow
@@ -2711,9 +2799,11 @@ A user definition declares the [block role](#paragraphs) of what it produces
 ([`BlockRole`](crate::model::aspects::BlockRole)). The default is inline content;
 a definition declared as a block is placed on its own between the paragraphs
 around it, and an environment defined as a block lays out its body as blocks
-rather than inline. A blank line inside a template divides the paragraph the use
-site is written in, because the template's content is inserted in place of the
-use site, not wrapped in anything.
+rather than inline. A definition declared as a [displayed
+item](#displayed-items) stays inside the paragraph around it, and an
+environment defined so lays out its body inline. A blank line inside a template
+divides the paragraph the use site is written in, because the template's content
+is inserted in place of the use site, not wrapped in anything.
 
 So a block environment `principle`, with one optional argument declared under
 the name `name` and the template

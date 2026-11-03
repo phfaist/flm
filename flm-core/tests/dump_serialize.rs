@@ -440,13 +440,12 @@ fn two_values_of_one_element_name_read_back_as_their_own_values() {
 #[test]
 fn a_tack_on_field_node_round_trips_by_identity() {
     let field = TackOnField::new("label", vec![ArgDef::new(ArgStdKind::CharsGroup)]);
-    let label = Arc::clone(field.element());
     let def = macro_with(
         "t",
         "section",
         vec![ArgDef::mandatory("title"), ArgDef::new(ArgStdKind::TackOn { fields: vec![field] })],
     );
-    let elements = vec![Arc::clone(&def.element), label];
+    let elements = vec![Arc::clone(&def.element)];
     let lang = lang(vec![def]);
     let live = Arc::new(parse(&lang, r"\section{x}\label{y}"));
     let read = round_trip(&lang, &live, elements);
@@ -455,6 +454,7 @@ fn a_tack_on_field_node_round_trips_by_identity() {
     assert_eq!(read_field.name(), Some("label"));
     assert!(Arc::ptr_eq(read_field.spec().unwrap(), live_field.spec().unwrap()));
     assert!(Arc::ptr_eq(element_of(&read_field), element_of(&live_field)));
+    assert!(Arc::ptr_eq(element_of(&read_field), &lang.structural().field));
 }
 
 #[test]

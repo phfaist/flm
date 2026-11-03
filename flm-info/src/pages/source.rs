@@ -889,16 +889,23 @@ fn available(modes: &[String], sites: &[UseSiteView]) -> String {
     text
 }
 
-/// One place that makes a scoped package available, with a link to the command's page.
+/// One place that makes a scoped package available, with a link to the command's page. An
+/// argument without a name is written by its position, as in `argument 2 of \k`.
 fn use_site(site: &UseSiteView) -> String {
     let command = match site.kind {
         Some(kind) => link_code(&paths::command(&site.feature, site.within.as_deref(), kind, &site.command), &written(kind, &site.command)),
         None => code(&site.command),
     };
-    match (&site.field, site.part.as_str()) {
-        (None, "body") => format!("the body of {command}"),
-        (None, part) => format!("the argument {} of {command}", code(part)),
-        (Some(field), part) => format!("the argument {} of the field {} of {command}", code(part), code(&format!("\\{field}"))),
+    if site.field.is_none() && site.part == "body" {
+        return format!("the body of {command}");
+    }
+    let argument = match site.part.strip_prefix('#') {
+        Some(position) => format!("argument {position}"),
+        None => format!("the argument {}", code(&site.part)),
+    };
+    match &site.field {
+        Some(field) => format!("{argument} of the field {} of {command}", code(&format!("\\{field}"))),
+        None => format!("{argument} of {command}"),
     }
 }
 

@@ -257,7 +257,8 @@ impl BuildBibliography {
                 entry: entries.and_then(|entries| entries.entry(key)),
             })
             .collect();
-        // See decision rationale at [§flm-dd-dr:std-citations-bibliography].
+        // The table of cited works holds no place for a key, so the list's nodes
+        // take the span and parsing state of the root of the run's first tree.
         let (_, tree) = cx.trees().next()?;
         match build_list(&works, cx.registry(), &tree.root()) {
             Ok(value) => Some(value),

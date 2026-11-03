@@ -63,9 +63,10 @@
 //! - [`literals`](crate::stdcore::features::literals) — the sibling feature that
 //!   declares the commands standing for one character.
 
-// The command written for a value is what tells the four apart in a dump, since
-// the element type is one; see decision rationale at
-// [§flm-dd-dr:std-element-families] and [§flm-dd-dr:std-own-vocabulary].
+// The four commands are one element type because rules and aspects are chosen
+// per element: they share one implementation, and the value's style is the one
+// difference. The command written for a value is what tells the four apart in a
+// dump, since the element type is one.
 
 pub mod latex;
 

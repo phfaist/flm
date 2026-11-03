@@ -175,7 +175,9 @@ impl Formatter {
     /// # Errors
     ///
     /// The text of [`item`] when a date of the record is a range.
-    // See decision rationale at [§flm-dd-dr:host-citations-format]
+    // The formatter sets one work at a time, so that an entry depends on that work and the
+    // style alone, never on the other works cited (a style's disambiguation). The entry is
+    // made from the formatter's structured result, never from its text read back.
     pub(super) fn entry(&self, record: &CslValue, links: Links) -> Result<Vec<EntryPiece>, String> {
         let item = item(record)?;
         let mut driver = BibliographyDriver::new();
@@ -282,7 +284,9 @@ pub(super) enum TextPart<'a> {
 /// sign with no partner is a character. The rule is the same for every record, and does
 /// not depend on whether the document's settings read dollar signs as formula delimiters
 /// in its own text.
-// See decision rationale at [§flm-dd-dr:host-citations-format]
+// The texts of cited works write formulas between dollar signs (arXiv titles), and nothing
+// else in them is markup: reading the rest as FLM would drop a title's text after a `%` and
+// silently lose the braces of `{X}`.
 pub(super) fn text_parts(text: &str) -> Vec<TextPart<'_>> {
     let mut parts = Vec::new();
     let mut rest = text;

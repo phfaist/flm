@@ -153,7 +153,7 @@ fn errors(built: &Built) -> Vec<String> {
         .collect()
 }
 
-// --- acceptance 1: the rule "PDF to PNG at 192 dots per inch" -------------------------------
+// --- the rule "PDF to PNG at 192 dots per inch" ---------------------------------------------
 
 #[test]
 fn a_pdf_figure_is_copied_as_the_png_image_the_program_wrote() {
@@ -185,7 +185,7 @@ fn the_option_transparent_bg_is_given_to_the_program() {
     );
 }
 
-// --- acceptance 2: the results kept -----------------------------------------------------------
+// --- the results kept -------------------------------------------------------------------------
 
 #[test]
 fn one_figure_shown_twice_and_built_twice_runs_the_program_once() {
@@ -235,7 +235,7 @@ fn the_same_conversion_asked_twice_at_once_runs_the_program_once() {
     assert_eq!(stand_in.runs().len(), 1, "{:?}", stand_in.runs());
 }
 
-// --- acceptance 3: a program that cannot be started, or that fails -----------------------------
+// --- a program that cannot be started, or that fails -------------------------------------------
 
 #[test]
 fn a_program_that_cannot_be_started_is_reported_at_the_conversion() {
@@ -268,7 +268,7 @@ fn a_program_ending_with_a_failure_is_reported_with_what_it_wrote() {
     assert_eq!(received(&sink, ".pdf").len(), 1);
 }
 
-// --- acceptance 4: which converter performs a rule --------------------------------------------
+// --- which converter performs a rule ----------------------------------------------------------
 
 /// The lines of a front matter setting the page's rules to "GIF to PNG" and "PDF to PNG",
 /// each allowing the converters `via` where it is not empty.
@@ -307,7 +307,7 @@ fn a_rule_whose_via_names_magick_alone_is_performed_by_the_program() {
     assert!(received(&sink, ".png").iter().all(|(_, bytes)| *bytes == stand_in_png()));
 }
 
-// --- acceptance 6: the program is started only for a conversion that needs it ------------------
+// --- the program is started only for a conversion that needs it --------------------------------
 
 #[test]
 fn a_document_needing_no_conversion_by_the_program_never_starts_it() {

@@ -153,8 +153,10 @@
 //! - The stylesheet: [`html`]. The `latex-recomposed` backend's own rules:
 //!   [`latex`].
 
-// Why a term link is a reference resolved by the references feature: see
-// decision rationale at [§flm-dd-dr:std-defterm-term-reference].
+// A term link is resolved by the references feature, with no lookup of this
+// feature's own: that feature already resolves every reference site under one
+// set of conditions and one severity rule, which a second lookup would repeat
+// and could contradict.
 
 mod config;
 mod diagnostics;

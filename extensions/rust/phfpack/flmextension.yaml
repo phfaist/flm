@@ -1,0 +1,13 @@
+# The manifest of the extension `phfpack` in its WebAssembly form: the module that
+# `extensions/rust/build-wasm.sh` builds, beside this file. The `flm` program also carries
+# the extension compiled in; it then reads this file with the engine `native` in place of
+# `wasm`, and without the module.
+#
+# A use of one of the extension's macros stages a few nodes and keeps nothing between
+# calls: the engine's own limits (64 MiB of memory, 1 000 000 000 units of fuel per handler
+# call) are enough.
+extension:
+  description: Notation and quantity macros for quantum information (bras and kets, norms, operators, gates, groups, entropies), with delimiters drawn at the size a use asks for
+  engine: wasm
+  wasm:
+    module: phfpack.wasm

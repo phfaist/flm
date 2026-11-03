@@ -1,5 +1,5 @@
-//! A citation provider contributed by a scripted feature (E6, plan sections
-//! 2.4, 3.1 and 3.2), through the Rust test double: the adapter wraps the
+//! A citation provider contributed by a scripted feature, through the Rust
+//! test double: the adapter wraps the
 //! mirror's provider in `flm-core`'s, the retrieve stage asks it in the order
 //! of the slot, its context parses and builds entries and lends the host
 //! services; a failing provider, a wrong count and an answer of the wrong

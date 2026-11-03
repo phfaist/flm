@@ -4,17 +4,18 @@
 //! are size slots.
 //!
 //! A *size slot* is an argument through which a use asks for the size of the
-//! macro's delimiters: a size after a backtick, a star, or a size in brackets
-//! ([`SlotKind`]). [`Macro::new`] declares on every definition the four
-//! placeholders whose content the feature computes at each use (`DelimLeft`,
-//! `DelimMiddle`, `DelimRight` and [`CONFIG_PLACEHOLDER`]), so that the
-//! macro's templates may write them; the module [`crate::feature`] gives them
-//! their content.
+//! macro's delimiters: a size after a backtick, a star, a size in brackets, or
+//! a size of the backtick form ([`SlotKind`]). [`Macro::new`] declares on every
+//! definition the four placeholders whose content the feature computes at each
+//! use (`DelimLeft`, `DelimMiddle`, `DelimRight` and [`CONFIG_PLACEHOLDER`]), so
+//! that the macro's templates may write them; the module [`crate::feature`]
+//! gives them their content.
 
-use flm_core::lang::mint::{arg_def_from_code, ArgCodeError, ArgDef};
-use flm_core::lang::rewrites::userdefs::{Definition, DefinitionKind};
+use flm_ext::ExtError;
+use flm_ext::guest::lang::mint::ArgDef;
+use flm_ext::guest::lang::rewrites::userdefs::{Definition, DefinitionKind};
 
-use crate::sizing::{SlotKind, SIDES};
+use crate::sizing::{SIDES, SlotKind};
 use crate::tables::{Row, RowArg, RowKind};
 
 /// The name of the placeholder with which a template reads a named value of
@@ -43,8 +44,7 @@ pub struct Macro {
 pub enum MacroArg {
     /// A size slot of the given kind.
     Size(SlotKind),
-    /// An ordinary argument, declared as [`ArgDef`] (usually read from an
-    /// argument code by [`arg_def_from_code`]).
+    /// An ordinary argument, declared as [`ArgDef`].
     Arg(ArgDef),
 }
 
@@ -57,64 +57,67 @@ impl Macro {
     /// (`DelimLeft`, `DelimMiddle`, `DelimRight` and `config`) with
     /// [`Definition::extra_placeholder`], each written with a substitution
     /// argument (`#[…]{DelimLeft}`).
-    ///
-    /// # Errors
-    ///
-    /// The [`ArgCodeError`] of reading the argument code of a star or bracket
-    /// size slot. These codes (`*` and `[`) are the library's own, so the error
-    /// does not occur.
-    pub fn new(kind: DefinitionKind, name: &str, args: Vec<MacroArg>) -> Result<Macro, ArgCodeError> {
+    pub fn new(kind: DefinitionKind, name: &str, args: Vec<MacroArg>) -> Macro {
         let mut slots = Vec::new();
         let mut defs = Vec::with_capacity(args.len());
         for (index, arg) in args.into_iter().enumerate() {
             match arg {
                 MacroArg::Size(kind) => {
                     slots.push((index, kind));
-                    defs.push(kind.arg()?);
+                    defs.push(kind.arg());
                 }
                 MacroArg::Arg(def) => defs.push(def),
             }
         }
-        let mut definition = Definition::new(kind, name, defs)
-            .extra_placeholder(CONFIG_PLACEHOLDER, true);
+        let mut definition = Definition::new(kind, name, defs).extra_placeholder(CONFIG_PLACEHOLDER, true);
         for side in &SIDES {
             definition = definition.extra_placeholder(side.placeholder, true);
         }
-        Ok(Macro { definition, slots })
+        Macro { definition, slots }
     }
 
     /// Returns the macro that a row of the built-in tables declares, with the
     /// row's template, parsing modes, argument number offset and default
     /// values. Each argument code of the row is read with
-    /// [`arg_def_from_code`].
+    /// [`ArgDef::from_code`], or [`ArgDef::named_from_code`] for a named
+    /// argument.
     ///
     /// # Errors
     ///
-    /// The [`ArgCodeError`] of a code the row writes that is not an argument
-    /// code: a fault of the tables, which a test of the crate rules out.
-    pub fn from_row(row: &Row) -> Result<Macro, ArgCodeError> {
+    /// An argument code of the row is not one (`ExtError::Core` of kind
+    /// `arg-code`).
+    pub fn from_row(row: &Row) -> Result<Macro, ExtError> {
         let args = row
             .args
             .iter()
-            .map(|arg| match *arg {
-                RowArg::Size(kind) => Ok(MacroArg::Size(kind)),
-                RowArg::Code(code) => arg_def_from_code(code).map(MacroArg::Arg),
-                RowArg::Named(name, code) => arg_def_from_code(code).map(|mut def| {
-                    def.name = Some(name.to_string());
-                    MacroArg::Arg(def)
-                }),
+            .map(|arg| {
+                Ok(match *arg {
+                    RowArg::Size(kind) => MacroArg::Size(kind),
+                    RowArg::Code(code) => MacroArg::Arg(ArgDef::from_code(code)?),
+                    RowArg::Named(name, code) => MacroArg::Arg(ArgDef::named_from_code(name, code)?),
+                })
             })
-            .collect::<Result<Vec<MacroArg>, ArgCodeError>>()?;
+            .collect::<Result<_, ExtError>>()?;
         let kind = match row.kind {
             RowKind::Macro => DefinitionKind::Macro,
             RowKind::Specials => DefinitionKind::Specials,
         };
-        let mut m = Macro::new(kind, row.name, args)?;
-        m.definition =
-            m.definition.content(row.template).modes(row.modes).argument_number_offset(row.offset);
+        let mut m = Macro::new(kind, row.name, args);
+        m.definition = m.definition.content(row.template).modes(row.modes).argument_number_offset(row.offset);
         for (key, text) in row.defaults {
             m.definition = m.definition.default(*key, *text);
         }
         Ok(m)
+    }
+}
+
+/// Returns the name of the definition `definition` as an author writes it:
+/// `\name` for a macro, the characters themselves for a special character
+/// sequence (`` ` ``), `\begin{name}` for an environment.
+pub fn display_name(definition: &Definition) -> String {
+    match definition.kind {
+        DefinitionKind::Macro => format!("\\{}", definition.name),
+        DefinitionKind::Environment => format!("\\begin{{{}}}", definition.name),
+        DefinitionKind::Specials => definition.name.clone(),
     }
 }

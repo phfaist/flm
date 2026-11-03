@@ -1,4 +1,4 @@
-//! Settings declared from data (plan A, 3.11, WP-4 part 2): a scripted
+//! Settings declared from data: a scripted
 //! feature's `settings` become its settings declaration, its `register`
 //! receives its final configuration, and its stages read the option types it
 //! declares by their names; a declaration that contradicts itself, or an
@@ -18,6 +18,7 @@ use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::options::{Bind, OptionKey, OptionValues};
 use flm_ext::adapter::table::ExtTable;
 use flm_ext::api::core::registry::FeatureBuilder;
+use flm_ext::api::core::settings::ReadError;
 use flm_ext::api::core::stage::{Effect, Needs, Scope, StageDecl};
 use flm_ext::engine::{ConfigReport, SettingsReport};
 use flm_ext::{
@@ -98,6 +99,7 @@ fn a_feature_s_settings_become_its_settings_declaration() {
         merge_entries,
         markup: vec!["kinds.*.label".to_string()],
         path: vec!["file".to_string()],
+        read: false,
     };
     let factory = Double::new("wc").feature("count", |_| Ok(())).settings("count", report).factory();
     let decl = factory.settings("count").expect("the feature declares settings");
@@ -255,6 +257,10 @@ struct Nothing;
 impl ExtRuntime for Nothing {
     fn register(&self, _: &str, _: &str, _: &Value, _: &mut dyn FeatureBuilder) -> Result<(), ExtError> {
         Ok(())
+    }
+
+    fn read_settings(&self, _: &str, feature: &str, _: &Value) -> Result<Result<Value, ReadError>, ExtError> {
+        Err(ExtError::Handler { detail: format!("the feature `{feature}` has no configuration reader"), data: Value::Null })
     }
 
     fn digest_input(&self) -> Vec<u8> {

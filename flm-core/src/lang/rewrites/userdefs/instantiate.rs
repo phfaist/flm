@@ -35,6 +35,15 @@
 //! for a feature outside it, so that every caller gets the same result for the
 //! same template and bindings.
 //!
+//! # Values an expansion hook computes
+//!
+//! An expansion hook whose definition declares extra placeholders gives their
+//! values as data: [`ExtraValues`] holds each value under the placeholder's
+//! name and the text of its substitution argument, and
+//! [`over`](ExtraValues::over) lays the values over the use site's bindings
+//! ([`LayeredBindings`]), with which the hook instantiates the template
+//! ([`Expander::instantiate`](super::Expander::instantiate)).
+//!
 //! # Instantiating a template outside the expand pass
 //!
 //! A feature that compiles a template of its own against the built language
@@ -45,6 +54,7 @@
 //! computed, which [`ValueBindings`] holds by name.
 
 use std::collections::BTreeMap;
+use std::fmt;
 use std::sync::Arc;
 
 use techy::core::node::{
@@ -61,7 +71,8 @@ use crate::lang::guard::{self, GuardPolicy};
 use crate::lang::text::is_blank;
 use crate::lang::rewrites::userdefs::hook::{ExpandError, PlaceholderBindings, PlaceholderValue};
 use crate::lang::rewrites::userdefs::template::{
-    CompiledTemplate, Conditional, ConditionalTest, PlaceholderRef, PlaceholderTarget,
+    substitution_of, substitution_text_of, CompiledTemplate, Conditional, ConditionalTest,
+    PlaceholderRef, PlaceholderTarget,
 };
 
 /// The context of the two passes, through which they build nodes into the new
@@ -116,20 +127,6 @@ pub(crate) fn is_noise(node: &NodeRef<'_, Flm>) -> bool {
 /// [`is_noise`].
 pub(crate) fn is_blank_node(node: &NodeRef<'_, Flm>) -> bool {
     node.is_comment()
-}
-
-/// The substitution argument of a placeholder node (`#[…]{…}`), when one is
-/// written.
-fn substitution_of<'t>(node: &NodeRef<'t, Flm>) -> Option<NodeSlice<'t, Flm>> {
-    let provided = node
-        .arguments()
-        .and_then(|arguments| arguments.get(0))
-        .is_some_and(ParsedArgument::is_provided);
-    if provided {
-        node.argument_content_nodes(0)
-    } else {
-        None
-    }
 }
 
 /// The substitution pass (see the module documentation). The only problem in
@@ -366,8 +363,7 @@ fn append(
 
 // techy has no span-overriding restage primitive, and declined one: a swapped
 // span would silently re-resolve byte-range payloads on another source. Copying
-// the nodes here is FLM's own answer. See the design rationale at
-// [§flm-dd-dr:lang-template-compile].
+// the nodes here is FLM's own answer.
 /// The re-sourcing pass: the copy of a compiled template onto the source
 /// created for one use (see the module documentation).
 pub(crate) struct Resource<'a> {
@@ -623,6 +619,254 @@ impl PlaceholderBindings for ValueBindings {
                 None => PlaceholderValue::NoValue,
             },
             PlaceholderTarget::Argument(_) | PlaceholderTarget::Body => PlaceholderValue::Unresolvable,
+        }
+    }
+}
+
+// --- values a hook computed, by name and substitution argument -----------------------------------
+
+/// The value [`ExtraValues`] holds for one extra placeholder.
+#[derive(Debug, Clone)]
+enum ExtraValue {
+    /// A compiled template, instantiated in place.
+    Template(Arc<CompiledTemplate>),
+    /// Finished content: the children of the tree's root.
+    Tree(Arc<NodeTree<Flm>>),
+    /// Nothing to substitute.
+    NoValue,
+}
+
+/// The values that an expansion hook computed for the extra placeholders of a
+/// template at one use site, each held under the placeholder's name and the
+/// text of its substitution argument. Laid over the use site's other bindings
+/// with [`over`](ExtraValues::over), they give the bindings with which the hook
+/// instantiates the template ([`Expander::instantiate`](super::Expander::instantiate)),
+/// with no implementation of [`PlaceholderBindings`] of its own.
+///
+/// An *extra placeholder* is a name whose content the hook computes at each
+/// use ([`Definition::extra_placeholder`](super::Definition::extra_placeholder)).
+/// A template writes it as `#{name}` or, when the name accepts one, with a
+/// bracketed *substitution argument* that the hook reads as data
+/// (`#[\lvert]{DelimLeft}`: the delimiter to draw). One name may be written
+/// several times with different substitution arguments, and each pair of a
+/// name and a substitution argument has a value of its own here.
+///
+/// # The key of a value
+///
+/// A value is held under the placeholder's name and the text of its
+/// substitution argument: the source text between the brackets, with the
+/// whitespace around it removed (`Some("\\lvert")` for `#[ \lvert ]{DelimLeft}`,
+/// `Some("")` for `#[]{DelimLeft}`), or `None` for a placeholder written
+/// without one (`#{DelimLeft}`). [`CompiledTemplate::substitution_text`] gives
+/// this text for each placeholder of a compiled template. A hook therefore
+/// lists the placeholders of the template it instantiates and of the default
+/// values of the arguments ([`CompiledTemplate::placeholders`],
+/// [`ModeVariant::defaults`](super::ModeVariant::defaults)), computes a value
+/// for each name and text it finds, and adds it here.
+///
+/// # The values
+///
+/// - [`template`](ExtraValues::template): a compiled template, instantiated in
+///   place of the placeholder ([`PlaceholderValue::Default`]): one the hook
+///   compiled ([`compile_template_with`](super::compile_template_with)), or a
+///   definition's template or default value
+///   ([`ModeVariant::template`](super::ModeVariant::template),
+///   [`ModeVariant::default_of`](super::ModeVariant::default_of)). Its own
+///   placeholders are given values by the same bindings, and its nodes are
+///   copied onto the source created for the use, like the nodes of the template
+///   being instantiated.
+/// - [`tree`](ExtraValues::tree): finished content ([`PlaceholderValue::Tree`]):
+///   the children of the tree's root are substituted, with their own positions
+///   in their sources.
+/// - [`no_value`](ExtraValues::no_value): nothing is substituted, and
+///   `\IfNoValueTF{#{name}}` takes its first branch
+///   ([`PlaceholderValue::NoValue`]).
+///
+/// A pair of a name and a substitution argument given twice keeps the later
+/// value.
+///
+/// # The bindings
+///
+/// [`over`](ExtraValues::over) lays the values over base bindings, usually the
+/// use site's [`DefinitionBindings`](super::DefinitionBindings). The resulting
+/// [`LayeredBindings`] answer an extra placeholder from the values, and a pair
+/// that the values do not hold as
+/// [`Unresolvable`](PlaceholderValue::Unresolvable): the instantiation fails
+/// with an error that gives the placeholder
+/// ([`ExpandError::bad_placeholder`]), which
+/// [`Expander::instantiate`](super::Expander::instantiate) handles by replacing
+/// the use site by its literal source text and reporting
+/// `flm.userdefs.bad-placeholder`.
+/// An argument (`#1`, a declared argument name) and the body (`#{body}`) are
+/// answered by the base bindings.
+///
+/// [`ValueBindings`] are the simpler form for a template that has no use site:
+/// they hold one finished tree per name, read no substitution argument, have no
+/// base bindings, and give a name they do not hold no value.
+///
+/// # Examples
+///
+/// A template whose extra placeholder `side` takes a substitution argument,
+/// instantiated with a compiled template for `#[ left ]{side}` and no value for
+/// `#{side}`:
+///
+/// ```
+/// use std::sync::Arc;
+///
+/// use flm_core::lang::guard::{on_worker_thread, GuardPolicy};
+/// use flm_core::lang::rewrites::userdefs::{
+///     compile_template_with, instantiate, CompiledTemplate, ExtraValues, PlaceholderVocabulary,
+///     TemplateLanguage, TemplateSpec, ValueBindings,
+/// };
+/// use flm_core::lang::{build_language, LangInputs};
+/// use flm_core::techy::latexlike::Mode;
+///
+/// let lang = build_language(LangInputs::new());
+/// let language = TemplateLanguage::new(&lang).expect("the template language mints");
+/// let compile = |text: &str, vocabulary: &PlaceholderVocabulary| -> CompiledTemplate {
+///     let spec = TemplateSpec {
+///         text,
+///         mode: Mode::Text,
+///         vocabulary,
+///         offset: 0,
+///         definition: "example",
+///         label: "a template of the example",
+///         origin_label: "a template of the example",
+///         user_definition: false,
+///     };
+///     compile_template_with(&spec, &lang, &language).expect("the template compiles")
+/// };
+/// let vocabulary = PlaceholderVocabulary::new(0).extra("side", true);
+/// let template = compile("(#[ left ]{side})(#{side})", &vocabulary);
+///
+/// // The keys of the template's placeholders.
+/// let mut keys: Vec<Option<String>> =
+///     template.placeholders().map(|(node, _)| template.substitution_text(node)).collect();
+/// keys.sort();
+/// assert_eq!(keys, [None, Some("left".to_string())]);
+///
+/// let values = ExtraValues::new()
+///     .template("side", Some("left"), Arc::new(compile("L", &PlaceholderVocabulary::new(0))))
+///     .no_value("side", None);
+/// // The base bindings of a template without arguments; an expansion hook lays
+/// // the values over the use site's `DefinitionBindings`.
+/// let base = ValueBindings::new();
+/// let instantiated = |template: &CompiledTemplate| {
+///     let site = template.tree().root().span().clone();
+///     on_worker_thread(|| instantiate(&site, template, &values.over(&base), GuardPolicy::StackBudget))
+///         .expect("the worker thread starts")
+/// };
+///
+/// let instance = instantiated(&template).expect("every placeholder has a value");
+/// let text: String = instance.root().descendants().filter_map(|node| node.chars()).collect();
+/// assert_eq!(text, "(L)()");
+///
+/// // A substitution argument the values do not hold: no value can be given.
+/// let other = compile("#[right]{side}", &vocabulary);
+/// let error = instantiated(&other).expect_err("`#[right]{side}` has no value");
+/// assert_eq!(error.bad_placeholder(), Some("side"));
+/// ```
+#[derive(Debug, Clone, Default)]
+pub struct ExtraValues {
+    /// The value of each pair, by name, then by the text of the substitution
+    /// argument.
+    values: BTreeMap<String, BTreeMap<Option<String>, ExtraValue>>,
+}
+
+impl ExtraValues {
+    /// Creates values that hold nothing: laid over base bindings, they answer
+    /// every extra placeholder as [`PlaceholderValue::Unresolvable`].
+    pub fn new() -> ExtraValues {
+        ExtraValues::default()
+    }
+
+    /// Builder: gives the extra placeholder `name`, written with the
+    /// substitution argument whose text is `substitution` (`None` for a
+    /// placeholder written without one; see [the key of a
+    /// value](ExtraValues#the-key-of-a-value)), the compiled template
+    /// `template`, instantiated in place ([`PlaceholderValue::Default`]).
+    pub fn template(
+        self,
+        name: impl Into<String>,
+        substitution: Option<&str>,
+        template: Arc<CompiledTemplate>,
+    ) -> ExtraValues {
+        self.insert(name.into(), substitution, ExtraValue::Template(template))
+    }
+
+    /// Builder: gives the extra placeholder `name`, written with the
+    /// substitution argument whose text is `substitution` (`None` for a
+    /// placeholder written without one; see [the key of a
+    /// value](ExtraValues#the-key-of-a-value)), the finished tree `tree`, whose
+    /// root's children are substituted ([`PlaceholderValue::Tree`]).
+    pub fn tree(
+        self,
+        name: impl Into<String>,
+        substitution: Option<&str>,
+        tree: Arc<NodeTree<Flm>>,
+    ) -> ExtraValues {
+        self.insert(name.into(), substitution, ExtraValue::Tree(tree))
+    }
+
+    /// Builder: gives the extra placeholder `name`, written with the
+    /// substitution argument whose text is `substitution` (`None` for a
+    /// placeholder written without one; see [the key of a
+    /// value](ExtraValues#the-key-of-a-value)), no value
+    /// ([`PlaceholderValue::NoValue`]).
+    pub fn no_value(self, name: impl Into<String>, substitution: Option<&str>) -> ExtraValues {
+        self.insert(name.into(), substitution, ExtraValue::NoValue)
+    }
+
+    /// The bindings that answer an extra placeholder from these values and
+    /// every other placeholder from `base` (see [the
+    /// bindings](ExtraValues#the-bindings)).
+    pub fn over<'v>(&'v self, base: &'v dyn PlaceholderBindings) -> LayeredBindings<'v> {
+        LayeredBindings { values: self, base }
+    }
+
+    /// Holds `value` under `name` and `substitution`, replacing any value held
+    /// there.
+    fn insert(mut self, name: String, substitution: Option<&str>, value: ExtraValue) -> ExtraValues {
+        self.values.entry(name).or_default().insert(substitution.map(str::to_string), value);
+        self
+    }
+}
+
+/// The placeholder bindings that [`ExtraValues::over`] gives: the values that
+/// an expansion hook computed for the extra placeholders of a template, laid
+/// over base bindings. An extra placeholder is answered from the
+/// [`ExtraValues`] by its name and the text of its substitution argument, and
+/// as [`Unresolvable`](PlaceholderValue::Unresolvable) when they hold no value
+/// for that pair; an argument and the body are answered by the base bindings.
+#[derive(Clone, Copy)]
+pub struct LayeredBindings<'v> {
+    /// The values of the extra placeholders.
+    values: &'v ExtraValues,
+    /// The bindings of the arguments and the body.
+    base: &'v dyn PlaceholderBindings,
+}
+
+impl fmt::Debug for LayeredBindings<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LayeredBindings").field("values", self.values).finish_non_exhaustive()
+    }
+}
+
+impl PlaceholderBindings for LayeredBindings<'_> {
+    fn value<'a>(
+        &'a self,
+        target: &PlaceholderTarget,
+        substitution: Option<NodeSlice<'_, Flm>>,
+    ) -> PlaceholderValue<'a> {
+        let PlaceholderTarget::Extra(name) = target else {
+            return self.base.value(target, substitution);
+        };
+        let key = substitution.map(|nodes| substitution_text_of(&nodes));
+        match self.values.values.get(name).and_then(|values| values.get(&key)) {
+            Some(ExtraValue::Template(template)) => PlaceholderValue::Default(template),
+            Some(ExtraValue::Tree(tree)) => PlaceholderValue::Tree(tree),
+            Some(ExtraValue::NoValue) => PlaceholderValue::NoValue,
+            None => PlaceholderValue::Unresolvable,
         }
     }
 }

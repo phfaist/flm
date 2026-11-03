@@ -132,7 +132,6 @@ pub struct AspectMap {
     // A short vector scanned linearly, not a hash map: an element carries a
     // single-digit number of aspects, where a scan beats hashing. Each entry
     // also carries the aspect's type name, which is only ever used in messages.
-    // See the design rationale at [§flm-dd-dr:dm-aspects].
     entries: Vec<AspectEntry>,
 }
 

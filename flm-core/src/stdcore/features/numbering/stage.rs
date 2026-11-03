@@ -518,8 +518,9 @@ impl<'a> Plan<'a> {
         out: &mut StageOut<'_>,
     ) -> Plan<'a> {
         // Everything the options ask for that cannot be done is reported here,
-        // once, before the document is walked.
-        // See decision rationale at [§flm-dd-dr:std-numbering-options-checked].
+        // once, before the document is walked: each such fact is then reported
+        // once rather than at every point, and an option that is wrong is
+        // reported even when the document has no point it concerns.
         let mut counters: BTreeMap<Name, Entry> = BTreeMap::new();
         for (name, decl) in &compiled.counters {
             let hierarchy = compiled.hierarchy.get(name).cloned().unwrap_or_default();
@@ -748,7 +749,10 @@ type Key = (Name, Chain, Option<NodeAddr>);
 /// A counter has no value until it is first advanced, or until the options
 /// give it one ([`initial`](super::CounterOptions::initial)), and a point
 /// whose number would need a counter with no value is not numbered.
-// See decision rationale at [§flm-dd-dr:std-numbering-uninitialized].
+// A counter nothing has advanced does not stand at zero: a number such as
+// `2.0.1` would show a part that does not exist. With no value until the first
+// advance, one walk numbers the document, and a missing ancestor is reported at
+// the point that needs it.
 #[derive(Default)]
 struct State {
     /// Per counter, per list of ancestors (each by name, value and instance)
@@ -762,7 +766,9 @@ struct State {
     /// start of the run: this tells which of several parents was advanced most
     /// recently. An advance in a scoped instance is local to that instance's
     /// node and is not counted here.
-    // See decision rationale at [§flm-dd-dr:std-numbering-instances].
+    // A scoped instance is a run of its own, living as long as its node's
+    // content, so its advances are not advances of the counter's sequence
+    // through the document.
     advanced: BTreeMap<Name, u64>,
     /// How many advances the run has made so far.
     advances: u64,
@@ -848,9 +854,8 @@ impl State {
     ) -> Option<CounterRecord> {
         let span = node.span();
         let Some(entry) = plan.counters.get(&source.counter) else {
-            // One report per run and per counter, not one per point.
-            // See decision rationale at
-            // [§flm-dd-dr:std-numbering-undeclared-counter].
+            // One report per run and per counter, not one per point: the fact
+            // is the same at every point that names the counter.
             if self.reported.insert(source.counter.clone()) {
                 out.diags.push(Diagnostic::error(
                     UndeclaredCounter { counter: source.counter.to_string() },
@@ -873,9 +878,9 @@ impl State {
             return None;
         };
         // A point's own number template replaces the declared style's number
-        // format; the record holds the derived style, which is where a record
-        // has always held the style it is written in.
-        // See decision rationale at [§flm-dd-dr:std-numbering-point-template].
+        // format; the record holds the derived style in the field that holds
+        // the style a number is written in, so everything that writes the
+        // point's number writes it the same way, with no second way to write it.
         let style = match &source.number_format {
             None => Arc::clone(declared),
             Some(text) => self.derived(plan, source, declared, text, span, out),
@@ -884,8 +889,8 @@ impl State {
         // The levels the point advances are checked before anything is
         // advanced: a level the style declares no format for could never be
         // shown, and creating it would make the value as deep as the number
-        // asked for.
-        // See decision rationale at [§flm-dd-dr:std-numbering-unwritable].
+        // asked for. The counter stays where it stood, so that one mistake does
+        // not shift every number after it.
         let depth = style.sub_level_count();
         for level in &source.advance {
             if *level as usize > depth {
@@ -925,8 +930,8 @@ impl State {
         };
         // The outermost instance is counted under what the counter is numbered
         // within; each instance inside it is counted within the value the
-        // enclosing instance stands at here.
-        // See decision rationale at [§flm-dd-dr:std-numbering-instances].
+        // enclosing instance stands at here, as an ancestor, so that a nested
+        // number is written the way every number within a parent is.
         let mut chain = plain.clone();
         let mut key_chain = key_of(entry, &plain);
         let own = instances.last().copied();
@@ -1155,7 +1160,9 @@ impl State {
 /// Returns the list of ancestors under which `entry`'s count is kept when its
 /// ancestors are `chain`: the chain itself, or, for a counter that does not
 /// restart under its parent, the chain without the parent.
-// See decision rationale at [§flm-dd-dr:std-numbering-no-restart].
+// A count that continues across its parent's advances is stated in the
+// hierarchy, the parent being left out of the key: no command of the document
+// sets a counter's value, as LaTeX's `\setcounter` does.
 fn key_of(entry: &Entry, chain: &Chain) -> Chain {
     match chain.split_last() {
         Some((_, above)) if entry.no_restart => above.to_vec(),

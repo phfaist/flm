@@ -78,7 +78,7 @@ declare module "flm:core/lowering" {
   import { BuiltLang } from "flm:lang";
   import { Staged } from "flm:lang/rewrites/userdefs";
   import { Diagnostic } from "flm:techy/error";
-  import { Node } from "flm:techy/node";
+  import { Node, Tree } from "flm:techy/node";
   export { Staged } from "flm:lang/rewrites/userdefs";
 
   export const DefaultMark: Readonly<{ Everywhere: "everywhere"; Never: "never"; OnBackends(backends: string[]): { on_backends: string[] } }>;
@@ -176,7 +176,7 @@ declare module "flm:core/lowering" {
     /** Mirrors `Lowerer::text`. */
     text(cx: LowerCx, text: string): Staged;
     /** Mirrors `Lowerer::splice`. */
-    splice(cx: LowerCx, value: Node): Staged[];
+    splice(cx: LowerCx, value: Tree): Staged[];
     /** Mirrors `Lowerer::require`. */
     require(id: string): void;
     /** Mirrors `Lowerer::diagnose`: reports `diagnostic`, at the node being lowered unless it has a place of its own. */
@@ -252,15 +252,21 @@ declare module "flm:core/registry" {
 
   /** Mirrors `BackendDef`: a backend, the registration bundle of one output format: its name, the elements its emit stage writes natively, and its lowering, emit and final stages, registered with `FeatureBuilder::backend`. */
   export class BackendDef {
-    /** Mirrors `BackendDef::new`; a stage object given as a stage is recorded and lent. */
+    /** Mirrors `BackendDef::new`. */
     constructor(name: string, native: string[], lowering: BackendStage, emit: BackendStage, final_stage: BackendStage);
     /** Mirrors the field `BackendDef::name`. */
     name: string;
     /** Mirrors the field `BackendDef::native`. */
     native: string[];
+    /** Mirrors the field `BackendDef::lowering`. */
+    lowering: BackendStage;
+    /** Mirrors the field `BackendDef::emit`. */
+    emit: BackendStage;
+    /** Mirrors the field `BackendDef::final_stage`. */
+    final_stage: BackendStage;
     /** Mirrors `BackendDef::docs`. */
     docs(docs: string): this;
-    /** No flm-core counterpart: the data form that crosses to the host. */
+    /** No flm-core counterpart: the data form, each stage as the backend holds it; `FeatureBuilder.backend` sends it with each stage object lent. */
     toJSON(): { name: string; native: string[]; lowering: BackendStage; emit: BackendStage; final_stage: BackendStage; docs: string };
   }
 
@@ -336,7 +342,7 @@ declare module "flm:core/registry" {
     /** Mirrors `FeatureBuilder::peer_slot`: contributes `value` to the service slot `slot` as a peer declaration, so that the feature still registers in a registry where no feature declares the slot (the value is then dropped, and the registry build reports one Note). */
     peer_slot(slot: string, value: Contributed): void;
     /** Mirrors `FeatureBuilder::digest_input`: feeds `bytes` into the registry digest. */
-    digest_input(bytes: string): void;
+    digest_input(bytes: string | { text: string } | { base64: string }): void;
     /** Mirrors `FeatureBuilder::attach`: attaches an aspect to the element `element`, which another feature may declare. */
     attach(element: string, aspect: Aspect): void;
     /** Mirrors `FeatureBuilder::collection_member`: adds the capability `member` to the collection `collection`, so that whatever demands the collection demands `member` too. */
@@ -370,7 +376,7 @@ declare module "flm:core/run" {
   import { NodeAddr } from "flm:core/lowering";
   import { Scope } from "flm:core/stage";
   import { HostHandle } from "flm:host";
-  import { Node } from "flm:techy/node";
+  import { Node, Tree } from "flm:techy/node";
 
   /** Mirrors `StageCx`: what a running stage reads — its scope, the document's trees, the tables it declared it reads. */
   export class StageCx {
@@ -380,13 +386,13 @@ declare module "flm:core/run" {
     /** Mirrors `StageCx::tree_id`: the tree a per-tree stage runs on. */
     tree_id(): string | null;
     /** Mirrors `StageCx::tree`: the current state of the tree of id `id`. */
-    tree(id: string): Node | null;
+    tree(id: string): Tree | null;
     /** Mirrors `StageCx::frozen_tree`: the frozen tree of id `id`. */
-    frozen_tree(id: string): Node | null;
+    frozen_tree(id: string): Tree | null;
     /** Mirrors `StageCx::my_tree`: the tree a per-tree stage runs on. */
-    my_tree(): Node | null;
+    my_tree(): Tree | null;
     /** Mirrors `StageCx::trees`: every frozen tree of the document. */
-    trees(): [string, Node][];
+    trees(): [string, Tree][];
     /** Mirrors `StageCx::walk`: every node of every tree of the run, in document order (for a per-tree stage too). */
     walk(): WalkEntry[];
     /** Mirrors `StageCx::addr`: the address of `node`, by which computed data about the node is keyed. */
@@ -427,10 +433,16 @@ declare module "flm:core/services" {
   export type Arity = "single" | "ordered-many";
 }
 
+declare module "flm:core/settings" {
+
+  /** Mirrors `flm_core::core::settings::ReadError`. */
+  export interface ReadError { path?: string; detail: string }
+}
+
 declare module "flm:core/stage" {
   import { StageOut } from "flm:core/data/store";
   import { RewriteCx, StageCx } from "flm:core/run";
-  import { Node } from "flm:techy/node";
+  import { Node, Tree } from "flm:techy/node";
   import { Restage, Restager } from "flm:techy/transform";
   export { Severity } from "flm:techy/error";
 
@@ -509,9 +521,9 @@ declare module "flm:core/stage" {
   export class TreesTable {
     private constructor();
     /** The table's trees, by id, in id order. */
-    trees(): [string, Node][];
-    /** The root of the tree of id `id`, if the table holds it. */
-    tree(id: string): Node | null;
+    trees(): [string, Tree][];
+    /** The tree of id `id`, if the table holds it. */
+    tree(id: string): Tree | null;
   }
 }
 
@@ -584,7 +596,7 @@ declare module "flm:lang/mint" {
   export const ArgLayout: Readonly<{ Inline: "inline"; Blocks: "blocks"; InlineOrBlocks: "inline-or-blocks" }>;
   export type ArgLayout = "inline" | "blocks" | "inline-or-blocks";
 
-  export type ArgStdKind = { syntax: "mandatory" } | { syntax: "optional" } | { syntax: "star" } | { syntax: "marker"; marker: string } | { syntax: "delimited-group"; delimiters: [string, string] } | { syntax: "optional-delimited-group"; delimiters: [string, string] } | { syntax: "any-delimited-group" } | { syntax: "optional-any-delimited-group" } | { syntax: "braced-only" } | { syntax: "embellishments"; markers: string[] } | { syntax: "key-vals" } | { syntax: "chars-group" } | { syntax: "verbatim"; delimiters?: [string, string] } | { syntax: "terminated"; terminator: string; repeat_char?: string; opener?: string; head?: string; raw?: boolean };
+  export type ArgStdKind = { syntax: "mandatory" } | { syntax: "optional" } | { syntax: "star" } | { syntax: "marker"; marker: string } | { syntax: "delimited-group"; delimiters: [string, string] } | { syntax: "optional-delimited-group"; delimiters: [string, string] } | { syntax: "any-delimited-group" } | { syntax: "optional-any-delimited-group" } | { syntax: "braced-only" } | { syntax: "embellishments"; markers: string[] } | { syntax: "key-vals" } | { syntax: "chars-group" } | { syntax: "verbatim"; delimiters?: [string, string] } | { syntax: "tack-on"; fields: TackOnField[] } | { syntax: "terminated"; terminator: string; repeat_char?: string; opener?: string; head?: string; raw?: boolean };
 
   export class BodyDef {
     constructor();
@@ -602,6 +614,8 @@ declare module "flm:lang/mint" {
 
   export const FallbackKind: Readonly<{ Macro: "macro"; Environment: "environment" }>;
   export type FallbackKind = "macro" | "environment";
+
+  export interface TackOnField { name: string; args?: ArgDef[] | string; repeatable?: boolean; docs?: string }
 
   export const Mode: Readonly<{ Text: "text"; Math: "math" }>;
   export type Mode = "text" | "math";
@@ -652,7 +666,7 @@ declare module "flm:lang/rewrites/userdefs" {
   import { ArgDef, ElementDef, Mode } from "flm:lang/mint";
   import { BlockRole } from "flm:model/aspects";
   import { Diagnostic } from "flm:techy/error";
-  import { Node } from "flm:techy/node";
+  import { Node, Tree } from "flm:techy/node";
 
   export class Definition {
     constructor(kind: DefinitionKind, name: string, args: ArgDef[] | string);
@@ -687,6 +701,8 @@ declare module "flm:lang/rewrites/userdefs" {
 
   export const ExpandPolicy: Readonly<{ Always: "always"; PerPlan: "per-plan" }>;
   export type ExpandPolicy = "always" | "per-plan";
+
+  export type PlaceholderTarget = { argument: number } | "body" | { extra: string };
 
   export interface PlaceholderVocabulary { arity: number; names?: (string | null)[]; body?: boolean; extras?: { name: string; substitution: boolean }[] }
 
@@ -752,12 +768,19 @@ declare module "flm:lang/rewrites/userdefs" {
     private constructor();
     /** Mirrors `ModeVariant::template`. */
     template(): CompiledTemplate;
+    /** Mirrors `ModeVariant::defaults`: the compiled default values of the optional arguments, with their argument indices, in increasing order of index. */
+    defaults(): [number, CompiledTemplate][];
   }
 
   /** Mirrors `CompiledTemplate`: a compiled replacement text. */
   export class CompiledTemplate {
     private constructor();
+    /** Mirrors `CompiledTemplate::placeholders`: every placeholder of the template, in the tree's storage order. */
+    placeholders(): PlaceholderRef[];
   }
+
+  /** Mirrors `PlaceholderRef`: one placeholder of a compiled template (`CompiledTemplate::placeholders`). */
+  export interface PlaceholderRef { written: string; target: PlaceholderTarget; substitution: string | null }
 
   /** Mirrors `PlaceholderBindings`: what a template's placeholders stand for at one use site. */
   export class PlaceholderBindings {
@@ -796,12 +819,28 @@ declare module "flm:lang/rewrites/userdefs" {
   export class ValueBindings extends PlaceholderBindings {
     /** Mirrors `ValueBindings::new`: bindings that hold no value. */
     constructor();
-    /** Mirrors `ValueBindings::with`: gives the extra placeholder `name` the tree whose root is `node`; answers the same instance. */
-    with(name: string, node: Node): this;
+    /** Mirrors `ValueBindings::with`: gives the extra placeholder `name` the tree `tree`; answers the same instance. */
+    with(name: string, tree: Tree): this;
+  }
+
+  /** Mirrors `ExtraValues`: the values an expansion hook computed for the extra placeholders of a template, each held under the placeholder's name and the text of its substitution argument (`PlaceholderRef::substitution`); a pair given twice keeps the later value. */
+  export class ExtraValues {
+    /** Mirrors `ExtraValues::new`: values that hold nothing. */
+    constructor();
+    /** Mirrors `ExtraValues::template`: gives the extra placeholder `name`, written with the substitution text `substitution` (`null` for none), the compiled template `template`, a variant's template or default value or a template that `compile_template_with` answered; answers the same instance. */
+    template(name: string, substitution: string | null, template: CompiledTemplate): this;
+    /** Mirrors `ExtraValues::tree`: gives the extra placeholder `name`, written with the substitution text `substitution`, the tree `tree`; answers the same instance. */
+    tree(name: string, substitution: string | null, tree: Tree): this;
+    /** Mirrors `ExtraValues::no_value`: gives the extra placeholder `name`, written with the substitution text `substitution`, no value; answers the same instance. */
+    no_value(name: string, substitution: string | null): this;
+    /** Mirrors `ExtraValues::over`: the bindings that answer an extra placeholder from these values and every other placeholder from `base`. */
+    over(base: PlaceholderBindings): PlaceholderBindings;
+    /** No flm-core counterpart: the data form that crosses to the host. */
+    toJSON(): { name: string; substitution: string | null; value: { template: CompiledTemplate } | { tree: Tree } | "no-value" }[];
   }
 
   /** Mirrors `instantiate`: instantiates `template` under `bindings` as a new tree, attributed to the span of `site`. */
-  export function instantiate(site: Node, template: CompiledTemplate, bindings: PlaceholderBindings): Node;
+  export function instantiate(site: Node, template: CompiledTemplate, bindings: PlaceholderBindings): Tree;
 }
 
 declare module "flm:lang/structural" {
@@ -836,6 +875,9 @@ declare module "flm:lang/structural" {
   /** Mirrors `PLACEHOLDER`: `flm.placeholder`, the element of a template's placeholder. */
   export const PLACEHOLDER: "flm.placeholder";
 
+  /** Mirrors `FIELD`: `flm.field`, the element of a field node, a macro that a construct reads as data. */
+  export const FIELD: "flm.field";
+
   /** Mirrors `UNKNOWN_MACRO`: `flm.unknown.macro`, the element of a macro no feature defines. */
   export const UNKNOWN_MACRO: "flm.unknown.macro";
 
@@ -843,7 +885,7 @@ declare module "flm:lang/structural" {
   export const UNKNOWN_ENVIRONMENT: "flm.unknown.environment";
 
   /** Mirrors `NAMES`: every structural element name, in the fixed order of the set. */
-  export const NAMES: readonly ["flm.text", "flm.comment", "flm.container", "flm.group", "flm.math", "flm.verbatim", "flm.opaque-wrapper", "flm.paragraph", "flm.parbreak", "flm.placeholder", "flm.unknown.macro", "flm.unknown.environment"];
+  export const NAMES: readonly ["flm.text", "flm.comment", "flm.container", "flm.group", "flm.math", "flm.verbatim", "flm.opaque-wrapper", "flm.paragraph", "flm.parbreak", "flm.placeholder", "flm.field", "flm.unknown.macro", "flm.unknown.environment"];
 }
 
 declare module "flm:lang/text" {
@@ -861,13 +903,13 @@ declare module "flm:lang/text" {
 
 declare module "flm:model/aspects" {
   import { NodeAddr } from "flm:core/lowering";
-  import { Node, Span } from "flm:techy/node";
+  import { Node, Span, Tree } from "flm:techy/node";
 
   export const AcceptedRefTypes: Readonly<{ Any: "any"; these(types: string[]): { these: string[] } }>;
   export type AcceptedRefTypes = "any" | { these: string[] };
 
-  export const BlockRole: Readonly<{ Block: "block"; Inline(spacing: InlineSpacing): { inline: InlineSpacing }; BlockDecorator(placement: Placement): { "block-decorator": Placement }; DEFAULT: { inline: InlineSpacing } }>;
-  export type BlockRole = "block" | { inline: InlineSpacing } | { "block-decorator": Placement };
+  export const BlockRole: Readonly<{ Block: "block"; Inline(spacing: InlineSpacing): { inline: InlineSpacing }; Displayed: "displayed"; BlockDecorator(placement: Placement): { "block-decorator": Placement }; DEFAULT: { inline: InlineSpacing } }>;
+  export type BlockRole = "block" | { inline: InlineSpacing } | "displayed" | { "block-decorator": Placement };
 
   export const InlineSpacing: Readonly<{ CONTENT: InlineSpacing }>;
   export type InlineSpacing = { absorb_before: boolean; absorb_after: boolean };
@@ -948,9 +990,9 @@ declare module "flm:model/aspects" {
     ArgumentNamed(name: string): { argument_named: string };
     Body: "body";
     Node(node: Node): { node: Node };
-    Synthesized(root: Node): { synthesized: Node };
+    Synthesized(tree: Tree): { synthesized: Tree };
   }>;
-  export type ContentRef = { argument: number } | { argument_named: string } | "body" | { node: Node } | { synthesized: Node };
+  export type ContentRef = { argument: number } | { argument_named: string } | "body" | { node: Node } | { synthesized: Tree };
 }
 
 declare module "flm:model/element" {
@@ -1192,15 +1234,15 @@ declare module "flm:stdcore/backends/latex/preamble" {
 
 declare module "flm:stdcore/backends/lowering" {
   import { LibraryStage } from "flm:core/registry";
-  import { Node } from "flm:techy/node";
+  import { Tree } from "flm:techy/node";
 
   /** Mirrors `LoweredTrees`: the lowered trees of one backend, the table `flm.lowered.<backend>`, each with the fields of its `LoweredTree`. */
   export class LoweredTrees {
     private constructor();
     /** Mirrors the field `LoweredTrees::trees`: every lowered tree, by the id of the document tree it was lowered from, in id order. */
-    trees(): [string, Node][];
-    /** Mirrors `LoweredTrees::get` and the field `LoweredTree::tree`: the root of the lowered form of the document tree `id`, or `None` when the backend has none for it (or `id` names no tree). */
-    tree(id: string): Node | null;
+    trees(): [string, Tree][];
+    /** Mirrors `LoweredTrees::get` and the field `LoweredTree::tree`: the lowered form of the document tree `id`, or `None` when the backend has none for it (or `id` names no tree). */
+    tree(id: string): Tree | null;
     /** Mirrors the field `LoweredTree::requires` of the lowered form of the document tree `id`: the identifiers of the definitions its output needs, in order. */
     requires(id: string): string[] | null;
     /** Mirrors the field `LoweredTree::rounds` of the lowered form of the document tree `id`: how many rounds of lowering ran over it, at least one. */
@@ -1389,7 +1431,7 @@ declare module "flm:stdcore/features/math" {
   import { StageCx } from "flm:core/run";
   import { Staged } from "flm:lang/rewrites/userdefs";
   import { LabelUse } from "flm:stdcore/features/refs";
-  import { Node, Span } from "flm:techy/node";
+  import { Node, Span, Tree } from "flm:techy/node";
   export { ANCHORS } from "flm:stdcore/features/refs";
   export { COUNTERS } from "flm:stdcore/features/numbering";
 
@@ -1457,7 +1499,7 @@ declare module "flm:stdcore/features/math" {
   export interface LineFrame { environment: Node; index: number; line: EquationLine; anchor: string | null; shows: LineShows }
 
   /** Mirrors `LineShows`: what an equation line shows at its tag's place. */
-  export type LineShows = { kind: "nothing" } | { kind: "number"; segments: Node[]; text: string } | { kind: "tag"; starred: boolean; content: Node[] };
+  export type LineShows = { kind: "nothing" } | { kind: "number"; segments: Tree[]; text: string } | { kind: "tag"; starred: boolean; content: Node[] };
 
   /** The context `line_frames` reads the tables and the environment's address through: a running stage's context, or a rule's lowerer. */
   export type FrameReader = StageCx | Lowerer;
@@ -1499,7 +1541,7 @@ declare module "flm:stdcore/features/math" {
 declare module "flm:stdcore/features/numbering" {
   import { NodeAddr } from "flm:core/lowering";
   import { PointId } from "flm:model/aspects";
-  import { Node } from "flm:techy/node";
+  import { Tree } from "flm:techy/node";
 
   /** Mirrors `COUNTERS`: the numbering feature's table of the points' numbers, `flm.counters`, read through the `Counters` façade. */
   export const COUNTERS: "flm.counters";
@@ -1621,7 +1663,7 @@ declare module "flm:stdcore/features/numbering" {
   export interface CounterRecord { counter: string; value: number[]; style: string; instance: NodeAddr | null }
 
   /** Mirrors `NumberSegment`: one stretch of a number, its content and the reference point it links to. */
-  export interface NumberSegment { content: Node; link: PointId | null }
+  export interface NumberSegment { content: Tree; link: PointId | null }
 
   /** Mirrors `Counters`: the table of the points' numbers, as a stage's context or a rule's lowerer answers it for `COUNTERS` (`TableValue::Counters`). */
   export class Counters {
@@ -1821,6 +1863,13 @@ declare module "flm:techy/node" {
     slot_name(i: number): string | null;
     /** Mirrors `NodeRef::slot_content_nodes`: the content of the slot at index `i`, or `None` for an index past the last. */
     slot_content_nodes(i: number): Node[] | null;
+  }
+
+  /** Mirrors `Arc<NodeTree<Flm>>`, techy's `NodeTree` over the FLM language shared through an `Arc`: a whole tree, as `flm-core` answers one (a document's tree, a rewrite's output tree, a lowered tree, a synthesized value, an instantiated template) and takes one (the value of an extra placeholder, a value to splice). */
+  export class Tree {
+    private constructor();
+    /** Mirrors `NodeTree::root`: the tree's root node. */
+    root(): Node;
   }
 
   /** Mirrors the variants of techy's `NodeKind`, by name: a closed enum, since `NodeKind` is generic over the language. */

@@ -5,7 +5,15 @@
 use serde_json::{json, Value};
 
 use super::{get, object};
+#[cfg(feature = "native")]
+use crate::adapter::handles::CallTable;
+#[cfg(feature = "native")]
+use crate::adapter::typed::IntoApi;
+#[cfg(feature = "native")]
+use crate::adapter::values::citation_entry_at;
 use crate::adapter::values::JsonForm;
+#[cfg(feature = "native")]
+use crate::api;
 use crate::api::stdcore::features::citations::CitationProviderError;
 use crate::guest::stdcore::features::citations::{CitationEntry, ProviderCx};
 use crate::runtime::ExtError;
@@ -105,6 +113,18 @@ impl JsonForm for CitationAnswer {
     }
 }
 
+/// The api's `CitationAnswer`, its entry the façade of the entry its handle
+/// stands for; the host's `citation_results_from_value`.
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for CitationAnswer {
+    type Api = api::stdcore::features::citations::CitationAnswer;
+
+    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        let CitationAnswer { entry, identity, warnings } = self;
+        Ok(api::stdcore::features::citations::CitationAnswer { entry: citation_entry_at(table, entry.handle)?, identity, warnings })
+    }
+}
+
 /// Mirrors [`CitationResult`](crate::api::stdcore::features::citations::CitationResult):
 /// a provider's result for one request, an answer, none, or the provider's
 /// failure.
@@ -127,5 +147,19 @@ impl JsonForm for CitationResult {
             Value::Object(map) if map.contains_key("error") => Ok(Err(CitationProviderError::from_value(value)?)),
             _ => Ok(Ok(Some(CitationAnswer::from_value(value)?))),
         }
+    }
+}
+
+/// The api's `CitationResult`: the answer converted, or none, or the
+/// provider's failure as it is; the host's `citation_results_from_value`.
+#[cfg(feature = "native")]
+impl<'c> IntoApi<'c> for CitationResult {
+    type Api = api::stdcore::features::citations::CitationResult;
+
+    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
+        Ok(match self {
+            Ok(answer) => Ok(answer.into_api(table)?),
+            Err(error) => Err(error),
+        })
     }
 }

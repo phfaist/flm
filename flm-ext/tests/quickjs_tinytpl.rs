@@ -1,4 +1,4 @@
-//! The fixture `tests/js/tinytpl/` (E6, plan section 7.2): a compose
+//! The fixture `tests/js/tinytpl/`: a compose
 //! template written as a JavaScript module (`templates/html/tiny.js`), its
 //! heading from the feature's configuration, shipping a stylesheet it
 //! computes and, when the template's settings name one, a banner copied from
@@ -8,8 +8,8 @@
 //! (registered as `flm-main`'s standard package registers it) and a naming of
 //! files after the job `tiny`; the template chosen and its settings given
 //! through the render option [`ComposeOptions`]. The page and the stylesheet
-//! are goldens; a module whose `render` throws (D14) and a banner that is not
-//! there (D7) are reported by the composer.
+//! are goldens; a module whose `render` throws and a banner that is not there
+//! are reported by the composer.
 
 #![cfg(feature = "quickjs")]
 
@@ -195,7 +195,7 @@ fn shipped_names(run: &Run) -> Vec<String> {
     set.iter().filter(|artifact| Some(&artifact.id) != entry.as_ref()).map(|artifact| artifact.id.to_string()).collect()
 }
 
-// --- the page of section 7.2 -------------------------------------------------------------------
+// --- the page ----------------------------------------------------------------------------------
 
 #[test]
 fn the_template_module_is_contributed_with_its_description() {

@@ -43,12 +43,14 @@
 //! ([`stage_trimmed`](crate::stdcore::backends::lowering::stage_trimmed)).
 //! They are removed where whitespace is removed: beside an element that
 //! absorbs the whitespace next to it (`\cite` removes the whitespace written
-//! before it), and at the start and at the end of a paragraph and of a line of
-//! a quotation; and they start no paragraph. Everywhere else they are kept as
-//! written. The pass collapses every run of whitespace in the source to one
-//! space before any lowering rule runs, but it never merges a literal into the
-//! text beside it: `a~~b` keeps its two non-breaking spaces, and `a\ \ b` its
-//! two spaces. The lowering rule produces the character of each literal kept.
+//! before it), on both sides of a [displayed item](BlockRole::Displayed) such
+//! as `\[…\]` (`word~\[x\]` loses its `~`), and at the start and at the end
+//! of a paragraph and of a line of a quotation; and they start no paragraph.
+//! Everywhere else they are kept as written. The pass collapses every run of
+//! whitespace in the source to one space before any lowering rule runs, but it
+//! never merges a literal into the text beside it: `a~~b` keeps its two
+//! non-breaking spaces, and `a\ \ b` its two spaces. The lowering rule
+//! produces the character of each literal kept.
 //!
 //! `\@` adjusts the space after a period. Written after a period (`cf.\@ the
 //! appendix`), it says that the period ends an abbreviation, not a sentence;
@@ -93,9 +95,9 @@
 //! - [`textstyles`](crate::stdcore::features::textstyles) — the sibling feature
 //!   that declares the inline formatting commands.
 
-// The spelling written for a value is what tells the nine apart in a dump,
-// since the element type is one; see decision rationale at
-// [§flm-dd-dr:std-element-families] and [§flm-dd-dr:std-literals].
+// The nine literals are values of one element type, so that they share one
+// lowering rule on each backend; the spelling written for a value is what tells
+// them apart in a dump.
 
 pub mod latex;
 

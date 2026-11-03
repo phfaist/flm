@@ -14,7 +14,7 @@
         "name": "flm.heading",
         "values": [
           {
-            "number": 49,
+            "number": 50,
             "docs": "`section`: A heading of level 1.",
             "summary": "`section`: A heading of level 1.",
             "commands": [
@@ -38,7 +38,7 @@
             ]
           },
           {
-            "number": 53,
+            "number": 52,
             "docs": "`subsubsection`: A heading of level 3.",
             "summary": "`subsubsection`: A heading of level 3.",
             "commands": [
@@ -50,7 +50,7 @@
             ]
           },
           {
-            "number": 55,
+            "number": 53,
             "docs": "`paragraph`: A heading of level 4.",
             "summary": "`paragraph`: A heading of level 4.",
             "commands": [
@@ -62,7 +62,7 @@
             ]
           },
           {
-            "number": 57,
+            "number": 54,
             "docs": "`subparagraph`: A heading of level 5.",
             "summary": "`subparagraph`: A heading of level 5.",
             "commands": [
@@ -76,95 +76,10 @@
         ]
       },
       {
-        "name": "flm.field",
-        "values": [
-          {
-            "number": 50,
-            "docs": "The field `\\label`, which the construct it is written after reads as data.",
-            "summary": "The field `\\label`, which the construct it is written after reads as data.",
-            "commands": [
-              {
-                "kind": "macro",
-                "name": "label",
-                "feature": "headings",
-                "field_of": {
-                  "kind": "macro",
-                  "name": "section"
-                }
-              }
-            ]
-          },
-          {
-            "number": 52,
-            "docs": "The field `\\label`, which the construct it is written after reads as data.",
-            "summary": "The field `\\label`, which the construct it is written after reads as data.",
-            "commands": [
-              {
-                "kind": "macro",
-                "name": "label",
-                "feature": "headings",
-                "field_of": {
-                  "kind": "macro",
-                  "name": "subsection"
-                }
-              }
-            ]
-          },
-          {
-            "number": 54,
-            "docs": "The field `\\label`, which the construct it is written after reads as data.",
-            "summary": "The field `\\label`, which the construct it is written after reads as data.",
-            "commands": [
-              {
-                "kind": "macro",
-                "name": "label",
-                "feature": "headings",
-                "field_of": {
-                  "kind": "macro",
-                  "name": "subsubsection"
-                }
-              }
-            ]
-          },
-          {
-            "number": 56,
-            "docs": "The field `\\label`, which the construct it is written after reads as data.",
-            "summary": "The field `\\label`, which the construct it is written after reads as data.",
-            "commands": [
-              {
-                "kind": "macro",
-                "name": "label",
-                "feature": "headings",
-                "field_of": {
-                  "kind": "macro",
-                  "name": "paragraph"
-                }
-              }
-            ]
-          },
-          {
-            "number": 58,
-            "docs": "The field `\\label`, which the construct it is written after reads as data.",
-            "summary": "The field `\\label`, which the construct it is written after reads as data.",
-            "commands": [
-              {
-                "kind": "macro",
-                "name": "label",
-                "feature": "headings",
-                "field_of": {
-                  "kind": "macro",
-                  "name": "subparagraph"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      {
         "name": "flm.heading.number",
         "values": [
           {
-            "number": 59,
+            "number": 55,
             "docs": "The number of a numbered heading, where the kind's heading title template writes `#{number}`. No document can write it.",
             "summary": "The number of a numbered heading, where the kind's heading title template writes `#{number}`. No document can write it.",
             "commands": []

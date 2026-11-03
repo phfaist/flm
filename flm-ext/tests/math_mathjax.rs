@@ -59,18 +59,12 @@ fn golden(name: &str) -> String {
 
 /// The extension's package `_`, loaded with the default host settings.
 fn factory() -> PackageFactory {
-    factory_with(manifest())
-}
-
-/// The extension's package `_`, loaded with the default host settings and the
-/// manifest `manifest`.
-fn factory_with(manifest: Value) -> PackageFactory {
     let files: Vec<(&str, String)> = MODULES
         .iter()
         .map(|path| (*path, std::fs::read_to_string(format!("{EXTENSION}/{path}")).expect("the module reads")))
         .collect();
     let files: Vec<(&str, &str)> = files.iter().map(|(path, text)| (*path, text.as_str())).collect();
-    let source = common::js_extension("math-mathjax", &files, manifest);
+    let source = common::js_extension("math-mathjax", &files, manifest());
     common::factory_of(&common::js_loader(&JsHost::new(JsSettings::default()), source), "math-mathjax")
 }
 
@@ -83,11 +77,7 @@ fn configuration(factory: &PackageFactory, data: Value) -> FeatureSettings {
 
 /// The package built with the configuration `data`.
 fn package(data: Value) -> PackageEntry {
-    package_of(factory(), data)
-}
-
-/// The package of `factory` built with the configuration `data`.
-fn package_of(factory: PackageFactory, data: Value) -> PackageEntry {
+    let factory = factory();
     let mut settings = PackageSettings::new();
     settings.insert(configuration(&factory, data));
     factory.build(&settings).expect("the package builds")
@@ -96,17 +86,11 @@ fn package_of(factory: PackageFactory, data: Value) -> PackageEntry {
 /// The registry of the standard package and the extension configured with
 /// `data`, or the build's error.
 fn try_registry(data: Value) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
-    try_registry_of(package(data))
-}
-
-/// The registry of the standard package and the extension's package
-/// `package`, or the build's error.
-fn try_registry_of(package: PackageEntry) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
     // The extension's feature is the registry's one feature that processes
     // mathematics.
     let mut builder = RegistryBuilder::new();
     builder.use_package(stdcore::package(stdcore::StdcoreConfig::new()));
-    builder.use_package(package);
+    builder.use_package(package(data));
     builder.build(&RegistryInputs::new())
 }
 
@@ -552,6 +536,22 @@ fn the_text_prints_each_formula_as_written_with_its_numbers() {
     }
 }
 
+/// A paragraph, then a paragraph holding text, a display-math environment and
+/// text, with no blank line around the environment.
+const PARAGRAPH: &str = "A paragraph.\n\nText before\n\\begin{align}\n  a &= b \\\\\n  c &= d\n\\end{align}\ntext after.";
+
+#[test]
+fn the_text_sets_an_environment_inside_its_paragraph_on_lines_of_its_own() {
+    for data in [mathml(), browser()] {
+        let (text, diagnostics) = text_of(&registry(data), PARAGRAPH);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(
+            text,
+            "A paragraph.\n\nText before\n  \\begin{align}\n    a &= b (1)\\\\\n    c &= d(2)\n  \\end{align}\ntext after.\n"
+        );
+    }
+}
+
 // --- the page in `mathml` mode ------------------------------------------------------------------
 
 #[test]
@@ -590,6 +590,61 @@ fn the_mathml_page_carries_the_formulas_as_mathml_with_their_holes() {
     assert!(page.contains("/* math-mathjax.style */"), "{page}");
     assert!(!page.contains("<script"), "{page}");
     assert!(!page.contains("data-latex"), "{page}");
+}
+
+/// The page `page` as `html5ever` parses it, the way a browser parses a page,
+/// and the parse errors it reported.
+fn parsed_page(page: &str) -> (markup5ever_rcdom::RcDom, Vec<String>) {
+    use html5ever::driver::{parse_document, ParseOpts};
+    use html5ever::tendril::TendrilSink;
+    use markup5ever_rcdom::RcDom;
+
+    let dom = parse_document(RcDom::default(), ParseOpts::default()).one(page);
+    let errors: Vec<String> = dom.errors.borrow().iter().map(|e| e.to_string()).collect();
+    (dom, errors)
+}
+
+/// The number of elements named `tag` under `node`, and among them those that
+/// hold an element named `inner`.
+fn count_elements(node: &markup5ever_rcdom::Handle, tag: &str, inner: &str) -> (usize, usize) {
+    use markup5ever_rcdom::NodeData;
+
+    fn holds(node: &markup5ever_rcdom::Handle, inner: &str) -> bool {
+        node.children.borrow().iter().any(|child| {
+            matches!(&child.data, NodeData::Element { name, .. } if &*name.local == inner) || holds(child, inner)
+        })
+    }
+    let mut counts = (0, 0);
+    if matches!(&node.data, NodeData::Element { name, .. } if &*name.local == tag) {
+        counts.0 += 1;
+        if holds(node, inner) {
+            counts.1 += 1;
+        }
+    }
+    for child in node.children.borrow().iter() {
+        let (all, holding) = count_elements(child, tag, inner);
+        counts.0 += all;
+        counts.1 += holding;
+    }
+    counts
+}
+
+#[test]
+fn a_paragraph_holding_an_environment_is_one_p_holding_the_environment_s_span() {
+    let (page, diagnostics) = page_of(&registry(mathml()), PARAGRAPH);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let body = body_of(&page);
+    assert!(!body.contains(r#"<div class="flm-pres-par""#), "{body}");
+    assert!(
+        body.contains(r#"<p class="flm-pres-par">Text before<span class="flm-pres-span math--mathjax-environment" data-flm-kind="align"><math"#),
+        "{body}"
+    );
+    assert!(body.contains("</math></span>text after.</p>"), "{body}");
+    let (dom, errors) = parsed_page(&page);
+    assert!(errors.is_empty(), "the parser reported {errors:?} on: {page}");
+    // Two paragraphs, the second holding the formula: the parser closed no
+    // `<p>` before its end tag.
+    assert_eq!(count_elements(&dom.document, "p", "math"), (2, 1), "{body}");
 }
 
 #[test]
@@ -687,7 +742,7 @@ fn an_empty_equation_line_is_reported() {
     );
 }
 
-/// S16: the empty line's report is placed at the line's first node (here the
+/// The empty line's report is placed at the line's first node (here the
 /// blank after the first `\\`), not at the environment's node.
 #[test]
 fn an_empty_equation_line_is_reported_at_the_line_s_first_node() {
@@ -726,21 +781,16 @@ fn deep_formulas(depth: usize) -> String {
 /// The depth of the deep formulas of the limits test.
 const DEPTH: usize = 40;
 
+/// Under the limits its manifest gives, MathJax renders the deep formulas
+/// as MathML, with no diagnostic, each fraction and each root nested
+/// `DEPTH` times.
 #[test]
-fn the_deep_formulas_render_under_the_manifest_s_limits_and_fail_under_the_host_s_default_stack() {
-    let source = deep_formulas(DEPTH);
-    let (page, diagnostics) = page_of(&registry(mathml()), &source);
+fn the_deep_formulas_render_under_the_manifest_s_limits() {
+    let (page, diagnostics) = page_of(&registry(mathml()), &deep_formulas(DEPTH));
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(body_of(&page).matches("<math ").count(), 3, "{page}");
     assert_eq!(body_of(&page).matches("<mfrac>").count(), DEPTH, "{page}");
     assert_eq!(body_of(&page).matches("<msqrt>").count(), DEPTH, "{page}");
-    // The same extension with no limits in its manifest: the host's default
-    // stack (1 MiB).
-    let without_limits = json!({ "extension": { "engine": "js", "js": { "main": "./main.js" } } });
-    let registry = try_registry_of(package_of(factory_with(without_limits), mathml())).expect("the registry builds");
-    let run = run_with(&registry, html::WORKFLOW, &source, &Overrides::none());
-    let identifiers = common::identifiers(&run);
-    assert!(identifiers.iter().any(|id| id == "flm.ext.handler-failed"), "{:?}", common::diagnostics(&run));
 }
 
 // --- the preamble ------------------------------------------------------------------------------

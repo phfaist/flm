@@ -106,8 +106,10 @@
 //! registered, while text mode still reports unknown commands.
 //!
 //! **The fields package**, named [`FIELDS_PACKAGE_NAME`], holds the
-//! specifications of [tack-on fields](super::TackOnField). A field's node
-//! records such a specification, but no name lookup ever reaches it: the
+//! specifications of [tack-on fields](super::TackOnField). Each carries the
+//! language's field element
+//! ([`StructuralElements::field`](crate::lang::structural::StructuralElements::field)).
+//! A field's node records such a specification, but no name lookup ever reaches it: the
 //! parser that absorbs the fields holds it directly. The package exists so
 //! that these specifications too carry provenance stamps and can be
 //! serialized. Their keys are built from the declaration alone, so adding an
@@ -338,6 +340,25 @@ pub enum MintError {
         /// own.
         field: Option<String>,
     },
+    /// A tack-on argument declares two fields ([`TackOnField`]) of one name,
+    /// so a macro of that name written after the command could be read as
+    /// either. The second field is left out of the argument.
+    FieldDeclaredTwice {
+        /// The declaring feature.
+        owner: FeatureName,
+        /// The element whose declaration holds the tack-on argument.
+        callable: ElementName,
+        /// The tack-on argument's position, counting from zero, in the
+        /// argument list that declares it: the element's own, or that of the
+        /// tack-on field given by `field`.
+        index: usize,
+        /// The name of the [tack-on field](TackOnField) whose own argument
+        /// list holds the tack-on argument; `None` when the argument is the
+        /// element's own.
+        field: Option<String>,
+        /// The name the two fields share.
+        name: String,
+    },
     /// An environment's body declared with an opaque wrapper
     /// ([`BodyDef::opaque_wrapper`]) declares a [layout](BodyDef::layout)
     /// other than [`FromRole`](super::BodyLayout::FromRole). The
@@ -475,7 +496,7 @@ impl fmt::Display for MintError {
             } => {
                 write!(
                     f,
-                    "argument #{}{} of `{element}` (an element of the feature `{owner}`) \
+                    "argument {}{} of `{element}` (an element of the feature `{owner}`) \
                      refers to the scoped package `{package}`, which no registered feature \
                      declares; a feature that refers to another feature's scoped package \
                      must declare it with `FeatureBuilder::peer_scoped_package`",
@@ -516,15 +537,22 @@ impl fmt::Display for MintError {
             }
             MintError::LayoutOnOpaqueWrappedArgument { owner, callable, index, field } => write!(
                 f,
-                "feature `{owner}`: argument #{}{} of `{callable}` must be laid out inline, \
+                "feature `{owner}`: argument {}{} of `{callable}` must be laid out inline, \
                  because it is declared with an opaque wrapper",
                 index + 1,
                 of_field(field)
             ),
             MintError::BlocksOnMathArgument { owner, callable, index, field } => write!(
                 f,
-                "feature `{owner}`: argument #{}{} of `{callable}` must not be laid out as \
+                "feature `{owner}`: argument {}{} of `{callable}` must not be laid out as \
                  blocks, because it is read in mathematics mode",
+                index + 1,
+                of_field(field)
+            ),
+            MintError::FieldDeclaredTwice { owner, callable, index, field, name } => write!(
+                f,
+                "feature `{owner}`: the fields of argument {}{} of `{callable}` must have \
+                 distinct names, and `{name}` is declared twice",
                 index + 1,
                 of_field(field)
             ),
@@ -751,16 +779,24 @@ struct Scopes<'a> {
     peers: &'a BTreeSet<(FeatureName, Name)>,
 }
 
+/// The fields package, which receives the specification of every tack-on
+/// field, with the element each of those specifications carries: the
+/// language's field element ([`StructuralElements::field`]).
+struct FieldsHome<'a> {
+    package: &'a mut Package<Flm>,
+    element: &'a Arc<ElementSpec>,
+}
+
 /// Builds one declared argument list: the element's own when `field` is
 /// `None`, else that of the tack-on field of this name, which an error
 /// identifies. `home` is the fields package that receives the specifications
-/// of any tack-on fields, `def` the declaration they belong to, from which
+/// of any tack-on fields ([`FieldsHome`]), `def` the declaration they belong to, from which
 /// their keys are built and which an error identifies, and `scopes` the
 /// scoped packages an argument may refer to.
 fn argument_specs_of(
     args: &[ArgDef],
     field: Option<&str>,
-    home: &mut Package<Flm>,
+    home: &mut FieldsHome<'_>,
     def: &ElementDef,
     scopes: &Scopes<'_>,
     errors: &mut Vec<MintError>,
@@ -831,11 +867,14 @@ fn field_key(
 
 /// Builds the specification of one tack-on field and inserts it into the
 /// fields package under its [`field_key`], with that package's provenance
-/// stamp. It returns the value the package holds, so a field node records the
-/// same specification that a serialized tree finds again by its key.
+/// stamp. The specification carries the language's field element, and its
+/// node is named as the field is written, which is how the construct that
+/// declared the field reads it ([`field_name`](super::field_name)). It returns
+/// the value the package holds, so a field node records the same
+/// specification that a serialized tree finds again by its key.
 fn field_spec(
     field: &TackOnField,
-    home: &mut Package<Flm>,
+    home: &mut FieldsHome<'_>,
     def: &ElementDef,
     arg_index: usize,
     scopes: &Scopes<'_>,
@@ -843,14 +882,15 @@ fn field_spec(
 ) -> Arc<dyn CallableSpec<Flm>> {
     let args = argument_specs_of(&field.args, Some(&field.name), home, def, scopes, errors);
     let syntax = MacroSpec::<Flm>::new(args.specs);
-    let key = field_key(home, def, field, arg_index);
+    let key = field_key(home.package, def, field, arg_index);
     let mut callable =
-        FlmCallable::new(syntax, Arc::clone(field.element())).with_arg_layouts(args.layouts);
-    if let Some(stamp) = home.provenance_for(FlmCallableType::Macro, key.as_str()) {
+        FlmCallable::new(syntax, Arc::clone(home.element)).with_arg_layouts(args.layouts);
+    if let Some(stamp) = home.package.provenance_for(FlmCallableType::Macro, key.as_str()) {
         callable = callable.with_provenance(stamp);
     }
-    home.insert(FlmCallableType::Macro, key.as_str(), callable);
+    home.package.insert(FlmCallableType::Macro, key.as_str(), callable);
     let spec = home
+        .package
         .get(FlmCallableType::Macro, &key)
         .expect("the field's specification was just inserted");
     Arc::clone(spec)
@@ -874,13 +914,13 @@ fn argument_spec_of(
     arg: &ArgDef,
     arg_index: usize,
     field: Option<&str>,
-    home: &mut Package<Flm>,
+    home: &mut FieldsHome<'_>,
     def: &ElementDef,
     scopes: &Scopes<'_>,
     errors: &mut Vec<MintError>,
 ) -> Arc<ArgumentSpec<Flm>> {
     let parser: Arc<dyn ArgumentParser<Flm>> = match arg.kind.tack_on_fields() {
-        Some(fields) => Arc::new(tack_on_reader(fields, home, def, arg_index, scopes, errors)),
+        Some(fields) => Arc::new(tack_on_reader(fields, field, home, def, arg_index, scopes, errors)),
         None => arg.kind.clone(),
     };
     let parser: Arc<dyn ArgumentParser<Flm>> = if arg.opaque_wrapper {
@@ -906,21 +946,36 @@ fn argument_spec_of(
     Arc::new(spec)
 }
 
-/// Builds the reader of a tack-on argument, the `arg_index`-th of `def`:
-/// techy's tack-on reader, configured with the specification of each of
-/// `fields`, which [`field_spec`] builds into `home`.
-// Why the minting, not the argument's parser object, builds this reader: see
-// decision rationale at [§flm-dd-dr:lang-tack-on-reader].
+/// Builds the reader of a tack-on argument, the `arg_index`-th of `def` (in
+/// the argument list of the tack-on field named `within`, when it is not
+/// `None`): techy's tack-on reader, configured with the specification of each
+/// of `fields`, which [`field_spec`] builds into `home`. A field whose name an
+/// earlier field has is reported ([`MintError::FieldDeclaredTwice`]) and left
+/// out.
+// The minting builds this reader, not the argument's parser object: the fields'
+// specifications are minted into the registry's fields package, and a parser object,
+// built before any registry exists and shared across registries, cannot hold them.
 fn tack_on_reader(
     fields: &[TackOnField],
-    home: &mut Package<Flm>,
+    within: Option<&str>,
+    home: &mut FieldsHome<'_>,
     def: &ElementDef,
     arg_index: usize,
     scopes: &Scopes<'_>,
     errors: &mut Vec<MintError>,
 ) -> TackOnFieldsArgumentParser<Flm> {
     let mut parser = TackOnFieldsArgumentParser::<Flm>::new(FlmCallableType::Macro);
-    for field in fields {
+    for (position, field) in fields.iter().enumerate() {
+        if fields[..position].iter().any(|earlier| earlier.name == field.name) {
+            errors.push(MintError::FieldDeclaredTwice {
+                owner: def.owner.clone(),
+                callable: def.element.name.clone(),
+                index: arg_index,
+                field: within.map(str::to_string),
+                name: field.name.clone(),
+            });
+            continue;
+        }
         let spec = field_spec(field, home, def, arg_index, scopes, errors);
         parser = if field.repeatable {
             parser.with_repeatable_field(field.name.as_str(), spec)
@@ -1011,7 +1066,8 @@ pub(crate) fn feature_stack_order(elements: &[ElementDef]) -> Vec<FeatureName> {
 /// when no feature declares it, in which case the reference adds nothing to
 /// the parsing state and nothing is reported here. `structural` supplies the
 /// elements that the language's own two fallbacks carry
-/// (`flm.unknown.macro`, `flm.unknown.environment`).
+/// (`flm.unknown.macro`, `flm.unknown.environment`), and the field element
+/// that every tack-on field's specification carries (`flm.field`).
 ///
 /// It never fails: every problem is collected in
 /// [`MintedProviders::errors`] as a [`MintError`], and the rest is built. The
@@ -1040,8 +1096,9 @@ pub fn mint_packages(
     // the features' own packages, in registration order, one per set of parsing
     // modes a feature's declarations name. Both are minted inside the fields
     // package's builder, which receives the specs of every tack-on field.
-    // Why a feature may have several packages: see decision rationale at
-    // [§flm-dd-dr:lang-feature-packages].
+    // A feature may need several packages because a package holds one entry per
+    // callable form and name: a name declared once for text and once for mathematics
+    // would otherwise keep only the later declaration.
     let declared: BTreeSet<Name> = scoped_packages.iter().map(|p| p.name.clone()).collect();
     let peers: BTreeSet<(FeatureName, Name)> = peer_scoped_packages.iter().cloned().collect();
     let order = scoped_mint_order(scoped_packages, &mut errors);
@@ -1056,12 +1113,13 @@ pub fn mint_packages(
     // two lists are no longer one-to-one.
     let mut package_owners: Vec<FeatureName> = Vec::with_capacity(owners.len());
     let fields = Package::new_shared(FIELDS_PACKAGE_NAME, |fields| {
+        let mut home = FieldsHome { package: fields, element: &structural.field };
         for index in order {
             let package = &scoped_packages[index];
             let minted = Package::new_shared(package.name.as_str(), |pkg| {
                 for def in &package.elements {
                     let scopes = Scopes { minted: &scoped, declared: &declared, peers: &peers };
-                    insert_element(pkg, def, &scopes, &mut errors, fields);
+                    insert_element(pkg, def, &scopes, &mut errors, &mut home);
                 }
             });
             scoped.insert(package.name.clone(), minted);
@@ -1073,7 +1131,7 @@ pub fn mint_packages(
                 let minted = Package::new_shared(name.as_str(), |pkg| {
                     for def in group {
                         let scopes = Scopes { minted: &scoped, declared: &declared, peers: &peers };
-                    insert_element(pkg, def, &scopes, &mut errors, fields);
+                    insert_element(pkg, def, &scopes, &mut errors, &mut home);
                     }
                 });
                 packages.push(minted);
@@ -1119,7 +1177,8 @@ pub fn mint_packages(
         // that mode, and the last of them, whose definition applies there.
         // Only that feature's override is consulted; the feature order allows
         // the collision when it places that feature explicitly after every
-        // other. See decision rationale at [§flm-dd-dr:feat-order].
+        // other, since placing a feature after another both makes its
+        // definition apply and states that the collision is intended.
         for &mode in Mode::ALL {
             let owners_of: Vec<FeatureName> = definers
                 .iter()
@@ -1152,8 +1211,7 @@ pub fn mint_packages(
     // The fallbacks: the features' first (a later one overlapping an earlier one
     // of the same kind is a clash and is not installed), then the language
     // layer's own two recovery fallbacks, each for every mode. Being last, they
-    // are consulted only where no feature answers. See the design rationale at
-    // [§flm-dd-dr:err-unknown-callables].
+    // are consulted only where no feature answers.
     let mut pending: Vec<PendingFallback> = Vec::new();
     for def in fallbacks {
         let overlapping: Vec<Mode> = Mode::ALL
@@ -1426,14 +1484,14 @@ fn package_name(owner: &FeatureName, position: usize) -> String {
 // --- element insertion ------------------------------------------------------------------
 
 /// Builds one element declaration into `pkg`, one specification per name it is
-/// written under. `fields` is the package that receives the specifications of
-/// its tack-on fields.
+/// written under. `fields` is the fields package, which receives the
+/// specifications of its tack-on fields ([`FieldsHome`]).
 fn insert_element(
     pkg: &mut Package<Flm>,
     def: &ElementDef,
     scopes: &Scopes<'_>,
     errors: &mut Vec<MintError>,
-    fields: &mut Package<Flm>,
+    fields: &mut FieldsHome<'_>,
 ) {
     match &def.syntax {
         SyntaxDef::Macro { args } => {

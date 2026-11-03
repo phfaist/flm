@@ -191,7 +191,7 @@ fn written_form(arg: &ArgDef) -> String {
 /// - a group whose use site writes braces (mandatory, braced only, read as characters, in
 ///   any of the pairs, verbatim between any pair) as `{name}`;
 /// - an optional group in brackets (in any of the pairs, of key-value pairs) as `[name]`;
-/// - a marker as its character (`*`, `!`);
+/// - a marker as its characters (`*`, `!`, `\big`);
 /// - a group between a prescribed pair, mandatory or optional, and a verbatim argument
 ///   between a prescribed pair, as `<open>name<close>`;
 /// - embellishments as each marker followed by `{…}`;
@@ -211,7 +211,7 @@ fn written_from_kind(kind: &ArgStdKind, name: &str) -> String {
             format!("[{name}]")
         }
         ArgStdKind::Star => String::from("*"),
-        ArgStdKind::Marker { marker } => marker.to_string(),
+        ArgStdKind::Marker { marker } => marker.clone(),
         ArgStdKind::DelimitedGroup { open, close }
         | ArgStdKind::OptionalDelimitedGroup { open, close }
         | ArgStdKind::Verbatim { delimiters: Some((open, close)) } => format!("{open}{name}{close}"),
@@ -363,9 +363,8 @@ pub struct ArgumentView {
     /// The argument's structured syntax: its standard kind written as data, in the form
     /// settings declare an argument with (`{"syntax": "delimited-group", "delimiters":
     /// ["(", ")"]}`; see [`ArgStdKind`](ArgStdKind#the-kind-as-data)), whatever form the
-    /// argument was declared in, a tack-on argument included (its kind with its fields,
-    /// which settings cannot declare). Absent for an argument whose parser is a feature's
-    /// own.
+    /// argument was declared in, a tack-on argument included (its kind with its fields).
+    /// Absent for an argument whose parser is a feature's own.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub syntax: Option<ArgStdKind>,
     /// How the argument is written at a use site, with its name standing for its content:
@@ -535,7 +534,7 @@ mod tests {
         let cases = [
             (ArgStdKind::Mandatory, "{x}"),
             (ArgStdKind::KeyVals, "[x]"),
-            (ArgStdKind::Marker { marker: '!' }, "!"),
+            (ArgStdKind::Marker { marker: String::from("!") }, "!"),
             (ArgStdKind::Verbatim { delimiters: None }, "{x}"),
             (ArgStdKind::Verbatim { delimiters: Some(('{', '}')) }, "{x}"),
             (ArgStdKind::Verbatim { delimiters: Some(('|', '|')) }, "|x|"),

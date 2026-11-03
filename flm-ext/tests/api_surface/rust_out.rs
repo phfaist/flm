@@ -1,5 +1,5 @@
-//! The emitter of the generated dispatcher `src/adapter/generated.rs` (the
-//! plan's section 5.1, `dev-docs/ext/e2b`): the module list `MODULE_PATHS`,
+//! The emitter of the generated dispatcher `src/adapter/generated.rs`: the
+//! module list `MODULE_PATHS`,
 //! the table of constants, the `names` arms, the kind `match` of the
 //! dispatcher, one function per handle kind with one arm per dispatched
 //! method, and the module function with the free functions, the
@@ -14,14 +14,17 @@
 //! mismatch reported by position (or the one of them alone through
 //! `entry!`, in the line of its kind's receiver mode); the call, `?` applied
 //! when it answers a `Result` of `ExtError`; the reply through `IntoReply`
-//! (`null` for a method answering nothing).
+//! (`null` for a method answering nothing). The sequence is the arm's
+//! [`ArmPlan`], which the guest client's emitter (`guest_out.rs`) renders
+//! too, as the typed body of the same method: one statement of a request,
+//! two renderings.
 //!
 //! # What is not generated
 //!
 //! The methods of `NOT_DISPATCHED`; the extras of `EXTRA_METHODS`, whose
 //! arms `dispatch.rs` writes by hand (`StageOut::table`, `TablePiece::push`,
-//! `Lowerer.get_at`, `arg_def_from_code`, `line_frames`; `Lowerer.pres_tree`
-//! is a stub-only method with no arm); and the arms of `HAND_ARMS`, façade
+//! `Lowerer.get_at`, `line_frames`; `Lowerer.pres_tree` is a stub-only
+//! method with no arm); and the arms of `HAND_ARMS`, façade
 //! methods whose generated arm would answer differently from the
 //! hand-written one. Each kind function ends in the hand-written extras of
 //! its kind, the module function in those of the modules.
@@ -60,13 +63,25 @@ fn has_extras(kind: &str) -> bool {
 }
 
 /// How one parameter is passed.
-enum Param {
-    /// A value read through `FromArg` into a local: its type (with the
-    /// call's lifetime) and the expression that passes the local.
-    Value { ty: String, pass: String },
+pub enum Param {
+    /// A value read into a local `a<i>` (through `FromArg` in the
+    /// dispatcher, `IntoApi` in the guest's typed body): its type as
+    /// `FromArg` reads it (with the call's lifetime added by the dispatcher)
+    /// and the expression that passes the local.
+    Value {
+        /// The type `FromArg` reads.
+        ty: String,
+        /// The expression that passes the local.
+        pass: String,
+    },
     /// A borrowed façade taken from the table: its kind row and whether the
     /// borrow is `&mut`.
-    Facade { kind: &'static KindRow, mutable: bool },
+    Facade {
+        /// The façade's kind row.
+        kind: &'static KindRow,
+        /// Whether the borrow is `&mut`.
+        mutable: bool,
+    },
 }
 
 /// Where a parameter stands, as the generator's messages name it.
@@ -87,9 +102,10 @@ fn param(ty: &str, i: usize, site: &Site<'_>) -> Param {
         mapping::kind_of(bound).filter(|row| row.entry.is_some())
     };
     if let Some((inner, mutable)) = ty.strip_prefix("&mut ").map(|inner| (inner, true)).or_else(|| ty.strip_prefix('&').map(|inner| (inner, false))) {
-        if inner == "dyn Node" {
-            // A node is copied out of the table (plan A, A16).
-            return Param::Value { ty: "Box<dyn Node>".to_string(), pass: format!("&*{local}") };
+        if inner == "dyn Node" || inner == "dyn Tree" {
+            // A node or a tree is copied out of the table, so
+            // that a method consuming its receiver can take one.
+            return Param::Value { ty: format!("Box<{inner}>"), pass: format!("&*{local}") };
         }
         if let Some(kind) = facade(inner) {
             return Param::Facade { kind, mutable };
@@ -159,7 +175,7 @@ fn identifiers(ty: &str) -> impl Iterator<Item = &str> {
 }
 
 /// How an arm's call is made.
-enum Target<'a> {
+pub enum Target<'a> {
     /// A method on the receiver of the kind `kind`, through its entry.
     Method { kind: &'static KindRow, receiver: &'a str },
     /// A free function or a constructor, by its path.
@@ -176,67 +192,123 @@ struct Emitter<'a> {
     token: bool,
 }
 
-impl Emitter<'_> {
-    /// The lines of the arm for `function`, a method of `owner` (or a free
-    /// function when `owner` is `None`) defined in `file`, at the
-    /// indentation of an arm's body (12 spaces).
-    fn arm(&mut self, owner: Option<&str>, function: &Function, file: &str, target: &Target<'_>) -> Vec<String> {
-        let display = owner.map_or_else(|| function.name.clone(), |owner| format!("{owner}::{}", function.name));
-        let params: Vec<Param> = function
-            .params
-            .iter()
-            .enumerate()
-            .map(|(i, p)| param(&p.ty, i, &Site { param: &p.name, function: &display, file }))
-            .collect();
-        let mut lines = vec![format!("args.arity({})?;", params.len())];
-        let mut entries: Vec<(String, String, &'static KindRow)> = Vec::new();
-        if let Target::Method { kind, .. } = target {
-            entries.push(("this".to_string(), "handle".to_string(), kind));
-        }
-        let mut passed = Vec::new();
-        for (i, plan) in params.iter().enumerate() {
-            match plan {
-                Param::Value { ty, pass } => {
-                    for name in identifiers(ty) {
-                        self.names.insert(name.to_string());
-                    }
-                    lines.push(format!("let a{i} = <{} as FromArg>::from_arg(table, args, {i})?;", with_lifetime(ty, self.inventory)));
-                    passed.push(pass.clone());
-                }
-                Param::Facade { kind, mutable } => {
-                    entries.push((format!("a{i}"), format!("args.handle({i})?"), kind));
-                    passed.push(if *mutable { format!("&mut **a{i}") } else { format!("&**a{i}") });
-                }
+/// Where the handle of an object an arm takes from the call's table comes
+/// from.
+pub enum Source {
+    /// The receiver's.
+    Receiver,
+    /// The argument's at this position.
+    Arg(usize),
+}
+
+/// An object an arm takes from the call's table.
+pub struct Taken {
+    /// The local it is bound to (`this`, `a<i>`).
+    pub binding: String,
+    /// Where its handle comes from.
+    pub source: Source,
+    /// Its kind row.
+    pub kind: &'static KindRow,
+}
+
+/// The plan of the arm of one method or function: the one statement of the
+/// sequence of a request, which the dispatcher renders over JSON
+/// ([`Emitter::arm`]: `FromArg`, the handles the JSON writes, `IntoReply`)
+/// and the guest client's typed route over the guest's values
+/// (`guest_out.rs`: `IntoApi`, the handles the guest's structs hold,
+/// `FromApi`). In order: the value arguments read into locals, in
+/// parameter order; the receiver and the borrowed façade arguments taken
+/// together ([`ArmPlan::take_and_call`]); the call; the answer converted.
+pub struct ArmPlan {
+    /// How each parameter is passed, in order.
+    pub params: Vec<Param>,
+    /// The receiver and the borrowed façade arguments, in order.
+    pub taken: Vec<Taken>,
+    /// What is called, the arguments following it (`this.method`, a
+    /// function's path); `None` for an override, [`overridden`](ArmPlan::overridden).
+    pub callee: Option<String>,
+    /// The whole call of an override (`CALL_OVERRIDES`).
+    pub overridden: Option<String>,
+    /// The expression that passes each parameter, as the dispatcher's arm
+    /// passes it (a value's local, a borrowed façade's entry).
+    pub passed: Vec<String>,
+    /// Whether the call answers a `Result` of `ExtError`, `?` applied.
+    pub fallible: bool,
+    /// Whether it answers nothing.
+    pub unit: bool,
+    /// Whether the call is an override that needs the sealed token.
+    pub token: bool,
+}
+
+/// The plan of the arm for `function`, a method of `owner` (or a free
+/// function when `owner` is `None`) defined in `file`, called as `target`.
+pub fn plan(owner: Option<&str>, function: &Function, file: &str, target: &Target<'_>) -> ArmPlan {
+    let display = owner.map_or_else(|| function.name.clone(), |owner| format!("{owner}::{}", function.name));
+    let params: Vec<Param> = function
+        .params
+        .iter()
+        .enumerate()
+        .map(|(i, p)| param(&p.ty, i, &Site { param: &p.name, function: &display, file }))
+        .collect();
+    let mut taken: Vec<Taken> = Vec::new();
+    if let Target::Method { kind, .. } = target {
+        taken.push(Taken { binding: "this".to_string(), source: Source::Receiver, kind });
+    }
+    let mut passed = Vec::new();
+    for (i, plan) in params.iter().enumerate() {
+        match plan {
+            Param::Value { pass, .. } => passed.push(pass.clone()),
+            Param::Facade { kind, mutable } => {
+                taken.push(Taken { binding: format!("a{i}"), source: Source::Arg(i), kind });
+                passed.push(if *mutable { format!("&mut **a{i}") } else { format!("&**a{i}") });
             }
         }
-        let arguments = passed.join(", ");
-        let call = match target {
-            Target::Method { kind, receiver } => {
-                let overridden = mapping::CALL_OVERRIDES.iter().find(|entry| entry.kind == kind.kind && entry.method == function.name);
-                let consumes = matches!(*receiver, "self" | "mut self") && entries.len() > 1;
-                assert!(!consumes, "the method `{display}` (`{file}`) must take its receiver by reference, since it also takes a borrowed façade");
-                match overridden {
-                    Some(entry) => {
-                        self.token |= entry.call.contains("Token::");
-                        format!("this.{}", entry.call)
-                    }
-                    None => format!("this.{}({arguments})", function.name),
+    }
+    let mut token = false;
+    let (callee, overridden) = match target {
+        Target::Method { kind, receiver } => {
+            let overridden = mapping::CALL_OVERRIDES.iter().find(|entry| entry.kind == kind.kind && entry.method == function.name);
+            let consumes = matches!(*receiver, "self" | "mut self") && taken.len() > 1;
+            assert!(!consumes, "the method `{display}` (`{file}`) must take its receiver by reference, since it also takes a borrowed façade");
+            match overridden {
+                Some(entry) => {
+                    token = entry.call.contains("Token::");
+                    (None, Some(format!("this.{}", entry.call)))
                 }
+                None => (Some(format!("this.{}", function.name)), None),
             }
-            Target::Path(path) => format!("{path}({arguments})"),
+        }
+        Target::Path(path) => (Some(path.clone()), None),
+    };
+    let (fallible, inner) = match function.output.strip_prefix("Result<").and_then(|rest| rest.strip_suffix(", ExtError>")) {
+        Some(inner) => (true, inner),
+        None => (false, function.output.as_str()),
+    };
+    ArmPlan { params, taken, callee, overridden, passed, fallible, unit: inner == "()", token }
+}
+
+impl ArmPlan {
+    /// The lines that take the receiver and the borrowed façade arguments
+    /// from the table and make the call, binding a non-unit answer to
+    /// `answer`: one object through `entry!`, in the line of its kind's
+    /// receiver mode; several together through `entries_mut`, each mismatch
+    /// reported by position. `handle` writes the expression of a handle,
+    /// `passed` the expression that passes each parameter, `method` the
+    /// method's name as `entries_mut` takes it.
+    pub fn take_and_call(&self, handle: impl Fn(&Source) -> String, passed: &[String], method: &str) -> Vec<String> {
+        let question = if self.fallible { "?" } else { "" };
+        let bind = if self.unit { String::new() } else { "let answer = ".to_string() };
+        let call = match (&self.callee, &self.overridden) {
+            (Some(callee), _) => format!("{callee}({})", passed.join(", ")),
+            (None, Some(overridden)) => overridden.clone(),
+            (None, None) => unreachable!("a plan calls a callee or an override"),
         };
-        let (fallible, inner) = match function.output.strip_prefix("Result<").and_then(|rest| rest.strip_suffix(", ExtError>")) {
-            Some(inner) => (true, inner),
-            None => (false, function.output.as_str()),
-        };
-        let unit = inner == "()";
-        let question = if fallible { "?" } else { "" };
-        let bind = if unit { String::new() } else { "let answer = ".to_string() };
-        match entries.as_slice() {
+        let mut lines = Vec::new();
+        match self.taken.as_slice() {
             [] => lines.push(format!("{bind}{call}{question};")),
-            [(binding, handle, kind)] => {
+            [Taken { binding, source, kind }] => {
                 let variant = kind.entry.expect("a kind with an entry");
-                let taken = format!("entry!(table, {handle}, {variant}, {})", camel(kind.kind));
+                let taken = format!("entry!(table, {}, {variant}, {})", handle(source), camel(kind.kind));
                 let line = if binding == "this" {
                     match kind.receiver {
                         Receiver::LentRef => format!("*{taken}"),
@@ -251,17 +323,17 @@ impl Emitter<'_> {
                 lines.push(format!("{bind}{call}{question};"));
             }
             many => {
-                let handles: Vec<&str> = many.iter().map(|(_, handle, _)| handle.as_str()).collect();
-                lines.push(format!("{bind}match table.entries_mut(method, [{}])? {{", handles.join(", ")));
+                let handles: Vec<String> = many.iter().map(|taken| handle(&taken.source)).collect();
+                lines.push(format!("{bind}match table.entries_mut({method}, [{}])? {{", handles.join(", ")));
                 let full: Vec<String> =
-                    many.iter().map(|(binding, _, kind)| format!("Entry::{}({binding})", kind.entry.expect("a kind with an entry"))).collect();
+                    many.iter().map(|taken| format!("Entry::{}({})", taken.kind.entry.expect("a kind with an entry"), taken.binding)).collect();
                 lines.push(format!("    [{}] => {call},", full.join(", ")));
                 for position in (0..many.len()).rev() {
                     let pattern: Vec<String> = many
                         .iter()
                         .enumerate()
-                        .map(|(k, (_, _, kind))| match k.cmp(&position) {
-                            std::cmp::Ordering::Less => format!("Entry::{}(_)", kind.entry.expect("a kind with an entry")),
+                        .map(|(k, taken)| match k.cmp(&position) {
+                            std::cmp::Ordering::Less => format!("Entry::{}(_)", taken.kind.entry.expect("a kind with an entry")),
                             std::cmp::Ordering::Equal => "other".to_string(),
                             std::cmp::Ordering::Greater => "_".to_string(),
                         })
@@ -269,13 +341,41 @@ impl Emitter<'_> {
                     lines.push(format!(
                         "    [{}] => return Err(mismatch(HandleKind::{}, other.kind())),",
                         pattern.join(", "),
-                        camel(many[position].2.kind)
+                        camel(many[position].kind.kind)
                     ));
                 }
                 lines.push(format!("}}{question};"));
             }
         }
-        lines.push(if unit { "Ok(Value::Null)".to_string() } else { "answer.into_reply(table)".to_string() });
+        lines
+    }
+}
+
+impl Emitter<'_> {
+    /// The lines of the arm for `function`, a method of `owner` (or a free
+    /// function when `owner` is `None`) defined in `file`, at the
+    /// indentation of an arm's body (12 spaces): its [`plan`] over JSON.
+    fn arm(&mut self, owner: Option<&str>, function: &Function, file: &str, target: &Target<'_>) -> Vec<String> {
+        let plan = plan(owner, function, file, target);
+        self.token |= plan.token;
+        let mut lines = vec![format!("args.arity({})?;", plan.params.len())];
+        for (i, param) in plan.params.iter().enumerate() {
+            if let Param::Value { ty, .. } = param {
+                for name in identifiers(ty) {
+                    self.names.insert(name.to_string());
+                }
+                lines.push(format!("let a{i} = <{} as FromArg>::from_arg(table, args, {i})?;", with_lifetime(ty, self.inventory)));
+            }
+        }
+        lines.extend(plan.take_and_call(
+            |source| match source {
+                Source::Receiver => "handle".to_string(),
+                Source::Arg(i) => format!("args.handle({i})?"),
+            },
+            &plan.passed,
+            "method",
+        ));
+        lines.push(if plan.unit { "Ok(Value::Null)".to_string() } else { "answer.into_reply(table)".to_string() });
         lines
     }
 
