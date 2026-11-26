@@ -6,6 +6,23 @@
 Welcome to FLM's documentation!
 ===============================
 
+----
+
+⚠️⚠️⚠️ NOTICE: This is the documentation for the Python version of FLM.  The python
+version is no longer maintained and will receive no further updates.  ⚠️⚠️⚠️
+
+FLM has been rewritten in Rust.  FLM's API documentation is now on `docs.rs`:
+https://docs.rs/flm-core/latest/flm_core/guide/index.html .
+
+All future development happens on the same repository, but on the `main-rs`
+branch: https://github.com/phfaist/flm .
+
+Both python and rust versions install a command named 'flm'.  To remove the
+python one, run ``pip uninstall flm-core`` (or uninstall it the same way you
+installed it).
+
+----
+
 **Flexible Latex-Like Markup (FLM)** is a simple language strongly inspired
 by LaTeX.  Parsed as a markup language, it is suited for structured
 technical documents, for content that needs to be automatically postprocessed,

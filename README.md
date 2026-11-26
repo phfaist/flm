@@ -1,5 +1,21 @@
 # A Flexible Latex-Like Markup (FLM) language
 
+---
+
+⚠️⚠️⚠️ NOTICE: This branch (`main-py`) is the Python version of FLM.  The python
+version is no longer maintained and will receive no further updates.  ⚠️⚠️⚠️
+
+FLM has been rewritten in Rust, and all future development happens on the
+`main-rs` branch.  Please switch to the new version:
+
+  https://github.com/phfaist/flm#install-flm
+
+Both versions install a command named 'flm'.  To remove the python one, run
+`pip uninstall flm-core` (or uninstall it the same way you installed it).
+
+---
+
+
 This package provides a simple parser and formatter for a custom markup language
 that is inspired by LaTeX syntax.
 
