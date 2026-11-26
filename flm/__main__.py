@@ -49,6 +49,8 @@ def setup_logging(level):
 
 
 python_version_deprecation_warning = """\
+-----------------------------------------------------------------------------
+
 ⚠️  NOTICE: You are running the Python version of FLM (flm-core), which is
     no longer maintained and will receive no further updates.
 
@@ -59,6 +61,8 @@ python_version_deprecation_warning = """\
 
     Both versions install a command named 'flm'.  To remove this one, run
     'pip uninstall flm-core' (or uninstall it the same way you installed it).
+
+-----------------------------------------------------------------------------
 """
 
 def print_python_version_deprecation_warning(stream=None):
